@@ -142,12 +142,11 @@ class Database:
             pass
 
     async def ensure_user(self, user_id: int, username: str | None, first_name: str | None) -> None:
-        async with self.pool.acquire() as conn:
-            await conn.execute(
-                "INSERT INTO users (user_id, username, first_name, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO NOTHING",
-                (user_id, username or "", first_name or "", datetime.utcnow().isoformat()),
-            )
-
+    async with self.pool.acquire() as conn:
+        await conn.execute(
+            "INSERT INTO users (user_id, username, first_name, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO NOTHING",
+            user_id, username or "", first_name or "", datetime.utcnow(),
+        )
     async def save_profile(self, data: dict) -> None:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
