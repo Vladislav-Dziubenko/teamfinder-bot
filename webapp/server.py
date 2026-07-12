@@ -277,12 +277,16 @@ async def handle_create_team(request: web.Request):
     return web.json_response({"team_id": team_id, "team": await db.get_team(team_id)})
 
 
-async def handle_team_applications(request: web.Request):
+async def handle_apply_team(request: web.Request):
     db: Database = request.app["db"]
+    user = _get_user(request)
     team_id = int(request.match_info["team_id"])
-    status = request.query.get("status")
-    applications = await db.get_team_applications(team_id, status)
-    return web.json_response({"applications": applications})
+    body = await request.json()
+    message = str(body.get("message", "")).strip()[:500]
+
+    is_premium = await db.consume_premium_application_credit(user["id"])
+    app_id = await db.apply_to_team(team_id, user["id"], message, is_premium=is_premium)
+    return web.json_response({"application_id": app_id, "is_premium": is_premium})
 
 
 async def handle_apply_team(request: web.Request):
