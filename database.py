@@ -1,6 +1,7 @@
 import asyncpg
 from datetime import datetime, timedelta
 
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     user_id BIGINT PRIMARY KEY,
@@ -145,7 +146,7 @@ class Database:
         async with self.pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO users (user_id, username, first_name, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO NOTHING",
-                (user_id, username or "", first_name or "", datetime.utcnow().isoformat()),
+                user_id, username or "", first_name or "", datetime.utcnow().isoformat(),
             )
 
     async def save_profile(self, data: dict) -> None:
@@ -164,12 +165,10 @@ class Database:
                     has_mic=EXCLUDED.has_mic, description=EXCLUDED.description, is_active=1,
                     updated_at=EXCLUDED.updated_at
                 """,
-                (
-                    data["user_id"], data["game"], data["nickname"], data["rank"], data["role"],
-                    data["playtime"], data["looking_for"], data.get("region", ""),
-                    data.get("language", "RU"), data["contact"], int(data.get("has_mic", True)),
-                    data.get("description", ""), now,
-                ),
+                data["user_id"], data["game"], data["nickname"], data["rank"], data["role"],
+                data["playtime"], data["looking_for"], data.get("region", ""),
+                data.get("language", "RU"), data["contact"], int(data.get("has_mic", True)),
+                data.get("description", ""), now,
             )
 
     async def get_profile(self, user_id: int) -> dict | None:
@@ -199,14 +198,14 @@ class Database:
         async with self.pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO purchases (user_id, product_key, stars_amount, charge_id, created_at) VALUES ($1, $2, $3, $4, $5)",
-                (user_id, product_key, stars, charge_id, datetime.utcnow().isoformat()),
+                user_id, product_key, stars, charge_id, datetime.utcnow().isoformat(),
             )
 
     async def unlock_content(self, user_id: int, content_id: str) -> None:
         async with self.pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO unlocked_content (user_id, content_id, created_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-                (user_id, content_id, datetime.utcnow().isoformat()),
+                user_id, content_id, datetime.utcnow().isoformat(),
             )
 
     async def has_unlocked(self, user_id: int, content_id: str) -> bool:
@@ -221,7 +220,7 @@ class Database:
         async with self.pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO search_boosts (user_id, game, uses_left, created_at) VALUES ($1, $2, $3, $4)",
-                (user_id, game, uses, datetime.utcnow().isoformat()),
+                user_id, game, uses, datetime.utcnow().isoformat(),
             )
 
     async def consume_search_boost(self, user_id: int, game: str) -> bool:
@@ -273,7 +272,7 @@ class Database:
         async with self.pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO contact_unlocks (user_id, profile_id, created_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
-                (user_id, profile_id, datetime.utcnow().isoformat()),
+                user_id, profile_id, datetime.utcnow().isoformat(),
             )
 
     async def has_unlocked_contact(self, user_id: int, profile_id: int) -> bool:
@@ -288,7 +287,7 @@ class Database:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
                 "INSERT INTO teams (captain_id, game, name, description, max_players, created_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
-                (captain_id, game, name, description, max_players, datetime.utcnow().isoformat()),
+                captain_id, game, name, description, max_players, datetime.utcnow().isoformat(),
             )
             return row["id"]
 
@@ -309,7 +308,7 @@ class Database:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
                 "INSERT INTO team_applications (team_id, user_id, message, status, created_at) VALUES ($1, $2, $3, 'pending', $4) RETURNING id",
-                (team_id, user_id, message, datetime.utcnow().isoformat()),
+                team_id, user_id, message, datetime.utcnow().isoformat(),
             )
             return row["id"]
 
