@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# SQLite (legacy local tests)
+*.db
+
+# Node / Next.js (web-src)
+web-src/node_modules/
+web-src/.next/
+web-src/out/
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
