@@ -499,6 +499,26 @@ async def handle_update_quest(request: web.Request):
     return web.json_response({"ok": True, "completed": prog["completed"] if prog else False})
 
 
+async def handle_leaderboard(request: web.Request):
+    db: Database = request.app["db"]
+    limit = int(request.query.get("limit", 10))
+    leaderboard_data = await db.get_leaderboard(limit)
+    
+    # Format for frontend
+    formatted = []
+    for entry in leaderboard_data:
+        formatted.append({
+            "id": str(entry["user_id"]),
+            "nick": entry["username"] or entry["first_name"] or f"User{entry['user_id']}",
+            "avatar": "/placeholder-user.jpg",  # Default avatar
+            "stars": entry["total_stars"],
+            "coins": 0,  # Can be calculated from inventory if needed
+            "premium": entry["is_premium"]
+        })
+    
+    return web.json_response({"leaderboard": formatted})
+
+
 def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app = web.Application(middlewares=[auth_middleware])
     app["db"] = db
@@ -529,6 +549,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/inventory/sell", handle_sell_item)
     app.router.add_get("/api/quests", handle_quests)
     app.router.add_post("/api/quests/update", handle_update_quest)
+    app.router.add_get("/api/leaderboard", handle_leaderboard)
 
     app.router.add_static("/", STATIC_DIR, show_index=False)
     return app

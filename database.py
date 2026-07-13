@@ -572,3 +572,23 @@ class Database:
                 user_id,
             )
             return [dict(r) for r in rows]
+
+    async def get_leaderboard(self, limit: int = 10) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT 
+                    u.user_id,
+                    u.username,
+                    u.first_name,
+                    COALESCE(SUM(p.stars_amount), 0) as total_stars,
+                    COALESCE(SUM(CASE WHEN uc.content_id IS NOT NULL THEN 1 ELSE 0 END), 0) as premium_count,
+                    u.pro_until IS NOT NULL as is_premium
+                FROM users u
+                LEFT JOIN purchases p ON u.user_id = p.user_id
+                LEFT JOIN unlocked_content uc ON u.user_id = uc.user_id AND uc.content_id LIKE 'pro%'
+                GROUP BY u.user_id, u.username, u.first_name, u.pro_until
+                HAVING COALESCE(SUM(p.stars_amount), 0) > 0
+                ORDER BY total_stars DESC
+                LIMIT $1
+            """, limit)
+            return [dict(r) for r in rows]
