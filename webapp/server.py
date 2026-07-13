@@ -323,7 +323,7 @@ CASES_CONFIG = {
         "gold": False,
         "costStars": 0,
         "free": True,
-        "dailyLimit": 4,
+        "dailyLimit": 1,
         "items": [
             {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум-доступ на 4 открытия в день", "image": "/premium-x4.png", "rarity": "epic", "sell": 75, "weight": 8, "grantsPremium": True},
             {"key": "ak47", "name": "Скин AK-47", "desc": "Легендарный калаш из старой школы", "image": "/ak47.png", "rarity": "rare", "sell": 35, "weight": 14},
