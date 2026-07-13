@@ -1,19 +1,6 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Geist, Oswald } from 'next/font/google'
-import Script from 'next/script'
 import './globals.css'
-
-const geist = Geist({
-  subsets: ['latin', 'cyrillic'],
-  variable: '--font-geist',
-})
-
-const oswald = Oswald({
-  subsets: ['latin', 'cyrillic'],
-  weight: ['500', '600', '700'],
-  variable: '--font-oswald',
-})
 
 export const metadata: Metadata = {
   title: 'NEXUS — киберспорт тиммейты',
@@ -37,7 +24,16 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ru" className={`dark ${geist.variable} ${oswald.variable}`}>
+    <html
+      lang="ru"
+      className="dark"
+      style={
+        {
+          '--font-geist': '"Inter", "Segoe UI", Roboto, Arial, sans-serif',
+          '--font-oswald': '"Oswald", "Arial Narrow", "Segoe UI", sans-serif',
+        } as React.CSSProperties
+      }
+    >
       <body className="bg-background font-sans antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}

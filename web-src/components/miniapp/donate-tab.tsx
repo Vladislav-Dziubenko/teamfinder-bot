@@ -6,6 +6,7 @@ import { starPacks, leaderboard, currentUser } from "@/lib/data"
 import type { StarPack } from "@/lib/data"
 import { useNexus } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { payWithStars } from "@/lib/api"
 
 // Пакеты новой валюты Nexus: сколько монет за сколько звёзд
 const coinPacks = [
@@ -15,10 +16,11 @@ const coinPacks = [
 ]
 
 export function DonateTab() {
-  const { spendStars, addCoins } = useNexus()
+  const { spendStars, addCoins, refreshData } = useNexus()
   const [selected, setSelected] = useState<StarPack | null>(null)
   const [done, setDone] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
+  const [payingPro, setPayingPro] = useState(false)
 
   function buy() {
     setDone(true)
@@ -35,6 +37,21 @@ export function DonateTab() {
     } else {
       addCoins(pack.coins)
       setFlash(`+${pack.coins} монет Nexus зачислено!`)
+    }
+
+    async function buyProWithStars() {
+      setPayingPro(true)
+      try {
+        await payWithStars({ type: "pro_subscription" }, async () => {
+          setFlash("PRO-подписка успешно оплачена ✅")
+          await refreshData()
+        })
+      } catch (error: any) {
+        setFlash(error?.message || "Не удалось открыть оплату")
+      } finally {
+        setPayingPro(false)
+        setTimeout(() => setFlash(null), 2500)
+      }
     }
     setTimeout(() => setFlash(null), 2000)
   }
@@ -57,6 +74,20 @@ export function DonateTab() {
         <Perk icon={Crown} title="PRO" text="Статус и бейдж" tint="var(--stars)" />
         <Perk icon={Sparkles} title="Кастом" text="Ник и рамка" tint="var(--accent)" />
       </div>
+
+      <section className="rounded-3xl border border-stars/40 bg-stars/5 p-4">
+        <p className="font-display text-base font-bold">PRO-подписка TeamFinder</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">Реальная оплата через Telegram Stars (15 ⭐) с активацией в боте.</p>
+        <button
+          type="button"
+          onClick={buyProWithStars}
+          disabled={payingPro}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-stars py-3 font-display text-base font-bold text-background disabled:opacity-60"
+        >
+          <Star className="size-5 fill-background" />
+          {payingPro ? "Открываем оплату..." : "Купить PRO за 15 Stars"}
+        </button>
+      </section>
 
       {/* Buy Nexus coins */}
       <section>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   Star,
   Trophy,
@@ -22,6 +22,7 @@ import { currentUser, games, achievements as achData } from "@/lib/data"
 import { useNexus } from "@/lib/store"
 import type { TabId } from "./bottom-nav"
 import { cn } from "@/lib/utils"
+import { api, type GamesResponse } from "@/lib/api"
 
 // Украшения карточки — доступны при премиуме
 const decorations = [
@@ -34,6 +35,23 @@ const decorations = [
 export function ProfileTab({ onGo }: { onGo: (t: TabId) => void }) {
   const game = games.find((g) => g.id === currentUser.game)
   const { stars, coins, points, premiumActive, addCoins, addPoints } = useNexus()
+  const [gamesMeta, setGamesMeta] = useState<GamesResponse | null>(null)
+  const [tfForm, setTfForm] = useState({
+    game: "",
+    nickname: "",
+    rank: "",
+    role: "",
+    playtime: "",
+    looking_for: "",
+    contact: "",
+    region: "",
+    language: "RU",
+    has_mic: true,
+    description: "",
+  })
+  const [tfStatus, setTfStatus] = useState<string | null>(null)
+  const [tfError, setTfError] = useState<string | null>(null)
+  const [tfSaving, setTfSaving] = useState(false)
 
   const [photo, setPhoto] = useState<string | null>(null)
   const [nick, setNick] = useState(currentUser.nick)
@@ -44,6 +62,51 @@ export function ProfileTab({ onGo }: { onGo: (t: TabId) => void }) {
   const fileRef = useRef<HTMLInputElement>(null)
 
   const active = decorations.find((d) => d.id === deco) ?? decorations[0]
+  const activeGame = tfForm.game ? gamesMeta?.games?.[tfForm.game] : undefined
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const [meta, me] = await Promise.all([api.games(), api.me()])
+        if (cancelled) return
+        setGamesMeta(meta)
+        const firstGameKey = Object.keys(meta.games)[0] ?? ""
+        const baseGame = me.profile?.game || firstGameKey
+        const gameInfo = meta.games[baseGame]
+        setTfForm({
+          game: baseGame,
+          nickname: me.profile?.nickname || me.user.first_name || "",
+          rank: me.profile?.rank || gameInfo?.ranks?.[0] || "",
+          role: me.profile?.role || gameInfo?.roles?.[0] || "",
+          playtime: me.profile?.playtime || Object.keys(meta.playtime)[0] || "",
+          looking_for: me.profile?.looking_for || Object.keys(meta.looking_for)[0] || "",
+          contact: me.profile?.contact || "",
+          region: me.profile?.region || "",
+          language: me.profile?.language || "RU",
+          has_mic: Boolean(me.profile?.has_mic ?? true),
+          description: me.profile?.description || "",
+        })
+      } catch (error) {
+        if (cancelled) return
+        setTfError("Не удалось загрузить анкету. Открой Mini App через кнопку в боте.")
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!gamesMeta || !tfForm.game) return
+    const info = gamesMeta.games[tfForm.game]
+    if (!info) return
+    setTfForm((prev) => ({
+      ...prev,
+      rank: info.ranks.includes(prev.rank) ? prev.rank : info.ranks[0] || "",
+      role: info.roles.includes(prev.role) ? prev.role : info.roles[0] || "",
+    }))
+  }, [tfForm.game, gamesMeta])
 
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
@@ -57,8 +120,115 @@ export function ProfileTab({ onGo }: { onGo: (t: TabId) => void }) {
     setClaimed((c) => [...c, id])
   }
 
+  async function saveTeamFinderProfile() {
+    setTfSaving(true)
+    setTfError(null)
+    setTfStatus(null)
+    try {
+      await api.saveProfile(tfForm)
+      setTfStatus("Анкета TeamFinder сохранена ✅")
+    } catch (error: any) {
+      setTfError(error?.message || "Не удалось сохранить анкету")
+    } finally {
+      setTfSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-5 px-4 py-5">
+      <section className="rounded-3xl border border-border bg-card p-4">
+        <p className="font-display text-base font-bold">Анкета TeamFinder</p>
+        <p className="mt-1 text-xs text-muted-foreground">Эта анкета участвует в реальном поиске и покупках за Stars.</p>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <select
+            value={tfForm.game}
+            onChange={(e) => setTfForm((prev) => ({ ...prev, game: e.target.value }))}
+            className="rounded-xl border border-input bg-background px-3 py-2 text-sm"
+          >
+            {Object.entries(gamesMeta?.games || {}).map(([id, g]) => (
+              <option key={id} value={id}>
+                {g.emoji} {g.title}
+              </option>
+            ))}
+          </select>
+          <input
+            value={tfForm.nickname}
+            onChange={(e) => setTfForm((prev) => ({ ...prev, nickname: e.target.value }))}
+            placeholder="Ник"
+            className="rounded-xl border border-input bg-background px-3 py-2 text-sm"
+          />
+          <select
+            value={tfForm.rank}
+            onChange={(e) => setTfForm((prev) => ({ ...prev, rank: e.target.value }))}
+            className="rounded-xl border border-input bg-background px-3 py-2 text-sm"
+          >
+            {(activeGame?.ranks || []).map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+          <select
+            value={tfForm.role}
+            onChange={(e) => setTfForm((prev) => ({ ...prev, role: e.target.value }))}
+            className="rounded-xl border border-input bg-background px-3 py-2 text-sm"
+          >
+            {(activeGame?.roles || []).map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+          <select
+            value={tfForm.playtime}
+            onChange={(e) => setTfForm((prev) => ({ ...prev, playtime: e.target.value }))}
+            className="rounded-xl border border-input bg-background px-3 py-2 text-sm"
+          >
+            {Object.entries(gamesMeta?.playtime || {}).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            value={tfForm.looking_for}
+            onChange={(e) => setTfForm((prev) => ({ ...prev, looking_for: e.target.value }))}
+            className="rounded-xl border border-input bg-background px-3 py-2 text-sm"
+          >
+            {Object.entries(gamesMeta?.looking_for || {}).map(([key, label]) => (
+              <option key={key} value={key}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <input
+          value={tfForm.contact}
+          onChange={(e) => setTfForm((prev) => ({ ...prev, contact: e.target.value }))}
+          placeholder="@telegram / discord / ссылка"
+          className="mt-2 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm"
+        />
+        <textarea
+          value={tfForm.description}
+          onChange={(e) => setTfForm((prev) => ({ ...prev, description: e.target.value }))}
+          placeholder="Кратко о себе"
+          rows={2}
+          className="mt-2 w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm"
+        />
+        <button
+          type="button"
+          onClick={saveTeamFinderProfile}
+          disabled={tfSaving || !tfForm.game || !tfForm.nickname || !tfForm.rank || !tfForm.role || !tfForm.playtime || !tfForm.looking_for || !tfForm.contact}
+          className="mt-3 w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground disabled:opacity-60"
+        >
+          {tfSaving ? "Сохраняем..." : "Сохранить анкету"}
+        </button>
+        {tfStatus && <p className="mt-2 text-xs font-medium text-accent">{tfStatus}</p>}
+        {tfError && <p className="mt-2 text-xs font-medium text-destructive">{tfError}</p>}
+      </section>
+
       {/* Premium anketa card */}
       <section
         className="animate-rise relative overflow-hidden rounded-3xl border bg-card p-5"
