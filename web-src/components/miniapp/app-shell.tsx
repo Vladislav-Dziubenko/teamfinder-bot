@@ -1,18 +1,21 @@
+
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
 import { Check } from "lucide-react"
+import { NexusProvider } from "@/lib/store"
 import { TopBar } from "./top-bar"
 import { BottomNav, type TabId } from "./bottom-nav"
 import { HomeTab } from "./home-tab"
 import { MatchTab } from "./match-tab"
+import { CasesTab } from "./cases-tab"
 import { GuidesTab } from "./guides-tab"
 import { DonateTab } from "./donate-tab"
 import { ProfileTab } from "./profile-tab"
 import { ContactSheet } from "./contact-sheet"
 import { api, getTelegram, type GamesResponse, type MeResponse, type MatchResult } from "@/lib/api"
 
-export function AppShell() {
+function Shell() {
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<MatchResult | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -94,7 +97,7 @@ export function AppShell() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background">
-      <TopBar onStars={() => goTab("donate")} premium={me?.premium ?? false} />
+      <TopBar onStars={() => goTab("donate")} onCoins={() => goTab("cases")} premium={me?.premium ?? false} />
 
       <main id="miniapp-scroll" className="flex-1 overflow-y-auto pb-24">
         {tab === "home" && (
@@ -103,6 +106,7 @@ export function AppShell() {
         {tab === "match" && (
           <MatchTab games={games} me={me} onConnect={setContact} onGo={goTab} onRefreshMe={refreshMe} />
         )}
+        {tab === "cases" && <CasesTab onToast={showToast} />}
         {tab === "guides" && <GuidesTab games={games} onToast={showToast} />}
         {tab === "donate" && <DonateTab me={me} onPaid={refreshMe} onToast={showToast} />}
         {tab === "profile" && <ProfileTab games={games} me={me} onSaved={refreshMe} />}
@@ -123,5 +127,13 @@ export function AppShell() {
         </div>
       )}
     </div>
+  )
+}
+
+export function AppShell() {
+  return (
+    <NexusProvider>
+      <Shell />
+    </NexusProvider>
   )
 }
