@@ -72,6 +72,7 @@ CREATE TABLE IF NOT EXISTS team_applications (
     user_id BIGINT NOT NULL,
     message TEXT DEFAULT '',
     status TEXT DEFAULT 'pending',
+    is_premium INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     FOREIGN KEY (team_id) REFERENCES teams(id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -129,6 +130,11 @@ class Database:
     async def _migrate(self, conn: asyncpg.Connection) -> None:
         try:
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS pro_until TEXT")
+        except asyncpg.PostgresError:
+            pass
+
+        try:
+            await conn.execute("ALTER TABLE team_applications ADD COLUMN IF NOT EXISTS is_premium INTEGER DEFAULT 0")
         except asyncpg.PostgresError:
             pass
 
@@ -304,11 +310,11 @@ class Database:
                 rows = await conn.fetch("SELECT * FROM teams")
             return [dict(r) for r in rows]
 
-    async def apply_to_team(self, team_id: int, user_id: int, message: str) -> int:
+    async def apply_to_team(self, team_id: int, user_id: int, message: str, is_premium: bool = False) -> int:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
-                "INSERT INTO team_applications (team_id, user_id, message, status, created_at) VALUES ($1, $2, $3, 'pending', $4) RETURNING id",
-                team_id, user_id, message, datetime.utcnow().isoformat(),
+                "INSERT INTO team_applications (team_id, user_id, message, status, is_premium, created_at) VALUES ($1, $2, $3, 'pending', $4, $5) RETURNING id",
+                team_id, user_id, message, int(is_premium), datetime.utcnow().isoformat(),
             )
             return row["id"]
 
@@ -316,12 +322,12 @@ class Database:
         async with self.pool.acquire() as conn:
             if status:
                 rows = await conn.fetch(
-                    "SELECT * FROM team_applications WHERE team_id = $1 AND status = $2 ORDER BY created_at DESC",
+                    "SELECT * FROM team_applications WHERE team_id = $1 AND status = $2 ORDER BY is_premium DESC, created_at DESC",
                     team_id, status,
                 )
             else:
                 rows = await conn.fetch(
-                    "SELECT * FROM team_applications WHERE team_id = $1 ORDER BY created_at DESC",
+                    "SELECT * FROM team_applications WHERE team_id = $1 ORDER BY is_premium DESC, created_at DESC",
                     team_id,
                 )
             return [dict(r) for r in rows]
@@ -337,3 +343,30 @@ class Database:
                 user_id,
             )
             return [dict(r) for r in rows]
+
+    async def add_premium_application_credit(self, user_id: int, credits: int = 1) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_app_credits INTEGER DEFAULT 0"
+            )
+            await conn.execute(
+                "UPDATE users SET premium_app_credits = COALESCE(premium_app_credits, 0) + $1 WHERE user_id = $2",
+                credits, user_id,
+            )
+
+    async def consume_premium_application_credit(self, user_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_app_credits INTEGER DEFAULT 0"
+            )
+            row = await conn.fetchrow(
+                "SELECT premium_app_credits FROM users WHERE user_id = $1",
+                user_id,
+            )
+            if not row or not row["premium_app_credits"]:
+                return False
+            await conn.execute(
+                "UPDATE users SET premium_app_credits = premium_app_credits - 1 WHERE user_id = $1",
+                user_id,
+            )
+            return True

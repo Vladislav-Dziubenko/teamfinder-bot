@@ -11,7 +11,7 @@ from aiohttp import web
 from config import load_settings
 from database import Database
 from handlers import start, profile, search, guides, payments, admin
-from middleware import InjectMiddleware
+from middleware import InjectMiddleware, RateLimitMiddleware
 from webapp.server import create_app
 
 logging.basicConfig(level=logging.INFO)
@@ -28,6 +28,7 @@ async def main():
     )
     dp = Dispatcher(storage=MemoryStorage())
 
+    dp.update.middleware(RateLimitMiddleware())
     dp.update.middleware(InjectMiddleware(db, settings))
 
     dp.include_router(start.router)

@@ -11,6 +11,8 @@ webapp/static/ (index.html/style.css) своими, сохранив вызов�
 """
 
 from pathlib import Path
+from collections import defaultdict
+from time import time
 
 from aiohttp import web
 
@@ -23,9 +25,40 @@ from webapp.auth import validate_init_data
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+# Rate limiting for web app API
+WEB_RATE_LIMIT = 30
+WEB_RATE_WINDOW = 60
+web_user_requests: defaultdict[int, list[float]] = defaultdict(list)
+
 
 def _get_user(request: web.Request) -> dict | None:
     return request.get("init_data", {}).get("user")
+
+
+@web.middleware
+async def error_middleware(request: web.Request, handler):
+    try:
+        return await handler(request)
+    except web.HTTPException:
+        raise
+    except Exception as e:
+        return web.json_response({"error": "internal server error"}, status=500)
+
+
+@web.middleware
+async def web_rate_limit_middleware(request: web.Request, handler):
+    if request.path.startswith("/api/"):
+        user = request.get("init_data", {}).get("user")
+        if user and "id" in user:
+            user_id = user["id"]
+            now = time()
+            web_user_requests[user_id] = [
+                t for t in web_user_requests[user_id] if now - t < WEB_RATE_WINDOW
+            ]
+            if len(web_user_requests[user_id]) >= WEB_RATE_LIMIT:
+                return web.json_response({"error": "rate limit exceeded"}, status=429)
+            web_user_requests[user_id].append(now)
+    return await handler(request)
 
 
 @web.middleware
@@ -292,8 +325,9 @@ async def handle_apply_team(request: web.Request):
     body = await request.json()
     message = str(body.get("message", "")).strip()[:500]
 
-    app_id = await db.apply_to_team(team_id, user["id"], message)
-    return web.json_response({"application_id": app_id})
+    is_premium = await db.consume_premium_application_credit(user["id"])
+    app_id = await db.apply_to_team(team_id, user["id"], message, is_premium)
+    return web.json_response({"application_id": app_id, "is_premium": is_premium})
 
 
 async def handle_user_applications(request: web.Request):
@@ -304,7 +338,7 @@ async def handle_user_applications(request: web.Request):
 
 
 def create_app(db: Database, settings: Settings, bot) -> web.Application:
-    app = web.Application(middlewares=[auth_middleware])
+    app = web.Application(middlewares=[error_middleware, auth_middleware, web_rate_limit_middleware])
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot
