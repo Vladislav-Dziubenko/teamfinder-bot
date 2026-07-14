@@ -1,4 +1,4 @@
 aiogram==3.17.0
-asyncpg==0.29.0
+asyncpg==0.30.0
 python-dotenv==1.0.1
-aiohttp==3.10.11
+aiohttp==3.11.12

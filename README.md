@@ -114,11 +114,14 @@ python main.py
 
 **Health Check Path:** `/health`
 
+**Python Version:** `3.11.9` (обязательно! Render по умолчанию ставит 3.14, с ним сборка падает)
+
 ### 3. Настрой Environment Variables
 
 В настройках Web Service добавь:
 
 ```env
+PYTHON_VERSION=3.11.9
 BOT_TOKEN=твой_токен_от_BotFather
 ADMIN_IDS=твой_telegram_id
 DATABASE_URL=твоя_postgresql_url_из_шага_1
