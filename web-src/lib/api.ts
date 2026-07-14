@@ -9,7 +9,8 @@ export type TgWebApp = {
   expand: () => void
   themeParams: Record<string, string>
   onEvent: (event: string, cb: (...args: any[]) => void) => void
-  openInvoiceLink: (url: string, cb?: (status: string) => void) => void
+  openInvoice?: (url: string, cb?: (status: string) => void) => void
+  openInvoiceLink?: (url: string, cb?: (status: string) => void) => void
   showAlert: (msg: string) => void
   showPopup: (params: { title?: string; message: string; buttons?: { type: string }[] }) => void
   HapticFeedback?: {
@@ -128,9 +129,12 @@ export async function payWithStars(
   onPaid?: () => void,
 ) {
   const tg = getTelegram()
+  if (!tg) throw new Error("Открой Mini App через Telegram, чтобы оплатить Stars.")
   tg?.HapticFeedback?.impactOccurred("light")
   const { invoice_link } = await api.createInvoice(payload)
-  tg?.openInvoiceLink(invoice_link, (status: string) => {
+  const openInvoice = tg?.openInvoice ?? tg?.openInvoiceLink
+  if (!openInvoice) throw new Error("Клиент Telegram не поддерживает оплату Stars.")
+  openInvoice?.(invoice_link, (status: string) => {
     if (status === "paid") {
       tg?.showAlert("Оплата прошла успешно!")
       onPaid?.()

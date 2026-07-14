@@ -10,7 +10,7 @@ from aiohttp import web
 
 from config import load_settings
 from database import Database
-from handlers import start, profile, search, guides, payments, admin
+from handlers import start, profile, search, guides, payments, admin, nexus
 from middleware import InjectMiddleware
 from webapp.server import create_app
 
@@ -36,6 +36,7 @@ async def main():
     dp.include_router(guides.router)
     dp.include_router(payments.router)
     dp.include_router(admin.router)
+    dp.include_router(nexus.router)
 
     # Веб-сервер для Telegram Mini App (открывается кнопкой в /start)
     # Render и большинство хостингов сами назначают порт через переменную PORT —

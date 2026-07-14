@@ -10,6 +10,7 @@ webapp/static/ (index.html/style.css) своими, сохранив вызов�
 из app.js (или перенеси эту логику в свой JS). Бэкенд трогать не обязательно.
 """
 
+import random
 from pathlib import Path
 
 from aiohttp import web
@@ -277,6 +278,18 @@ async def handle_create_team(request: web.Request):
     return web.json_response({"team_id": team_id, "team": await db.get_team(team_id)})
 
 
+async def handle_apply_team(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    team_id = int(request.match_info["team_id"])
+    body = await request.json()
+    message = str(body.get("message", "")).strip()[:500]
+
+    is_premium = await db.consume_premium_application_credit(user["id"])
+    app_id = await db.apply_to_team(team_id, user["id"], message, is_premium=is_premium)
+    return web.json_response({"application_id": app_id, "is_premium": is_premium})
+
+
 async def handle_team_applications(request: web.Request):
     db: Database = request.app["db"]
     team_id = int(request.match_info["team_id"])
@@ -285,22 +298,225 @@ async def handle_team_applications(request: web.Request):
     return web.json_response({"applications": applications})
 
 
-async def handle_apply_team(request: web.Request):
-    db: Database = request.app["db"]
-    user = _get_user(request)
-    team_id = int(request.match_info["team_id"])
-    body = await request.json()
-    message = str(body.get("message", "")).strip()[:500]
-
-    app_id = await db.apply_to_team(team_id, user["id"], message)
-    return web.json_response({"application_id": app_id})
-
-
 async def handle_user_applications(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     applications = await db.get_user_applications(user["id"])
     return web.json_response({"applications": applications})
+
+
+# Nexus Currency API
+async def handle_currency(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    currency = await db.get_currency(user["id"])
+    return web.json_response(currency)
+
+
+# Nexus Cases API
+CASES_CONFIG = {
+    "blue": {
+        "id": "blue",
+        "name": "Nexus Counter Strike 1.6",
+        "subtitle": "Бесплатный ежедневный кейс",
+        "image": "/case-blue.png",
+        "gold": False,
+        "costStars": 0,
+        "free": True,
+        "dailyLimit": 1,
+        "items": [
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум-доступ на 4 открытия в день", "image": "/premium-x4.png", "rarity": "epic", "sell": 75, "weight": 8, "grantsPremium": True},
+            {"key": "ak47", "name": "Скин AK-47", "desc": "Легендарный калаш из старой школы", "image": "/ak47.png", "rarity": "rare", "sell": 35, "weight": 14},
+            {"key": "icon-skull", "name": "Череп", "desc": "Иконка «Череп»", "icon": "💀", "rarity": "common", "sell": 20, "weight": 10},
+            {"key": "icon-fire", "name": "Пламя", "desc": "Иконка «Пламя»", "icon": "🔥", "rarity": "common", "sell": 20, "weight": 10},
+            {"key": "icon-crown", "name": "Корона", "desc": "Иконка «Корона»", "icon": "👑", "rarity": "common", "sell": 20, "weight": 10},
+            {"key": "icon-target", "name": "Прицел", "desc": "Иконка «Прицел»", "icon": "🎯", "rarity": "common", "sell": 20, "weight": 10},
+            {"key": "icon-bolt", "name": "Молния", "desc": "Иконка «Молния»", "icon": "⚡", "rarity": "common", "sell": 20, "weight": 10},
+            {"key": "icon-star", "name": "Звезда", "desc": "Иконка «Звезда»", "icon": "⭐", "rarity": "common", "sell": 20, "weight": 10},
+        ]
+    },
+    "gold": {
+        "id": "gold",
+        "name": "Nexus Premium",
+        "subtitle": "Золотой премиальный кейс",
+        "image": "/case-gold.png",
+        "gold": True,
+        "costStars": 150,
+        "free": False,
+        "dailyLimit": 99,
+        "items": [
+            {"key": "premium-card", "name": "Премиум-анкета", "desc": "Кастомные фото, свой текст и украшения карточки — без ограничений 1 день", "image": "/premium-reveal.png", "rarity": "premium", "sell": 200, "weight": 60, "grantsPremium": True},
+            {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "rarity": "epic", "sell": 90, "weight": 40, "grantsPremium": True},
+        ]
+    }
+}
+
+
+def _roll_item(case_id: str) -> dict | None:
+    case = CASES_CONFIG.get(case_id)
+    if not case:
+        return None
+    total = sum(item["weight"] for item in case["items"])
+    r = random.random() * total
+    for item in case["items"]:
+        r -= item["weight"]
+        if r <= 0:
+            return item
+    return case["items"][-1]
+
+
+async def handle_cases(request: web.Request):
+    return web.json_response({"cases": list(CASES_CONFIG.values())})
+
+
+async def handle_open_case(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    case_id = body.get("case_id")
+    
+    case = CASES_CONFIG.get(case_id)
+    if not case:
+        return web.json_response({"error": "case not found"}, status=404)
+    
+    # Check daily limit for free cases
+    if case["free"]:
+        opens_today = await db.get_case_opens_today(user["id"], case_id)
+        if opens_today >= case["dailyLimit"]:
+            return web.json_response({"error": "daily limit exceeded"}, status=400)
+    
+    # Check stars for paid cases
+    if not case["free"]:
+        if not await db.spend_stars(user["id"], case["costStars"]):
+            return web.json_response({"error": "insufficient stars"}, status=400)
+    
+    # Roll item
+    item = _roll_item(case_id)
+    if not item:
+        return web.json_response({"error": "failed to roll item"}, status=500)
+    
+    # Record the open
+    await db.record_case_open(user["id"], case_id, item["key"])
+    
+    # Add to inventory
+    await db.add_to_inventory(
+        user["id"],
+        item["key"],
+        item["name"],
+        item["rarity"],
+        item["sell"],
+        item.get("grantsPremium", False)
+    )
+    
+    # Grant premium if item grants it
+    if item.get("grantsPremium"):
+        await db.set_pro_status(user["id"], days=1)
+    
+    return web.json_response({"ok": True, "item": item})
+
+
+async def handle_inventory(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    inventory = await db.get_inventory(user["id"])
+    return web.json_response({"inventory": inventory})
+
+
+async def handle_sell_item(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    item_id = body.get("item_id")
+    
+    if not item_id:
+        return web.json_response({"error": "item_id required"}, status=400)
+    
+    # Get item to check sell price
+    inventory = await db.get_inventory(user["id"])
+    item = next((i for i in inventory if i["id"] == item_id), None)
+    if not item:
+        return web.json_response({"error": "item not found"}, status=404)
+    
+    # Remove from inventory and add coins
+    if await db.remove_from_inventory(item_id, user["id"]):
+        await db.add_coins(user["id"], item["sell_price"])
+        return web.json_response({"ok": True, "coins": item["sell_price"]})
+    
+    return web.json_response({"error": "failed to sell item"}, status=400)
+
+
+# Quests API
+QUESTS_CONFIG = [
+    {"id": "a1", "game": "CS:GO", "title": "Разминка на 35 минут", "desc": "Сыграй 35 минут в CS:GO", "minutes": 35, "points": 100, "coins": 15, "withTeammate": False},
+    {"id": "a2", "game": "War Thunder", "title": "Танковый экипаж", "desc": "Сыграй 60 минут в War Thunder в отряде с тиммейтом из бота", "minutes": 60, "points": 150, "coins": 35, "withTeammate": True},
+    {"id": "a3", "game": "Roblox", "title": "Соседи по Brookhaven", "desc": "Сыграй 120 минут в Roblox Brookhaven с тиммейтом", "minutes": 120, "points": 220, "coins": 65, "withTeammate": True},
+]
+
+
+async def handle_quests(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    progress = await db.get_all_quests_progress(user["id"])
+    progress_map = {p["quest_id"]: p for p in progress}
+    
+    quests_with_progress = []
+    for quest in QUESTS_CONFIG:
+        prog = progress_map.get(quest["id"])
+        quests_with_progress.append({
+            **quest,
+            "progress_minutes": prog["progress_minutes"] if prog else 0,
+            "completed": prog["completed"] if prog else False,
+        })
+    
+    return web.json_response({"quests": quests_with_progress})
+
+
+async def handle_update_quest(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    quest_id = body.get("quest_id")
+    minutes = body.get("minutes", 0)
+    
+    if not quest_id:
+        return web.json_response({"error": "quest_id required"}, status=400)
+    
+    quest = next((q for q in QUESTS_CONFIG if q["id"] == quest_id), None)
+    if not quest:
+        return web.json_response({"error": "quest not found"}, status=404)
+    
+    # Update progress
+    await db.update_quest_progress(user["id"], quest_id, minutes)
+    
+    # Check if completed
+    prog = await db.get_quest_progress(user["id"], quest_id)
+    if prog and prog["progress_minutes"] >= quest["minutes"] and not prog["completed"]:
+        await db.complete_quest(user["id"], quest_id)
+        await db.add_points(user["id"], quest["points"])
+        await db.add_coins(user["id"], quest["coins"])
+        return web.json_response({"ok": True, "completed": True, "points": quest["points"], "coins": quest["coins"]})
+    
+    return web.json_response({"ok": True, "completed": prog["completed"] if prog else False})
+
+
+async def handle_leaderboard(request: web.Request):
+    db: Database = request.app["db"]
+    limit = int(request.query.get("limit", 10))
+    leaderboard_data = await db.get_leaderboard(limit)
+    
+    # Format for frontend
+    formatted = []
+    for entry in leaderboard_data:
+        formatted.append({
+            "id": str(entry["user_id"]),
+            "nick": entry["username"] or entry["first_name"] or f"User{entry['user_id']}",
+            "avatar": "/placeholder-user.jpg",  # Default avatar
+            "stars": entry["total_stars"],
+            "coins": 0,  # Can be calculated from inventory if needed
+            "premium": entry["is_premium"]
+        })
+    
+    return web.json_response({"leaderboard": formatted})
 
 
 def create_app(db: Database, settings: Settings, bot) -> web.Application:
@@ -324,6 +540,16 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/teams/{team_id}/applications", handle_team_applications)
     app.router.add_post("/api/teams/{team_id}/apply", handle_apply_team)
     app.router.add_get("/api/me/applications", handle_user_applications)
+    
+    # Nexus API endpoints
+    app.router.add_get("/api/currency", handle_currency)
+    app.router.add_get("/api/cases", handle_cases)
+    app.router.add_post("/api/cases/open", handle_open_case)
+    app.router.add_get("/api/inventory", handle_inventory)
+    app.router.add_post("/api/inventory/sell", handle_sell_item)
+    app.router.add_get("/api/quests", handle_quests)
+    app.router.add_post("/api/quests/update", handle_update_quest)
+    app.router.add_get("/api/leaderboard", handle_leaderboard)
 
     app.router.add_static("/", STATIC_DIR, show_index=False)
     return app

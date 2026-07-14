@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS users (
     username TEXT,
     first_name TEXT,
     created_at TEXT NOT NULL,
-    pro_until TEXT
+    pro_until TEXT,
+    premium_app_credits INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS profiles (
@@ -72,6 +73,7 @@ CREATE TABLE IF NOT EXISTS team_applications (
     user_id BIGINT NOT NULL,
     message TEXT DEFAULT '',
     status TEXT DEFAULT 'pending',
+    is_premium INTEGER DEFAULT 0,
     created_at TEXT NOT NULL,
     FOREIGN KEY (team_id) REFERENCES teams(id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -85,6 +87,46 @@ CREATE TABLE IF NOT EXISTS contact_unlocks (
     UNIQUE (user_id, profile_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (profile_id) REFERENCES profiles(id)
+);
+
+CREATE TABLE IF NOT EXISTS user_currency (
+    user_id BIGINT PRIMARY KEY,
+    stars INTEGER DEFAULT 0,
+    coins INTEGER DEFAULT 0,
+    points INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS case_opens (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    case_id TEXT NOT NULL,
+    opened_at TEXT NOT NULL,
+    item_key TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_inventory (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    item_key TEXT NOT NULL,
+    item_name TEXT NOT NULL,
+    item_rarity TEXT NOT NULL,
+    sell_price INTEGER NOT NULL,
+    grants_premium INTEGER DEFAULT 0,
+    acquired_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS quest_progress (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    quest_id TEXT NOT NULL,
+    progress_minutes INTEGER DEFAULT 0,
+    completed INTEGER DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    UNIQUE (user_id, quest_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 """
 
@@ -129,6 +171,16 @@ class Database:
     async def _migrate(self, conn: asyncpg.Connection) -> None:
         try:
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS pro_until TEXT")
+        except asyncpg.PostgresError:
+            pass
+
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_app_credits INTEGER DEFAULT 0")
+        except asyncpg.PostgresError:
+            pass
+
+        try:
+            await conn.execute("ALTER TABLE team_applications ADD COLUMN IF NOT EXISTS is_premium INTEGER DEFAULT 0")
         except asyncpg.PostgresError:
             pass
 
@@ -304,11 +356,11 @@ class Database:
                 rows = await conn.fetch("SELECT * FROM teams")
             return [dict(r) for r in rows]
 
-    async def apply_to_team(self, team_id: int, user_id: int, message: str) -> int:
+    async def apply_to_team(self, team_id: int, user_id: int, message: str, is_premium: bool = False) -> int:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
-                "INSERT INTO team_applications (team_id, user_id, message, status, created_at) VALUES ($1, $2, $3, 'pending', $4) RETURNING id",
-                team_id, user_id, message, datetime.utcnow().isoformat(),
+                "INSERT INTO team_applications (team_id, user_id, message, status, is_premium, created_at) VALUES ($1, $2, $3, 'pending', $4, $5) RETURNING id",
+                team_id, user_id, message, int(is_premium), datetime.utcnow().isoformat(),
             )
             return row["id"]
 
@@ -316,12 +368,12 @@ class Database:
         async with self.pool.acquire() as conn:
             if status:
                 rows = await conn.fetch(
-                    "SELECT * FROM team_applications WHERE team_id = $1 AND status = $2 ORDER BY created_at DESC",
+                    "SELECT * FROM team_applications WHERE team_id = $1 AND status = $2 ORDER BY is_premium DESC, created_at DESC",
                     team_id, status,
                 )
             else:
                 rows = await conn.fetch(
-                    "SELECT * FROM team_applications WHERE team_id = $1 ORDER BY created_at DESC",
+                    "SELECT * FROM team_applications WHERE team_id = $1 ORDER BY is_premium DESC, created_at DESC",
                     team_id,
                 )
             return [dict(r) for r in rows]
@@ -336,4 +388,207 @@ class Database:
                 "SELECT * FROM team_applications WHERE user_id = $1 ORDER BY created_at DESC",
                 user_id,
             )
+            return [dict(r) for r in rows]
+
+    async def add_premium_application_credit(self, user_id: int, credits: int = 1) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE users SET premium_app_credits = COALESCE(premium_app_credits, 0) + $1 WHERE user_id = $2",
+                credits, user_id,
+            )
+
+    async def consume_premium_application_credit(self, user_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT premium_app_credits FROM users WHERE user_id = $1",
+                user_id,
+            )
+            if not row or not row["premium_app_credits"]:
+                return False
+            await conn.execute(
+                "UPDATE users SET premium_app_credits = premium_app_credits - 1 WHERE user_id = $1",
+                user_id,
+            )
+            return True
+
+    # Currency methods
+    async def get_currency(self, user_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT stars, coins, points FROM user_currency WHERE user_id = $1",
+                user_id,
+            )
+            if row:
+                return dict(row)
+            # Create default currency record
+            await conn.execute(
+                "INSERT INTO user_currency (user_id, stars, coins, points) VALUES ($1, 0, 0, 0)",
+                user_id,
+            )
+            return {"stars": 0, "coins": 0, "points": 0}
+
+    async def add_stars(self, user_id: int, amount: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_currency (user_id, stars, coins, points)
+                VALUES ($1, $2, 0, 0)
+                ON CONFLICT (user_id) DO UPDATE SET stars = user_currency.stars + $2
+                """,
+                user_id, amount,
+            )
+
+    async def add_coins(self, user_id: int, amount: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_currency (user_id, stars, coins, points)
+                VALUES ($1, 0, $2, 0)
+                ON CONFLICT (user_id) DO UPDATE SET coins = user_currency.coins + $2
+                """,
+                user_id, amount,
+            )
+
+    async def spend_stars(self, user_id: int, amount: int) -> bool:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT stars FROM user_currency WHERE user_id = $1",
+                user_id,
+            )
+            if not row or row["stars"] < amount:
+                return False
+            await conn.execute(
+                "UPDATE user_currency SET stars = stars - $1 WHERE user_id = $2",
+                amount, user_id,
+            )
+            return True
+
+    async def spend_coins(self, user_id: int, amount: int) -> bool:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT coins FROM user_currency WHERE user_id = $1",
+                user_id,
+            )
+            if not row or row["coins"] < amount:
+                return False
+            await conn.execute(
+                "UPDATE user_currency SET coins = coins - $1 WHERE user_id = $2",
+                amount, user_id,
+            )
+            return True
+
+    async def add_points(self, user_id: int, amount: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_currency (user_id, stars, coins, points)
+                VALUES ($1, 0, 0, $2)
+                ON CONFLICT (user_id) DO UPDATE SET points = user_currency.points + $2
+                """,
+                user_id, amount,
+            )
+
+    # Case methods
+    async def get_case_opens_today(self, user_id: int, case_id: str) -> int:
+        async with self.pool.acquire() as conn:
+            today = datetime.utcnow().date().isoformat()
+            row = await conn.fetchrow(
+                """
+                SELECT COUNT(*) as count FROM case_opens
+                WHERE user_id = $1 AND case_id = $2 AND opened_at >= $3
+                """,
+                user_id, case_id, today,
+            )
+            return row["count"] if row else 0
+
+    async def record_case_open(self, user_id: int, case_id: str, item_key: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO case_opens (user_id, case_id, opened_at, item_key) VALUES ($1, $2, $3, $4)",
+                user_id, case_id, datetime.utcnow().isoformat(), item_key,
+            )
+
+    # Inventory methods
+    async def add_to_inventory(self, user_id: int, item_key: str, item_name: str, 
+                                 item_rarity: str, sell_price: int, grants_premium: bool = False) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, grants_premium, acquired_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
+                """,
+                user_id, item_key, item_name, item_rarity, sell_price, int(grants_premium), datetime.utcnow().isoformat(),
+            )
+
+    async def get_inventory(self, user_id: int) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM user_inventory WHERE user_id = $1 ORDER BY acquired_at DESC",
+                user_id,
+            )
+            return [dict(r) for r in rows]
+
+    async def remove_from_inventory(self, item_id: int, user_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM user_inventory WHERE id = $1 AND user_id = $2",
+                item_id, user_id,
+            )
+            return result.split()[-1] == "1"
+
+    # Quest methods
+    async def get_quest_progress(self, user_id: int, quest_id: str) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT * FROM quest_progress WHERE user_id = $1 AND quest_id = $2",
+                user_id, quest_id,
+            )
+            return dict(row) if row else None
+
+    async def update_quest_progress(self, user_id: int, quest_id: str, minutes: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO quest_progress (user_id, quest_id, progress_minutes, completed, updated_at)
+                VALUES ($1, $2, $3, 0, $4)
+                ON CONFLICT (user_id, quest_id) DO UPDATE SET
+                    progress_minutes = quest_progress.progress_minutes + $3,
+                    updated_at = $4
+                """,
+                user_id, quest_id, minutes, datetime.utcnow().isoformat(),
+            )
+
+    async def complete_quest(self, user_id: int, quest_id: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE quest_progress SET completed = 1, updated_at = $1 WHERE user_id = $2 AND quest_id = $3",
+                datetime.utcnow().isoformat(), user_id, quest_id,
+            )
+
+    async def get_all_quests_progress(self, user_id: int) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM quest_progress WHERE user_id = $1",
+                user_id,
+            )
+            return [dict(r) for r in rows]
+
+    async def get_leaderboard(self, limit: int = 10) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("""
+                SELECT 
+                    u.user_id,
+                    u.username,
+                    u.first_name,
+                    COALESCE(SUM(p.stars_amount), 0) as total_stars,
+                    COALESCE(SUM(CASE WHEN uc.content_id IS NOT NULL THEN 1 ELSE 0 END), 0) as premium_count,
+                    u.pro_until IS NOT NULL as is_premium
+                FROM users u
+                LEFT JOIN purchases p ON u.user_id = p.user_id
+                LEFT JOIN unlocked_content uc ON u.user_id = uc.user_id AND uc.content_id LIKE 'pro%'
+                GROUP BY u.user_id, u.username, u.first_name, u.pro_until
+                HAVING COALESCE(SUM(p.stars_amount), 0) > 0
+                ORDER BY total_stars DESC
+                LIMIT $1
+            """, limit)
             return [dict(r) for r in rows]

@@ -201,9 +201,11 @@ async def successful_payment(message: Message, db: Database, bot: Bot):
             return
 
     if payload == "premium:application":
+        await db.add_premium_application_credit(message.from_user.id)
         await message.answer(
             "✅ <b>Премиум-заявка активирована!</b>\n\n"
-            "Твоя следующая заявка будет в топе списка команд."
+            "Твоя следующая заявка в команду будет отмечена как премиум "
+            "и покажется капитану первой."
         )
         return
 
