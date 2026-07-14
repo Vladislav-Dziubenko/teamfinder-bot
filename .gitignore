@@ -20,3 +20,6 @@ web-src/out/
 .DS_Store
 Thumbs.db
 *.log
+
+# Temporary patches
+*.patch
