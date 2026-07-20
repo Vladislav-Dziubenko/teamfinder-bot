@@ -236,7 +236,18 @@ class Database:
             except asyncpg.DuplicateTableError:
                 pass
 
+    async def _column_exists(self, conn: asyncpg.Connection, table: str, column: str) -> bool:
+        row = await conn.fetchrow(
+            """
+            SELECT 1 FROM information_schema.columns
+            WHERE table_name = $1 AND column_name = $2
+            """,
+            table, column,
+        )
+        return row is not None
+
     async def _migrate(self, conn: asyncpg.Connection) -> None:
+        # Legacy columns added during previous deploys
         try:
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS pro_until TEXT")
         except asyncpg.PostgresError:
@@ -256,6 +267,88 @@ class Database:
             )
         except asyncpg.PostgresError:
             pass
+
+        # ---------- Mini App / Nexus tables ----------
+        # If these tables were created by an earlier version that lacked some
+        # columns, ADD COLUMN IF NOT EXISTS brings them up to the current schema.
+        column_migrations = [
+            ("user_inventory", "user_id", "BIGINT"),
+            ("user_inventory", "item_key", "TEXT NOT NULL DEFAULT ''"),
+            ("user_inventory", "item_name", "TEXT NOT NULL DEFAULT ''"),
+            ("user_inventory", "item_rarity", "TEXT NOT NULL DEFAULT ''"),
+            ("user_inventory", "sell_price", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_inventory", "grants_premium", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_inventory", "acquired_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("case_opens", "user_id", "BIGINT"),
+            ("case_opens", "case_id", "TEXT NOT NULL DEFAULT ''"),
+            ("case_opens", "opened_at", "TEXT NOT NULL DEFAULT ''"),
+            ("case_opens", "item_key", "TEXT NOT NULL DEFAULT ''"),
+
+            ("user_quests", "user_id", "BIGINT"),
+            ("user_quests", "quest_id", "TEXT NOT NULL DEFAULT ''"),
+            ("user_quests", "progress_minutes", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_quests", "completed", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_quests", "updated_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("user_currency", "coins", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_currency", "stars", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_currency", "points", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_currency", "updated_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("mini_app_profiles", "avatar", "TEXT"),
+            ("mini_app_profiles", "nick", "TEXT"),
+            ("mini_app_profiles", "bio", "TEXT"),
+            ("mini_app_profiles", "deco", "TEXT NOT NULL DEFAULT 'orange'"),
+            ("mini_app_profiles", "unlocked_decos", "TEXT NOT NULL DEFAULT 'orange'"),
+            ("mini_app_profiles", "updated_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("user_battlepass", "bp_premium", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_battlepass", "bp_xp", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_battlepass", "claimed_tiers", "TEXT NOT NULL DEFAULT '[]'"),
+            ("user_battlepass", "claimed_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_battlepass", "last_claim_at", "TEXT"),
+            ("user_battlepass", "updated_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("promo_codes", "reward_json", "TEXT NOT NULL DEFAULT '{}'"),
+            ("promo_codes", "max_uses", "INTEGER NOT NULL DEFAULT 0"),
+            ("promo_codes", "uses", "INTEGER NOT NULL DEFAULT 0"),
+            ("promo_codes", "created_by_user_id", "BIGINT"),
+            ("promo_codes", "created_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("promo_redemptions", "user_id", "BIGINT"),
+            ("promo_redemptions", "code", "TEXT NOT NULL DEFAULT ''"),
+            ("promo_redemptions", "redeemed_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("referrals", "referral_code", "TEXT NOT NULL DEFAULT ''"),
+            ("referrals", "invited_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("referrals", "referral_earned_coins", "INTEGER NOT NULL DEFAULT 0"),
+            ("referrals", "updated_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("daily_streaks", "streak_day", "INTEGER NOT NULL DEFAULT 0"),
+            ("daily_streaks", "last_streak_at", "TEXT"),
+            ("daily_streaks", "updated_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("user_achievements", "user_id", "BIGINT"),
+            ("user_achievements", "achievement_id", "TEXT NOT NULL DEFAULT ''"),
+            ("user_achievements", "claimed", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_achievements", "claimed_at", "TEXT"),
+        ]
+
+        for table, column, col_type in column_migrations:
+            try:
+                await conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}")
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning for {table}.{column}: {e}")
+
+        # Data migration: older promo_codes tables used column name `reward` instead of `reward_json`
+        if await self._column_exists(conn, "promo_codes", "reward") and await self._column_exists(conn, "promo_codes", "reward_json"):
+            try:
+                await conn.execute(
+                    "UPDATE promo_codes SET reward_json = reward::text WHERE reward_json = '{}' OR reward_json IS NULL"
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Promo reward data migration warning: {e}")
 
     async def ensure_user(self, user_id: int, username: str | None, first_name: str | None) -> None:
         async with self.pool.acquire() as conn:
