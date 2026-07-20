@@ -368,6 +368,31 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Promo reward data migration warning: {e}")
 
+        # Older promo_codes schema stored created_at as a BIGINT millisecond
+        # timestamp. The current schema expects TEXT (ISO 8601). Convert existing
+        # values instead of dropping them.
+        try:
+            row = await conn.fetchrow(
+                """
+                SELECT data_type FROM information_schema.columns
+                WHERE table_name = 'promo_codes' AND column_name = 'created_at'
+                """
+            )
+            if row and row["data_type"] != "text":
+                await conn.execute(
+                    """
+                    ALTER TABLE promo_codes
+                    ALTER COLUMN created_at TYPE TEXT
+                    USING to_char(
+                        to_timestamp(created_at / 1000.0) AT TIME ZONE 'UTC',
+                        'YYYY-MM-DD"T"HH24:MI:SS.US'
+                    )
+                    """
+                )
+                print("Migrated promo_codes.created_at from numeric timestamp to TEXT")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning for promo_codes.created_at: {e}")
+
         # promo_codes is the only table that could have had real production rows
         # before this migration. We run the strict check only once — on the first
         # startup after the migration — and then record that it passed. After that,
