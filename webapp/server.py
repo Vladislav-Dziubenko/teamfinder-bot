@@ -337,6 +337,226 @@ async def handle_user_applications(request: web.Request):
     return web.json_response({"applications": applications})
 
 
+# Nexus Mini App API endpoints
+CASES_CONFIG = {
+    "blue": {
+        "id": "blue",
+        "name": "Nexus Counter Strike 1.6",
+        "subtitle": "Бесплатный ежедневный кейс",
+        "image": "/case-blue.png",
+        "gold": False,
+        "costStars": 0,
+        "free": True,
+        "dailyLimit": 1,
+        "items": [
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум-доступ на 4 открытия в день", "image": "/premium-x4.png", "rarity": "epic", "sell": 35, "weight": 8, "grantsPremium": True},
+            {"key": "ak47", "name": "Скин AK-47", "desc": "Легендарный калаш из старой школы", "image": "/ak47.png", "rarity": "rare", "sell": 15, "weight": 14},
+            {"key": "icon-skull", "name": "Череп", "desc": "Иконка «Череп»", "icon": "💀", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "icon-fire", "name": "Пламя", "desc": "Иконка «Пламя»", "icon": "🔥", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "icon-crown", "name": "Корона", "desc": "Иконка «Корона»", "icon": "👑", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "icon-target", "name": "Прицел", "desc": "Иконка «Прицел»", "icon": "🎯", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "icon-bolt", "name": "Молния", "desc": "Иконка «Молния»", "icon": "⚡", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "icon-star", "name": "Звезда", "desc": "Иконка «Звезда»", "icon": "⭐", "rarity": "common", "sell": 10, "weight": 10},
+        ]
+    },
+    "gold": {
+        "id": "gold",
+        "name": "Nexus Premium",
+        "subtitle": "Золотой премиальный кейс",
+        "image": "/case-gold.png",
+        "gold": True,
+        "costStars": 75,
+        "free": False,
+        "dailyLimit": 99,
+        "items": [
+            {"key": "premium-card", "name": "Премиум-анкета", "desc": "Кастомные фото, свой текст и украшения карточки — без ограничений 1 день", "image": "/premium-reveal.png", "rarity": "premium", "sell": 100, "weight": 60, "grantsPremium": True},
+            {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "rarity": "epic", "sell": 45, "weight": 40, "grantsPremium": True},
+        ]
+    }
+}
+
+COIN_SHOP = [
+    {"key": "buy-premium-card", "name": "Премиум-анкета", "desc": "Кастом фото, текст и украшения на 1 день", "image": "/premium-reveal.png", "price": 100},
+    {"key": "buy-premium-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "price": 45},
+    {"key": "buy-ak47", "name": "Скин AK-47", "desc": "Легендарный калаш", "image": "/ak47.png", "price": 15},
+    {"key": "buy-premium-medium", "name": "Премиум средний", "desc": "4 открытия в день", "image": "/premium-x4.png", "price": 35},
+]
+
+QUESTS_CONFIG = [
+    {"id": "play-cs16", "title": "Играй в CS 1.6", "desc": "Проведи 60 минут в CS 1.6", "reward": 50, "targetMinutes": 60},
+    {"id": "play-dota2", "title": "Играй в Dota 2", "desc": "Проведи 60 минут в Dota 2", "reward": 50, "targetMinutes": 60},
+    {"id": "play-csgo", "title": "Играй в CS:GO", "desc": "Проведи 60 минут в CS:GO", "reward": 50, "targetMinutes": 60},
+]
+
+
+async def handle_nexus_balance(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    currency = await db.get_currency(user["id"])
+    return web.json_response(currency)
+
+
+async def handle_nexus_cases(request: web.Request):
+    return web.json_response({"cases": CASES_CONFIG})
+
+
+async def handle_nexus_open_case(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    case_id = body.get("case_id")
+
+    if not case_id or not isinstance(case_id, str):
+        return web.json_response({"error": "invalid case_id"}, status=400)
+
+    if case_id not in CASES_CONFIG:
+        return web.json_response({"error": "unknown case"}, status=400)
+
+    case_config = CASES_CONFIG[case_id]
+
+    # Check daily limit
+    opens_today = await db.get_case_opens_today(user["id"], case_id)
+    if opens_today >= case_config["dailyLimit"]:
+        return web.json_response({"error": "daily limit exceeded"}, status=400)
+
+    # Check stars for paid cases
+    if case_config["costStars"] > 0:
+        if not await db.spend_stars(user["id"], case_config["costStars"]):
+            return web.json_response({"error": "not enough stars"}, status=400)
+
+    # Roll item
+    import random
+    items = case_config["items"]
+    total_weight = sum(item["weight"] for item in items)
+    rand = random.uniform(0, total_weight)
+    current = 0
+    rolled_item = None
+    for item in items:
+        current += item["weight"]
+        if rand <= current:
+            rolled_item = item
+            break
+
+    if not rolled_item:
+        rolled_item = items[0]
+
+    # Record open
+    await db.record_case_open(user["id"], case_id, rolled_item["key"])
+
+    # Add to inventory
+    await db.add_to_inventory(
+        user["id"],
+        rolled_item["key"],
+        rolled_item["name"],
+        rolled_item["rarity"],
+        rolled_item["sell"],
+        rolled_item.get("grantsPremium", False)
+    )
+
+    # Grant premium if item has it
+    if rolled_item.get("grantsPremium"):
+        await db.set_pro_status(user["id"], days=1)
+
+    return web.json_response({
+        "item": rolled_item,
+        "opensToday": opens_today + 1,
+        "dailyLimit": case_config["dailyLimit"]
+    })
+
+
+async def handle_nexus_inventory(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    inventory = await db.get_inventory(user["id"])
+    return web.json_response({"inventory": inventory})
+
+
+async def handle_nexus_sell(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    item_id = body.get("item_id")
+
+    if not item_id or not isinstance(item_id, int):
+        return web.json_response({"error": "invalid item_id"}, status=400)
+
+    inventory = await db.get_inventory(user["id"])
+    item = next((i for i in inventory if i["id"] == item_id), None)
+    if not item:
+        return web.json_response({"error": "item not found"}, status=400)
+
+    if await db.remove_from_inventory(item_id, user["id"]):
+        await db.add_coins(user["id"], item["sell_price"])
+        return web.json_response({"sold": True, "coins": item["sell_price"]})
+
+    return web.json_response({"error": "failed to sell"}, status=400)
+
+
+async def handle_nexus_quests(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    progress = await db.get_all_quests_progress(user["id"])
+    return web.json_response({"quests": QUESTS_CONFIG, "progress": progress})
+
+
+async def handle_nexus_shop(request: web.Request):
+    return web.json_response({"shop": COIN_SHOP})
+
+
+async def handle_nexus_buy(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    item_key = body.get("item_key")
+
+    if not item_key or not isinstance(item_key, str):
+        return web.json_response({"error": "invalid item_key"}, status=400)
+
+    shop_item = next((i for i in COIN_SHOP if i["key"] == item_key), None)
+    if not shop_item:
+        return web.json_response({"error": "item not found"}, status=400)
+
+    currency = await db.get_currency(user["id"])
+    if currency["coins"] < shop_item["price"]:
+        return web.json_response({"error": "not enough coins"}, status=400)
+
+    # Deduct coins
+    async with db.pool.acquire() as conn:
+        await conn.execute(
+            "UPDATE user_currency SET coins = coins - $1, updated_at = $2 WHERE user_id = $3",
+            shop_item["price"], datetime.utcnow().isoformat(), user["id"]
+        )
+
+    # Add to inventory based on item
+    item_map = {
+        "buy-premium-card": {"key": "premium-card", "name": "Премиум-анкета", "rarity": "premium", "sell": 100, "premium": True},
+        "buy-premium-lite": {"key": "premium-card-lite", "name": "Премиум", "rarity": "epic", "sell": 45, "premium": True},
+        "buy-ak47": {"key": "ak47", "name": "Скин AK-47", "rarity": "rare", "sell": 15, "premium": False},
+        "buy-premium-medium": {"key": "premium-medium", "name": "Премиум средний", "rarity": "epic", "sell": 35, "premium": True},
+    }
+
+    if item_key in item_map:
+        item_data = item_map[item_key]
+        await db.add_to_inventory(
+            user["id"],
+            item_data["key"],
+            item_data["name"],
+            item_data["rarity"],
+            item_data["sell"],
+            item_data["premium"]
+        )
+        if item_data["premium"]:
+            await db.set_pro_status(user["id"], days=1)
+
+    return web.json_response({"bought": True})
+
+
+async def handle_leaderboard(request: web.Request):
+    db: Database = request.app["db"]
+    leaderboard = await db.get_leaderboard(limit=10)
+    return web.json_response({"leaderboard": leaderboard})
+
+
 def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app = web.Application(middlewares=[error_middleware, auth_middleware, web_rate_limit_middleware])
     app["db"] = db
@@ -358,6 +578,17 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/teams/{team_id}/applications", handle_team_applications)
     app.router.add_post("/api/teams/{team_id}/apply", handle_apply_team)
     app.router.add_get("/api/me/applications", handle_user_applications)
+
+    # Nexus Mini App API routes
+    app.router.add_get("/api/nexus/balance", handle_nexus_balance)
+    app.router.add_get("/api/nexus/cases", handle_nexus_cases)
+    app.router.add_post("/api/nexus/cases/open", handle_nexus_open_case)
+    app.router.add_get("/api/nexus/inventory", handle_nexus_inventory)
+    app.router.add_post("/api/nexus/inventory/sell", handle_nexus_sell)
+    app.router.add_get("/api/nexus/quests", handle_nexus_quests)
+    app.router.add_get("/api/nexus/shop", handle_nexus_shop)
+    app.router.add_post("/api/nexus/shop/buy", handle_nexus_buy)
+    app.router.add_get("/api/leaderboard", handle_leaderboard)
 
     app.router.add_static("/", STATIC_DIR, show_index=False)
     return app
