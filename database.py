@@ -369,20 +369,41 @@ class Database:
                 print(f"Promo reward data migration warning: {e}")
 
         # promo_codes is the only table that could have had real production rows
-        # before this migration. If any row still has no reward data, fail loudly
-        # so we don't silently serve broken promo codes.
-        if await self._column_exists(conn, "promo_codes", "reward_json"):
-            try:
-                bad = await conn.fetchval(
-                    "SELECT COUNT(*) FROM promo_codes WHERE reward_json IS NULL OR reward_json = '{}'"
-                )
-                if bad:
-                    raise RuntimeError(
-                        f"promo_codes contains {bad} rows with empty reward_json after migration. "
-                        "Manual cleanup is required because these rows existed before the migration and have no reward data."
+        # before this migration. We run the strict check only once — on the first
+        # startup after the migration — and then record that it passed. After that,
+        # a future bug that creates a promo with an empty reward will not block
+        # service restarts; it will be handled by normal API validation.
+        await conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS applied_migrations (
+                name TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL
+            )
+            """
+        )
+        migration_name = "mini_app_promo_codes_reward_json_check_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            if await self._column_exists(conn, "promo_codes", "reward_json"):
+                try:
+                    bad = await conn.fetchval(
+                        "SELECT COUNT(*) FROM promo_codes WHERE reward_json IS NULL OR reward_json = '{}'"
                     )
-            except asyncpg.PostgresError as e:
-                print(f"Migration warning while checking promo_codes.reward_json: {e}")
+                    if bad:
+                        raise RuntimeError(
+                            f"promo_codes contains {bad} rows with empty reward_json after migration. "
+                            "Manual cleanup is required because these rows existed before the migration and have no reward data."
+                        )
+                except asyncpg.PostgresError as e:
+                    print(f"Migration warning while checking promo_codes.reward_json: {e}")
+            await conn.execute(
+                "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                migration_name,
+                datetime.utcnow().isoformat(),
+            )
 
     async def ensure_user(self, user_id: int, username: str | None, first_name: str | None) -> None:
         async with self.pool.acquire() as conn:
