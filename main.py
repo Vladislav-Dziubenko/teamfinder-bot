@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import signal
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -53,12 +54,27 @@ async def main():
     else:
         logging.warning("WEBAPP_URL не задан — кнопка Mini App в /start не появится")
 
+    # Graceful shutdown
+    stop_event = asyncio.Event()
+
+    def signal_handler(sig, frame):
+        logging.info(f"Received signal {sig}, shutting down...")
+        stop_event.set()
+
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+
     try:
-        await dp.start_polling(bot)
+        polling_task = asyncio.create_task(dp.start_polling(bot))
+        await stop_event.wait()
+        await polling_task
     finally:
+        logging.info("Stopping bot...")
+        await dp.stop_polling()
         await runner.cleanup()
         await db.close()
         await bot.session.close()
+        logging.info("Shutdown complete")
 
 
 if __name__ == "__main__":
