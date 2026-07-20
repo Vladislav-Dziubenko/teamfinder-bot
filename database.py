@@ -453,13 +453,13 @@ class Database:
     # Case methods
     async def get_case_opens_today(self, user_id: int, case_id: str) -> int:
         async with self.pool.acquire() as conn:
-            today = datetime.utcnow().date().isoformat()
+            today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
             row = await conn.fetchrow(
                 """
                 SELECT COUNT(*) as count FROM case_opens
                 WHERE user_id = $1 AND case_id = $2 AND opened_at >= $3
                 """,
-                user_id, case_id, today,
+                user_id, case_id, today_start,
             )
             return row["count"] if row else 0
 
