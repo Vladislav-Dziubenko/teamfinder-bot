@@ -9,14 +9,11 @@ databases:
 services:
   - type: web
     name: teamfinder-bot
-    runtime: python
+    runtime: docker
     plan: free
-    buildCommand: pip install -r requirements.txt
-    startCommand: python main.py
+    dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
-      - key: PYTHON_VERSION
-        value: "3.11.9"
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_IDS

@@ -1,297 +1,497 @@
 "use client"
 
-import { useState } from "react"
-import { Gamepad2, Mic, MicOff } from "lucide-react"
-import { api, type GamesResponse, type MeResponse, type Profile } from "@/lib/api"
+import { useRef, useState } from "react"
+import {
+  Star,
+  Trophy,
+  Crosshair,
+  Settings,
+  Share2,
+  Gamepad2,
+  ChevronRight,
+  Crown,
+  Camera,
+  Pencil,
+  Sparkles,
+  Check,
+  Lock,
+  Coins,
+  Award,
+  Gift,
+  Users2,
+  Copy,
+  Flame,
+} from "lucide-react"
+import { currentUser, games, achievements as achData, referralReward, referralBotUrl, dailyStreakRewards } from "@/lib/data"
+import { useNexus } from "@/lib/store"
+import type { TabId } from "./bottom-nav"
 import { cn } from "@/lib/utils"
 
-export function ProfileTab({
-  games,
-  me,
-  onSaved,
-}: {
-  games: GamesResponse
-  me: MeResponse | null
-  onSaved: () => void
-}) {
-  const [editing, setEditing] = useState(!me?.profile)
-  const profile = me?.profile ?? null
+// Украшения карточки — доступны при премиуме / открыты в батл-пассе
+const decorations = [
+  { id: "orange", label: "Neon", ring: "var(--primary)", bg: "var(--primary)" },
+  { id: "gold", label: "Gold", ring: "var(--stars)", bg: "var(--stars)" },
+  { id: "cyan", label: "Cyber", ring: "var(--accent)", bg: "var(--accent)" },
+  { id: "crimson", label: "Blood", ring: "var(--destructive)", bg: "var(--destructive)" },
+]
 
-  if (editing) {
-    return <ProfileForm games={games} existing={profile} onDone={() => { setEditing(false); onSaved() }} />
+export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToast: (m: string) => void }) {
+  const game = games.find((g) => g.id === currentUser.game)
+  const {
+    stars,
+    coins,
+    points,
+    premiumActive,
+    avatar,
+    nick,
+    bio,
+    deco,
+    unlockedDecos,
+    setAvatar,
+    setNick,
+    setBio,
+    setDeco,
+    saveProfile,
+    claimAchievement,
+    claimedAchievements,
+    invitedCount,
+    referralEarned,
+    referralCode,
+    simulateInvite,
+    streakDay,
+    lastStreakAt,
+    claimDailyStreak,
+  } = useNexus()
+
+  const [editing, setEditing] = useState(false)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const active = decorations.find((d) => d.id === deco) ?? decorations[0]
+  const decoAvailable = (id: string) => id === "orange" || premiumActive || unlockedDecos.includes(id)
+  const streakReady = !lastStreakAt || Date.now() - lastStreakAt >= 24 * 60 * 60 * 1000
+
+  function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0]
+    if (!f) return
+    const reader = new FileReader()
+    reader.onload = () => setAvatar(reader.result as string)
+    reader.readAsDataURL(f)
   }
 
-  const gameInfo = profile ? games.games[profile.game] : null
+  async function claim(id: string, pts: number, cns: number) {
+    if (claimedAchievements.includes(id)) return
+    await claimAchievement(id, pts, cns)
+    onToast(`Награда получена: +${pts} баллов, +${cns} монет`)
+  }
+
+  function copyRef() {
+    const link = `${referralBotUrl}?start=${referralCode}`
+    navigator.clipboard?.writeText(link).then(
+      () => onToast("Реферальная ссылка скопирована!"),
+      () => onToast(link),
+    )
+  }
+
+  async function claimStreak() {
+    const res = await claimDailyStreak()
+    if (!res.ok) onToast(res.error ?? "Уже забрано")
+    else onToast(`День ${res.day}: +${res.coins} монет!`)
+  }
 
   return (
     <div className="space-y-5 px-4 py-5">
-      <section className="animate-rise rounded-3xl border border-border bg-card p-5">
-        <div className="flex items-center gap-4">
-          <div className="grid size-20 place-items-center rounded-3xl bg-primary font-display text-3xl font-bold text-primary-foreground">
-            {profile!.nickname.charAt(0).toUpperCase()}
+      {/* Profile card */}
+      <section
+        className="animate-rise relative overflow-hidden rounded-3xl border bg-card p-5"
+        style={{ borderColor: premiumActive ? active.ring : "var(--border)" }}
+      >
+        {premiumActive && (
+          <>
+            <div
+              className="pointer-events-none absolute -right-10 -top-10 size-40 rounded-full blur-3xl"
+              style={{ background: `color-mix(in oklch, ${active.bg} 25%, transparent)` }}
+            />
+            <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-stars/15 px-2 py-1 text-[10px] font-bold text-stars">
+              <Crown className="size-3 fill-stars" /> PREMIUM
+            </span>
+          </>
+        )}
+
+        <div className="relative flex items-center gap-4">
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="relative grid size-20 place-items-center overflow-hidden rounded-3xl font-display text-3xl font-bold text-primary-foreground"
+              style={{ background: active.bg, boxShadow: premiumActive ? `0 0 24px -6px ${active.ring}` : "none" }}
+              aria-label="Сменить аватар"
+            >
+              {avatar ? (
+                <img src={avatar || "/placeholder.svg"} alt="Аватар" className="size-full object-cover" />
+              ) : (
+                nick.charAt(0).toUpperCase()
+              )}
+              <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-background/70 py-0.5 text-[9px] font-medium text-foreground">
+                <Camera className="size-2.5" /> фото
+              </span>
+            </button>
+            <input ref={fileRef} type="file" accept="image/*" onChange={onPickPhoto} className="hidden" />
+            <span className="absolute -bottom-1 -right-1 rounded-lg bg-stars px-1.5 py-0.5 font-display text-xs font-bold text-background">
+              {currentUser.level}
+            </span>
           </div>
-          <div className="min-w-0">
-            <h1 className="font-display text-2xl font-bold leading-tight">{profile!.nickname}</h1>
-            <p className="text-sm text-muted-foreground">{profile!.rank}</p>
+
+          <div className="min-w-0 flex-1">
+            {editing ? (
+              <input
+                value={nick}
+                onChange={(e) => setNick(e.target.value)}
+                maxLength={20}
+                className="w-full rounded-lg border border-input bg-background px-2 py-1 font-display text-xl font-bold outline-none"
+              />
+            ) : (
+              <h1 className="font-display text-2xl font-bold leading-tight">{nick}</h1>
+            )}
+            <p className="text-sm text-muted-foreground">{currentUser.rank}</p>
             <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium">
-              <Gamepad2 className="size-3 text-primary" /> {gameInfo?.title}
+              <Gamepad2 className="size-3 text-primary" /> {game?.name}
             </span>
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-          <Row label="Роль" value={profile!.role} />
-          <Row label="Онлайн" value={games.playtime[profile!.playtime] ?? profile!.playtime} />
-          <Row label="Ищет" value={games.looking_for[profile!.looking_for] ?? profile!.looking_for} />
-          <Row
-            label="Микрофон"
-            value={profile!.has_mic ? "Есть" : "Нет"}
-            icon={profile!.has_mic ? Mic : MicOff}
-          />
+        {/* Editable bio */}
+        <div className="mt-4">
+          {editing ? (
+            <textarea
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+              maxLength={140}
+              rows={2}
+              className="w-full resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none"
+            />
+          ) : (
+            <p className="rounded-xl bg-secondary/50 px-3 py-2 text-sm text-muted-foreground text-pretty">{bio}</p>
+          )}
         </div>
 
-        {profile!.description && (
-          <p className="mt-4 rounded-2xl bg-secondary/60 p-3 text-sm text-muted-foreground">
-            {profile!.description}
+        {/* Decorations */}
+        <div className="mt-4">
+          <p className="mb-2 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+            <Sparkles className="size-3.5 text-stars" /> Украшение карточки
+            {!premiumActive && <span className="text-[10px] font-normal">· премиум / батл-пасс</span>}
           </p>
-        )}
+          <div className="flex flex-wrap gap-2">
+            {decorations.map((d) => {
+              const avail = decoAvailable(d.id)
+              return (
+                <button
+                  key={d.id}
+                  type="button"
+                  disabled={!avail}
+                  onClick={() => setDeco(d.id)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all disabled:opacity-40",
+                    deco === d.id ? "border-transparent text-background" : "border-border text-muted-foreground",
+                  )}
+                  style={deco === d.id ? { background: d.bg } : undefined}
+                >
+                  {avail ? (
+                    <span className="size-2.5 rounded-full" style={{ background: d.bg }} />
+                  ) : (
+                    <Lock className="size-3" />
+                  )}
+                  {d.label}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* XP bar */}
+        <div className="mt-4">
+          <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
+            <span>Уровень {currentUser.level}</span>
+            <span>
+              {currentUser.xp}% до {currentUser.level + 1}
+            </span>
+          </div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
+            <div className="h-full rounded-full" style={{ width: `${currentUser.xp}%`, background: active.bg }} />
+          </div>
+        </div>
+
+        {/* Edit controls — бесплатно для всех */}
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={async () => {
+              if (editing) {
+                await saveProfile()
+                onToast("Анкета сохранена")
+              }
+              setEditing((e) => !e)
+            }}
+            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98]"
+          >
+            {editing ? (
+              <>
+                <Check className="size-4" /> Сохранить анкету
+              </>
+            ) : (
+              <>
+                <Pencil className="size-4" /> Настроить анкету
+              </>
+            )}
+          </button>
+          <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
+            Аватар, ник и описание — бесплатно. Рамки и украшения — за премиум.
+          </p>
+        </div>
       </section>
 
-      <div className="flex gap-2">
+      {/* Daily streak — тренд-фишка */}
+      <section className="rounded-3xl border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 font-display text-base font-bold">
+            <Flame className="size-4 text-primary" /> Ежедневный вход
+          </h2>
+          <span className="text-[11px] font-semibold text-muted-foreground">Стрик: {streakDay} дн.</span>
+        </div>
+        <div className="grid grid-cols-7 gap-1.5">
+          {dailyStreakRewards.map((r) => {
+            const reached = streakDay >= r.day
+            return (
+              <div
+                key={r.day}
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-xl border py-2 text-center",
+                  reached ? "border-primary/50 bg-primary/10" : "border-border bg-background/40",
+                )}
+              >
+                <span className="text-[9px] text-muted-foreground">Д{r.day}</span>
+                <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" />
+                <span className="text-[9px] font-bold">{r.coins}</span>
+              </div>
+            )
+          })}
+        </div>
         <button
           type="button"
-          onClick={() => setEditing(true)}
-          className="flex-1 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground"
+          disabled={!streakReady}
+          onClick={claimStreak}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-3 text-sm font-bold text-accent-foreground active:scale-[0.98] disabled:opacity-50"
         >
-          Изменить анкету
+          <Gift className="size-4" /> {streakReady ? "Забрать награду дня" : "Уже забрано — жди завтра"}
         </button>
+      </section>
+
+      {/* Referral program */}
+      <section className="relative overflow-hidden rounded-3xl border border-accent/30 bg-accent/5 p-4">
+        <div className="flex items-center gap-2">
+          <span className="grid size-9 place-items-center rounded-xl bg-accent/15 text-accent">
+            <Users2 className="size-5" />
+          </span>
+          <div>
+            <h2 className="font-display text-base font-bold">Приглашай друзей</h2>
+            <p className="text-[11px] text-muted-foreground">
+              +{referralReward.coins} монет и +{referralReward.stars} ⭐ за каждого друга
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-2xl border border-border bg-background/40 p-3 text-center">
+            <p className="font-display text-xl font-bold leading-none">{invitedCount}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">приглашено</p>
+          </div>
+          <div className="rounded-2xl border border-border bg-background/40 p-3 text-center">
+            <p className="flex items-center justify-center gap-1 font-display text-xl font-bold leading-none">
+              <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {referralEarned}
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">заработано</p>
+          </div>
+        </div>
+
+        <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-background/40 px-3 py-2.5">
+          <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+            t.me/…?start={referralCode}
+          </span>
+          <button
+            type="button"
+            onClick={copyRef}
+            className="flex shrink-0 items-center gap-1 rounded-xl bg-accent px-2.5 py-1.5 text-xs font-bold text-accent-foreground active:scale-95"
+          >
+            <Copy className="size-3.5" /> Копировать
+          </button>
+        </div>
+
         <button
           type="button"
-          onClick={async () => {
-            await api.hideProfile()
-            onSaved()
-            setEditing(true)
+          onClick={() => {
+            simulateInvite()
+            onToast("Приглашение открыто — поделись с друзьями")
           }}
-          className="flex-1 rounded-2xl border border-border py-3 text-sm font-semibold text-muted-foreground"
+          className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-accent/40 bg-accent/10 py-2.5 text-xs font-semibold text-accent active:scale-95"
         >
-          Скрыть анкету
+          <Share2 className="size-3.5" /> Поделиться в Telegram
         </button>
-      </div>
+      </section>
 
-      <p className="pb-2 text-center text-xs text-muted-foreground">NEXUS · Telegram Mini App</p>
+      {/* Premium promo (если не активен) */}
+      {!premiumActive && (
+        <section className="relative overflow-hidden rounded-3xl border border-stars/40 bg-stars/5 p-4">
+          <div className="flex items-center gap-3">
+            <img src="/premium-reveal.png" alt="" className="size-16 shrink-0 object-contain" />
+            <div className="min-w-0">
+              <p className="font-display text-base font-bold">Nexus Premium</p>
+              <p className="text-xs text-muted-foreground text-pretty">
+                Открой золотой кейс за 150 ⭐ — анимированные рамки и украшения анкеты.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onGo("cases")}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-stars py-3 font-display text-base font-bold text-background active:scale-[0.98]"
+          >
+            <Crown className="size-5" /> Получить премиум
+          </button>
+        </section>
+      )}
+
+      {/* Currency stats */}
+      <section className="grid grid-cols-3 gap-3">
+        <CoinStat img="/nexus-coin.png" value={coins} label="Монеты" />
+        <StarStat value={stars} label="Звёзды" />
+        <PointStat value={points} label="Баллы" />
+      </section>
+
+      {/* Achievements with rewards */}
+      <section>
+        <h2 className="mb-3 flex items-center gap-2 font-display text-lg font-bold">
+          <Award className="size-5 text-primary" /> Достижения
+        </h2>
+        <div className="space-y-3">
+          {achData.map((a) => {
+            const done = a.progress >= a.minutes
+            const isClaimed = claimedAchievements.includes(a.id)
+            const pct = Math.min(100, Math.round((a.progress / a.minutes) * 100))
+            return (
+              <div key={a.id} className="rounded-2xl border border-border bg-card p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                      {a.game}
+                    </span>
+                    <p className="mt-1.5 font-display text-sm font-bold leading-tight text-balance">{a.title}</p>
+                    <p className="text-[11px] text-muted-foreground text-pretty">{a.desc}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="flex items-center justify-end gap-0.5 text-xs font-bold text-primary">
+                      +{a.points} <span className="text-[10px] font-medium text-muted-foreground">балл</span>
+                    </p>
+                    <p className="flex items-center justify-end gap-1 text-xs font-bold text-foreground">
+                      <img src="/nexus-coin.png" alt="" className="size-3.5 rounded-full" /> +{a.coins}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex items-center gap-2">
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className={cn("h-full rounded-full", done ? "bg-accent" : "bg-primary")}
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  <span className="text-[11px] font-semibold text-muted-foreground">
+                    {a.progress}/{a.minutes} мин
+                  </span>
+                </div>
+
+                <button
+                  type="button"
+                  disabled={!done || isClaimed}
+                  onClick={() => claim(a.id, a.points, a.coins)}
+                  className={cn(
+                    "mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition-all active:scale-95 disabled:opacity-50",
+                    isClaimed
+                      ? "bg-secondary text-muted-foreground"
+                      : done
+                        ? "bg-accent text-accent-foreground"
+                        : "bg-secondary text-muted-foreground",
+                  )}
+                >
+                  {isClaimed ? (
+                    <>
+                      <Check className="size-3.5" /> Награда получена
+                    </>
+                  ) : done ? (
+                    <>
+                      <Trophy className="size-3.5" /> Забрать награду
+                    </>
+                  ) : (
+                    "В процессе…"
+                  )}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </section>
+
+      {/* Actions */}
+      <section className="overflow-hidden rounded-3xl border border-border bg-card">
+        <Row icon={Crosshair} label="Мои игры и роли" />
+        <Row icon={Share2} label="Поделиться профилем" />
+        <Row icon={Settings} label="Настройки" last />
+      </section>
+
+      <p className="pb-2 text-center text-xs text-muted-foreground">NEXUS · Telegram Mini App · v1.1</p>
     </div>
   )
 }
 
-function Row({
-  label,
-  value,
-  icon: Icon,
-}: {
-  label: string
-  value: string
-  icon?: typeof Mic
-}) {
+function CoinStat({ img, value, label }: { img: string; value: number; label: string }) {
   return (
-    <div className="rounded-2xl bg-secondary/50 p-3">
-      <p className="text-[11px] text-muted-foreground">{label}</p>
-      <p className="mt-0.5 flex items-center gap-1.5 font-semibold">
-        {Icon && <Icon className="size-3.5 text-primary" />} {value}
-      </p>
+    <div className="rounded-2xl border border-border bg-card p-3 text-center">
+      <img src={img || "/placeholder.svg"} alt="" className="mx-auto size-6 rounded-full object-cover" />
+      <p className="mt-1.5 font-display text-xl font-bold leading-none">{value}</p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
     </div>
   )
 }
 
-function ProfileForm({
-  games,
-  existing,
-  onDone,
-}: {
-  games: GamesResponse
-  existing: Profile | null
-  onDone: () => void
-}) {
-  const gameIds = Object.keys(games.games)
-  const [game, setGame] = useState(existing?.game ?? gameIds[0])
-  const [nickname, setNickname] = useState(existing?.nickname ?? "")
-  const [rank, setRank] = useState(existing?.rank ?? games.games[gameIds[0]].ranks[0])
-  const [role, setRole] = useState(existing?.role ?? games.games[gameIds[0]].roles[0])
-  const [playtime, setPlaytime] = useState(existing?.playtime ?? Object.keys(games.playtime)[0])
-  const [lookingFor, setLookingFor] = useState(existing?.looking_for ?? Object.keys(games.looking_for)[0])
-  const [region, setRegion] = useState(existing?.region ?? "")
-  const [contact, setContact] = useState(existing?.contact ?? "")
-  const [hasMic, setHasMic] = useState(existing?.has_mic !== 0)
-  const [description, setDescription] = useState(existing?.description ?? "")
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-
-  const gameInfo = games.games[game]
-
-  function changeGame(id: string) {
-    setGame(id)
-    setRank(games.games[id].ranks[0])
-    setRole(games.games[id].roles[0])
-  }
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault()
-    setError(null)
-    if (!nickname.trim() || !contact.trim()) {
-      setError("Заполни ник и контакт")
-      return
-    }
-    setSaving(true)
-    try {
-      await api.saveProfile({
-        game,
-        nickname: nickname.trim(),
-        rank,
-        role,
-        playtime,
-        looking_for: lookingFor,
-        region: region.trim(),
-        contact: contact.trim(),
-        has_mic: hasMic as unknown as number,
-        description: description.trim(),
-      })
-      onDone()
-    } catch (err: any) {
-      setError(err.message || "Не получилось сохранить")
-    } finally {
-      setSaving(false)
-    }
-  }
-
+function StarStat({ value, label }: { value: number; label: string }) {
   return (
-    <form onSubmit={submit} className="space-y-5 px-4 py-5">
-      <div>
-        <h1 className="font-display text-2xl font-bold">{existing ? "Изменить анкету" : "Заполни анкету"}</h1>
-        <p className="text-sm text-muted-foreground">Это увидят другие игроки в поиске</p>
-      </div>
-
-      <Field label="Игра">
-        <ChipRow options={gameIds.map((id) => ({ id, label: `${games.games[id].emoji} ${games.games[id].title}` }))} value={game} onChange={changeGame} />
-      </Field>
-
-      <Field label="Ник в игре">
-        <input
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-          maxLength={32}
-          required
-          className="w-full rounded-2xl border border-input bg-secondary/60 px-4 py-3 text-sm outline-none focus:border-primary/60"
-        />
-      </Field>
-
-      <Field label="Ранг">
-        <ChipRow options={gameInfo.ranks.map((r) => ({ id: r, label: r }))} value={rank} onChange={setRank} />
-      </Field>
-
-      <Field label="Роль">
-        <ChipRow options={gameInfo.roles.map((r) => ({ id: r, label: r }))} value={role} onChange={setRole} />
-      </Field>
-
-      <Field label="Сколько играешь">
-        <ChipRow
-          options={Object.entries(games.playtime).map(([id, label]) => ({ id, label }))}
-          value={playtime}
-          onChange={setPlaytime}
-        />
-      </Field>
-
-      <Field label="Что ищешь">
-        <ChipRow
-          options={Object.entries(games.looking_for).map(([id, label]) => ({ id, label }))}
-          value={lookingFor}
-          onChange={setLookingFor}
-        />
-      </Field>
-
-      <Field label="Регион (необязательно)">
-        <input
-          value={region}
-          onChange={(e) => setRegion(e.target.value)}
-          maxLength={40}
-          className="w-full rounded-2xl border border-input bg-secondary/60 px-4 py-3 text-sm outline-none focus:border-primary/60"
-        />
-      </Field>
-
-      <Field label="Контакт (@username, Discord, ссылка)">
-        <input
-          value={contact}
-          onChange={(e) => setContact(e.target.value)}
-          maxLength={80}
-          required
-          className="w-full rounded-2xl border border-input bg-secondary/60 px-4 py-3 text-sm outline-none focus:border-primary/60"
-        />
-      </Field>
-
-      <Field label="Микрофон">
-        <ChipRow
-          options={[{ id: "1", label: "🎤 Есть" }, { id: "0", label: "🔇 Нет" }]}
-          value={hasMic ? "1" : "0"}
-          onChange={(v) => setHasMic(v === "1")}
-        />
-      </Field>
-
-      <Field label="О себе (необязательно)">
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          maxLength={300}
-          rows={3}
-          className="w-full rounded-2xl border border-input bg-secondary/60 px-4 py-3 text-sm outline-none focus:border-primary/60"
-        />
-      </Field>
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      <button
-        type="submit"
-        disabled={saving}
-        className="w-full rounded-2xl bg-primary py-3.5 text-sm font-bold text-primary-foreground disabled:opacity-60"
-      >
-        {saving ? "Сохраняем…" : "Сохранить анкету"}
-      </button>
-    </form>
-  )
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="space-y-2">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      {children}
+    <div className="rounded-2xl border border-border bg-card p-3 text-center">
+      <Star className="mx-auto size-6 fill-stars text-stars" />
+      <p className="mt-1.5 font-display text-xl font-bold leading-none">{value}</p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
     </div>
   )
 }
 
-function ChipRow({
-  options,
-  value,
-  onChange,
-}: {
-  options: { id: string; label: string }[]
-  value: string
-  onChange: (id: string) => void
-}) {
+function PointStat({ value, label }: { value: number; label: string }) {
   return (
-    <div className="flex flex-wrap gap-2">
-      {options.map((o) => (
-        <button
-          key={o.id}
-          type="button"
-          onClick={() => onChange(o.id)}
-          className={cn(
-            "rounded-full border px-3.5 py-2 text-xs font-medium transition-colors",
-            value === o.id
-              ? "border-primary bg-primary/15 text-primary"
-              : "border-border bg-card text-muted-foreground",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div className="rounded-2xl border border-border bg-card p-3 text-center">
+      <Coins className="mx-auto size-6 text-primary" />
+      <p className="mt-1.5 font-display text-xl font-bold leading-none">{value}</p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
     </div>
+  )
+}
+
+function Row({ icon: Icon, label, last }: { icon: typeof Trophy; label: string; last?: boolean }) {
+  return (
+    <button
+      type="button"
+      className={`flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-secondary ${
+        last ? "" : "border-b border-border"
+      }`}
+    >
+      <Icon className="size-5 text-muted-foreground" />
+      <span className="flex-1 text-sm font-medium">{label}</span>
+      <ChevronRight className="size-4 text-muted-foreground" />
+    </button>
   )
 }

@@ -1,61 +1,111 @@
-"use client";
+"use client"
 
-import { useState } from "react";
-import { Star, Coins, Sparkles, X, Package } from "lucide-react";
-import { lootCases, coinShop, rarityMeta, type CaseItem, type LootCase } from "@/lib/data";
-import { useNexus } from "@/lib/store";
-import { cn } from "@/lib/utils";
+import { useEffect, useMemo, useRef, useState } from "react"
+import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX } from "lucide-react"
+import { lootCases, coinShop, rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
+import { useNexus } from "@/lib/store"
+import { cn } from "@/lib/utils"
+import { tick, win as winSfx, whoosh, setMuted, isMuted } from "@/lib/sfx"
+
+const rarityRank: Record<Rarity, number> = { common: 0, rare: 2, epic: 3, premium: 4 }
+
+function formatCooldown(ms: number) {
+  const total = Math.ceil(ms / 1000)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
+}
+
+// шансы выпадения предметов кейса в процентах
+function caseChances(c: LootCase) {
+  const totalW = c.items.reduce((s, i) => s + i.weight, 0)
+  return c.items.map((i) => ({ item: i, pct: (i.weight / totalW) * 100 }))
+}
+
+function pickWeighted(items: CaseItem[]) {
+  const total = items.reduce((s, i) => s + i.weight, 0)
+  let r = Math.random() * total
+  for (const it of items) {
+    r -= it.weight
+    if (r <= 0) return it
+  }
+  return items[items.length - 1]
+}
+
+function itemPct(c: LootCase, item: CaseItem) {
+  const totalW = c.items.reduce((s, i) => s + i.weight, 0)
+  return (item.weight / totalW) * 100
+}
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
-  const { stars, coins, inventory, openedToday, openCase, sellItem, spendCoins, addToInventory } = useNexus();
-  const [reveal, setReveal] = useState<CaseItem | null>(null);
-  const [spinning, setSpinning] = useState<string | null>(null);
+  const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem } = useNexus()
+  const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
+  const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem } | null>(null)
+  const [sound, setSound] = useState(true)
 
-  async function handleOpen(c: LootCase) {
-    if (spinning) return;
-    // проверка звёзд заранее для золотого
-    if (!c.free && stars < c.costStars) {
-      onToast("Недостаточно Telegram Stars ⭐");
-      return;
-    }
-    setSpinning(c.id);
-    setTimeout(async () => {
-      const res = await openCase(c.id);
-      setSpinning(null);
-      if (!res.ok) {
-        onToast(res.error ?? "Не удалось открыть кейс");
-        return;
-      }
-      setReveal(res.item ?? null);
-    }, 1400);
+  useEffect(() => {
+    setSound(!isMuted())
+  }, [])
+
+  function toggleSound() {
+    const next = !sound
+    setSound(next)
+    setMuted(!next)
   }
 
-  function buyFromShop(key: string, price: number, name: string) {
-    const ok = spendCoins(price);
-    if (!ok) {
-      onToast("Недостаточно монет Nexus");
-      return;
+  async function handleOpen(c: LootCase) {
+    if (spin) return
+    if (!c.free && stars < c.costStars) {
+      onToast("Недостаточно Telegram Stars")
+      return
     }
-    const item = lootCases.flatMap((c) => c.items).find((i) => i.name === name) ?? null;
-    if (item) addToInventory(item);
-    onToast(`Куплено: ${name}`);
+    const res = await openCase(c.id)
+    if (!res.ok) {
+      onToast(res.error ?? "Не удалось открыть кейс")
+      return
+    }
+    if (res.item) setSpin({ box: c, winner: res.item })
+  }
+
+  async function buyFromShop(key: string, name: string) {
+    const res = await buyShopItem(key)
+    if (!res.ok) {
+      onToast(res.error ?? "Недостаточно монет Nexus")
+      return
+    }
+    onToast(`Куплено: ${name}`)
   }
 
   return (
     <div className="space-y-6 px-4 py-5">
-      <div>
-        <h1 className="font-display text-2xl font-bold">Кейсы Nexus</h1>
-        <p className="text-sm text-muted-foreground text-pretty">
-          Открывай кейсы, выбивай премиум и скины, продавай их за монеты.
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold">Кейсы Nexus</h1>
+          <p className="text-sm text-muted-foreground text-pretty">
+            Крути рулетку, выбивай скины и премиум. Шансы указаны для каждого кейса.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={toggleSound}
+          aria-label={sound ? "Выключить звук" : "Включить звук"}
+          className={cn(
+            "grid size-10 shrink-0 place-items-center rounded-2xl border transition-colors active:scale-90",
+            sound ? "border-accent/40 bg-accent/10 text-accent" : "border-border bg-secondary text-muted-foreground",
+          )}
+        >
+          {sound ? <Volume2 className="size-5" /> : <VolumeX className="size-5" />}
+        </button>
       </div>
 
       {/* Cases */}
       <div className="space-y-4">
         {lootCases.map((c) => {
-          const used = openedToday[c.id] ?? 0;
-          const left = c.free ? Math.max(0, c.dailyLimit - used) : null;
-          const isSpin = spinning === c.id;
+          const cooldown = c.free ? caseReadyIn(c.id) : 0
+          const onCooldown = cooldown > 0
+          const isSpin = spin?.box.id === c.id
+          const chances = caseChances(c)
           return (
             <section
               key={c.id}
@@ -89,9 +139,15 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                   <h2 className="font-display text-lg font-bold leading-tight text-balance">{c.name}</h2>
                   <p className="text-xs text-muted-foreground">{c.subtitle}</p>
                   {c.free ? (
-                    <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-accent">
-                      <Sparkles className="size-3" /> Осталось сегодня: {left}/{c.dailyLimit}
-                    </p>
+                    onCooldown ? (
+                      <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground tabular-nums">
+                        <Clock className="size-3" /> Доступно через {formatCooldown(cooldown)}
+                      </p>
+                    ) : (
+                      <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-accent">
+                        <Sparkles className="size-3" /> Готов к открытию — 1 раз в день
+                      </p>
+                    )
                   ) : (
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars">
                       <Star className="size-3 fill-stars" /> {c.costStars} Stars за открытие
@@ -102,7 +158,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
               <button
                 type="button"
-                disabled={isSpin || (c.free && left === 0)}
+                disabled={isSpin || (c.free && onCooldown)}
                 onClick={() => handleOpen(c)}
                 className={cn(
                   "mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-display text-base font-bold transition-all active:scale-[0.98] disabled:opacity-50",
@@ -113,11 +169,13 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
               >
                 {isSpin ? (
                   <span className="flex items-center gap-2">
-                    <Package className="size-5 animate-bounce" /> Открываем…
+                    <Package className="size-5 animate-bounce" /> Крутим…
                   </span>
                 ) : c.free ? (
-                  left === 0 ? (
-                    "Приходи завтра"
+                  onCooldown ? (
+                    <span className="flex items-center gap-2 tabular-nums">
+                      <Clock className="size-5" /> {formatCooldown(cooldown)}
+                    </span>
                   ) : (
                     <>
                       <Package className="size-5" /> Открыть бесплатно
@@ -130,25 +188,32 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 )}
               </button>
 
-              {/* Возможный дроп */}
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {c.items.slice(0, 4).map((i) => (
-                  <span
-                    key={i.key}
-                    className="rounded-full border border-border bg-background/40 px-2 py-0.5 text-[10px] font-medium"
-                    style={{ color: rarityMeta[i.rarity].color }}
-                  >
-                    {i.name}
-                  </span>
-                ))}
-                {c.items.length > 4 && (
-                  <span className="rounded-full border border-border bg-background/40 px-2 py-0.5 text-[10px] text-muted-foreground">
-                    +{c.items.length - 4}
-                  </span>
-                )}
+              {/* Шансы выпадения */}
+              <div className="mt-4 space-y-2 rounded-2xl border border-border bg-background/40 p-3">
+                <p className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+                  <Percent className="size-3" /> Шансы выпадения
+                </p>
+                {chances.map(({ item, pct }) => {
+                  const color = rarityMeta[item.rarity].color
+                  return (
+                    <div key={item.key} className="flex items-center gap-2">
+                      <span className="size-2 shrink-0 rounded-full" style={{ background: color }} />
+                      <span className="w-24 shrink-0 truncate text-[11px] font-medium">{item.name}</span>
+                      <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                        <span
+                          className="absolute inset-y-0 left-0 rounded-full"
+                          style={{ width: `${Math.max(4, pct)}%`, background: color }}
+                        />
+                      </span>
+                      <span className="w-10 shrink-0 text-right text-[11px] font-bold tabular-nums" style={{ color }}>
+                        {pct.toFixed(1)}%
+                      </span>
+                    </div>
+                  )
+                })}
               </div>
             </section>
-          );
+          )
         })}
       </div>
 
@@ -184,9 +249,9 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    sellItem(item.uid);
-                    onToast(`Продано за ${item.sell} монет`);
+                  onClick={async () => {
+                    await sellItem(item.uid)
+                    onToast(`Продано за ${item.sell} монет`)
                   }}
                   className="mt-2.5 flex w-full items-center justify-center gap-1 rounded-xl border border-primary/30 bg-primary/10 py-2 text-xs font-semibold text-primary active:scale-95"
                 >
@@ -211,7 +276,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
               </div>
               <button
                 type="button"
-                onClick={() => buyFromShop(s.key, s.price, s.name)}
+                onClick={() => buyFromShop(s.key, s.name)}
                 className="flex shrink-0 items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground active:scale-95"
               >
                 <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {s.price}
@@ -221,14 +286,197 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         </div>
       </section>
 
+      {/* Spinner overlay */}
+      {spin && (
+        <CaseSpinner
+          box={spin.box}
+          winner={spin.winner}
+          onDone={() => {
+            setReveal({ item: spin.winner, box: spin.box })
+            setSpin(null)
+          }}
+        />
+      )}
+
       {/* Reveal modal */}
-      {reveal && <RevealModal item={reveal} onClose={() => setReveal(null)} />}
+      {reveal && <RevealModal item={reveal.item} box={reveal.box} onClose={() => setReveal(null)} />}
     </div>
-  );
+  )
 }
 
-function RevealModal({ item, onClose }: { item: CaseItem; onClose: () => void }) {
-  const meta = rarityMeta[item.rarity];
+const CELL = 84
+const GAP = 12
+const STRIDE = CELL + GAP
+const REEL_LEN = 60
+const WIN_INDEX = 52
+const SPIN_MS = 5600
+
+function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem; onDone: () => void }) {
+  const viewportRef = useRef<HTMLDivElement>(null)
+  const trackRef = useRef<HTMLDivElement>(null)
+  const [tx, setTx] = useState(0)
+  const [go, setGo] = useState(false)
+  const [landed, setLanded] = useState(false)
+  const doneRef = useRef(false)
+  const winColor = rarityMeta[winner.rarity].color
+
+  const reel = useMemo(() => {
+    const arr: CaseItem[] = []
+    for (let i = 0; i < REEL_LEN; i++) arr.push(i === WIN_INDEX ? winner : pickWeighted(box.items))
+    return arr
+  }, [box, winner])
+
+  useEffect(() => {
+    const vp = viewportRef.current
+    if (!vp) return
+    const width = vp.clientWidth
+    const jitter = (Math.random() - 0.5) * (CELL * 0.5)
+    const target = WIN_INDEX * STRIDE + CELL / 2 - width / 2 + jitter
+
+    whoosh()
+
+    const raf = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setGo(true)
+        setTx(-target)
+      })
+    })
+
+    // Тики синхронизированы с реальным положением ленты: читаем матрицу трансформа
+    // каждый кадр и щёлкаем при каждом пересечении границы ячейки. Тики естественно
+    // замедляются вместе с лентой — эффект как в CS:GO.
+    let lastCell = 0
+    let rafTick = 0
+    const track = trackRef.current
+    const loop = () => {
+      if (track) {
+        const m = new DOMMatrixReadOnly(getComputedStyle(track).transform)
+        const cell = Math.round(-m.m41 / STRIDE)
+        if (cell !== lastCell) {
+          lastCell = cell
+          tick(0.9 + Math.random() * 0.2)
+        }
+      }
+      if (!doneRef.current) rafTick = requestAnimationFrame(loop)
+    }
+    rafTick = requestAnimationFrame(loop)
+
+    const fallback = setTimeout(finish, SPIN_MS + 400)
+    return () => {
+      cancelAnimationFrame(raf)
+      cancelAnimationFrame(rafTick)
+      clearTimeout(fallback)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  function finish() {
+    if (doneRef.current) return
+    doneRef.current = true
+    setLanded(true)
+    winSfx(rarityRank[winner.rarity])
+    setTimeout(onDone, 620)
+  }
+
+  const winPct = itemPct(box, winner)
+
+  return (
+    <div className="fixed inset-0 z-[65] flex flex-col items-center justify-center bg-background/90 px-4 backdrop-blur-md">
+      {/* атмосферное свечение по цвету редкости */}
+      <div
+        className="pointer-events-none absolute inset-x-0 top-1/2 h-64 -translate-y-1/2 opacity-40 blur-3xl transition-opacity duration-500"
+        style={{ background: `radial-gradient(60% 60% at 50% 50%, ${winColor}, transparent 70%)`, opacity: landed ? 0.6 : 0.25 }}
+      />
+
+      <div className="relative z-10 flex flex-col items-center w-full">
+        <p className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
+          <Package className="size-3.5" /> {landed ? "Готово" : "Открываем"}
+        </p>
+        <p className="mb-4 font-display text-lg font-bold text-balance text-center">{box.name}</p>
+
+        {/* Reel viewport */}
+        <div
+          ref={viewportRef}
+          className="relative w-full max-w-sm overflow-hidden rounded-3xl border bg-card/80 py-4 shadow-2xl transition-colors duration-300"
+          style={{ borderColor: landed ? winColor : "var(--border)", boxShadow: landed ? `0 0 40px -6px ${winColor}` : undefined }}
+        >
+          {/* центральный маркер с подсветкой */}
+          <div
+            className="pointer-events-none absolute inset-y-2 left-1/2 z-20 w-[3px] -translate-x-1/2 rounded-full"
+            style={{ background: winColor, boxShadow: `0 0 14px 2px ${winColor}` }}
+          />
+          <div
+            className="pointer-events-none absolute left-1/2 top-1 z-20 size-0 -translate-x-1/2 border-x-[8px] border-t-[10px] border-x-transparent"
+            style={{ borderTopColor: winColor }}
+          />
+          <div
+            className="pointer-events-none absolute bottom-1 left-1/2 z-20 size-0 -translate-x-1/2 border-x-[8px] border-b-[10px] border-x-transparent"
+            style={{ borderBottomColor: winColor }}
+          />
+          {/* световой столб под маркером */}
+          <div
+            className="pointer-events-none absolute inset-y-0 left-1/2 z-[8] w-24 -translate-x-1/2 opacity-60"
+            style={{ background: `linear-gradient(90deg, transparent, ${winColor}22 45%, ${winColor}22 55%, transparent)` }}
+          />
+          {/* мягкие края */}
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-[10] w-14 bg-gradient-to-r from-card to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-[10] w-14 bg-gradient-to-l from-card to-transparent" />
+
+          <div
+            ref={trackRef}
+            className="flex"
+            style={{
+              gap: `${GAP}px`,
+              transform: `translateX(${tx}px)`,
+              transition: go ? `transform ${SPIN_MS}ms cubic-bezier(0.08, 0.62, 0.14, 1)` : "none",
+              willChange: "transform",
+            }}
+            onTransitionEnd={finish}
+          >
+            {reel.map((it, i) => {
+              const color = rarityMeta[it.rarity].color
+              const isWinCell = landed && i === WIN_INDEX
+              return (
+                <div
+                  key={i}
+                  className={cn(
+                    "relative flex shrink-0 flex-col items-center justify-center gap-1.5 rounded-2xl border-2 transition-all duration-300",
+                    isWinCell && "scale-105",
+                  )}
+                  style={{
+                    width: CELL,
+                    height: CELL + 20,
+                    borderColor: color,
+                    background: `linear-gradient(180deg, ${color}14, var(--background) 70%)`,
+                    boxShadow: isWinCell ? `0 0 24px -2px ${color}, inset 0 0 20px -8px ${color}` : `inset 0 -14px 22px -16px ${color}`,
+                  }}
+                >
+                  {it.image ? (
+                    <img src={it.image || "/placeholder.svg"} alt="" className="size-12 object-contain" />
+                  ) : (
+                    <span className="text-3xl leading-none">{it.icon}</span>
+                  )}
+                  <span className="h-1 w-9 rounded-full" style={{ background: color }} />
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Percent className="size-3.5" /> Шанс этого предмета:{" "}
+          <span className="font-bold tabular-nums" style={{ color: winColor }}>
+            {winPct.toFixed(1)}%
+          </span>
+        </p>
+      </div>
+    </div>
+  )
+}
+
+function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; onClose: () => void }) {
+  const meta = rarityMeta[item.rarity]
+  const pct = itemPct(box, item)
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-6 backdrop-blur-sm">
       <div className="animate-star-pop relative w-full max-w-xs overflow-hidden rounded-3xl border border-border bg-card p-6 text-center">
@@ -255,12 +503,15 @@ function RevealModal({ item, onClose }: { item: CaseItem; onClose: () => void })
         </div>
         <h3 className="mt-4 font-display text-xl font-bold text-balance">{item.name}</h3>
         <p className="mt-1 text-sm text-muted-foreground text-pretty">{item.desc}</p>
+        <p className="mt-2 flex items-center justify-center gap-1 text-xs font-semibold" style={{ color: meta.color }}>
+          <Percent className="size-3.5" /> Шанс выпадения: {pct.toFixed(1)}%
+        </p>
         {item.grantsPremium && (
-          <p className="mt-2 flex items-center justify-center gap-1 text-xs font-semibold text-stars">
+          <p className="mt-1 flex items-center justify-center gap-1 text-xs font-semibold text-stars">
             <Sparkles className="size-3.5" /> Премиум активирован!
           </p>
         )}
-        <div className="mt-4 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+        <div className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground">
           <Coins className="size-3.5" /> Продать можно за {item.sell} монет
         </div>
         <button
@@ -272,5 +523,5 @@ function RevealModal({ item, onClose }: { item: CaseItem; onClose: () => void })
         </button>
       </div>
     </div>
-  );
+  )
 }

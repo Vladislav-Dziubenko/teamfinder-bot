@@ -1,16 +1,16 @@
 "use client"
 
-import { Home, Swords, Package, BookOpen, Star, User } from "lucide-react"
+import { Home, Swords, Package, Trophy, Ticket, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export type TabId = "home" | "match" | "cases" | "guides" | "donate" | "profile"
+export type TabId = "home" | "match" | "cases" | "guides" | "donate" | "profile" | "battlepass" | "promo"
 
 const items: { id: TabId; label: string; icon: typeof Home }[] = [
   { id: "home", label: "Главная", icon: Home },
   { id: "match", label: "Тиммейты", icon: Swords },
   { id: "cases", label: "Кейсы", icon: Package },
-  { id: "guides", label: "Гайды", icon: BookOpen },
-  { id: "donate", label: "Звёзды", icon: Star },
+  { id: "battlepass", label: "Пасс", icon: Trophy },
+  { id: "promo", label: "Промо", icon: Ticket },
   { id: "profile", label: "Профиль", icon: User },
 ]
 

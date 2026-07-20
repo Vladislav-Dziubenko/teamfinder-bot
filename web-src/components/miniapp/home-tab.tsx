@@ -1,40 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Swords, Radio, ChevronRight, BookOpen } from "lucide-react"
-import { api, type GamesResponse, type MeResponse, type MatchResult, type GuideItem } from "@/lib/api"
+import { Swords, Flame, Users2, Trophy, ChevronRight, Radio, BookOpen, Ticket } from "lucide-react"
+import { players, currentUser } from "@/lib/data"
 import type { TabId } from "./bottom-nav"
-import { gameColor } from "@/lib/data"
+import type { Player } from "@/lib/data"
 
 export function HomeTab({
-  games,
-  me,
   onGo,
   onConnect,
 }: {
-  games: GamesResponse
-  me: MeResponse | null
   onGo: (t: TabId) => void
-  onConnect: (p: MatchResult) => void
+  onConnect: (p: Player) => void
 }) {
-  const [matches, setMatches] = useState<MatchResult[] | null>(null)
-  const [featuredGuide, setFeaturedGuide] = useState<GuideItem | null>(null)
-  const profile = me?.profile ?? null
-
-  useEffect(() => {
-    if (profile) {
-      api
-        .search()
-        .then((r) => setMatches(r.results.slice(0, 6)))
-        .catch(() => setMatches([]))
-    }
-    api
-      .guides(profile?.game)
-      .then((r) => setFeaturedGuide(r.guides[0] ?? null))
-      .catch(() => setFeaturedGuide(null))
-  }, [profile?.game])
-
-  const gameInfo = profile ? games.games[profile.game] : null
+  const onlineNow = players.filter((p) => p.online)
 
   return (
     <div className="space-y-6 px-4 py-5">
@@ -44,7 +22,7 @@ export function HomeTab({
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/10" />
         <div className="absolute inset-x-0 bottom-0 p-5">
           <span className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
-            <Radio className="size-3" /> CS2 · Roblox · WoT · War Thunder и другие
+            <Radio className="size-3" /> {onlineNow.length * 1287 + 412} игроков в поиске
           </span>
           <h1 className="font-display text-3xl font-bold leading-none text-balance text-glow-primary">
             Найди свою команду мечты
@@ -57,103 +35,123 @@ export function HomeTab({
             onClick={() => onGo("match")}
             className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] transition-transform active:scale-95"
           >
-            <Swords className="size-4" /> {profile ? "Найти тиммейтов" : "Начать — заполнить анкету"}
+            <Swords className="size-4" /> Начать поиск
           </button>
         </div>
       </section>
 
-      {/* Профиль-статус вместо выдуманных "побед/уровня" */}
-      {profile && gameInfo ? (
-        <section className="rounded-3xl border border-border bg-card p-4">
-          <p className="text-xs text-muted-foreground">Твоя анкета</p>
-          <p className="mt-1 font-display text-lg font-bold">
-            {gameInfo.emoji} {profile.nickname} · {gameInfo.title}
-          </p>
-          <p className="text-sm text-muted-foreground">
-            {profile.rank} · {profile.role}
-          </p>
-        </section>
-      ) : (
-        <section className="rounded-3xl border border-dashed border-primary/40 bg-primary/5 p-4">
-          <p className="font-display text-base font-bold">Анкета ещё не заполнена</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Заполни её, чтобы тебя нашли и чтобы видеть тиммейтов по своей игре.
-          </p>
+      {/* Quick stats */}
+      <section className="grid grid-cols-3 gap-3">
+        <MiniStat icon={Trophy} value={currentUser.wins} label="Побед" tint="var(--primary)" />
+        <MiniStat icon={Users2} value={currentUser.friends} label="Тиммейтов" tint="var(--accent)" />
+        <MiniStat icon={Flame} value={`LVL ${currentUser.level}`} label="Уровень" tint="var(--stars)" />
+      </section>
+
+      {/* Quick access */}
+      <section className="grid grid-cols-3 gap-3">
+        <QuickLink icon={Trophy} label="Батл-пасс" tint="var(--stars)" onClick={() => onGo("battlepass")} />
+        <QuickLink icon={Ticket} label="Промокоды" tint="var(--primary)" onClick={() => onGo("promo")} />
+        <QuickLink icon={BookOpen} label="Гайды" tint="var(--accent)" onClick={() => onGo("guides")} />
+      </section>
+
+      {/* Online now */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-lg font-bold">В сети сейчас</h2>
           <button
             type="button"
-            onClick={() => onGo("profile")}
-            className="mt-3 rounded-xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+            onClick={() => onGo("match")}
+            className="flex items-center gap-0.5 text-xs font-medium text-primary"
           >
-            Заполнить анкету
+            все <ChevronRight className="size-3.5" />
           </button>
-        </section>
-      )}
-
-      {/* Тиммейты по твоей игре */}
-      {profile && (
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-display text-lg font-bold">Подходят тебе</h2>
+        </div>
+        <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
+          {onlineNow.map((p, i) => (
             <button
+              key={p.id}
               type="button"
-              onClick={() => onGo("match")}
-              className="flex items-center gap-0.5 text-xs font-medium text-primary"
+              onClick={() => onConnect(p)}
+              className="animate-rise w-36 shrink-0 overflow-hidden rounded-2xl border border-border bg-card text-left"
+              style={{ animationDelay: `${i * 70}ms` }}
             >
-              все <ChevronRight className="size-3.5" />
+              <div className="relative">
+                <img src={p.avatar || "/placeholder.svg"} alt={p.nick} className="h-28 w-full object-cover" />
+                <span className="absolute left-2 top-2 size-2.5 rounded-full bg-accent ring-2 ring-card animate-pulse-ring" />
+                <span className="absolute right-2 top-2 rounded bg-primary/90 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
+                  {p.vibe}%
+                </span>
+              </div>
+              <div className="p-2.5">
+                <p className="truncate font-display text-sm font-bold">{p.nick}</p>
+                <p className="truncate text-[11px] text-muted-foreground">{p.rank}</p>
+              </div>
             </button>
-          </div>
-          {matches === null ? (
-            <p className="text-sm text-muted-foreground">Загрузка…</p>
-          ) : matches.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Пока никого не нашли по твоей игре — загляни позже.</p>
-          ) : (
-            <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-1">
-              {matches.map((p, i) => (
-                <button
-                  key={p.user_id}
-                  type="button"
-                  onClick={() => onConnect(p)}
-                  className="animate-rise w-36 shrink-0 overflow-hidden rounded-2xl border border-border bg-card text-left"
-                  style={{ animationDelay: `${i * 70}ms` }}
-                >
-                  <div className="relative flex h-20 items-center justify-center bg-secondary">
-                    <span className="font-display text-2xl font-bold text-muted-foreground">
-                      {p.nickname.charAt(0).toUpperCase()}
-                    </span>
-                    <span className="absolute right-2 top-2 rounded bg-primary/90 px-1.5 py-0.5 text-[10px] font-bold text-primary-foreground">
-                      {p.score}%
-                    </span>
-                  </div>
-                  <div className="p-2.5">
-                    <p className="truncate font-display text-sm font-bold">{p.nickname}</p>
-                    <p className="truncate text-[11px] text-muted-foreground">{p.rank}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
+          ))}
+        </div>
+      </section>
 
-      {/* Гайд дня — реальный, из бэкенда */}
-      {featuredGuide && (
-        <button
-          type="button"
-          onClick={() => onGo("guides")}
-          className="animate-scan relative flex w-full items-center gap-3 overflow-hidden rounded-3xl border border-primary/30 bg-primary/5 p-5 text-left"
-        >
-          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary/15 text-primary">
-            <BookOpen className="size-5" />
-          </span>
-          <div className="min-w-0">
-            <span className="text-xs font-medium uppercase tracking-widest text-primary">Гайд</span>
-            <p className="mt-0.5 truncate font-display text-base font-bold text-balance">{featuredGuide.title}</p>
-            <p className="text-xs text-muted-foreground">
-              {featuredGuide.unlocked ? "Открыт" : `${featuredGuide.stars}⭐ за полную версию`}
-            </p>
+      {/* Daily challenge — прикол */}
+      <section className="animate-scan relative overflow-hidden rounded-3xl border border-primary/30 bg-primary/5 p-5">
+        <div className="relative z-10">
+          <span className="text-xs font-medium uppercase tracking-widest text-primary">Задание дня</span>
+          <p className="mt-1 font-display text-xl font-bold text-balance">
+            Сыграй 3 катки с новым тиммейтом
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">Награда: 50 звёзд ⭐ и значок «Командный игрок»</p>
+          <div className="mt-3 flex items-center gap-3">
+            <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+              <div className="h-full w-1/3 rounded-full bg-primary" />
+            </div>
+            <span className="text-xs font-semibold text-primary">1/3</span>
           </div>
-        </button>
-      )}
+        </div>
+      </section>
+    </div>
+  )
+}
+
+function QuickLink({
+  icon: Icon,
+  label,
+  tint,
+  onClick,
+}: {
+  icon: typeof Trophy
+  label: string
+  tint: string
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-card p-3 text-center active:scale-95"
+    >
+      <span className="grid size-9 place-items-center rounded-xl" style={{ background: `color-mix(in oklch, ${tint} 15%, transparent)` }}>
+        <Icon className="size-5" style={{ color: tint }} />
+      </span>
+      <span className="text-[11px] font-semibold">{label}</span>
+    </button>
+  )
+}
+
+function MiniStat({
+  icon: Icon,
+  value,
+  label,
+  tint,
+}: {
+  icon: typeof Trophy
+  value: string | number
+  label: string
+  tint: string
+}) {
+  return (
+    <div className="rounded-2xl border border-border bg-card p-3 text-center">
+      <Icon className="mx-auto size-5" style={{ color: tint }} />
+      <p className="mt-1.5 font-display text-xl font-bold leading-none">{value}</p>
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
     </div>
   )
 }

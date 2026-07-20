@@ -1,10 +1,9 @@
-
 "use client"
 
 import { Star } from "lucide-react"
 import { useNexus } from "@/lib/store"
 
-export function TopBar({ onStars, onCoins, premium }: { onStars: () => void; onCoins: () => void; premium: boolean }) {
+export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () => void }) {
   const { stars, coins } = useNexus()
 
   return (
@@ -22,11 +21,7 @@ export function TopBar({ onStars, onCoins, premium }: { onStars: () => void; onC
         </div>
 
         <div className="flex items-center gap-2">
-          {premium && (
-            <span className="rounded-xl border border-stars/30 bg-stars/10 px-2.5 py-2 text-[11px] font-semibold text-stars">
-              PRO
-            </span>
-          )}
+          {/* Nexus-монетки */}
           <button
             type="button"
             onClick={onCoins}
@@ -36,6 +31,7 @@ export function TopBar({ onStars, onCoins, premium }: { onStars: () => void; onC
             <img src="/nexus-coin.png" alt="" className="size-5 rounded-full object-cover" />
             {coins}
           </button>
+          {/* Telegram Stars */}
           <button
             type="button"
             onClick={onStars}

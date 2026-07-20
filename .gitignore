@@ -13,6 +13,7 @@ venv/
 web-src/node_modules/
 web-src/.next/
 web-src/out/
+web-src/next-env.d.ts
 
 # IDE / OS
 .vscode/
