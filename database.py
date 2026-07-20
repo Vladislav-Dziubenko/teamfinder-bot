@@ -368,6 +368,22 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Promo reward data migration warning: {e}")
 
+        # promo_codes is the only table that could have had real production rows
+        # before this migration. If any row still has no reward data, fail loudly
+        # so we don't silently serve broken promo codes.
+        if await self._column_exists(conn, "promo_codes", "reward_json"):
+            try:
+                bad = await conn.fetchval(
+                    "SELECT COUNT(*) FROM promo_codes WHERE reward_json IS NULL OR reward_json = '{}'"
+                )
+                if bad:
+                    raise RuntimeError(
+                        f"promo_codes contains {bad} rows with empty reward_json after migration. "
+                        "Manual cleanup is required because these rows existed before the migration and have no reward data."
+                    )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning while checking promo_codes.reward_json: {e}")
+
     async def ensure_user(self, user_id: int, username: str | None, first_name: str | None) -> None:
         async with self.pool.acquire() as conn:
             await conn.execute(
