@@ -341,6 +341,24 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Migration warning for {table}.{column}: {e}")
 
+        # Safety check: per-user tables that received a new user_id column may
+        # contain pre-existing rows with NULL user_id. The rows are not deleted,
+        # but they become invisible to user-scoped SELECTs. Log a warning so it
+        # can be investigated if it ever happens.
+        user_scoped_tables = [
+            "user_inventory", "case_opens", "user_quests", "promo_redemptions",
+            "user_achievements", "user_battlepass", "daily_streaks", "referrals",
+            "mini_app_profiles", "user_currency",
+        ]
+        for table in user_scoped_tables:
+            if await self._column_exists(conn, table, "user_id"):
+                try:
+                    count = await conn.fetchval(f"SELECT COUNT(*) FROM {table} WHERE user_id IS NULL")
+                    if count:
+                        print(f"Migration warning: {table} has {count} rows with NULL user_id")
+                except asyncpg.PostgresError as e:
+                    print(f"Migration warning while checking {table}.user_id: {e}")
+
         # Data migration: older promo_codes tables used column name `reward` instead of `reward_json`
         if await self._column_exists(conn, "promo_codes", "reward") and await self._column_exists(conn, "promo_codes", "reward_json"):
             try:
