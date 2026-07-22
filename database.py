@@ -1,5 +1,6 @@
 import asyncpg
 from datetime import datetime, timedelta
+from urllib.parse import urlparse
 
 from data.games import DEFAULT_PROMO_CODES
 
@@ -210,9 +211,17 @@ class Database:
         self._pool: asyncpg.Pool | None = None
 
     async def connect(self) -> None:
+        # SSL включается для всех внешних хостов (Neon, Render, Supabase, Railway…).
+        # Для локальной разработки (localhost / 127.0.0.1 / ::1) SSL не нужен.
+        # Такой подход убирает хрупкую проверку по строке "render.com" и
+        # автоматически покрывает Neon-хосты (*.neon.tech) и любые другие облачные БД.
+        _host = urlparse(self.database_url).hostname or ""
+        _local = {"localhost", "127.0.0.1", "::1"}
+        ssl_arg: str | None = None if _host in _local else "require"
+
         self._pool = await asyncpg.create_pool(
             self.database_url,
-            ssl="require" if "render.com" in self.database_url else None,
+            ssl=ssl_arg,
         )
         async with self._pool.acquire() as conn:
             await self._init_schema(conn)
@@ -271,6 +280,12 @@ class Database:
         # ---------- Mini App / Nexus tables ----------
         # If these tables were created by an earlier version that lacked some
         # columns, ADD COLUMN IF NOT EXISTS brings them up to the current schema.
+        #
+        # Security note: `table`, `column`, `col_type` in column_migrations are
+        # compile-time constants defined in this source file — not user input.
+        # Dynamic f-string SQL below is safe: no user-controlled data reaches
+        # these identifiers. If you add a new entry, values must come from this
+        # constant list, never from request bodies, query params, or DB reads.
         column_migrations = [
             ("user_inventory", "user_id", "BIGINT"),
             ("user_inventory", "item_key", "TEXT NOT NULL DEFAULT ''"),
@@ -345,6 +360,9 @@ class Database:
         # contain pre-existing rows with NULL user_id. The rows are not deleted,
         # but they become invisible to user-scoped SELECTs. Log a warning so it
         # can be investigated if it ever happens.
+        #
+        # Security note: `table` iterates over the constant `user_scoped_tables`
+        # defined above — not user input. Dynamic SQL here is safe.
         user_scoped_tables = [
             "user_inventory", "case_opens", "user_quests", "promo_redemptions",
             "user_achievements", "user_battlepass", "daily_streaks", "referrals",
