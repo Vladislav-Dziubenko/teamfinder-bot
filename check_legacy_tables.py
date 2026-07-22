@@ -1,6 +1,5 @@
 import asyncio, asyncpg, json
 
-DSN = "postgresql://teamfinder_db_kvac_user:QW3NjdyxBzqe8pQU78idlnbSdeh1ZPL4@dpg-d99qmhv7f7vs73b78khg-a.oregon-postgres.render.com:5432/teamfinder_db_kvac?sslmode=require"
 
 TABLES = [
     "case_cooldowns",
