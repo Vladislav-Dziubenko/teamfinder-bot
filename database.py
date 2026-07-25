@@ -1053,7 +1053,7 @@ class Database:
 
                 if last_claim_at:
                     last = datetime.fromisoformat(last_claim_at)
-                    if (datetime.utcnow() - last).total_seconds() < 24 * 3600:
+                    if (datetime.utcnow() - last).total_seconds() < 48 * 3600:
                         return {"ok": False, "error": "Следующая награда откроется позже"}
 
                 tier = BATTLE_PASS_TIERS[claimed_count]

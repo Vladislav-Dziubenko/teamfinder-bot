@@ -20,8 +20,8 @@ import { api, telegramReady } from "@/lib/api"
 export type InventoryItem = CaseItem & { uid: string; id?: number }
 
 const DAY_MS = 24 * 60 * 60 * 1000
-// Батл-пасс: следующую награду можно забрать раз в день
-const BP_CLAIM_INTERVAL = DAY_MS
+// Батл-пасс: следующую награду можно забрать раз в 2 дня (через день)
+const BP_CLAIM_INTERVAL = 2 * DAY_MS
 const FREE_SEARCHES = 5
 
  type MeResponse = {
