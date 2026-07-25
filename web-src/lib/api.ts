@@ -5,6 +5,7 @@ declare global {
         initData: string
         openTelegramLink?: (url: string) => void
         shareURL?: (url: string, text?: string) => void
+        openInvoice?: (url: string, callback: (status: string) => void) => void
         ready: () => void
       }
     }

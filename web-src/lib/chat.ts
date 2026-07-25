@@ -41,7 +41,7 @@ export function useChats(): ChatPreview[] {
     api.get("/api/chat/list").then((data) => {
       chatsCache = (data.chats || []).map((c: any) => ({
         id: c.chat_id,
-        player: { id: c.chat_id.replace("dm-", ""), nick: c.chat_id, avatar: "/placeholder.svg", online: false, lastSeen: "" },
+        player: { id: c.chat_id.replace("dm-", ""), nick: c.other_nick || c.chat_id, avatar: c.other_avatar || "/placeholder.svg", online: false, lastSeen: "" },
         lastText: c.last_text,
         lastTs: new Date(c.last_ts).getTime(),
         unread: c.unread,

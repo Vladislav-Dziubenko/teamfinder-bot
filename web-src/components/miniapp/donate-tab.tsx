@@ -26,7 +26,18 @@ export function DonateTab() {
     try {
       const data = await api.post("/api/pay/invoice", { type: "star_pack", pack_id: selected.id })
       if (data.invoice_link && typeof window !== "undefined") {
-        window.Telegram?.WebApp?.openTelegramLink?.(data.invoice_link)
+        const tg = window.Telegram?.WebApp
+        if (tg?.openInvoice) {
+          tg.openInvoice(data.invoice_link, (status) => {
+            if (status === "paid") {
+              setFlash(`✅ ${selected.perk} — оплачено! ⭐`)
+            } else if (status === "cancelled") {
+              setFlash("Оплата отменена")
+            }
+          })
+        } else {
+          tg?.openTelegramLink?.(data.invoice_link)
+        }
       }
     } catch (e: any) {
       setFlash(e.message || "Ошибка оплаты")
@@ -34,7 +45,7 @@ export function DonateTab() {
     setTimeout(() => {
       setDone(false)
       setSelected(null)
-    }, 3000)
+    }, 5000)
   }
 
   async function buyCoins(pack: (typeof coinPacks)[number]) {

@@ -1435,17 +1435,17 @@ class Database:
 
     async def get_user_chats(self, user_id: int) -> list[dict]:
         async with self.pool.acquire() as conn:
-            chat_ids = await conn.fetch(
-                "SELECT DISTINCT chat_id FROM chat_messages WHERE sender_id = $1 OR chat_id LIKE $2",
-                user_id, f"dm-{user_id}-%",
+            # Chats where user sent a message
+            sent = await conn.fetch(
+                "SELECT DISTINCT chat_id FROM chat_messages WHERE sender_id = $1",
+                user_id,
             )
-            # Also get chats where other users messaged this user
-            other = await conn.fetch(
-                "SELECT DISTINCT chat_id FROM chat_messages WHERE chat_id LIKE $1 AND sender_id != $2",
-                f"dm-%-{user_id}", user_id,
+            # Chats where user is the recipient (chat_id = dm-{user_id})
+            received = await conn.fetch(
+                "SELECT DISTINCT chat_id FROM chat_messages WHERE chat_id = $1",
+                f"dm-{user_id}",
             )
-            all_ids = set(r["chat_id"] for r in chat_ids) | set(r["chat_id"] for r in other)
-            # Add user's own dm chat
+            all_ids = set(r["chat_id"] for r in sent) | set(r["chat_id"] for r in received)
             all_ids.add(f"dm-{user_id}")
             results = []
             for cid in all_ids:
@@ -1458,8 +1458,16 @@ class Database:
                         "SELECT COUNT(*) FROM chat_messages WHERE chat_id = $1 AND sender_id != $2 AND id > COALESCE((SELECT MAX(id) FROM chat_messages WHERE chat_id = $1 AND sender_id = $2), 0)",
                         cid, user_id,
                     )
+                    other_id_str = cid.replace("dm-", "")
+                    other_id = int(other_id_str) if other_id_str.isdigit() else 0
+                    profile = await conn.fetchrow(
+                        "SELECT nick, avatar FROM mini_app_profiles WHERE user_id = $1",
+                        other_id,
+                    ) if other_id else None
                     results.append({
                         "chat_id": cid,
+                        "other_nick": profile["nick"] if profile else other_id_str,
+                        "other_avatar": profile["avatar"] if profile else None,
                         "last_text": row["text"],
                         "last_ts": row["created_at"],
                         "unread": unread or 0,
