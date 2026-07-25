@@ -2,7 +2,6 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
 import {
-  currentUser,
   lootCases,
   battlePassTiers,
   battlePassPriceStars,
@@ -12,7 +11,6 @@ import {
   dailyStreakRewards,
   type CaseItem,
   type BattlePassReward,
-  type PromoCode,
   type Rarity,
 } from "@/lib/data"
 import { api, telegramReady } from "@/lib/api"
@@ -108,17 +106,17 @@ function makeReferralCode() {
 
 function defaultState(): PersistedState {
   return {
-    stars: currentUser.stars,
-    coins: currentUser.coins,
-    points: currentUser.points,
+    stars: 0,
+    coins: 0,
+    points: 0,
     premiumActive: false,
     inventory: [],
     freeSearchesLeft: FREE_SEARCHES,
     unlockedPlayers: [],
     caseCooldown: {},
     avatar: null,
-    nick: currentUser.nick,
-    bio: "Ищу пати на фейсит по вечерам. Дискорд обязателен, без токсиков.",
+    nick: "",
+    bio: "",
     deco: "orange",
     unlockedDecos: ["orange"],
     bpPremium: false,
@@ -195,17 +193,17 @@ function mapMeToState(me: MeResponse): PersistedState {
   }
 
   return {
-    stars: currency.stars ?? currentUser.stars,
-    coins: currency.coins ?? currentUser.coins,
-    points: currency.points ?? currentUser.points,
+    stars: currency.stars ?? 0,
+    coins: currency.coins ?? 0,
+    points: currency.points ?? 0,
     premiumActive: me.premium_active || false,
     inventory: (me.inventory || []).map(enrichInventoryItem),
     freeSearchesLeft: FREE_SEARCHES,
     unlockedPlayers: [],
     caseCooldown,
     avatar: mini.avatar || null,
-    nick: mini.nick || currentUser.nick,
-    bio: mini.bio || defaultState().bio,
+    nick: mini.nick || "",
+    bio: mini.bio || "",
     deco: mini.deco || "orange",
     unlockedDecos: mini.unlocked_decos || ["orange"],
     bpPremium: bp.bp_premium || false,

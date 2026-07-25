@@ -213,6 +213,7 @@ PUBLIC_API_PREFIXES = (
     "/api/leaderboard",
     "/api/teams",
     "/api/nexus/shop",
+    "/api/search/count",
 )
 
 @web.middleware
@@ -334,6 +335,12 @@ async def handle_customize_profile(request: web.Request):
     data = {k: body.get(k) for k in allowed if k in body}
     await db.save_mini_app_profile(user["id"], data)
     return web.json_response({"profile": await db.get_mini_app_profile(user["id"])})
+
+
+async def handle_search_count(request: web.Request):
+    db: Database = request.app["db"]
+    stats = await db.stats()
+    return web.json_response({"count": stats["profiles"]})
 
 
 async def handle_search(request: web.Request):
@@ -1248,6 +1255,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/profile", handle_save_profile)
     app.router.add_post("/api/profile/hide", handle_hide_profile)
     app.router.add_post("/api/profile/customize", handle_customize_profile)
+    app.router.add_get("/api/search/count", handle_search_count)
     app.router.add_get("/api/search", handle_search)
     app.router.add_get("/api/guides", handle_guides)
     app.router.add_get("/api/guides/{guide_id}", handle_guide_detail)
