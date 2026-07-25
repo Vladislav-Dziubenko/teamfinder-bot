@@ -161,7 +161,8 @@ async def cache_static_middleware(request: web.Request, handler):
 async def gzip_middleware(request: web.Request, handler):
     response = await handler(request)
     accept = request.headers.get("Accept-Encoding", "")
-    if "gzip" in accept and response.body and len(response.body) > 1024:
+    body = getattr(response, "body", None)
+    if "gzip" in accept and body and len(body) > 1024:
         orig_type = response.content_type or ""
         if orig_type.startswith(("text/", "application/json", "application/javascript")):
             response.body = gzip.compress(response.body)
