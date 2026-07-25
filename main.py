@@ -57,42 +57,37 @@ async def main():
         logging.warning("WEBAPP_URL не задан — кнопка Mini App в /start не появится")
 
     # Graceful shutdown
-    stop_event = asyncio.Event()
+    shutdown_event = asyncio.Event()
 
-    def signal_handler(sig, frame):
+    def _signal_handler(sig, frame):
         logging.info(f"Received signal {sig}, shutting down...")
-        stop_event.set()
+        shutdown_event.set()
 
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, _signal_handler)
+    signal.signal(signal.SIGINT, _signal_handler)
 
-    # Ждём 15 секунд — Render даёт старому контейнеру время получить SIGTERM
-    # и закрыть polling, чтобы новый не поймал TelegramConflictError
-    await asyncio.sleep(15)
-
-    async def start_polling_with_retry():
-        for attempt in range(5):
-            try:
-                await dp.start_polling(bot)
-                return
-            except TelegramConflictError as e:
-                logging.warning(f"Polling conflict (attempt {attempt+1}/5): {e}. Waiting 10s…")
-                await asyncio.sleep(10)
-            except Exception as e:
-                logging.error(f"Polling error (attempt {attempt+1}/5): {e}. Waiting 10s…")
-                await asyncio.sleep(10)
-        logging.error("Failed to start polling after 5 attempts")
-
-    polling_task = asyncio.create_task(start_polling_with_retry())
+    # Принудительно закрываем старую сессию, чтобы избежать ConflictError
     try:
-        await stop_event.wait()
+        await bot.delete_webhook()
+    except Exception:
+        pass
+
+    polling_task = asyncio.create_task(dp.start_polling(bot))
+    try:
+        await shutdown_event.wait()
+    except asyncio.CancelledError:
+        pass
     finally:
         logging.info("Stopping bot...")
         polling_task.cancel()
-        try:
-            await polling_task
-        except (asyncio.CancelledError, Exception):
-            pass
+        for attempt in range(3):
+            try:
+                await asyncio.wait_for(polling_task, timeout=5)
+                break
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
+            except Exception:
+                break
         try:
             await dp.stop_polling()
         except Exception:
