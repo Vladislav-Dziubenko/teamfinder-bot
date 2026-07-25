@@ -24,6 +24,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Replace the old static folder with the freshly built Mini App
-RUN rm -rf /app/webapp/static/* && cp -r /app/web-src/out/* /app/webapp/static/
+COPY --from=frontend /app/web-src/out /app/webapp/static
 
 CMD ["python", "main.py"]
