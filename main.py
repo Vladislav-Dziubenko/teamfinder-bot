@@ -64,13 +64,20 @@ async def main():
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
+    polling_task = asyncio.create_task(dp.start_polling(bot))
     try:
-        polling_task = asyncio.create_task(dp.start_polling(bot))
         await stop_event.wait()
-        await polling_task
     finally:
         logging.info("Stopping bot...")
-        await dp.stop_polling()
+        polling_task.cancel()
+        try:
+            await polling_task
+        except (asyncio.CancelledError, Exception):
+            pass
+        try:
+            await dp.stop_polling()
+        except Exception:
+            pass
         await runner.cleanup()
         await db.close()
         await bot.session.close()
