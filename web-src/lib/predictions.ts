@@ -57,100 +57,11 @@ const HOUR = 3600_000
 
 /* ---------------- Мок-данные ---------------- */
 
-const seedMatches: EsportsMatch[] = [
-  {
-    id: "match-1",
-    tournament: "IEM Katowice 2026",
-    discipline: "CS2",
-    teamA: "NAVI",
-    teamB: "FaZe",
-    startsAt: Date.now() + 2 * HOUR,
-    oddsA: 1.85,
-    oddsB: 1.95,
-    status: "upcoming",
-  },
-  {
-    id: "match-2",
-    tournament: "The International",
-    discipline: "Dota 2",
-    teamA: "Team Spirit",
-    teamB: "Gaimin Gladiators",
-    startsAt: Date.now() + 6 * HOUR,
-    oddsA: 1.6,
-    oddsB: 2.35,
-    status: "upcoming",
-  },
-  {
-    id: "match-3",
-    tournament: "VCT Champions",
-    discipline: "Valorant",
-    teamA: "Sentinels",
-    teamB: "Fnatic",
-    startsAt: Date.now() + 26 * HOUR,
-    oddsA: 2.1,
-    oddsB: 1.72,
-    status: "upcoming",
-  },
-]
+const seedMatches: EsportsMatch[] = []
 
-const seedPredictions: MatchPrediction[] = [
-  {
-    id: "hp-1",
-    matchId: "old-1",
-    label: "G2 vs Vitality · BLAST",
-    side: "A",
-    team: "G2",
-    amount: 50,
-    odds: 1.9,
-    status: "won",
-    payout: 95,
-  },
-  {
-    id: "hp-2",
-    matchId: "old-2",
-    label: "Liquid vs MOUZ · ESL",
-    side: "B",
-    team: "MOUZ",
-    amount: 40,
-    odds: 2.1,
-    status: "lost",
-    payout: 0,
-  },
-]
+const seedPredictions: MatchPrediction[] = []
 
-const seedChallenges: PvpChallenge[] = [
-  {
-    id: "pvp-1",
-    creatorId: "1",
-    creatorNick: "s1mple_wannabe",
-    condition: "Угадай число от 1 до 100, которое я загадал",
-    stake: 30,
-    status: "open",
-    createdAt: Date.now() - 30 * 60_000,
-  },
-  {
-    id: "pvp-2",
-    creatorId: "4",
-    creatorNick: "midOrFeed",
-    condition: "Кто наберёт больше MMR к пятнице",
-    stake: 100,
-    opponentId: ME_ID,
-    opponentNick: "you_gg",
-    status: "active",
-    createdAt: Date.now() - 5 * HOUR,
-  },
-  {
-    id: "pvp-3",
-    creatorId: ME_ID,
-    creatorNick: "you_gg",
-    condition: "Кто первым выбьет нож из кейса",
-    stake: 50,
-    opponentId: "2",
-    opponentNick: "cyberKitty",
-    status: "active",
-    createdAt: Date.now() - 2 * HOUR,
-  },
-]
+const seedChallenges: PvpChallenge[] = []
 
 /* ---------------- Хук (публичный API для predictions-tab) ---------------- */
 

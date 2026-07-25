@@ -45,48 +45,9 @@ function playerLite(id: string) {
   return { id: p.id, nick: p.nick, avatar: p.avatar, online: p.online, lastSeen: p.lastSeen }
 }
 
-const MIN = 60_000
+const seedChats: ChatPreview[] = []
 
-const seedChats: ChatPreview[] = [
-  {
-    id: chatIdForPlayer("2"),
-    player: playerLite("2"),
-    lastText: "Го катку вечером, я за дуэлянта",
-    lastTs: Date.now() - 4 * MIN,
-    unread: 2,
-  },
-  {
-    id: chatIdForPlayer("1"),
-    player: playerLite("1"),
-    lastText: "Скинь ник на фейсите",
-    lastTs: Date.now() - 55 * MIN,
-    unread: 0,
-  },
-  {
-    id: chatIdForPlayer("4"),
-    player: playerLite("4"),
-    lastText: "Ok, добавляй в пати 👍",
-    lastTs: Date.now() - 3 * 60 * MIN,
-    unread: 0,
-  },
-]
-
-const seedMessages: Record<string, ChatMessage[]> = {
-  [chatIdForPlayer("2")]: [
-    { id: "m1", chatId: chatIdForPlayer("2"), senderId: "2", text: "Привет! Видел твою анкету по валику", ts: Date.now() - 20 * MIN },
-    { id: "m2", chatId: chatIdForPlayer("2"), senderId: ME, text: "Привет) Да, ищу стак на ранкед", ts: Date.now() - 18 * MIN, status: "read" },
-    { id: "m3", chatId: chatIdForPlayer("2"), senderId: "2", text: "Го катку вечером, я за дуэлянта", ts: Date.now() - 4 * MIN },
-    { id: "m4", chatId: chatIdForPlayer("2"), senderId: "2", text: "Часов в 8 удобно?", ts: Date.now() - 4 * MIN },
-  ],
-  [chatIdForPlayer("1")]: [
-    { id: "n1", chatId: chatIdForPlayer("1"), senderId: ME, text: "Здарова, возьмёшь пятым на фейсит?", ts: Date.now() - 70 * MIN, status: "read" },
-    { id: "n2", chatId: chatIdForPlayer("1"), senderId: "1", text: "Скинь ник на фейсите", ts: Date.now() - 55 * MIN },
-  ],
-  [chatIdForPlayer("4")]: [
-    { id: "d1", chatId: chatIdForPlayer("4"), senderId: ME, text: "Го дотку", ts: Date.now() - 200 * MIN, status: "read" },
-    { id: "d2", chatId: chatIdForPlayer("4"), senderId: "4", text: "Ok, добавляй в пати 👍", ts: Date.now() - 180 * MIN },
-  ],
-}
+const seedMessages: Record<string, ChatMessage[]> = {}
 
 /* ---------------- Простое in-memory хранилище ---------------- */
 
