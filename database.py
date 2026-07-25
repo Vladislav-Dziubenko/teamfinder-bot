@@ -143,6 +143,20 @@ CREATE TABLE IF NOT EXISTS mini_app_profiles (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
+CREATE TABLE IF NOT EXISTS discord_connections (
+    user_id BIGINT PRIMARY KEY,
+    discord_id TEXT NOT NULL UNIQUE,
+    discord_username TEXT,
+    discord_global_name TEXT,
+    discord_avatar TEXT,
+    access_token TEXT NOT NULL,
+    refresh_token TEXT NOT NULL,
+    token_expires_at TEXT,
+    connected_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
 CREATE TABLE IF NOT EXISTS user_battlepass (
     user_id BIGINT PRIMARY KEY,
     bp_premium INTEGER DEFAULT 0,
@@ -668,6 +682,40 @@ class Database:
                 user_id, profile_id,
             )
             return row is not None
+
+    async def save_discord_connection(self, user_id: int, data: dict) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO discord_connections (user_id, discord_id, discord_username, discord_global_name,
+                    discord_avatar, access_token, refresh_token, token_expires_at, connected_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    discord_id=EXCLUDED.discord_id, discord_username=EXCLUDED.discord_username,
+                    discord_global_name=EXCLUDED.discord_global_name, discord_avatar=EXCLUDED.discord_avatar,
+                    access_token=EXCLUDED.access_token, refresh_token=EXCLUDED.refresh_token,
+                    token_expires_at=EXCLUDED.token_expires_at, updated_at=EXCLUDED.updated_at
+                """,
+                user_id, data["discord_id"], data.get("discord_username"),
+                data.get("discord_global_name"), data.get("discord_avatar"),
+                data["access_token"], data["refresh_token"],
+                data.get("token_expires_at"), now, now,
+            )
+
+    async def get_discord_connection(self, user_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM discord_connections WHERE user_id = $1", user_id)
+            return dict(row) if row else None
+
+    async def remove_discord_connection(self, user_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute("DELETE FROM discord_connections WHERE user_id = $1", user_id)
+
+    async def find_user_by_discord_id(self, discord_id: int) -> int | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT user_id FROM discord_connections WHERE discord_id = $1", str(discord_id))
+            return row["user_id"] if row else None
 
     async def create_team(self, captain_id: int, game: str, name: str, description: str, max_players: int) -> int:
         async with self.pool.acquire() as conn:

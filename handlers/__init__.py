@@ -1,1 +1,1 @@
-from . import start, profile, search, guides, payments, admin
+from . import start, profile, search, guides, payments, admin, discord

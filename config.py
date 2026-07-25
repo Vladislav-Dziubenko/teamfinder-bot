@@ -19,6 +19,10 @@ class Settings:
     webapp_url: str
     webapp_host: str
     webapp_port: int
+    discord_client_id: str
+    discord_client_secret: str
+    discord_redirect_uri: str
+    discord_bot_token: str
 
 
 def _parse_admin_ids(raw: str) -> set[int]:
@@ -71,4 +75,8 @@ def load_settings() -> Settings:
         webapp_url=_resolve_webapp_url(),
         webapp_host=os.getenv("WEBAPP_HOST", "0.0.0.0"),
         webapp_port=int(os.getenv("WEBAPP_PORT", "8080")),
+        discord_client_id=os.getenv("DISCORD_CLIENT_ID", "").strip(),
+        discord_client_secret=os.getenv("DISCORD_CLIENT_SECRET", "").strip(),
+        discord_redirect_uri=os.getenv("DISCORD_REDIRECT_URI", "").strip(),
+        discord_bot_token=os.getenv("DISCORD_BOT_TOKEN", "").strip(),
     )

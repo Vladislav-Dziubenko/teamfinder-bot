@@ -31,6 +31,8 @@ from data.guides import GUIDES
 from database import Database
 from services.matching import find_matches
 from webapp.auth import validate_init_data
+from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
+                            fetch_discord_connections, revoke_token, _make_state, _verify_state)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -214,6 +216,7 @@ PUBLIC_API_PREFIXES = (
     "/api/teams",
     "/api/nexus/shop",
     "/api/search/count",
+    "/api/discord/callback",
 )
 
 @web.middleware
@@ -1237,6 +1240,128 @@ async def handle_leaderboard(request: web.Request):
     return web.json_response(data)
 
 
+# ---------------------------------------------------------------------------
+# Discord OAuth
+# ---------------------------------------------------------------------------
+async def handle_discord_auth(request: web.Request):
+    db: Database = request.app["db"]
+    settings: Settings = request.app["settings"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    state = _make_state(settings.bot_token, user["id"])
+    url = build_auth_url(settings.discord_client_id, settings.discord_redirect_uri, state)
+    return web.json_response({"url": url})
+
+
+async def handle_discord_callback(request: web.Request):
+    db: Database = request.app["db"]
+    settings: Settings = request.app["settings"]
+    code = request.query.get("code")
+    state = request.query.get("state")
+    error = request.query.get("error")
+
+    if error or not code or not state:
+        redirect_url = settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(redirect_url)
+        return web.json_response({"error": "oauth failed"}, status=400)
+
+    user_id = _verify_state(settings.bot_token, state)
+    if user_id is None:
+        redirect_url = settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?discord=error")
+        return web.json_response({"error": "invalid state"}, status=400)
+
+    token_data = await exchange_code(settings.discord_client_id, settings.discord_client_secret, settings.discord_redirect_uri, code)
+    if not token_data or "access_token" not in token_data:
+        redirect_url = settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?discord=error")
+        return web.json_response({"error": "token exchange failed"}, status=400)
+
+    discord_user = await fetch_discord_user(token_data["access_token"])
+    if not discord_user:
+        redirect_url = settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?discord=error")
+        return web.json_response({"error": "failed to fetch user"}, status=400)
+
+    avatar = None
+    if discord_user.get("avatar"):
+        avatar = f"https://cdn.discordapp.com/avatars/{discord_user['id']}/{discord_user['avatar']}.png"
+
+    expires_at = None
+    if token_data.get("expires_in"):
+        expires_at = datetime.utcfromtimestamp(time() + token_data["expires_in"]).isoformat()
+
+    await db.save_discord_connection(user_id, {
+        "discord_id": discord_user["id"],
+        "discord_username": discord_user.get("username"),
+        "discord_global_name": discord_user.get("global_name"),
+        "discord_avatar": avatar,
+        "access_token": token_data["access_token"],
+        "refresh_token": token_data.get("refresh_token", ""),
+        "token_expires_at": expires_at,
+    })
+
+    redirect_url = settings.webapp_url
+    if redirect_url:
+        raise web.HTTPFound(f"{redirect_url}?discord=connected")
+    return web.json_response({"ok": True})
+
+
+async def handle_discord_status(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    conn = await db.get_discord_connection(user["id"])
+    if not conn:
+        return web.json_response({"connected": False})
+
+    connections = []
+    try:
+        connections = await fetch_discord_connections(conn["access_token"])
+    except Exception as e:
+        logging.warning(f"Failed to fetch Discord connections: {e}")
+
+    return web.json_response({
+        "connected": True,
+        "discord_id": conn["discord_id"],
+        "username": conn["discord_username"],
+        "global_name": conn["discord_global_name"],
+        "avatar": conn["discord_avatar"],
+        "connected_at": conn["connected_at"],
+        "connections": [
+            {"type": c["type"], "name": c.get("name", ""), "verified": c.get("verified", False)}
+            for c in connections if c.get("visibility", 0) != 0
+        ],
+    })
+
+
+async def handle_discord_unlink(request: web.Request):
+    db: Database = request.app["db"]
+    settings: Settings = request.app["settings"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    conn = await db.get_discord_connection(user["id"])
+    if conn:
+        try:
+            await revoke_token(settings.discord_client_id, settings.discord_client_secret, conn["access_token"])
+        except Exception as e:
+            logging.warning(f"Discord token revoke failed: {e}")
+        await db.remove_discord_connection(user["id"])
+
+    return web.json_response({"ok": True})
+
+
+
 def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # Порядок middleware критичен — менять только осознанно:
     # 1. error_middleware        — перехватывает все исключения, скрывает стектрейс от клиента
@@ -1310,6 +1435,12 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
 
     # Stats
     app.router.add_get("/api/stats", handle_stats)
+
+    # Discord OAuth
+    app.router.add_get("/api/discord/auth", handle_discord_auth)
+    app.router.add_get("/api/discord/callback", handle_discord_callback)
+    app.router.add_get("/api/discord/status", handle_discord_status)
+    app.router.add_post("/api/discord/unlink", handle_discord_unlink)
 
     app.router.add_static("/", STATIC_DIR, show_index=False)
     return app

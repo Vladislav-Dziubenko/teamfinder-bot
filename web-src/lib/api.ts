@@ -3,6 +3,7 @@ declare global {
     Telegram?: {
       WebApp?: {
         initData: string
+        openLink?: (url: string) => void
         openTelegramLink?: (url: string) => void
         shareURL?: (url: string, text?: string) => void
         openInvoice?: (url: string, callback: (status: string) => void) => void
