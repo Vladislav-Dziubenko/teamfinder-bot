@@ -49,55 +49,26 @@ function apiGuideToDisplay(g: ApiGuide) {
 }
 
 export function GuidesTab() {
-  const [fatal, setFatal] = useState<string | null>(null)
-  if (fatal) {
-    return (
-      <div className="px-4 py-20 text-center text-destructive">
-        <p>Произошла ошибка: {fatal}</p>
-        <button
-          type="button"
-          onClick={() => {
-            setFatal(null)
-            setLoading(true)
-          }}
-          className="mt-4 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground"
-        >
-          Попробовать снова
-        </button>
-      </div>
-    )
-  }
-  try {
-    return <GuidesTabInner onFatal={setFatal} />
-  } catch (e) {
-    setFatal(String(e))
-    return null
-  }
-}
-
-function GuidesTabInner() {
   const [active, setActive] = useState<string>("Все")
   const [open, setOpen] = useState<ReturnType<typeof apiGuideToDisplay> | null>(null)
   const [guides, setGuides] = useState<ApiGuide[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    let cancelled = false
+  function load() {
     setLoading(true)
     setError(null)
     api.get("/api/guides").then((data) => {
-      if (!cancelled) {
-        setGuides(data.guides || [])
-        setLoading(false)
-      }
+      setGuides(data.guides || [])
+      setLoading(false)
     }).catch((e) => {
-      if (!cancelled) {
-        setError(e.message || "Не удалось загрузить гайды")
-        setLoading(false)
-      }
+      setError(e.message || "Не удалось загрузить гайды")
+      setLoading(false)
     })
-    return () => { cancelled = true }
+  }
+
+  useEffect(() => {
+    load()
   }, [])
 
   const list = guides
@@ -124,7 +95,7 @@ function GuidesTabInner() {
         <p className="text-muted-foreground">{error}</p>
         <button
           type="button"
-          onClick={() => window.location.reload()}
+          onClick={load}
           className="mt-4 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground"
         >
           Попробовать снова
@@ -246,7 +217,7 @@ function GuideViewer({ guide, onClose }: { guide: ReturnType<typeof apiGuideToDi
 
   function handlePlay() {
     if (guide.video_url) {
-      window.open(guide.video_url, "_blank")
+      window.Telegram?.WebApp?.openLink?.(guide.video_url)
     }
   }
 
@@ -316,5 +287,3 @@ function GuideViewer({ guide, onClose }: { guide: ReturnType<typeof apiGuideToDi
     </div>
   )
 }
-
-
