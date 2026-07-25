@@ -1569,6 +1569,9 @@ class Database:
             return dict(row)
 
     async def increment_user_stat(self, user_id: int, stat: str, amount: int = 1) -> None:
+        ALLOWED = {"search_count", "contact_count", "team_app_count", "games_played", "wins"}
+        if stat not in ALLOWED:
+            raise ValueError(f"Invalid stat column: {stat}")
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
             await conn.execute(
