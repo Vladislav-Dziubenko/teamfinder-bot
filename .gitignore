@@ -22,5 +22,7 @@ web-src/next-env.d.ts
 Thumbs.db
 *.log
 
+tmp/
+
 # Temporary patches
 *.patch
