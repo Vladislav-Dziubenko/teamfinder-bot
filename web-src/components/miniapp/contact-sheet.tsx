@@ -3,20 +3,45 @@
 import { useState } from "react"
 import { X, Send, MessageCircle, UserPlus, Check } from "lucide-react"
 import type { Player } from "@/lib/data"
+import { openChatWithPlayer } from "@/lib/chat"
+import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 export function ContactSheet({
   player,
   onClose,
+  onOpenChat,
 }: {
   player: Player | null
   onClose: () => void
+  onOpenChat?: (chatId: string) => void
 }) {
   const [invited, setInvited] = useState(false)
   const [message, setMessage] = useState("")
   const [sent, setSent] = useState(false)
+  const [inviteErr, setInviteErr] = useState<string | null>(null)
 
   if (!player) return null
+
+  function doSend() {
+    const chatId = openChatWithPlayer(player.id)
+    setSent(true)
+    onOpenChat?.(chatId)
+  }
+
+  async function doInvite() {
+    setInvited(true)
+    try {
+      await api.post("/api/teams", {
+        game: player.game,
+        name: `Приглашение от ${player.nick}`,
+        max_players: 2,
+        description: `Приглашение в команду для ${player.nick}`,
+      })
+    } catch {
+      setInviteErr("Не удалось создать команду. Попробуй позже.")
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
@@ -89,7 +114,7 @@ export function ContactSheet({
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
-                  if (message.trim()) setSent(true)
+                  if (message.trim()) doSend()
                 }
               }}
               placeholder="Го катку на фейсит?"
@@ -97,7 +122,7 @@ export function ContactSheet({
             />
             <button
               type="button"
-              onClick={() => message.trim() && setSent(true)}
+              onClick={() => message.trim() && doSend()}
               className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground transition-transform active:scale-90"
               aria-label="Отправить"
             >
@@ -105,14 +130,14 @@ export function ContactSheet({
             </button>
           </div>
           {sent && (
-            <p className="mt-2 text-xs text-accent animate-rise">Сообщение отправлено! Жди ответа 🎮</p>
+            <p className="mt-2 text-xs text-accent animate-rise">Чат открыт! Напиши тиммейту ✨</p>
           )}
         </div>
 
         {/* Invite to team */}
         <button
           type="button"
-          onClick={() => setInvited(true)}
+          onClick={doInvite}
           className={cn(
             "mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold transition-all active:scale-[0.98]",
             invited
@@ -122,7 +147,7 @@ export function ContactSheet({
         >
           {invited ? (
             <>
-              <Check className="size-4" /> Приглашение отправлено
+              <Check className="size-4" /> {inviteErr || "Приглашение отправлено"}
             </>
           ) : (
             <>

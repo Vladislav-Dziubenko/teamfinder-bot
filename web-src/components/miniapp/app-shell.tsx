@@ -69,7 +69,7 @@ function Shell() {
 
       <BottomNav active={tab} onChange={goTab} />
 
-      <ContactSheet player={contact} onClose={() => setContact(null)} />
+      <ContactSheet player={contact} onClose={() => setContact(null)} onOpenChat={(chatId) => { goTab("chat"); setChatId(chatId) }} />
 
       {toast && (
         <div className="fixed inset-x-0 top-16 z-[60] mx-auto flex max-w-md justify-center px-4">

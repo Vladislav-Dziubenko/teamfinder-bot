@@ -5,6 +5,7 @@ import { Star, Check, Crown, Sparkles, Zap, Trophy, Award } from "lucide-react"
 import { starPacks, leaderboard, currentUser } from "@/lib/data"
 import type { StarPack } from "@/lib/data"
 import { useNexus } from "@/lib/store"
+import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const coinPacks = [
@@ -19,12 +20,21 @@ export function DonateTab() {
   const [done, setDone] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
 
-  function buy() {
+  async function buy() {
+    if (!selected) return
     setDone(true)
+    try {
+      const data = await api.post("/api/pay/invoice", { type: "star_pack", pack_id: selected.id })
+      if (data.invoice_link && typeof window !== "undefined") {
+        window.Telegram?.WebApp?.openTelegramLink?.(data.invoice_link)
+      }
+    } catch (e: any) {
+      setFlash(e.message || "Ошибка оплаты")
+    }
     setTimeout(() => {
       setDone(false)
       setSelected(null)
-    }, 1800)
+    }, 3000)
   }
 
   async function buyCoins(pack: (typeof coinPacks)[number]) {
@@ -188,6 +198,7 @@ export function DonateTab() {
             <button
               key={n}
               type="button"
+              onClick={() => setFlash(`Чтобы отправить ${n} ⭐ тиммейту — нажми на его имя в чате и выбери «Отправить Stars»`)}
               className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-stars/30 bg-stars/10 py-2.5 text-sm font-semibold text-stars active:scale-95"
             >
               <Star className="size-3.5 fill-stars" /> {n}

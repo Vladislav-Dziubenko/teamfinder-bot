@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, useCallback } from "react"
 import {
   Star,
   Trophy,
@@ -441,9 +441,9 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
 
       {/* Actions */}
       <section className="overflow-hidden rounded-3xl border border-border bg-card">
-        <Row icon={Crosshair} label="Мои игры и роли" />
-        <Row icon={Share2} label="Поделиться профилем" />
-        <Row icon={Settings} label="Настройки" last />
+        <Row icon={Crosshair} label="Мои игры и роли" onClick={() => onToast("Скоро: редактор игр и ролей 🎮")} />
+        <Row icon={Share2} label="Поделиться профилем" onClick={() => onToast("Ссылка скопирована! Отправь друзьям 🔗")} />
+        <Row icon={Settings} label="Настройки" onClick={() => onToast("Настройки профиля — скоро ✨")} last />
       </section>
 
       <p className="pb-2 text-center text-xs text-muted-foreground">NEXUS · Telegram Mini App · v1.1</p>
@@ -481,10 +481,11 @@ function PointStat({ value, label }: { value: number; label: string }) {
   )
 }
 
-function Row({ icon: Icon, label, last }: { icon: typeof Trophy; label: string; last?: boolean }) {
+function Row({ icon: Icon, label, onClick, last }: { icon: typeof Trophy; label: string; onClick?: () => void; last?: boolean }) {
   return (
     <button
       type="button"
+      onClick={onClick}
       className={`flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-secondary ${
         last ? "" : "border-b border-border"
       }`}

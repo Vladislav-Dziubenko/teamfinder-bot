@@ -222,6 +222,8 @@ class Database:
         self._pool = await asyncpg.create_pool(
             self.database_url,
             ssl=ssl_arg,
+            min_size=2,
+            max_size=20,
         )
         async with self._pool.acquire() as conn:
             await self._init_schema(conn)
@@ -447,6 +449,26 @@ class Database:
                 migration_name,
                 datetime.utcnow().isoformat(),
             )
+
+        # Performance indexes for frequent queries
+        perf_indexes = [
+            "CREATE INDEX IF NOT EXISTS idx_profiles_game_active ON profiles (game, is_active)",
+            "CREATE INDEX IF NOT EXISTS idx_profiles_user_id ON profiles (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_teams_game ON teams (game)",
+            "CREATE INDEX IF NOT EXISTS idx_purchases_user ON purchases (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_user_inventory_user ON user_inventory (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_team_applications_team ON team_applications (team_id)",
+            "CREATE INDEX IF NOT EXISTS idx_case_opens_user ON case_opens (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_user_currency_user ON user_currency (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_user_battlepass_user ON user_battlepass (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_daily_streaks_user ON daily_streaks (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements (user_id)",
+        ]
+        for idx_sql in perf_indexes:
+            try:
+                await conn.execute(idx_sql)
+            except asyncpg.PostgresError as e:
+                print(f"Index creation warning: {e}")
 
     async def ensure_user(self, user_id: int, username: str | None, first_name: str | None) -> None:
         async with self.pool.acquire() as conn:

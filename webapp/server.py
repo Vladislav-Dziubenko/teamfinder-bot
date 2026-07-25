@@ -34,6 +34,16 @@ from webapp.auth import validate_init_data
 STATIC_DIR = Path(__file__).parent / "static"
 
 # ---------------------------------------------------------------------------
+# CORS — разрешаем запросы с любых origin (нужно если фронт будет отдельно)
+# ---------------------------------------------------------------------------
+CORS_ALLOW = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, X-Telegram-Init-Data",
+    "Access-Control-Max-Age": "86400",
+}
+
+# ---------------------------------------------------------------------------
 # Rate limiting — авторизованные /api/ эндпоинты (по user_id)
 # ---------------------------------------------------------------------------
 WEB_RATE_LIMIT = 30
@@ -57,6 +67,17 @@ public_ip_requests: defaultdict[str, list[float]] = defaultdict(list)
 # ---------------------------------------------------------------------------
 CACHE_TTL = 30  # секунд
 _response_cache: dict[str, tuple[float, object]] = {}
+_LAST_CACHE_CLEANUP = 0.0
+
+# ---------------------------------------------------------------------------
+# Star packs (маппинг для Telegram Stars invoice)
+# ---------------------------------------------------------------------------
+STAR_PACKS: dict[str, dict] = {
+    "p1": {"stars": 75, "title": "Буст профиля на 24 часа", "desc": "Твоя анкета выше в поиске — 24 часа"},
+    "p2": {"stars": 250, "title": "Значок PRO + приоритет в поиске", "desc": "PRO-бейдж и приоритетный поиск"},
+    "p3": {"stars": 500, "title": "PRO на месяц + кастомный ник", "desc": "PRO-подписка 30 дней + кастом"},
+    "p4": {"stars": 1000, "title": "Всё сразу + анимированная рамка", "desc": "Полный пакет NEXUS"},
+}
 
 
 def _client_ip(request: web.Request) -> str:
@@ -68,8 +89,27 @@ def _client_ip(request: web.Request) -> str:
     return ip or request.remote or "unknown"
 
 
+def _cache_cleanup() -> None:
+    global _LAST_CACHE_CLEANUP
+    now = time()
+    if now - _LAST_CACHE_CLEANUP < 300:
+        return
+    _LAST_CACHE_CLEANUP = now
+    cutoff = now - CACHE_TTL
+    stale = [k for k, (ts, _) in _response_cache.items() if ts < cutoff]
+    for k in stale:
+        _response_cache.pop(k, None)
+
+    # Clean up rate-limit dicts too
+    for d in (web_user_requests, public_ip_requests):
+        for uid in list(d.keys()):
+            d[uid] = [t for t in d[uid] if now - t < 60]
+            if not d[uid]:
+                del d[uid]
+
+
 def _cache_get(key: str) -> object | None:
-    """Возвращает закэшированные данные или None если кэш устарел/отсутствует."""
+    _cache_cleanup()
     entry = _response_cache.get(key)
     if entry and (time() - entry[0]) < CACHE_TTL:
         return entry[1]
@@ -95,6 +135,25 @@ def _public_rate_limit(request: web.Request) -> bool:
 
 def _get_user(request: web.Request) -> dict | None:
     return request.get("init_data", {}).get("user")
+
+
+@web.middleware
+async def cors_middleware(request: web.Request, handler):
+    if request.method == "OPTIONS":
+        return web.json_response({}, headers=CORS_ALLOW)
+    response = await handler(request)
+    for k, v in CORS_ALLOW.items():
+        response.headers[k] = v
+    return response
+
+
+@web.middleware
+async def cache_static_middleware(request: web.Request, handler):
+    response = await handler(request)
+    if not request.path.startswith("/api/") and request.path != "/health":
+        if not response.headers.get("Cache-Control"):
+            response.headers["Cache-Control"] = "public, max-age=3600, immutable"
+    return response
 
 
 @web.middleware
@@ -381,6 +440,18 @@ async def handle_create_invoice(request: web.Request):
             payload="premium:application",
             currency="XTR",
             prices=[{"label": "Премиум-заявка", "amount": settings.price_premium_application}],
+        )
+    elif kind == "star_pack":
+        pack_id = body.get("pack_id")
+        pack = STAR_PACKS.get(pack_id)
+        if not pack:
+            return web.json_response({"error": "unknown star pack"}, status=400)
+        link = await bot.create_invoice_link(
+            title=pack["title"],
+            description=pack["desc"],
+            payload=f"star_pack:{pack_id}",
+            currency="XTR",
+            prices=[{"label": pack["title"], "amount": pack["stars"]}],
         )
     else:
         return web.json_response({"error": "unknown invoice type"}, status=400)
@@ -948,8 +1019,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # 1. error_middleware        — перехватывает все исключения, скрывает стектрейс от клиента
     # 2. auth_middleware         — проверяет X-Telegram-Init-Data, пишет request["init_data"]
     # 3. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
-    # Если поменять порядок 2 и 3 — rate limiter получит init_data=None и вернёт 500.
-    app = web.Application(middlewares=[error_middleware, auth_middleware, web_rate_limit_middleware])
+    # Если поменять порядок — rate limiter получит init_data=None и вернёт 500.
+    # Порядок: cors → cache → error → auth → rate_limit
+    app = web.Application(middlewares=[cors_middleware, cache_static_middleware, error_middleware, auth_middleware, web_rate_limit_middleware])
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot
