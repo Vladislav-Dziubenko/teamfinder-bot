@@ -82,10 +82,10 @@ async def main():
         pass
     finally:
         logging.info("Shutting down...")
-        try:
-            await bot.delete_webhook()
-        except Exception:
-            pass
+        # НЕ вызываем delete_webhook() — при blue-green деплое новый инстанс
+        # уже установил свой webhook, и delete_webhook() сбросит его, оставив
+        # бота без обновлений. Webhook переживает перезапуск; при следующем
+        # старте set_webhook() обновит URL.
         await runner.cleanup()
         await db.close()
         await bot.session.close()

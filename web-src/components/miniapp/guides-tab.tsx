@@ -49,6 +49,33 @@ function apiGuideToDisplay(g: ApiGuide) {
 }
 
 export function GuidesTab() {
+  const [fatal, setFatal] = useState<string | null>(null)
+  if (fatal) {
+    return (
+      <div className="px-4 py-20 text-center text-destructive">
+        <p>Произошла ошибка: {fatal}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setFatal(null)
+            setLoading(true)
+          }}
+          className="mt-4 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground"
+        >
+          Попробовать снова
+        </button>
+      </div>
+    )
+  }
+  try {
+    return <GuidesTabInner onFatal={setFatal} />
+  } catch (e) {
+    setFatal(String(e))
+    return null
+  }
+}
+
+function GuidesTabInner() {
   const [active, setActive] = useState<string>("Все")
   const [open, setOpen] = useState<ReturnType<typeof apiGuideToDisplay> | null>(null)
   const [guides, setGuides] = useState<ApiGuide[]>([])
