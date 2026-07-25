@@ -6,6 +6,7 @@ import signal
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramConflictError
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
@@ -65,10 +66,24 @@ async def main():
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
-    # Ждём 7 секунд, чтобы старый контейнер успел получить SIGTERM и закрыть polling
-    # Без этого — TelegramConflictError ("terminated by other getUpdates request")
-    await asyncio.sleep(7)
-    polling_task = asyncio.create_task(dp.start_polling(bot))
+    # Ждём 15 секунд — Render даёт старому контейнеру время получить SIGTERM
+    # и закрыть polling, чтобы новый не поймал TelegramConflictError
+    await asyncio.sleep(15)
+
+    async def start_polling_with_retry():
+        for attempt in range(5):
+            try:
+                await dp.start_polling(bot)
+                return
+            except TelegramConflictError as e:
+                logging.warning(f"Polling conflict (attempt {attempt+1}/5): {e}. Waiting 10s…")
+                await asyncio.sleep(10)
+            except Exception as e:
+                logging.error(f"Polling error (attempt {attempt+1}/5): {e}. Waiting 10s…")
+                await asyncio.sleep(10)
+        logging.error("Failed to start polling after 5 attempts")
+
+    polling_task = asyncio.create_task(start_polling_with_retry())
     try:
         await stop_event.wait()
     finally:
