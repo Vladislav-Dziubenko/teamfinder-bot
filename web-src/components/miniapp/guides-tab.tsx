@@ -15,6 +15,7 @@ interface ApiGuide {
   type: string
   stars: number
   unlocked: boolean
+  video_url?: string
 }
 
 const GAME_COVERS: Record<string, string> = {
@@ -31,17 +32,7 @@ const GAME_COVERS: Record<string, string> = {
   rust: "/guide-br.png",
 }
 
-function apiGuideToDisplay(g: ApiGuide): {
-  id: string
-  title: string
-  game: string
-  cover: string
-  author: string
-  duration: string
-  views: string
-  type: string
-  level: string
-} {
+function apiGuideToDisplay(g: ApiGuide) {
   const label = g.type === "free" ? "Бесплатно" : g.type === "premium" ? `⭐${g.stars}` : "Видео"
   return {
     id: g.id,
@@ -53,7 +44,8 @@ function apiGuideToDisplay(g: ApiGuide): {
     views: g.type === "free" ? "1.2K" : "850",
     type: label,
     level: g.type === "free" ? "Новичок" : "Продвинутый",
-  }
+    video_url: g.video_url,
+  } as const
 }
 
 export function GuidesTab() {
@@ -225,6 +217,12 @@ function GuideViewer({ guide, onClose }: { guide: ReturnType<typeof apiGuideToDi
   const [liked, setLiked] = useState(false)
   const [saved, setSaved] = useState(false)
 
+  function handlePlay() {
+    if (guide.video_url) {
+      window.open(guide.video_url, "_blank")
+    }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
       <button type="button" aria-label="Закрыть" onClick={onClose} className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
@@ -232,11 +230,11 @@ function GuideViewer({ guide, onClose }: { guide: ReturnType<typeof apiGuideToDi
         {/* Player */}
         <div className="relative aspect-video overflow-hidden rounded-t-3xl">
           <img src={guide.cover || "/placeholder.svg"} alt="" className="size-full object-cover" />
-          <div className="absolute inset-0 grid place-items-center bg-background/40">
+          <button type="button" onClick={handlePlay} className="absolute inset-0 grid place-items-center bg-background/40">
             <span className="grid size-16 place-items-center rounded-full bg-primary text-primary-foreground animate-pulse-ring">
               <Play className="size-7 translate-x-0.5 fill-primary-foreground" />
             </span>
-          </div>
+          </button>
           <button
             type="button"
             onClick={onClose}

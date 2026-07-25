@@ -391,6 +391,7 @@ async def handle_guides(request: web.Request):
         items.append({
             "id": g["id"], "game": g["game"], "title": g["title"],
             "type": g["type"], "stars": g["stars"], "unlocked": unlocked,
+            "video_url": g.get("video_url"),
         })
     return web.json_response({"guides": items})
 
