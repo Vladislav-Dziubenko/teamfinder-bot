@@ -16,9 +16,11 @@ const EXTENDED_COST = 15
 export function MatchTab({
   onConnect,
   onJoinTeam,
+  onChat,
 }: {
   onConnect: (p: Player) => void
   onJoinTeam: (t: Team) => void
+  onChat?: (p: Player) => void
 }) {
   const { freeSearchesLeft, useFreeSearch, spendStars, unlockPlayer, unlockedPlayers } = useNexus()
 
@@ -213,6 +215,7 @@ export function MatchTab({
                 key={p.id}
                 player={p}
                 onConnect={onConnect}
+                onChat={onChat}
                 onUnlock={async (pl) => {
                   const ok = await unlockPlayer(pl.id, pl.unlockStars ?? 0)
                   if (!ok) setNotice("Недостаточно Telegram Stars")

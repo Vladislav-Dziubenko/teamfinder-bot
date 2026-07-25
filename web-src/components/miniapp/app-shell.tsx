@@ -13,13 +13,18 @@ import { DonateTab } from "./donate-tab"
 import { ProfileTab } from "./profile-tab"
 import { BattlePassTab } from "./battlepass-tab"
 import { PromoTab } from "./promo-tab"
+import { StatsTab } from "./stats-tab"
+import { ChatTab } from "./chat-tab"
+import { PredictionsTab } from "./predictions-tab"
 import { ContactSheet } from "./contact-sheet"
+import { openChatWithPlayer } from "@/lib/chat"
 import type { Player, Team } from "@/lib/data"
 
 function Shell() {
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
+  const [chatOpenId, setChatOpenId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!toast) return
@@ -36,13 +41,24 @@ function Shell() {
     setToast(`Заявка в «${team.name}» отправлена! 🚀`)
   }
 
+  function openChat(player: Player) {
+    const id = openChatWithPlayer(player.id)
+    setChatOpenId(id)
+    goTab("chat")
+  }
+
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background">
       <TopBar onStars={() => goTab("donate")} onCoins={() => goTab("cases")} />
 
       <main id="miniapp-scroll" className="flex-1 overflow-y-auto pb-24">
         {tab === "home" && <HomeTab onGo={goTab} onConnect={setContact} />}
-        {tab === "match" && <MatchTab onConnect={setContact} onJoinTeam={joinTeam} />}
+        {tab === "match" && <MatchTab onConnect={setContact} onJoinTeam={joinTeam} onChat={openChat} />}
+        {tab === "predictions" && <PredictionsTab onToast={setToast} />}
+        {tab === "chat" && (
+          <ChatTab openChatId={chatOpenId} onOpenConsumed={() => setChatOpenId(null)} />
+        )}
+        {tab === "stats" && <StatsTab onOpenLeaderboard={() => setToast("Полный рейтинг скоро появится 🏆")} />}
         {tab === "cases" && <CasesTab onToast={setToast} />}
         {tab === "battlepass" && <BattlePassTab onToast={setToast} />}
         {tab === "promo" && <PromoTab onToast={setToast} />}

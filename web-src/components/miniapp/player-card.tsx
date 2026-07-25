@@ -1,18 +1,20 @@
 "use client"
 
-import { Crosshair, Trophy, Clock, Zap, Lock, Star, Crown, Award } from "lucide-react"
+import { Crosshair, Trophy, Clock, Zap, Lock, Star, Crown, Award, MessageCircle } from "lucide-react"
 import type { Player } from "@/lib/data"
 import { games } from "@/lib/data"
 
 export function PlayerCard({
   player,
   onConnect,
+  onChat,
   onUnlock,
   locked = false,
   index = 0,
 }: {
   player: Player
   onConnect: (p: Player) => void
+  onChat?: (p: Player) => void
   onUnlock?: (p: Player) => void
   locked?: boolean
   index?: number
@@ -136,13 +138,25 @@ export function PlayerCard({
             <Star className="size-4 fill-background" /> Открыть за {player.unlockStars} Stars
           </button>
         ) : (
-          <button
-            type="button"
-            onClick={() => onConnect(player)}
-            className="mt-4 w-full rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-[0_0_20px_-6px_var(--primary)] transition-transform active:scale-[0.98]"
-          >
-            Связаться
-          </button>
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => onConnect(player)}
+              className="flex-1 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-[0_0_20px_-6px_var(--primary)] transition-transform active:scale-[0.98]"
+            >
+              Связаться
+            </button>
+            {onChat && (
+              <button
+                type="button"
+                onClick={() => onChat(player)}
+                aria-label={`Написать ${player.nick}`}
+                className="grid size-12 shrink-0 place-items-center rounded-2xl border border-border bg-secondary/60 text-accent transition-transform active:scale-[0.95]"
+              >
+                <MessageCircle className="size-5" />
+              </button>
+            )}
+          </div>
         )}
       </div>
     </article>

@@ -1,0 +1,494 @@
+"use client"
+
+import { useState } from "react"
+import {
+  TrendingUp,
+  Swords,
+  Info,
+  Coins,
+  Clock,
+  Trophy,
+  CircleDot,
+  CheckCircle2,
+  Hourglass,
+  Plus,
+  Gamepad2,
+} from "lucide-react"
+import { useNexus } from "@/lib/store"
+import {
+  usePredictions,
+  ME_ID,
+  type EsportsMatch,
+  type MatchPrediction,
+  type PvpChallenge,
+} from "@/lib/predictions"
+import { cn } from "@/lib/utils"
+
+type Mode = "esports" | "pvp"
+
+export function PredictionsTab({ onToast }: { onToast?: (m: string) => void }) {
+  const { coins: storeCoins, nick } = useNexus()
+  const p = usePredictions(storeCoins, nick)
+  const [mode, setMode] = useState<Mode>("esports")
+
+  return (
+    <div className="space-y-4 px-4 py-5">
+      <div>
+        <h1 className="font-display text-2xl font-bold">Прогнозы</h1>
+        <p className="text-sm text-muted-foreground text-pretty">
+          Предсказывай исходы матчей и бросай вызов игрокам. Побеждает знание игры, не удача.
+        </p>
+      </div>
+
+      {/* Balance + rule */}
+      <div className="rounded-3xl border border-border bg-card p-4">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">Твой баланс</span>
+          <span className="flex items-center gap-1.5 font-display text-lg font-bold text-primary">
+            <Coins className="size-4" />
+            {p.coins}
+            <span className="text-sm font-medium text-muted-foreground">Nexus Coin</span>
+          </span>
+        </div>
+        <p className="mt-3 flex items-start gap-2 rounded-2xl bg-accent/10 px-3 py-2 text-[11px] leading-relaxed text-accent">
+          <Info className="mt-0.5 size-3.5 shrink-0" />
+          Выигранные монеты нельзя обменять на Stars — только тратить внутри игры (кейсы, баттлпасс, магазин).
+        </p>
+      </div>
+
+      {/* Mode switch */}
+      <div className="flex rounded-2xl border border-border bg-card p-1">
+        {(
+          [
+            { m: "esports", label: "Киберспорт", icon: TrendingUp },
+            { m: "pvp", label: "PvP-вызовы", icon: Swords },
+          ] as const
+        ).map(({ m, label, icon: Icon }) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setMode(m)}
+            className={cn(
+              "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2.5 text-sm font-semibold transition-colors",
+              mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+            )}
+          >
+            <Icon className="size-4" />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "esports" ? <EsportsMode p={p} onToast={onToast} /> : <PvpMode p={p} onToast={onToast} />}
+    </div>
+  )
+}
+
+/* ------------------------- Режим A: киберспорт ------------------------- */
+
+function EsportsMode({
+  p,
+  onToast,
+}: {
+  p: ReturnType<typeof usePredictions>
+  onToast?: (m: string) => void
+}) {
+  return (
+    <div className="space-y-5">
+      <section className="space-y-3">
+        <h2 className="font-display text-base font-bold">Актуальные матчи</h2>
+        {p.matches.map((m) => (
+          <MatchCard key={m.id} match={m} onPlace={p.placePrediction} onToast={onToast} />
+        ))}
+      </section>
+
+      <section className="space-y-2">
+        <h2 className="font-display text-base font-bold">История прогнозов</h2>
+        {p.predictions.length === 0 ? (
+          <Empty text="Пока нет прогнозов" />
+        ) : (
+          p.predictions.map((h) => <HistoryRow key={h.id} item={h} />)
+        )}
+      </section>
+    </div>
+  )
+}
+
+function MatchCard({
+  match,
+  onPlace,
+  onToast,
+}: {
+  match: EsportsMatch
+  onPlace: (m: EsportsMatch, side: "A" | "B", amount: number) => { ok: boolean; error?: string }
+  onToast?: (m: string) => void
+}) {
+  const [side, setSide] = useState<"A" | "B" | null>(null)
+  const [amount, setAmount] = useState("")
+
+  function confirm() {
+    if (!side) return
+    const res = onPlace(match, side, Number(amount) || 0)
+    if (!res.ok) {
+      onToast?.(res.error ?? "Не удалось")
+      return
+    }
+    onToast?.(`Прогноз принят: ${side === "A" ? match.teamA : match.teamB}`)
+    setSide(null)
+    setAmount("")
+  }
+
+  const potential = side ? Math.round((Number(amount) || 0) * (side === "A" ? match.oddsA : match.oddsB)) : 0
+
+  return (
+    <article className="overflow-hidden rounded-3xl border border-border bg-card">
+      <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-accent">
+          <Gamepad2 className="size-3.5" />
+          {match.discipline}
+        </span>
+        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+          <Clock className="size-3" />
+          {startLabel(match.startsAt)}
+        </span>
+      </div>
+
+      <div className="px-4 py-3">
+        <p className="mb-3 truncate text-center text-[11px] text-muted-foreground">{match.tournament}</p>
+        <div className="grid grid-cols-2 gap-2">
+          <OddButton
+            team={match.teamA}
+            odds={match.oddsA}
+            active={side === "A"}
+            onClick={() => setSide(side === "A" ? null : "A")}
+          />
+          <OddButton
+            team={match.teamB}
+            odds={match.oddsB}
+            active={side === "B"}
+            onClick={() => setSide(side === "B" ? null : "B")}
+          />
+        </div>
+
+        {side && (
+          <div className="mt-3 space-y-2 rounded-2xl bg-secondary/40 p-3">
+            <div className="flex items-center gap-2">
+              <Coins className="size-4 shrink-0 text-primary" />
+              <input
+                inputMode="numeric"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
+                placeholder="Сумма прогноза"
+                className="min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
+              />
+            </div>
+            <div className="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
+              <span>Возможный выигрыш</span>
+              <span className="font-display text-sm font-bold text-primary">{potential} Coin</span>
+            </div>
+            <button
+              type="button"
+              onClick={confirm}
+              className="w-full rounded-2xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-[0.98]"
+            >
+              Сделать прогноз на {side === "A" ? match.teamA : match.teamB}
+            </button>
+          </div>
+        )}
+      </div>
+    </article>
+  )
+}
+
+function OddButton({
+  team,
+  odds,
+  active,
+  onClick,
+}: {
+  team: string
+  odds: number
+  active: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "flex flex-col items-center gap-1 rounded-2xl border px-3 py-3 transition-colors",
+        active ? "border-primary bg-primary/15" : "border-border bg-secondary/40",
+      )}
+    >
+      <span className="line-clamp-1 text-sm font-semibold">{team}</span>
+      <span className={cn("font-display text-lg font-bold", active ? "text-primary" : "text-foreground")}>
+        {odds.toFixed(2)}
+      </span>
+    </button>
+  )
+}
+
+function HistoryRow({ item }: { item: MatchPrediction }) {
+  const meta = {
+    won: { label: "Выигран", cls: "bg-primary/15 text-primary", icon: Trophy },
+    lost: { label: "Проигран", cls: "bg-destructive/15 text-destructive", icon: CircleDot },
+    pending: { label: "В ожидании", cls: "bg-stars/15 text-stars", icon: Hourglass },
+  }[item.status]
+  const Icon = meta.icon
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5">
+      <span className={cn("grid size-9 shrink-0 place-items-center rounded-xl", meta.cls)}>
+        <Icon className="size-4" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold">{item.team}</p>
+        <p className="truncate text-[11px] text-muted-foreground">{item.label}</p>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className={cn("font-display text-sm font-bold", statusColor(item.status))}>
+          {item.status === "won" ? `+${item.payout}` : item.status === "lost" ? `-${item.amount}` : item.amount}
+        </p>
+        <p className="text-[10px] text-muted-foreground">кф {item.odds.toFixed(2)}</p>
+      </div>
+    </div>
+  )
+}
+
+/* ------------------------- Режим B: PvP ------------------------- */
+
+function PvpMode({
+  p,
+  onToast,
+}: {
+  p: ReturnType<typeof usePredictions>
+  onToast?: (m: string) => void
+}) {
+  const [condition, setCondition] = useState("")
+  const [stake, setStake] = useState("")
+  const [open, setOpen] = useState(false)
+
+  function create() {
+    const res = p.createChallenge(condition, Number(stake) || 0)
+    if (!res.ok) {
+      onToast?.(res.error ?? "Не удалось")
+      return
+    }
+    onToast?.("Вызов создан — ждём соперника")
+    setCondition("")
+    setStake("")
+    setOpen(false)
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Create challenge */}
+      <section className="rounded-3xl border border-border bg-card p-4">
+        <button
+          type="button"
+          onClick={() => setOpen((o) => !o)}
+          className="flex w-full items-center justify-between"
+        >
+          <span className="flex items-center gap-2 font-display text-base font-bold">
+            <Plus className="size-4 text-primary" /> Создать вызов
+          </span>
+        </button>
+
+        {open && (
+          <div className="mt-3 space-y-3">
+            <textarea
+              value={condition}
+              onChange={(e) => setCondition(e.target.value)}
+              rows={2}
+              placeholder="Условие: «угадай число от 1 до 100», «кто наберёт больше очков к пятнице»…"
+              className="w-full resize-none rounded-2xl border border-input bg-background px-3 py-2.5 text-sm leading-relaxed outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
+            />
+            <div className="flex items-center gap-2">
+              <Coins className="size-4 shrink-0 text-primary" />
+              <input
+                inputMode="numeric"
+                value={stake}
+                onChange={(e) => setStake(e.target.value.replace(/\D/g, ""))}
+                placeholder="Ставка (оба вносят поровну)"
+                className="min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={create}
+              className="w-full rounded-2xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-[0.98]"
+            >
+              Опубликовать вызов
+            </button>
+          </div>
+        )}
+      </section>
+
+      <p className="flex items-start gap-2 px-1 text-[11px] leading-relaxed text-muted-foreground">
+        <Info className="mt-0.5 size-3.5 shrink-0" />
+        Победителя определяет создатель вызова после наступления события — исход зависит от игроков, а не от случайности.
+      </p>
+
+      {/* Challenges */}
+      <section className="space-y-3">
+        <h2 className="font-display text-base font-bold">Вызовы</h2>
+        {p.challenges.length === 0 ? (
+          <Empty text="Активных вызовов нет" />
+        ) : (
+          p.challenges.map((c) => (
+            <ChallengeCard
+              key={c.id}
+              challenge={c}
+              onAccept={() => {
+                const res = p.acceptChallenge(c.id)
+                if (!res.ok) onToast?.(res.error ?? "Не удалось")
+                else onToast?.("Вызов принят!")
+              }}
+              onResolve={(winnerId) => {
+                p.confirmResult(c.id, winnerId)
+                onToast?.("Результат подтверждён")
+              }}
+            />
+          ))
+        )}
+      </section>
+    </div>
+  )
+}
+
+function ChallengeCard({
+  challenge,
+  onAccept,
+  onResolve,
+}: {
+  challenge: PvpChallenge
+  onAccept: () => void
+  onResolve: (winnerId: string) => void
+}) {
+  const isCreator = challenge.creatorId === ME_ID
+  const [resolving, setResolving] = useState(false)
+
+  const statusMeta = {
+    open: { label: "Открыт", cls: "bg-stars/15 text-stars" },
+    active: { label: "Идёт", cls: "bg-accent/15 text-accent" },
+    finished: { label: "Завершён", cls: "bg-secondary text-muted-foreground" },
+  }[challenge.status]
+
+  const iWon = challenge.status === "finished" && challenge.winnerId === ME_ID
+
+  return (
+    <article className="rounded-3xl border border-border bg-card p-4">
+      <div className="flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Swords className="size-3.5" />
+          {isCreator ? "Твой вызов" : `от ${challenge.creatorNick}`}
+        </span>
+        <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", statusMeta.cls)}>
+          {statusMeta.label}
+        </span>
+      </div>
+
+      <p className="mt-2 text-sm leading-relaxed text-pretty">{challenge.condition}</p>
+
+      <div className="mt-3 flex items-center justify-between">
+        <span className="flex items-center gap-1.5 text-sm">
+          <Coins className="size-4 text-primary" />
+          <span className="font-display font-bold">{challenge.stake}</span>
+          <span className="text-xs text-muted-foreground">банк {challenge.stake * 2}</span>
+        </span>
+
+        {challenge.status === "open" && !isCreator && (
+          <button
+            type="button"
+            onClick={onAccept}
+            className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground active:scale-95"
+          >
+            Принять
+          </button>
+        )}
+        {challenge.status === "open" && isCreator && (
+          <span className="text-xs text-muted-foreground">Ждём соперника…</span>
+        )}
+      </div>
+
+      {/* Соперник */}
+      {challenge.opponentNick && challenge.status !== "open" && (
+        <p className="mt-2 text-[11px] text-muted-foreground">
+          Соперник: <span className="text-foreground">{challenge.opponentNick}</span>
+        </p>
+      )}
+
+      {/* Подтверждение результата — только создатель */}
+      {challenge.status === "active" && isCreator && (
+        <div className="mt-3">
+          {!resolving ? (
+            <button
+              type="button"
+              onClick={() => setResolving(true)}
+              className="w-full rounded-2xl border border-primary/50 bg-primary/10 py-2.5 text-sm font-bold text-primary active:scale-[0.98]"
+            >
+              Подтвердить результат
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-center text-[11px] text-muted-foreground">Кто победил?</p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => onResolve(ME_ID)}
+                  className="rounded-2xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-95"
+                >
+                  Я
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onResolve(challenge.opponentId ?? "opp")}
+                  className="rounded-2xl border border-border bg-secondary/60 py-2.5 text-sm font-bold active:scale-95"
+                >
+                  {challenge.opponentNick ?? "Соперник"}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Итог */}
+      {challenge.status === "finished" && (
+        <div
+          className={cn(
+            "mt-3 flex items-center justify-center gap-1.5 rounded-2xl py-2 text-sm font-bold",
+            iWon ? "bg-primary/15 text-primary" : "bg-destructive/15 text-destructive",
+          )}
+        >
+          <CheckCircle2 className="size-4" />
+          {iWon ? `Победа · +${challenge.stake * 2} Coin` : "Поражение"}
+        </div>
+      )}
+    </article>
+  )
+}
+
+/* ------------------------- helpers ------------------------- */
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="rounded-3xl border border-dashed border-border py-8 text-center">
+      <p className="text-sm text-muted-foreground">{text}</p>
+    </div>
+  )
+}
+
+function statusColor(status: MatchPrediction["status"]): string {
+  if (status === "won") return "text-primary"
+  if (status === "lost") return "text-destructive"
+  return "text-muted-foreground"
+}
+
+function startLabel(ts: number): string {
+  const diff = ts - Date.now()
+  const h = Math.round(diff / 3600_000)
+  if (h <= 0) return "скоро"
+  if (h < 24) return `через ${h} ч`
+  return `через ${Math.round(h / 24)} дн`
+}
