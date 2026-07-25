@@ -64,6 +64,9 @@ async def main():
     signal.signal(signal.SIGTERM, signal_handler)
     signal.signal(signal.SIGINT, signal_handler)
 
+    # Ждём 7 секунд, чтобы старый контейнер успел получить SIGTERM и закрыть polling
+    # Без этого — TelegramConflictError ("terminated by other getUpdates request")
+    await asyncio.sleep(7)
     polling_task = asyncio.create_task(dp.start_polling(bot))
     try:
         await stop_event.wait()
