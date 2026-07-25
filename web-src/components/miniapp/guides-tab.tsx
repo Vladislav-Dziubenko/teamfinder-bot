@@ -19,17 +19,17 @@ interface ApiGuide {
 }
 
 const GAME_COVERS: Record<string, string> = {
-  cs2: "/guide-cs2.png",
-  dota2: "/guide-moba.png",
-  valorant: "/guide-moba.png",
-  pubg: "/guide-br.png",
-  apex: "/guide-br.png",
-  fortnite: "/guide-br.png",
-  minecraft: "/guide-moba.png",
-  roblox: "/guide-moba.png",
-  wot: "/guide-br.png",
-  wt: "/guide-br.png",
-  rust: "/guide-br.png",
+  cs2: "/guide-cs2.webp",
+  dota2: "/guide-moba.webp",
+  valorant: "/guide-moba.webp",
+  pubg: "/guide-br.webp",
+  apex: "/guide-br.webp",
+  fortnite: "/guide-br.webp",
+  minecraft: "/guide-moba.webp",
+  roblox: "/guide-moba.webp",
+  wot: "/guide-br.webp",
+  wt: "/guide-br.webp",
+  rust: "/guide-br.webp",
 }
 
 function apiGuideToDisplay(g: ApiGuide) {
