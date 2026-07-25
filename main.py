@@ -6,8 +6,8 @@ import signal
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramConflictError
 from aiogram.fsm.storage.memory import MemoryStorage
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 from aiohttp import web
 
 from config import load_settings
@@ -17,6 +17,8 @@ from middleware import InjectMiddleware, RateLimitMiddleware
 from webapp.server import create_app
 
 logging.basicConfig(level=logging.INFO)
+
+WEBHOOK_PATH = "/webhook"
 
 
 async def main():
@@ -41,11 +43,14 @@ async def main():
     dp.include_router(admin.router)
     dp.include_router(discord.router)
 
-    # Веб-сервер для Telegram Mini App (открывается кнопкой в /start)
-    # Render и большинство хостингов сами назначают порт через переменную PORT —
-    # если она задана, используем её, иначе берём WEBAPP_PORT из .env (для локальной разработки)
     port = int(os.getenv("PORT", settings.webapp_port))
     web_app = create_app(db, settings, bot)
+
+    # Webhook handler (вместо polling) — избегаем TelegramConflictError при деплое
+    webhook_handler = SimpleRequestHandler(dispatcher=dp, bot=bot)
+    webhook_handler.register(web_app, path=WEBHOOK_PATH)
+    setup_application(web_app, dp, bot=bot)
+
     runner = web.AppRunner(web_app)
     await runner.setup()
     site = web.TCPSite(runner, settings.webapp_host, port)
@@ -55,6 +60,11 @@ async def main():
         logging.info(f"Mini App URL: {settings.webapp_url}")
     else:
         logging.warning("WEBAPP_URL не задан — кнопка Mini App в /start не появится")
+
+    # Set webhook
+    webhook_url = f"{settings.webapp_url}{WEBHOOK_PATH}"
+    await bot.set_webhook(url=webhook_url)
+    logging.info(f"Webhook установлен на {webhook_url}")
 
     # Graceful shutdown
     shutdown_event = asyncio.Event()
@@ -66,30 +76,14 @@ async def main():
     signal.signal(signal.SIGTERM, _signal_handler)
     signal.signal(signal.SIGINT, _signal_handler)
 
-    # Принудительно закрываем старую сессию, чтобы избежать ConflictError
-    try:
-        await bot.delete_webhook()
-    except Exception:
-        pass
-
-    polling_task = asyncio.create_task(dp.start_polling(bot))
     try:
         await shutdown_event.wait()
     except asyncio.CancelledError:
         pass
     finally:
-        logging.info("Stopping bot...")
-        polling_task.cancel()
-        for attempt in range(3):
-            try:
-                await asyncio.wait_for(polling_task, timeout=5)
-                break
-            except (asyncio.CancelledError, asyncio.TimeoutError):
-                pass
-            except Exception:
-                break
+        logging.info("Shutting down...")
         try:
-            await dp.stop_polling()
+            await bot.delete_webhook()
         except Exception:
             pass
         await runner.cleanup()
