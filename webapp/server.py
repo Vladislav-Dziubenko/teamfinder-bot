@@ -229,6 +229,12 @@ async def auth_middleware(request: web.Request, handler):
         if parsed and "user" in parsed:
             request["init_data"] = parsed
         elif not is_public:
+            if not init_data_raw:
+                logging.warning(f"401 {request.path}: X-Telegram-Init-Data пустой")
+            elif not parsed:
+                logging.warning(f"401 {request.path}: validate_init_data вернул None (длина init_data={len(init_data_raw)})")
+            else:
+                logging.warning(f"401 {request.path}: нет user в parsed")
             return web.json_response({"error": "unauthorized"}, status=401)
     return await handler(request)
 

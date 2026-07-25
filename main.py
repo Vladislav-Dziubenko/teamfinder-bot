@@ -71,6 +71,13 @@ async def main():
         signal.signal(signal.SIGTERM, _signal_handler)
         signal.signal(signal.SIGINT, _signal_handler)
 
+        # Удаляем старый webhook (мог остаться от предыдущего деплоя с webhook'ом)
+        try:
+            await bot.delete_webhook()
+            logging.info("Старый webhook удалён")
+        except Exception as e:
+            logging.warning(f"Не удалось удалить webhook: {e}")
+
         # Polling в фоне — сервер запущен, порт открыт, Render видит порт
         async def polling_loop():
             while not shutdown_event.is_set():
