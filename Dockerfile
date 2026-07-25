@@ -6,7 +6,7 @@ WORKDIR /app/web-src
 RUN corepack enable
 
 # Install dependencies
-COPY web-src/package.json web-src/pnpm-lock.yaml ./
+COPY web-src/package.json web-src/pnpm-lock.yaml web-src/pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 
 # Build static site into web-src/out
