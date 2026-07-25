@@ -10,6 +10,7 @@ webapp/static/ (index.html/style.css) своими, сохранив вызов�
 из app.js (или перенеси эту логику в свой JS). Бэкенд трогать не обязательно.
 """
 
+import gzip
 import logging
 from pathlib import Path
 from collections import defaultdict
@@ -157,6 +158,19 @@ async def cache_static_middleware(request: web.Request, handler):
 
 
 @web.middleware
+async def gzip_middleware(request: web.Request, handler):
+    response = await handler(request)
+    accept = request.headers.get("Accept-Encoding", "")
+    if "gzip" in accept and response.body and len(response.body) > 1024:
+        orig_type = response.content_type or ""
+        if orig_type.startswith(("text/", "application/json", "application/javascript")):
+            response.body = gzip.compress(response.body)
+            response.headers["Content-Encoding"] = "gzip"
+            response.headers["Content-Length"] = str(len(response.body))
+    return response
+
+
+@web.middleware
 async def error_middleware(request: web.Request, handler):
     try:
         return await handler(request)
@@ -227,13 +241,20 @@ async def handle_me(request: web.Request):
     user = _get_user(request)
     await db.ensure_user(user["id"], user.get("username"), user.get("first_name"))
 
-    currency = await db.get_currency(user["id"])
-    mini_profile = await db.get_mini_app_profile(user["id"])
-    inventory = await db.get_inventory(user["id"])
-    battlepass = await db.get_battlepass(user["id"])
-    streak = await db.get_daily_streak(user["id"])
-    referral = await db.get_or_create_referral(user["id"])
-    achievements = await db.get_user_achievements(user["id"])
+    # Все запросы на одном соединении — меньше round-trips
+    async with db.pool.acquire() as conn:
+        tasks = [
+            db.get_currency(user["id"]),
+            db.get_mini_app_profile(user["id"]),
+            db.get_inventory(user["id"]),
+            db.get_battlepass(user["id"]),
+            db.get_daily_streak(user["id"]),
+            db.get_or_create_referral(user["id"]),
+            db.get_user_achievements(user["id"]),
+            db.is_pro(user["id"]),
+        ]
+        import asyncio
+        results = await asyncio.gather(*tasks)
 
     case_cooldowns = {}
     for case_id in CASES_CONFIG:
@@ -242,15 +263,15 @@ async def handle_me(request: web.Request):
 
     return web.json_response({
         "user": user,
-        "currency": currency,
-        "mini_profile": mini_profile,
-        "inventory": inventory,
-        "battlepass": battlepass,
-        "streak": streak,
-        "referral": referral,
-        "achievements": achievements,
+        "currency": results[0],
+        "mini_profile": results[1],
+        "inventory": results[2],
+        "battlepass": results[3],
+        "streak": results[4],
+        "referral": results[5],
+        "achievements": results[6],
         "case_cooldowns": case_cooldowns,
-        "premium_active": await db.is_pro(user["id"]),
+        "premium_active": results[7],
     })
 
 
@@ -1000,6 +1021,184 @@ async def handle_achievements_claim(request: web.Request):
     return web.json_response({"ok": True})
 
 
+# ---------------------------------------------------------------------------
+# Chat API
+# ---------------------------------------------------------------------------
+
+async def handle_chat_list(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chats = await db.get_user_chats(user["id"])
+    return web.json_response({"chats": chats})
+
+
+async def handle_chat_messages(request: web.Request):
+    db: Database = request.app["db"]
+    chat_id = request.match_info["chat_id"]
+    messages = await db.get_chat_messages(chat_id)
+    return web.json_response({"messages": messages})
+
+
+async def handle_chat_send(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    body = await request.json()
+    text = str(body.get("text", "")).strip()[:500]
+    if not text:
+        return web.json_response({"error": "empty message"}, status=400)
+    msg = await db.send_message(chat_id, user["id"], text)
+    return web.json_response({"message": msg})
+
+
+# ---------------------------------------------------------------------------
+# Predictions API
+# ---------------------------------------------------------------------------
+
+ESPORTS_MATCHES = [
+    {"id": "m1", "tournament": "IEM Katowice 2026", "discipline": "CS2", "teamA": "NAVI", "teamB": "FaZe", "startsAt": int((datetime.utcnow() + timedelta(hours=2)).timestamp() * 1000), "oddsA": 1.85, "oddsB": 1.95, "status": "upcoming"},
+    {"id": "m2", "tournament": "The International", "discipline": "Dota 2", "teamA": "Team Spirit", "teamB": "Gaimin Gladiators", "startsAt": int((datetime.utcnow() + timedelta(hours=6)).timestamp() * 1000), "oddsA": 1.6, "oddsB": 2.35, "status": "upcoming"},
+    {"id": "m3", "tournament": "VCT Champions", "discipline": "Valorant", "teamA": "Sentinels", "teamB": "Fnatic", "startsAt": int((datetime.utcnow() + timedelta(hours=26)).timestamp() * 1000), "oddsA": 2.1, "oddsB": 1.72, "status": "upcoming"},
+    {"id": "m4", "tournament": "DreamLeague S24", "discipline": "Dota 2", "teamA": "Team Liquid", "teamB": "OG", "startsAt": int((datetime.utcnow() + timedelta(hours=48)).timestamp() * 1000), "oddsA": 2.2, "oddsB": 1.65, "status": "upcoming"},
+]
+
+
+async def handle_predictions_matches(request: web.Request):
+    return web.json_response({"matches": ESPORTS_MATCHES})
+
+
+async def handle_predictions_place(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    match_id = body.get("match_id")
+    side = body.get("side")
+    amount = body.get("amount", 0)
+
+    match = next((m for m in ESPORTS_MATCHES if m["id"] == match_id), None)
+    if not match:
+        return web.json_response({"error": "match not found"}, status=400)
+
+    if not isinstance(amount, int) or amount <= 0:
+        return web.json_response({"error": "invalid amount"}, status=400)
+
+    odds = match["oddsA"] if side == "A" else match["oddsB"]
+    label = f"{match['teamA']} vs {match['teamB']} · {match['tournament']}"
+    team = match["teamA"] if side == "A" else match["teamB"]
+
+    result = await db.place_prediction(user["id"], match_id, side, amount, odds, label, team)
+    if not result:
+        return web.json_response({"error": "not enough coins"}, status=400)
+    return web.json_response({"ok": True, "prediction": result})
+
+
+async def handle_predictions_history(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    predictions = await db.get_user_predictions(user["id"])
+    return web.json_response({"predictions": predictions})
+
+
+async def handle_pvp_list(request: web.Request):
+    db: Database = request.app["db"]
+    challenges = await db.get_open_challenges()
+    return web.json_response({"challenges": challenges})
+
+
+async def handle_pvp_create(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    condition = str(body.get("condition", "")).strip()
+    stake = body.get("stake", 0)
+
+    if len(condition) < 5:
+        return web.json_response({"error": "condition too short"}, status=400)
+    if not isinstance(stake, int) or stake <= 0:
+        return web.json_response({"error": "invalid stake"}, status=400)
+
+    nick = (await db.get_mini_app_profile(user["id"])).get("nick", f"user_{user['id']}")
+    result = await db.create_pvp_challenge(user["id"], nick, condition, stake)
+    if not result:
+        return web.json_response({"error": "not enough coins"}, status=400)
+    # Return in the format frontend expects
+    return web.json_response({"ok": True, "challenge": {
+        "id": str(result["id"]),
+        "creatorId": str(result["creator_id"]),
+        "creatorNick": result.get("creator_nick", nick),
+        "condition": result["condition"],
+        "stake": result["stake"],
+        "status": result["status"],
+        "createdAt": int(datetime.fromisoformat(result["created_at"]).timestamp() * 1000),
+    }})
+
+
+async def handle_pvp_accept(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    challenge_id = request.match_info["challenge_id"]
+
+    nick = (await db.get_mini_app_profile(user["id"])).get("nick", f"user_{user['id']}")
+    ok = await db.accept_pvp_challenge(int(challenge_id), user["id"], nick)
+    if not ok:
+        return web.json_response({"error": "cannot accept challenge"}, status=400)
+    return web.json_response({"ok": True})
+
+
+async def handle_pvp_resolve(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    challenge_id = request.match_info["challenge_id"]
+    body = await request.json()
+    winner_id = body.get("winner_id")
+
+    if not winner_id:
+        return web.json_response({"error": "winner_id required"}, status=400)
+
+    ok = await db.resolve_pvp_challenge(int(challenge_id), int(winner_id))
+    if not ok:
+        return web.json_response({"error": "cannot resolve challenge"}, status=400)
+    return web.json_response({"ok": True})
+
+
+# ---------------------------------------------------------------------------
+# Stats API
+# ---------------------------------------------------------------------------
+
+async def handle_stats(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+
+    stats = await db.get_user_stats(user["id"])
+    currency = await db.get_currency(user["id"])
+    achievements = await db.get_user_achievements(user["id"])
+
+    claimed = sum(1 for a in achievements if a["claimed"])
+
+    return web.json_response({
+        "overview": {
+            "games": stats["games_played"],
+            "wins": stats["wins"],
+            "favoriteGame": "—",
+            "searchMinutes": 0,
+            "gamesDelta": 0,
+            "winsDelta": 0,
+            "searchDelta": 0,
+        },
+        "progress": [],
+        "achievements": {
+            "total": len(achievements),
+            "claimed": claimed,
+            "recent": [],
+        },
+        "rank": {
+            "position": 0,
+            "total": 0,
+            "percentile": 0,
+        },
+    })
+
+
 async def handle_leaderboard(request: web.Request):
     if _public_rate_limit(request):
         return web.json_response({"error": "rate limit exceeded"}, status=429)
@@ -1021,7 +1220,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # 3. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
     # Если поменять порядок — rate limiter получит init_data=None и вернёт 500.
     # Порядок: cors → cache → error → auth → rate_limit
-    app = web.Application(middlewares=[cors_middleware, cache_static_middleware, error_middleware, auth_middleware, web_rate_limit_middleware])
+    app = web.Application(middlewares=[cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, web_rate_limit_middleware])
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot
@@ -1069,6 +1268,23 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/achievements", handle_achievements)
     app.router.add_post("/api/achievements/claim", handle_achievements_claim)
     app.router.add_get("/api/leaderboard", handle_leaderboard)
+
+    # Chat
+    app.router.add_get("/api/chat/list", handle_chat_list)
+    app.router.add_get("/api/chat/{chat_id}", handle_chat_messages)
+    app.router.add_post("/api/chat/{chat_id}/send", handle_chat_send)
+
+    # Predictions
+    app.router.add_get("/api/predictions/matches", handle_predictions_matches)
+    app.router.add_post("/api/predictions/place", handle_predictions_place)
+    app.router.add_get("/api/predictions/history", handle_predictions_history)
+    app.router.add_get("/api/predictions/pvp/list", handle_pvp_list)
+    app.router.add_post("/api/predictions/pvp/create", handle_pvp_create)
+    app.router.add_post("/api/predictions/pvp/{challenge_id}/accept", handle_pvp_accept)
+    app.router.add_post("/api/predictions/pvp/{challenge_id}/resolve", handle_pvp_resolve)
+
+    # Stats
+    app.router.add_get("/api/stats", handle_stats)
 
     app.router.add_static("/", STATIC_DIR, show_index=False)
     return app

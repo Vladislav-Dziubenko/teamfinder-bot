@@ -196,6 +196,54 @@ CREATE TABLE IF NOT EXISTS user_achievements (
     PRIMARY KEY (user_id, achievement_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id SERIAL PRIMARY KEY,
+    chat_id TEXT NOT NULL,
+    sender_id BIGINT NOT NULL,
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS match_predictions (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    match_id TEXT,
+    side TEXT,
+    amount INTEGER NOT NULL,
+    odds REAL NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    payout INTEGER DEFAULT 0,
+    label TEXT DEFAULT '',
+    team TEXT DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS pvp_challenges (
+    id SERIAL PRIMARY KEY,
+    creator_id BIGINT NOT NULL,
+    creator_nick TEXT DEFAULT '',
+    opponent_id BIGINT,
+    opponent_nick TEXT DEFAULT '',
+    condition TEXT NOT NULL,
+    stake INTEGER NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    winner_id BIGINT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (creator_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_stats (
+    user_id BIGINT PRIMARY KEY,
+    search_count INTEGER DEFAULT 0,
+    contact_count INTEGER DEFAULT 0,
+    team_app_count INTEGER DEFAULT 0,
+    games_played INTEGER DEFAULT 0,
+    wins INTEGER DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
 """
 
 SCHEMA_STATEMENTS = [
@@ -463,6 +511,11 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_user_battlepass_user ON user_battlepass (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_daily_streaks_user ON daily_streaks (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages (chat_id)",
+            "CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages (chat_id, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_match_predictions_user ON match_predictions (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_pvp_challenges_creator ON pvp_challenges (creator_id)",
+            "CREATE INDEX IF NOT EXISTS idx_pvp_challenges_status ON pvp_challenges (status)",
         ]
         for idx_sql in perf_indexes:
             try:
@@ -1360,3 +1413,163 @@ class Database:
                 if await self._adjust_currency_conn(conn, user_id, coins=coins, points=points):
                     return True
                 return False
+
+    # ---------- Chat ----------
+
+    async def send_message(self, chat_id: str, sender_id: int, text: str) -> dict:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "INSERT INTO chat_messages (chat_id, sender_id, text, created_at) VALUES ($1, $2, $3, $4) RETURNING id",
+                chat_id, sender_id, text, now,
+            )
+            return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": text, "created_at": now}
+
+    async def get_chat_messages(self, chat_id: str, limit: int = 50) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id, chat_id, sender_id, text, created_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
+                chat_id, limit,
+            )
+            return [dict(r) for r in reversed(rows)]
+
+    async def get_user_chats(self, user_id: int) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            chat_ids = await conn.fetch(
+                "SELECT DISTINCT chat_id FROM chat_messages WHERE sender_id = $1 OR chat_id LIKE $2",
+                user_id, f"dm-{user_id}-%",
+            )
+            # Also get chats where other users messaged this user
+            other = await conn.fetch(
+                "SELECT DISTINCT chat_id FROM chat_messages WHERE chat_id LIKE $1 AND sender_id != $2",
+                f"dm-%-{user_id}", user_id,
+            )
+            all_ids = set(r["chat_id"] for r in chat_ids) | set(r["chat_id"] for r in other)
+            # Add user's own dm chat
+            all_ids.add(f"dm-{user_id}")
+            results = []
+            for cid in all_ids:
+                row = await conn.fetchrow(
+                    "SELECT id, chat_id, sender_id, text, created_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT 1",
+                    cid,
+                )
+                if row:
+                    unread = await conn.fetchval(
+                        "SELECT COUNT(*) FROM chat_messages WHERE chat_id = $1 AND sender_id != $2 AND id > COALESCE((SELECT MAX(id) FROM chat_messages WHERE chat_id = $1 AND sender_id = $2), 0)",
+                        cid, user_id,
+                    )
+                    results.append({
+                        "chat_id": cid,
+                        "last_text": row["text"],
+                        "last_ts": row["created_at"],
+                        "unread": unread or 0,
+                    })
+            return sorted(results, key=lambda x: x["last_ts"], reverse=True)
+
+    # ---------- Predictions ----------
+
+    async def place_prediction(self, user_id: int, match_id: str, side: str, amount: int, odds: float, label: str, team: str) -> dict | None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                if not await self._adjust_currency_conn(conn, user_id, coins=-amount):
+                    return None
+                row = await conn.fetchrow(
+                    "INSERT INTO match_predictions (user_id, match_id, side, amount, odds, status, payout, label, team, created_at) VALUES ($1, $2, $3, $4, $5, 'pending', 0, $6, $7, $8) RETURNING id",
+                    user_id, match_id, side, amount, odds, label, team, now,
+                )
+                return dict(row)
+
+    async def get_user_predictions(self, user_id: int) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM match_predictions WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50",
+                user_id,
+            )
+            return [dict(r) for r in rows]
+
+    async def create_pvp_challenge(self, creator_id: int, creator_nick: str, condition: str, stake: int) -> dict | None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                if not await self._adjust_currency_conn(conn, creator_id, coins=-stake):
+                    return None
+                row = await conn.fetchrow(
+                    "INSERT INTO pvp_challenges (creator_id, creator_nick, condition, stake, status, created_at) VALUES ($1, $2, $3, $4, 'open', $5) RETURNING id",
+                    creator_id, creator_nick, condition, stake, now,
+                )
+                return dict(row)
+
+    async def get_open_challenges(self) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM pvp_challenges WHERE status = 'open' ORDER BY created_at DESC LIMIT 20")
+            return [dict(r) for r in rows]
+
+    async def get_user_challenges(self, user_id: int) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT * FROM pvp_challenges WHERE creator_id = $1 OR opponent_id = $1 ORDER BY created_at DESC LIMIT 20",
+                user_id,
+            )
+            return [dict(r) for r in rows]
+
+    async def accept_pvp_challenge(self, challenge_id: int, opponent_id: int, opponent_nick: str) -> bool:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT stake, status FROM pvp_challenges WHERE id = $1 FOR UPDATE",
+                    challenge_id,
+                )
+                if not row or row["status"] != "open":
+                    return False
+                stake = row["stake"]
+                if not await self._adjust_currency_conn(conn, opponent_id, coins=-stake):
+                    return False
+                await conn.execute(
+                    "UPDATE pvp_challenges SET status = 'active', opponent_id = $1, opponent_nick = $2, created_at = $3 WHERE id = $4",
+                    opponent_id, opponent_nick, now, challenge_id,
+                )
+                return True
+
+    async def resolve_pvp_challenge(self, challenge_id: int, winner_id: int) -> bool:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT creator_id, opponent_id, stake, status FROM pvp_challenges WHERE id = $1 FOR UPDATE",
+                    challenge_id,
+                )
+                if not row or row["status"] != "active":
+                    return False
+                if winner_id not in (row["creator_id"], row["opponent_id"]):
+                    return False
+                payout = row["stake"] * 2
+                if not await self._adjust_currency_conn(conn, winner_id, coins=payout):
+                    return False
+                await conn.execute(
+                    "UPDATE pvp_challenges SET status = 'finished', winner_id = $1, created_at = $2 WHERE id = $3",
+                    winner_id, now, challenge_id,
+                )
+                return True
+
+    async def get_user_stats(self, user_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM user_stats WHERE user_id = $1", user_id)
+            if not row:
+                return {"search_count": 0, "contact_count": 0, "team_app_count": 0, "games_played": 0, "wins": 0}
+            return dict(row)
+
+    async def increment_user_stat(self, user_id: int, stat: str, amount: int = 1) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                f"""
+                INSERT INTO user_stats (user_id, {stat}, updated_at)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    {stat} = user_stats.{stat} + $2,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                user_id, amount, now,
+            )

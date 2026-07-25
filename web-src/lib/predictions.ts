@@ -1,17 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-// import { api } from "@/lib/api" // ← точка интеграции с реальным API
-
-/* ------------------------------------------------------------------ *
- *  «Прогнозы» — skill-based предсказания (НЕ азартная игра).
- *
- *  Исход определяется реальным результатом матча или решением создателя
- *  PvP-вызова — никакого RNG, рулетки или случайного шанса.
- *
- *  Данные замоканы на фронте. Для реального бэкенда замените тела методов
- *  usePredictions на api.get/api.post, сохранив публичный интерфейс.
- * ------------------------------------------------------------------ */
+import { api } from "@/lib/api"
 
 export type EsportsMatch = {
   id: string
@@ -23,7 +13,6 @@ export type EsportsMatch = {
   oddsA: number
   oddsB: number
   status: "upcoming" | "finished"
-  /** победившая сторона после завершения */
   winner?: "A" | "B"
 }
 
@@ -53,41 +42,54 @@ export type PvpChallenge = {
 }
 
 export const ME_ID = "me"
-const HOUR = 3600_000
-
-/* ---------------- Мок-данные ---------------- */
-
-const seedMatches: EsportsMatch[] = []
-
-const seedPredictions: MatchPrediction[] = []
-
-const seedChallenges: PvpChallenge[] = []
-
-/* ---------------- Хук (публичный API для predictions-tab) ---------------- */
 
 export function usePredictions(seedCoins: number, myNick: string) {
   const [coins, setCoins] = useState(seedCoins)
-  const [matches] = useState<EsportsMatch[]>(seedMatches)
-  const [predictions, setPredictions] = useState<MatchPrediction[]>(seedPredictions)
-  const [challenges, setChallenges] = useState<PvpChallenge[]>(() =>
-    seedChallenges.map((c) => (c.creatorId === ME_ID ? { ...c, creatorNick: myNick } : c)),
-  )
+  const [matches, setMatches] = useState<EsportsMatch[]>([])
+  const [predictions, setPredictions] = useState<MatchPrediction[]>([])
+  const [challenges, setChallenges] = useState<PvpChallenge[]>([])
 
-  // синхронизация стартового баланса, когда монеты из стора догрузились
   useEffect(() => {
     setCoins(seedCoins)
   }, [seedCoins])
 
-  /* --- Режим A: прогнозы на матчи --- */
+  useEffect(() => {
+    api.get("/api/predictions/matches").then((d) => setMatches(d.matches || [])).catch(() => {})
+    api.get("/api/predictions/history").then((d) => {
+      setPredictions((d.predictions || []).map((p: any) => ({
+        id: String(p.id),
+        matchId: p.match_id || "",
+        label: p.label || "",
+        side: p.side || "A",
+        team: p.team || "",
+        amount: p.amount,
+        odds: p.odds,
+        status: p.status,
+        payout: p.payout || 0,
+      })))
+    }).catch(() => {})
+    api.get("/api/predictions/pvp/list").then((d) => {
+      setChallenges((d.challenges || []).map((c: any) => ({
+        id: String(c.id),
+        creatorId: String(c.creator_id),
+        creatorNick: c.creator_nick || "",
+        condition: c.condition,
+        stake: c.stake,
+        status: c.status === "open" ? "open" : "active",
+        createdAt: new Date(c.created_at).getTime(),
+      })))
+    }).catch(() => {})
+  }, [])
+
   const placePrediction = useCallback(
-    (match: EsportsMatch, side: "A" | "B", amount: number): { ok: boolean; error?: string } => {
+    async (match: EsportsMatch, side: "A" | "B", amount: number): Promise<{ ok: boolean; error?: string }> => {
       if (amount <= 0) return { ok: false, error: "Введите сумму прогноза" }
       if (amount > coins) return { ok: false, error: "Недостаточно Nexus Coin" }
-      // TODO(api): await api.post("/api/predictions/match", { match_id: match.id, side, amount })
-      const odds = side === "A" ? match.oddsA : match.oddsB
-      setCoins((c) => c - amount)
-      setPredictions((prev) => [
-        {
+      try {
+        await api.post("/api/predictions/place", { match_id: match.id, side, amount })
+        setCoins((c) => c - amount)
+        const odds = side === "A" ? match.oddsA : match.oddsB
+        setPredictions((prev) => [{
           id: `hp-${Date.now()}`,
           matchId: match.id,
           label: `${match.teamA} vs ${match.teamB} · ${match.tournament}`,
@@ -97,65 +99,62 @@ export function usePredictions(seedCoins: number, myNick: string) {
           odds,
           status: "pending",
           payout: 0,
-        },
-        ...prev,
-      ])
-      return { ok: true }
+        }, ...prev])
+        return { ok: true }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Ошибка" }
+      }
     },
     [coins],
   )
 
-  /* --- Режим B: PvP-вызовы --- */
   const createChallenge = useCallback(
-    (condition: string, stake: number): { ok: boolean; error?: string } => {
+    async (condition: string, stake: number): Promise<{ ok: boolean; error?: string }> => {
       if (condition.trim().length < 5) return { ok: false, error: "Опишите условие подробнее" }
       if (stake <= 0) return { ok: false, error: "Укажите ставку" }
       if (stake > coins) return { ok: false, error: "Недостаточно Nexus Coin" }
-      // TODO(api): await api.post("/api/predictions/pvp/create", { condition, stake })
-      setCoins((c) => c - stake)
-      setChallenges((prev) => [
-        {
-          id: `pvp-${Date.now()}`,
-          creatorId: ME_ID,
-          creatorNick: myNick,
-          condition: condition.trim(),
-          stake,
-          status: "open",
-          createdAt: Date.now(),
-        },
-        ...prev,
-      ])
-      return { ok: true }
+      try {
+        const data = await api.post("/api/predictions/pvp/create", { condition, stake })
+        setCoins((c) => c - stake)
+        setChallenges((prev) => [data.challenge, ...prev])
+        return { ok: true }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Ошибка" }
+      }
     },
     [coins, myNick],
   )
 
   const acceptChallenge = useCallback(
-    (id: string): { ok: boolean; error?: string } => {
+    async (id: string): Promise<{ ok: boolean; error?: string }> => {
       const ch = challenges.find((c) => c.id === id)
       if (!ch) return { ok: false, error: "Вызов не найден" }
       if (ch.stake > coins) return { ok: false, error: "Недостаточно Nexus Coin" }
-      // TODO(api): await api.post(`/api/predictions/pvp/${id}/accept`)
-      setCoins((c) => c - ch.stake)
-      setChallenges((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, status: "active", opponentId: ME_ID, opponentNick: myNick } : c)),
-      )
-      return { ok: true }
+      try {
+        await api.post(`/api/predictions/pvp/${id}/accept`)
+        setCoins((c) => c - ch.stake)
+        setChallenges((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, status: "active", opponentId: ME_ID, opponentNick: myNick } : c)),
+        )
+        return { ok: true }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Ошибка" }
+      }
     },
     [challenges, coins, myNick],
   )
 
-  /** Подтверждение результата — доступно только создателю вызова */
   const confirmResult = useCallback(
-    (id: string, winnerId: string) => {
-      // TODO(api): await api.post(`/api/predictions/pvp/${id}/resolve`, { winner_id: winnerId })
-      setChallenges((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, status: "finished", winnerId } : c)),
-      )
-      const ch = challenges.find((c) => c.id === id)
-      if (ch && winnerId === ME_ID) {
-        // победитель забирает банк (обе ставки)
-        setCoins((c) => c + ch.stake * 2)
+    async (id: string, winnerId: string) => {
+      try {
+        await api.post(`/api/predictions/pvp/${id}/resolve`, { winner_id: winnerId })
+        setChallenges((prev) => prev.map((c) => (c.id === id ? { ...c, status: "finished", winnerId } : c)))
+        const ch = challenges.find((c) => c.id === id)
+        if (ch && winnerId === ME_ID) {
+          setCoins((c) => c + ch.stake * 2)
+        }
+      } catch (e) {
+        console.error("Failed to resolve challenge", e)
       }
     },
     [challenges],

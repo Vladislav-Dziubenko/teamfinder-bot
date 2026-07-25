@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Gamepad2,
   Trophy,
@@ -16,17 +16,26 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } f
 import {
   getOverview,
   getProgress,
-  recentAchievements,
-  rankInfo,
+  useAchievements,
+  useRankInfo,
   type StatRange,
+  type OverviewStat,
+  type ProgressPoint,
 } from "@/lib/stats"
 import { cn } from "@/lib/utils"
 
 export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void }) {
   const [range, setRange] = useState<StatRange>("7")
-  const ov = getOverview(range)
-  const progress = getProgress(range)
-  const winrate = Math.round((ov.wins / ov.games) * 100)
+  const [ov, setOv] = useState<OverviewStat>(getOverview(range))
+  const [progress, setProgress] = useState<ProgressPoint[]>(getProgress(range))
+  const achievements = useAchievements()
+  const rank = useRankInfo()
+  const winrate = ov.games > 0 ? Math.round((ov.wins / ov.games) * 100) : 0
+
+  useEffect(() => {
+    setOv(getOverview(range))
+    setProgress(getProgress(range))
+  }, [range])
 
   return (
     <div className="space-y-4 px-4 py-5">
@@ -139,9 +148,9 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
           <Medal className="size-6 text-stars" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-display text-lg font-bold leading-none">#{rankInfo.position}</p>
+          <p className="font-display text-lg font-bold leading-none">#{rank.position}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            в общем рейтинге · топ {rankInfo.percentile}% из {rankInfo.total.toLocaleString("ru-RU")}
+            в общем рейтинге · топ {rank.percentile}% из {rank.total.toLocaleString("ru-RU")}
           </p>
         </div>
         <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
@@ -154,7 +163,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
           <h2 className="font-display text-base font-bold">Последние достижения</h2>
         </div>
         <div className="space-y-2">
-          {recentAchievements.map((a) => (
+          {achievements.map((a) => (
             <div
               key={a.id}
               className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5"
