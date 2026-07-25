@@ -77,10 +77,10 @@ export type StarPack = {
 }
 
 export const starPacks: StarPack[] = [
-  { id: "p1", stars: 75, perk: "Буст профиля на 24 часа" },
-  { id: "p2", stars: 250, perk: "Значок PRO + приоритет в поиске", bonus: "+15%", popular: true },
-  { id: "p3", stars: 500, perk: "PRO на месяц + кастомный ник", bonus: "+25%" },
-  { id: "p4", stars: 1000, perk: "Всё сразу + анимированная рамка", bonus: "+40%" },
+  { id: "p1", stars: 38, perk: "Буст профиля на 24 часа" },
+  { id: "p2", stars: 125, perk: "Значок PRO + приоритет в поиске", bonus: "+15%", popular: true },
+  { id: "p3", stars: 250, perk: "PRO на месяц + кастомный ник", bonus: "+25%" },
+  { id: "p4", stars: 500, perk: "Всё сразу + анимированная рамка", bonus: "+40%" },
 ]
 
 export const currentUser = {
@@ -181,7 +181,7 @@ export const lootCases: LootCase[] = [
     subtitle: "Золотой премиальный кейс",
     image: "/case-gold.png",
     gold: true,
-    costStars: 150,
+    costStars: 75,
     free: false,
     dailyLimit: 99,
     items: [
@@ -211,10 +211,10 @@ export const lootCases: LootCase[] = [
 
 // Магазин: продажа карточек за монетки
 export const coinShop: { key: string; name: string; desc: string; image: string; price: number }[] = [
-  { key: "buy-premium-card", name: "Премиум-анкета", desc: "Кастом фото, текст и украшения на 1 день", image: "/premium-reveal.png", price: 200 },
-  { key: "buy-premium-lite", name: "Премиум", desc: "Премиум-статус для анкеты", image: "/premium-card.png", price: 90 },
-  { key: "buy-ak47", name: "Скин AK-47", desc: "Легендарный калаш", image: "/ak47.png", price: 35 },
-  { key: "buy-premium-medium", name: "Премиум средний", desc: "4 открытия в день", image: "/premium-x4.png", price: 75 },
+  { key: "buy-premium-card", name: "Премиум-анкета", desc: "Кастом фото, текст и украшения на 1 день", image: "/premium-reveal.png", price: 100 },
+  { key: "buy-premium-lite", name: "Премиум", desc: "Премиум-статус для анкеты", image: "/premium-card.png", price: 45 },
+  { key: "buy-ak47", name: "Скин AK-47", desc: "Легендарный калаш", image: "/ak47.png", price: 18 },
+  { key: "buy-premium-medium", name: "Премиум средний", desc: "4 открытия в день", image: "/premium-x4.png", price: 38 },
 ]
 
 /* ---------- Достижения ---------- */
@@ -264,7 +264,7 @@ export type BattlePassTier = {
 }
 
 // Сезонный батл-пасс: премиум-трек выдаёт вещи из премиум-контейнера
-export const battlePassPriceStars = 250
+export const battlePassPriceStars = 125
 export const battlePassXpPerLevel = 100
 
 export const battlePassTiers: BattlePassTier[] = [

@@ -75,7 +75,7 @@ PLAYTIME = {
     "weekend": "Только выходные",
 }
 
-BATTLE_PASS_PRICE_STARS = 250
+BATTLE_PASS_PRICE_STARS = 125
 BATTLE_PASS_XP_PER_LEVEL = 100
 
 BATTLE_PASS_TIERS = [
@@ -101,13 +101,13 @@ DAILY_STREAK_REWARDS = [
     {"day": 7, "coins": 200},
 ]
 
-REFERRAL_REWARD = {"coins": 50, "stars": 5}
+REFERRAL_REWARD = {"coins": 25, "stars": 3}
 
 # Пакеты монет за Telegram Stars (магазин Nexus)
 COIN_PACKS = [
-    {"id": "c1", "coins": 50, "stars": 25},
-    {"id": "c2", "coins": 120, "stars": 50},
-    {"id": "c3", "coins": 300, "stars": 100},
+    {"id": "c1", "coins": 50, "stars": 13},
+    {"id": "c2", "coins": 120, "stars": 25},
+    {"id": "c3", "coins": 300, "stars": 50},
 ]
 
 # Стартовые промокоды (сидируются в БД при старте)

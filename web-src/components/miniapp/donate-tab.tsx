@@ -9,9 +9,9 @@ import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const coinPacks = [
-  { id: "c1", coins: 50, stars: 25 },
-  { id: "c2", coins: 120, stars: 50, bonus: "+20%", popular: true },
-  { id: "c3", coins: 300, stars: 100, bonus: "+50%" },
+  { id: "c1", coins: 50, stars: 13 },
+  { id: "c2", coins: 120, stars: 25, bonus: "+20%", popular: true },
+  { id: "c3", coins: 300, stars: 50, bonus: "+50%" },
 ]
 
 export function DonateTab() {

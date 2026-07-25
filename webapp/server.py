@@ -74,10 +74,10 @@ _LAST_CACHE_CLEANUP = 0.0
 # Star packs (маппинг для Telegram Stars invoice)
 # ---------------------------------------------------------------------------
 STAR_PACKS: dict[str, dict] = {
-    "p1": {"stars": 75, "title": "Буст профиля на 24 часа", "desc": "Твоя анкета выше в поиске — 24 часа"},
-    "p2": {"stars": 250, "title": "Значок PRO + приоритет в поиске", "desc": "PRO-бейдж и приоритетный поиск"},
-    "p3": {"stars": 500, "title": "PRO на месяц + кастомный ник", "desc": "PRO-подписка 30 дней + кастом"},
-    "p4": {"stars": 1000, "title": "Всё сразу + анимированная рамка", "desc": "Полный пакет NEXUS"},
+    "p1": {"stars": 38, "title": "Буст профиля на 24 часа", "desc": "Твоя анкета выше в поиске — 24 часа"},
+    "p2": {"stars": 125, "title": "Значок PRO + приоритет в поиске", "desc": "PRO-бейдж и приоритетный поиск"},
+    "p3": {"stars": 250, "title": "PRO на месяц + кастомный ник", "desc": "PRO-подписка 30 дней + кастом"},
+    "p4": {"stars": 500, "title": "Всё сразу + анимированная рамка", "desc": "Полный пакет NEXUS"},
 }
 
 
@@ -604,7 +604,7 @@ CASES_CONFIG = {
         "subtitle": "Золотой премиальный кейс",
         "image": "/case-gold.png",
         "gold": True,
-        "costStars": 150,
+        "costStars": 75,
         "free": False,
         "dailyLimit": 99,
         "items": [
@@ -615,10 +615,10 @@ CASES_CONFIG = {
 }
 
 COIN_SHOP = [
-    {"key": "buy-premium-card", "name": "Премиум-анкета", "desc": "Кастом фото, текст и украшения на 1 день", "image": "/premium-reveal.png", "price": 200},
-    {"key": "buy-premium-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "price": 90},
-    {"key": "buy-ak47", "name": "Скин AK-47", "desc": "Легендарный калаш", "image": "/ak47.png", "price": 35},
-    {"key": "buy-premium-medium", "name": "Премиум средний", "desc": "4 открытия в день", "image": "/premium-x4.png", "price": 75},
+    {"key": "buy-premium-card", "name": "Премиум-анкета", "desc": "Кастом фото, текст и украшения на 1 день", "image": "/premium-reveal.png", "price": 100},
+    {"key": "buy-premium-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "price": 45},
+    {"key": "buy-ak47", "name": "Скин AK-47", "desc": "Легендарный калаш", "image": "/ak47.png", "price": 18},
+    {"key": "buy-premium-medium", "name": "Премиум средний", "desc": "4 открытия в день", "image": "/premium-x4.png", "price": 38},
 ]
 
 QUESTS_CONFIG = [

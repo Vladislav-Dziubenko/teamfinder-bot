@@ -20,7 +20,7 @@ GUIDES = [
         "game": "cs2",
         "title": "Продвинутый разбор Faceit (премиум)",
         "type": "premium",
-        "stars": 8,
+        "stars": 4,
         "text": (
             "🏆 <b>Премиум-гайд Faceit</b>\n\n"
             "• Как пикать карты под состав\n"
@@ -35,7 +35,7 @@ GUIDES = [
         "game": "cs2",
         "title": "Видео: настройка прицела + кроссхейр про",
         "type": "video",
-        "stars": 5,
+        "stars": 3,
         "text": "🎬 Видео-разбор настроек прицела от опытных игроков.",
         "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     },
@@ -59,7 +59,7 @@ GUIDES = [
         "game": "roblox",
         "title": "Монетизация игры в Roblox",
         "type": "premium",
-        "stars": 10,
+        "stars": 5,
         "text": (
             "💰 <b>Премиум: как зарабатывать в Roblox</b>\n\n"
             "• Gamepass vs Developer Products\n"
@@ -89,7 +89,7 @@ GUIDES = [
         "game": "wot",
         "title": "Продвинутый WoT: позиции и модули",
         "type": "premium",
-        "stars": 7,
+        "stars": 4,
         "text": (
             "⭐ <b>Премиум WoT</b>\n\n"
             "• Модули под стиль игры\n"
@@ -140,7 +140,7 @@ GUIDES = [
         "game": "dota2",
         "title": "Драфт и синергия героев (премиум)",
         "type": "premium",
-        "stars": 8,
+        "stars": 4,
         "text": (
             "🏆 <b>Премиум-драфт Dota 2</b>\n\n"
             "• Как читать пики врага и контрить на банах\n"
@@ -168,7 +168,7 @@ GUIDES = [
         "game": "valorant",
         "title": "Утилити и пост-plant Valorant",
         "type": "premium",
-        "stars": 6,
+        "stars": 3,
         "text": (
             "🎯 <b>Премиум Valorant</b>\n\n"
             "• Стандартные смоки на каждой карте\n"
@@ -196,7 +196,7 @@ GUIDES = [
         "game": "minecraft",
         "title": "Редстоун-механизмы (премиум)",
         "type": "premium",
-        "stars": 7,
+        "stars": 4,
         "text": (
             "🔴 <b>Премиум редстоун</b>\n\n"
             "• Компактные фермы на дальней прогрузке\n"
@@ -210,7 +210,7 @@ GUIDES = [
         "game": "minecraft",
         "title": "Видео: билд-техники для командных проектов",
         "type": "video",
-        "stars": 5,
+        "stars": 3,
         "text": "🎬 Видео: как быстро строить симметричные постройки в команде.",
         "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     },
@@ -233,7 +233,7 @@ GUIDES = [
         "game": "fortnite",
         "title": "Эндгейм и командная игра (премиум)",
         "type": "premium",
-        "stars": 8,
+        "stars": 4,
         "text": (
             "🏆 <b>Премиум Fortnite: эндгейм</b>\n\n"
             "• Ротации в финальных кругах\n"
@@ -261,7 +261,7 @@ GUIDES = [
         "game": "apex",
         "title": "Рейтинговая стратегия (премиум)",
         "type": "premium",
-        "stars": 7,
+        "stars": 4,
         "text": (
             "🏆 <b>Премиум Apex: рейтинг</b>\n\n"
             "• Когда фармить RP, а когда идти на киллы\n"
@@ -289,7 +289,7 @@ GUIDES = [
         "game": "rust",
         "title": "Дизайн базы и электрика (премиум)",
         "type": "premium",
-        "stars": 9,
+        "stars": 5,
         "text": (
             "🏰 <b>Премиум Rust: база</b>\n\n"
             "• Хани-комб слои от рейда\n"

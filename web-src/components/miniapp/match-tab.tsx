@@ -6,7 +6,7 @@ import { api } from "@/lib/api"
 import { useNexus } from "@/lib/store"
 import { PlayerCard } from "./player-card"
 
-const EXTENDED_COST = 15
+const EXTENDED_COST = 8
 
 interface SearchResult {
   id: number
