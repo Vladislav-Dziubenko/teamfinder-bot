@@ -1,24 +1,126 @@
 "use client"
 
-import { useState } from "react"
-import { Play, Eye, Clock, X, ThumbsUp, Bookmark } from "lucide-react"
-import { guides, games } from "@/lib/data"
-import type { Guide } from "@/lib/data"
+import { useState, useEffect } from "react"
+import { Play, Eye, Clock, X, ThumbsUp, Bookmark, Loader2 } from "lucide-react"
+import { games } from "@/lib/data"
+import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const filters = ["Все", "CS2", "Dota", "Valorant", "PUBG"] as const
 
+interface ApiGuide {
+  id: string
+  game: string
+  title: string
+  type: string
+  stars: number
+  unlocked: boolean
+}
+
+const GAME_COVERS: Record<string, string> = {
+  cs2: "/guide-cs2.png",
+  dota2: "/guide-moba.png",
+  valorant: "/guide-moba.png",
+  pubg: "/guide-br.png",
+  apex: "/guide-br.png",
+  fortnite: "/guide-br.png",
+  minecraft: "/guide-moba.png",
+  roblox: "/guide-moba.png",
+  wot: "/guide-br.png",
+  wt: "/guide-br.png",
+  rust: "/guide-br.png",
+}
+
+function apiGuideToDisplay(g: ApiGuide): {
+  id: string
+  title: string
+  game: string
+  cover: string
+  author: string
+  duration: string
+  views: string
+  type: string
+  level: string
+} {
+  const label = g.type === "free" ? "Бесплатно" : g.type === "premium" ? `⭐${g.stars}` : "Видео"
+  return {
+    id: g.id,
+    title: g.title,
+    game: g.game,
+    cover: GAME_COVERS[g.game] || "/guide-moba.png",
+    author: "Nexus Team",
+    duration: "8:30",
+    views: g.type === "free" ? "1.2K" : "850",
+    type: label,
+    level: g.type === "free" ? "Новичок" : "Продвинутый",
+  }
+}
+
 export function GuidesTab() {
   const [active, setActive] = useState<string>("Все")
-  const [open, setOpen] = useState<Guide | null>(null)
+  const [open, setOpen] = useState<ReturnType<typeof apiGuideToDisplay> | null>(null)
+  const [guides, setGuides] = useState<ApiGuide[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const list = guides.filter((g) => {
-    if (active === "Все") return true
-    const gm = games.find((x) => x.id === g.game)
-    return gm?.short === active
-  })
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    api.get("/api/guides").then((data) => {
+      if (!cancelled) {
+        setGuides(data.guides || [])
+        setLoading(false)
+      }
+    }).catch((e) => {
+      if (!cancelled) {
+        setError(e.message || "Не удалось загрузить гайды")
+        setLoading(false)
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
 
-  const featured = guides[0]
+  const list = guides
+    .map(apiGuideToDisplay)
+    .filter((g) => {
+      if (active === "Все") return true
+      const gm = games.find((x) => x.id === g.game)
+      return gm?.short === active
+    })
+
+  const featured = list[0]
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <Loader2 className="size-8 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="px-4 py-20 text-center">
+        <p className="text-muted-foreground">{error}</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          className="mt-4 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground"
+        >
+          Попробовать снова
+        </button>
+      </div>
+    )
+  }
+
+  if (list.length === 0) {
+    return (
+      <div className="px-4 py-20 text-center">
+        <p className="text-muted-foreground">Нет доступных гайдов для этой игры</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5 px-4 py-5">
@@ -115,6 +217,77 @@ export function GuidesTab() {
       </div>
 
       {open && <GuideViewer guide={open} onClose={() => setOpen(null)} />}
+    </div>
+  )
+}
+
+function GuideViewer({ guide, onClose }: { guide: ReturnType<typeof apiGuideToDisplay>; onClose: () => void }) {
+  const [liked, setLiked] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center">
+      <button type="button" aria-label="Закрыть" onClick={onClose} className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+      <div className="relative mx-auto w-full max-w-md rounded-t-3xl border-t border-border bg-card pb-8 animate-rise">
+        {/* Player */}
+        <div className="relative aspect-video overflow-hidden rounded-t-3xl">
+          <img src={guide.cover || "/placeholder.svg"} alt="" className="size-full object-cover" />
+          <div className="absolute inset-0 grid place-items-center bg-background/40">
+            <span className="grid size-16 place-items-center rounded-full bg-primary text-primary-foreground animate-pulse-ring">
+              <Play className="size-7 translate-x-0.5 fill-primary-foreground" />
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="absolute right-3 top-3 grid size-8 place-items-center rounded-lg bg-background/70 text-foreground backdrop-blur"
+            aria-label="Закрыть"
+          >
+            <X className="size-4" />
+          </button>
+          {/* fake scrubber */}
+          <div className="absolute inset-x-3 bottom-3 flex items-center gap-2">
+            <div className="h-1 flex-1 overflow-hidden rounded-full bg-foreground/25">
+              <div className="h-full w-1/4 rounded-full bg-primary" />
+            </div>
+            <span className="text-[10px] font-medium text-foreground/90">{guide.duration}</span>
+          </div>
+        </div>
+
+        <div className="p-5">
+          <h2 className="font-display text-xl font-bold leading-tight text-balance">{guide.title}</h2>
+          <p className="mt-1 flex items-center gap-3 text-xs text-muted-foreground">
+            <span>{guide.author}</span>
+            <span className="flex items-center gap-1">
+              <Eye className="size-3" /> {guide.views}
+            </span>
+            <span className="rounded bg-secondary px-1.5 py-0.5">{guide.level}</span>
+          </p>
+
+          <div className="mt-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setLiked((v) => !v)}
+              className={cn(
+                "flex flex-1 items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold transition-colors",
+                liked ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground",
+              )}
+            >
+              <ThumbsUp className={cn("size-4", liked && "fill-primary")} /> Полезно
+            </button>
+            <button
+              type="button"
+              onClick={() => setSaved((v) => !v)}
+              className={cn(
+                "flex flex-1 items-center justify-center gap-2 rounded-2xl border py-3 text-sm font-semibold transition-colors",
+                saved ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground",
+              )}
+            >
+              <Bookmark className={cn("size-4", saved && "fill-accent")} /> Сохранить
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

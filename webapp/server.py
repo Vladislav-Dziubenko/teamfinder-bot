@@ -208,15 +208,24 @@ async def web_rate_limit_middleware(request: web.Request, handler):
     return await handler(request)
 
 
+PUBLIC_API_PREFIXES = (
+    "/api/games",
+    "/api/leaderboard",
+    "/api/teams",
+    "/api/nexus/shop",
+)
+
 @web.middleware
 async def auth_middleware(request: web.Request, handler):
     if request.path.startswith("/api/"):
+        is_public = any(request.path.startswith(p) for p in PUBLIC_API_PREFIXES)
         settings: Settings = request.app["settings"]
         init_data_raw = request.headers.get("X-Telegram-Init-Data", "")
         parsed = validate_init_data(init_data_raw, settings.bot_token)
-        if not parsed or "user" not in parsed:
+        if parsed and "user" in parsed:
+            request["init_data"] = parsed
+        elif not is_public:
             return web.json_response({"error": "unauthorized"}, status=401)
-        request["init_data"] = parsed
     return await handler(request)
 
 
@@ -368,7 +377,10 @@ async def handle_guides(request: web.Request):
     for g in GUIDES:
         if game and g["game"] != game:
             continue
-        unlocked = g["type"] == "free" or await db.has_unlocked(user["id"], g["id"])
+        if user is None:
+            unlocked = g["type"] == "free"
+        else:
+            unlocked = g["type"] == "free" or await db.has_unlocked(user["id"], g["id"])
         items.append({
             "id": g["id"], "game": g["game"], "title": g["title"],
             "type": g["type"], "stars": g["stars"], "unlocked": unlocked,
@@ -384,7 +396,10 @@ async def handle_guide_detail(request: web.Request):
     if not guide:
         return web.json_response({"error": "not found"}, status=404)
 
-    unlocked = guide["type"] == "free" or await db.has_unlocked(user["id"], guide_id)
+    if user is None:
+        unlocked = guide["type"] == "free"
+    else:
+        unlocked = guide["type"] == "free" or await db.has_unlocked(user["id"], guide_id)
     payload = {"id": guide["id"], "title": guide["title"], "type": guide["type"], "stars": guide["stars"], "unlocked": unlocked}
     if unlocked:
         payload["text"] = guide["text"]

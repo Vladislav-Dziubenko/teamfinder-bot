@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Check } from "lucide-react"
+import { Check, Smartphone } from "lucide-react"
 import { NexusProvider } from "@/lib/store"
 import { TopBar } from "./top-bar"
 import { BottomNav, type TabId } from "./bottom-nav"
@@ -25,6 +25,11 @@ function Shell() {
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [chatOpenId, setChatOpenId] = useState<string | null>(null)
+  const [initDataOk, setInitDataOk] = useState<boolean | null>(null)
+
+  useEffect(() => {
+    setInitDataOk(!!(typeof window !== "undefined" && window.Telegram?.WebApp?.initData))
+  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -45,6 +50,21 @@ function Shell() {
     const id = openChatWithPlayer(player.id)
     setChatOpenId(id)
     goTab("chat")
+  }
+
+  if (initDataOk === false) {
+    return (
+      <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center bg-background px-8 text-center">
+        <Smartphone className="mb-4 size-16 text-muted-foreground" />
+        <h1 className="font-display text-2xl font-bold">Mini App недоступен</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Открой этот сервис через бота <strong>@TeamUpMatchBot</strong> в Telegram — нажми кнопку <strong>Mini App</strong> в /start.
+        </p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Прямая ссылка в браузере не работает — нужен Telegram WebView.
+        </p>
+      </div>
+    )
   }
 
   return (
