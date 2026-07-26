@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Swords, Flame, Coins, Star, ChevronRight, Radio, BookOpen, Ticket, Loader2 } from "lucide-react"
 import { api } from "@/lib/api"
 import { useNexus } from "@/lib/store"
+import { useI18n } from "@/lib/i18n"
 import type { TabId } from "./bottom-nav"
 
 export function HomeTab({
@@ -13,6 +14,7 @@ export function HomeTab({
   onGo: (t: TabId) => void
   onConnect: (p: any) => void
 }) {
+  const { t } = useI18n()
   const [searchCount, setSearchCount] = useState<number | null>(null)
   const [quest, setQuest] = useState<{ title: string; desc: string; reward: number; progress?: number; target?: number } | null>(null)
   const { coins, stars, bpLevel, freeSearchesLeft } = useNexus()
@@ -48,46 +50,46 @@ export function HomeTab({
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/10" />
         <div className="absolute inset-x-0 bottom-0 p-5">
           <span className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
-            <Radio className="size-3" /> {searchCount !== null ? `${searchCount} игроков в поиске` : "..."}
+            <Radio className="size-3" /> {searchCount !== null ? t("home.hero_players", { count: searchCount }) : "..."}
           </span>
           <h1 className="font-display text-3xl font-bold leading-none text-balance text-glow-primary">
-            Найди свою команду мечты
+            {t("home.hero_title")}
           </h1>
           <p className="mt-1.5 max-w-[16rem] text-sm text-muted-foreground text-pretty">
-            Подбор тиммейтов по игре, рангу и вайбу — без токсиков и рандомов.
+            {t("home.hero_subtitle")}
           </p>
           <button
             type="button"
             onClick={() => onGo("match")}
             className="mt-3 inline-flex items-center gap-2 rounded-2xl bg-primary px-5 py-3 text-sm font-semibold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] transition-transform active:scale-95"
           >
-            <Swords className="size-4" /> Начать поиск
+            <Swords className="size-4" /> {t("home.hero_cta")}
           </button>
         </div>
       </section>
 
       {/* Quick stats */}
       <section className="grid grid-cols-3 gap-3">
-        <MiniStat icon={Coins} value={coins} label="Монет" tint="var(--stars)" />
-        <MiniStat icon={Star} value={stars} label="Звёзд" tint="var(--primary)" />
-        <MiniStat icon={Flame} value={`LVL ${bpLevel}`} label="Батл-пасс" tint="var(--accent)" />
+        <MiniStat icon={Coins} value={coins} label={t("home.stat_coins")} tint="var(--stars)" />
+        <MiniStat icon={Star} value={stars} label={t("home.stat_stars")} tint="var(--primary)" />
+        <MiniStat icon={Flame} value={`LVL ${bpLevel}`} label={t("home.stat_battlepass")} tint="var(--accent)" />
       </section>
 
       {/* Quick access */}
       <section className="grid grid-cols-3 gap-3">
-        <QuickLink icon={Swords} label="Поиск" tint="var(--primary)" onClick={() => onGo("match")} />
-        <QuickLink icon={Ticket} label="Промокоды" tint="var(--primary)" onClick={() => onGo("promo")} />
-        <QuickLink icon={BookOpen} label="Гайды" tint="var(--accent)" onClick={() => onGo("guides")} />
+        <QuickLink icon={Swords} label={t("home.quick_search")} tint="var(--primary)" onClick={() => onGo("match")} />
+        <QuickLink icon={Ticket} label={t("home.quick_promo")} tint="var(--primary)" onClick={() => onGo("promo")} />
+        <QuickLink icon={BookOpen} label={t("home.quick_guides")} tint="var(--accent)" onClick={() => onGo("guides")} />
       </section>
 
       {/* Daily quest */}
       {quest && (
         <section className="animate-scan relative overflow-hidden rounded-3xl border border-primary/30 bg-primary/5 p-5">
           <div className="relative z-10">
-            <span className="text-xs font-medium uppercase tracking-widest text-primary">Задание дня</span>
+            <span className="text-xs font-medium uppercase tracking-widest text-primary">{t("home.quest_title")}</span>
             <p className="mt-1 font-display text-xl font-bold text-balance">{quest.title}</p>
             <p className="mt-1 text-sm text-muted-foreground">{quest.desc}</p>
-            <p className="mt-1 text-xs text-muted-foreground">Награда: {quest.reward} ⭐</p>
+            <p className="mt-1 text-xs text-muted-foreground">{t("home.quest_reward", { reward: quest.reward })}</p>
             {quest.target && (
               <div className="mt-3 flex items-center gap-3">
                 <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
@@ -103,7 +105,7 @@ export function HomeTab({
       {/* Free searches remaining */}
       <section className="rounded-2xl border border-border bg-card p-4 text-center">
         <p className="text-sm text-muted-foreground">
-          Осталось бесплатных поисков: <span className="font-bold text-foreground">{freeSearchesLeft}</span>
+          {t("home.free_searches", { count: freeSearchesLeft })}
         </p>
       </section>
     </div>

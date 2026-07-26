@@ -23,8 +23,10 @@ import {
   type ProgressPoint,
 } from "@/lib/stats"
 import { cn } from "@/lib/utils"
+import { useI18n } from "@/lib/i18n"
 
 export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void }) {
+  const { t } = useI18n()
   const [range, setRange] = useState<StatRange>("7")
   const [ov, setOv] = useState<OverviewStat>(getOverview(range))
   const [progress, setProgress] = useState<ProgressPoint[]>(getProgress(range))
@@ -40,9 +42,9 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
   return (
     <div className="space-y-4 px-4 py-5">
       <div>
-        <h1 className="font-display text-2xl font-bold">Статистика</h1>
+        <h1 className="font-display text-2xl font-bold">{t("stats.title")}</h1>
         <p className="text-sm text-muted-foreground text-pretty">
-          Твой прогресс, достижения и место в рейтинге
+          {t("stats.subtitle")}
         </p>
       </div>
 
@@ -58,20 +60,20 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
               range === r ? "bg-primary text-primary-foreground" : "text-muted-foreground",
             )}
           >
-            {r === "7" ? "7 дней" : "30 дней"}
+            {r === "7" ? t("stats.period_7d") : t("stats.period_30d")}
           </button>
         ))}
       </div>
 
       {/* Overview */}
       <div className="grid grid-cols-2 gap-3">
-        <StatCard icon={Gamepad2} label="Игр сыграно" value={String(ov.games)} delta={ov.gamesDelta} />
-        <StatCard icon={Trophy} label="Побед" value={`${ov.wins}`} sub={`${winrate}% винрейт`} delta={ov.winsDelta} />
-        <StatCard icon={Heart} label="Любимая игра" value={ov.favoriteGame} accent />
+        <StatCard icon={Gamepad2} label={t("stats.games_played")} value={String(ov.games)} delta={ov.gamesDelta} />
+        <StatCard icon={Trophy} label={t("stats.wins")} value={`${ov.wins}`} sub={t("stats.winrate", { pct: winrate })} delta={ov.winsDelta} />
+        <StatCard icon={Heart} label={t("stats.favorite_game")} value={ov.favoriteGame} accent />
         <StatCard
           icon={Timer}
-          label="В поиске команд"
-          value={formatMinutes(ov.searchMinutes)}
+          label={t("stats.search_time")}
+          value={formatMinutes(ov.searchMinutes, t)}
           delta={ov.searchDelta}
           invertDelta
         />
@@ -80,10 +82,10 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
       {/* Progress chart */}
       <section className="rounded-3xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-base font-bold">Прогресс</h2>
+          <h2 className="font-display text-base font-bold">{t("stats.progress")}</h2>
           <div className="flex items-center gap-3 text-[11px]">
-            <Legend color="var(--chart-1)" label="Игры" />
-            <Legend color="var(--accent)" label="Победы" />
+            <Legend color="var(--chart-1)" label={t("stats.games_chart")} />
+            <Legend color="var(--accent)" label={t("stats.wins_chart")} />
           </div>
         </div>
         <div className="h-44 w-full">
@@ -120,7 +122,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
               <Area
                 type="monotone"
                 dataKey="games"
-                name="Игры"
+                name={t("stats.games_chart")}
                 stroke="var(--chart-1)"
                 strokeWidth={2}
                 fill="url(#gGames)"
@@ -128,7 +130,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
               <Area
                 type="monotone"
                 dataKey="wins"
-                name="Победы"
+                name={t("stats.wins_chart")}
                 stroke="var(--accent)"
                 strokeWidth={2}
                 fill="url(#gWins)"
@@ -150,7 +152,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
         <div className="min-w-0 flex-1">
           <p className="font-display text-lg font-bold leading-none">#{rank.position}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            в общем рейтинге · топ {rank.percentile}% из {rank.total.toLocaleString("ru-RU")}
+            {t("stats.rank", { pct: rank.percentile, total: rank.total.toLocaleString("ru-RU") })}
           </p>
         </div>
         <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
@@ -160,7 +162,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
       <section>
         <div className="mb-2 flex items-center gap-2">
           <Sparkles className="size-4 text-primary" />
-          <h2 className="font-display text-base font-bold">Последние достижения</h2>
+          <h2 className="font-display text-base font-bold">{t("stats.achievements_title")}</h2>
         </div>
         <div className="space-y-2">
           {achievements.map((a) => (
@@ -240,9 +242,9 @@ function Legend({ color, label }: { color: string; label: string }) {
   )
 }
 
-function formatMinutes(min: number): string {
-  if (min < 60) return `${min} мин`
+function formatMinutes(min: number, t: ReturnType<typeof useI18n>["t"]): string {
+  if (min < 60) return `${min} ${t("common.min_short")}`
   const h = Math.floor(min / 60)
   const m = min % 60
-  return m ? `${h} ч ${m} м` : `${h} ч`
+  return m ? `${h} ${t("common.hour_short")} ${m} ${t("common.min_short")}` : `${h} ${t("common.hour_short")}`
 }

@@ -5,6 +5,7 @@ import { Star, Check, Crown, Sparkles, Zap, Trophy, Award } from "lucide-react"
 import { starPacks, leaderboard, currentUser } from "@/lib/data"
 import type { StarPack } from "@/lib/data"
 import { useNexus } from "@/lib/store"
+import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
@@ -15,6 +16,7 @@ const coinPacks = [
 ]
 
 export function DonateTab() {
+  const { t } = useI18n()
   const { buyCoinPack } = useNexus()
   const [selected, setSelected] = useState<StarPack | null>(null)
   const [done, setDone] = useState(false)
@@ -30,9 +32,9 @@ export function DonateTab() {
         if (tg?.openInvoice) {
           tg.openInvoice(data.invoice_link, (status) => {
             if (status === "paid") {
-              setFlash(`✅ ${selected.perk} — оплачено! ⭐`)
+              setFlash(t("donate.payment_success", { perk: selected.perk }))
             } else if (status === "cancelled") {
-              setFlash("Оплата отменена")
+              setFlash(t("donate.payment_cancelled"))
             }
           })
         } else {
@@ -40,7 +42,7 @@ export function DonateTab() {
         }
       }
     } catch (e: any) {
-      setFlash(e.message || "Ошибка оплаты")
+      setFlash(e.message || t("common.error"))
     }
     setTimeout(() => {
       setDone(false)
@@ -51,9 +53,9 @@ export function DonateTab() {
   async function buyCoins(pack: (typeof coinPacks)[number]) {
     const res = await buyCoinPack(pack.id)
     if (!res.ok) {
-      setFlash(res.error ?? "Недостаточно Telegram Stars")
+      setFlash(res.error ?? t("donate.error_no_stars"))
     } else {
-      setFlash(`+${pack.coins} монет Nexus зачислено!`)
+      setFlash(t("donate.coins_added", { count: pack.coins }))
     }
     setTimeout(() => setFlash(null), 2000)
   }
@@ -64,23 +66,23 @@ export function DonateTab() {
         <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-stars/15 text-stars animate-float">
           <Star className="size-8 fill-stars" />
         </span>
-        <h1 className="mt-3 font-display text-2xl font-bold">Поддержи и прокачайся</h1>
+        <h1 className="mt-3 font-display text-2xl font-bold">{t("donate.title")}</h1>
         <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground text-pretty">
-          Оплата в Telegram Stars ⭐ — буст профиля, PRO-статус и монеты Nexus.
+          {t("donate.subtitle")}
         </p>
       </div>
 
       {/* Perks row */}
       <div className="grid grid-cols-3 gap-3">
-        <Perk icon={Zap} title="Буст" text="Выше в поиске" tint="var(--primary)" />
-        <Perk icon={Crown} title="PRO" text="Статус и бейдж" tint="var(--stars)" />
-        <Perk icon={Sparkles} title="Кастом" text="Ник и рамка" tint="var(--accent)" />
+        <Perk icon={Zap} title={t("donate.perk_boost")} text={t("donate.perk_boost_desc")} tint="var(--primary)" />
+        <Perk icon={Crown} title={t("donate.perk_pro")} text={t("donate.perk_pro_desc")} tint="var(--stars)" />
+        <Perk icon={Sparkles} title={t("donate.perk_custom")} text={t("donate.perk_custom_desc")} tint="var(--accent)" />
       </div>
 
       {/* Buy Nexus coins */}
       <section>
         <h2 className="mb-3 flex items-center gap-2 font-display text-lg font-bold">
-          <img src="/nexus-coin.png" alt="" className="size-6 rounded-full object-cover" /> Монеты Nexus
+          <img src="/nexus-coin.png" alt="" className="size-6 rounded-full object-cover" /> {t("donate.nexus_coins")}
         </h2>
         <div className="grid grid-cols-3 gap-3">
           {coinPacks.map((p) => (
@@ -115,7 +117,7 @@ export function DonateTab() {
 
       {/* Star packs */}
       <section>
-        <h2 className="mb-3 font-display text-lg font-bold">Пакеты Stars</h2>
+        <h2 className="mb-3 font-display text-lg font-bold">{t("donate.star_packs")}</h2>
         <div className="grid grid-cols-2 gap-3">
           {starPacks.map((p) => {
             const isSel = selected?.id === p.id
@@ -131,7 +133,7 @@ export function DonateTab() {
               >
                 {p.popular && (
                   <span className="absolute right-0 top-0 rounded-bl-xl bg-primary px-2 py-1 text-[10px] font-bold text-primary-foreground">
-                    ХИТ
+                    {t("donate.hit")}
                   </span>
                 )}
                 <div className="flex items-center gap-1.5">
@@ -151,9 +153,9 @@ export function DonateTab() {
       {/* Leaderboard */}
       <section>
         <h2 className="mb-1 flex items-center gap-2 font-display text-lg font-bold">
-          <Trophy className="size-5 text-stars" /> Лидерборд
+          <Trophy className="size-5 text-stars" /> {t("donate.leaderboard")}
         </h2>
-        <p className="mb-3 text-xs text-muted-foreground">Топ по донату Telegram Stars и покупке монет Nexus</p>
+        <p className="mb-3 text-xs text-muted-foreground">{t("donate.leaderboard_desc")}</p>
         <div className="overflow-hidden rounded-3xl border border-border bg-card">
           {[...leaderboard]
             .sort((a, b) => b.stars - a.stars)
@@ -179,7 +181,7 @@ export function DonateTab() {
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-1 truncate text-sm font-bold">
                       {e.nick}
-                      {isYou && <span className="rounded bg-primary px-1 text-[9px] font-bold text-primary-foreground">ТЫ</span>}
+                      {isYou && <span className="rounded bg-primary px-1 text-[9px] font-bold text-primary-foreground">{t("donate.you")}</span>}
                       {e.premium && <Crown className="size-3 fill-stars text-stars" />}
                     </p>
                     <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
@@ -196,20 +198,20 @@ export function DonateTab() {
             })}
         </div>
         <p className="mt-2 flex items-center justify-center gap-1 text-center text-[11px] text-muted-foreground">
-          <Award className="size-3.5" /> Донать или покупай монеты, чтобы подняться выше
+          <Award className="size-3.5" /> {t("donate.leaderboard_footer")}
         </p>
       </section>
 
       {/* Support a player */}
       <div className="rounded-3xl border border-border bg-card p-4">
-        <p className="font-display text-base font-bold">Отправить звёзды тиммейту</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">Скинь звёзды за красивый клатч или карри — прямо в чат.</p>
+        <p className="font-display text-base font-bold">{t("donate.send_stars_title")}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{t("donate.send_stars_desc")}</p>
         <div className="mt-3 flex gap-2">
           {[5, 15, 50].map((n) => (
             <button
               key={n}
               type="button"
-              onClick={() => setFlash(`Чтобы отправить ${n} ⭐ тиммейту — нажми на его имя в чате и выбери «Отправить Stars»`)}
+              onClick={() => setFlash(t("donate.send_to_chat", { count: n }))}
               className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-stars/30 bg-stars/10 py-2.5 text-sm font-semibold text-stars active:scale-95"
             >
               <Star className="size-3.5 fill-stars" /> {n}
@@ -232,11 +234,11 @@ export function DonateTab() {
           >
             {done ? (
               <span className="flex items-center gap-2 animate-star-pop">
-                <Check className="size-5" /> Оплачено! +{selected.stars} ⭐
+                <Check className="size-5" /> {t("donate.paid", { count: selected.stars })}
               </span>
             ) : (
               <>
-                <Star className="size-5 fill-background" /> Купить за {selected.stars} Stars
+                <Star className="size-5 fill-background" /> {t("donate.buy_for", { count: selected.stars })}
               </>
             )}
           </button>

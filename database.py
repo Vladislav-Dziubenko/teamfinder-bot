@@ -327,6 +327,11 @@ class Database:
             pass
 
         try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS language TEXT DEFAULT 'ru'")
+        except asyncpg.PostgresError:
+            pass
+
+        try:
             await conn.execute("ALTER TABLE team_applications ADD COLUMN IF NOT EXISTS is_premium INTEGER DEFAULT 0")
         except asyncpg.PostgresError:
             pass
@@ -542,6 +547,18 @@ class Database:
             await conn.execute(
                 "INSERT INTO users (user_id, username, first_name, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO NOTHING",
                 user_id, username or "", first_name or "", datetime.utcnow().isoformat(),
+            )
+
+    async def get_user_language(self, user_id: int) -> str:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT language FROM users WHERE user_id = $1", user_id)
+            return row["language"] if row and row["language"] else "ru"
+
+    async def set_user_language(self, user_id: int, lang: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO users (user_id, username, first_name, created_at, language) VALUES ($1, '', '', $2, $3) ON CONFLICT (user_id) DO UPDATE SET language = EXCLUDED.language",
+                user_id, datetime.utcnow().isoformat(), lang,
             )
 
     async def save_profile(self, data: dict) -> None:

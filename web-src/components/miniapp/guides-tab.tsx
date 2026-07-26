@@ -4,9 +4,10 @@ import { useState, useEffect } from "react"
 import { Play, Eye, Clock, X, ThumbsUp, Bookmark, Loader2 } from "lucide-react"
 import { games } from "@/lib/data"
 import { api } from "@/lib/api"
+import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
-const filters = ["Все", "CS2", "Dota", "Valorant", "PUBG"] as const
+const filters = ["all", "CS2", "Dota", "Valorant", "PUBG"] as const
 
 interface ApiGuide {
   id: string
@@ -32,8 +33,8 @@ const GAME_COVERS: Record<string, string> = {
   rust: "/guide-br.webp",
 }
 
-function apiGuideToDisplay(g: ApiGuide) {
-  const label = g.type === "free" ? "Бесплатно" : g.type === "premium" ? `⭐${g.stars}` : "Видео"
+function apiGuideToDisplay(g: ApiGuide, t: ReturnType<typeof useI18n>["t"]) {
+  const label = g.type === "free" ? t("guides.type_free") : g.type === "premium" ? `⭐${g.stars}` : t("guides.type_video")
   return {
     id: g.id,
     title: g.title,
@@ -43,13 +44,14 @@ function apiGuideToDisplay(g: ApiGuide) {
     duration: "8:30",
     views: g.type === "free" ? "1.2K" : "850",
     type: label,
-    level: g.type === "free" ? "Новичок" : "Продвинутый",
+    level: g.type === "free" ? t("guides.level_beginner") : t("guides.level_advanced"),
     video_url: g.video_url,
   } as const
 }
 
 export function GuidesTab() {
-  const [active, setActive] = useState<string>("Все")
+  const { t } = useI18n()
+  const [active, setActive] = useState<string>("all")
   const [open, setOpen] = useState<ReturnType<typeof apiGuideToDisplay> | null>(null)
   const [guides, setGuides] = useState<ApiGuide[]>([])
   const [loading, setLoading] = useState(true)
@@ -62,7 +64,7 @@ export function GuidesTab() {
       setGuides(data.guides || [])
       setLoading(false)
     }).catch((e) => {
-      setError(e.message || "Не удалось загрузить гайды")
+      setError(e.message || t("guides.error_load"))
       setLoading(false)
     })
   }
@@ -72,9 +74,9 @@ export function GuidesTab() {
   }, [])
 
   const list = guides
-    .map(apiGuideToDisplay)
+    .map((g) => apiGuideToDisplay(g, t))
     .filter((g) => {
-      if (active === "Все") return true
+      if (active === "all") return true
       const gm = games.find((x) => x.id === g.game)
       return gm?.short === active
     })
@@ -98,7 +100,7 @@ export function GuidesTab() {
           onClick={load}
           className="mt-4 rounded-xl bg-primary px-6 py-3 text-sm font-semibold text-primary-foreground"
         >
-          Попробовать снова
+          {t("common.retry")}
         </button>
       </div>
     )
@@ -107,7 +109,7 @@ export function GuidesTab() {
   if (list.length === 0) {
     return (
       <div className="px-4 py-20 text-center">
-        <p className="text-muted-foreground">Нет доступных гайдов для этой игры</p>
+        <p className="text-muted-foreground">{t("guides.empty")}</p>
       </div>
     )
   }
@@ -115,8 +117,8 @@ export function GuidesTab() {
   return (
     <div className="space-y-5 px-4 py-5">
       <div>
-        <h1 className="font-display text-2xl font-bold">Гайды и разборы</h1>
-        <p className="text-sm text-muted-foreground">Смотри прямо в приложении</p>
+        <h1 className="font-display text-2xl font-bold">{t("guides.title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("guides.subtitle")}</p>
       </div>
 
       {/* Featured */}
@@ -128,7 +130,7 @@ export function GuidesTab() {
         <img src={featured.cover || "/placeholder.svg"} alt="" className="h-48 w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/50 to-transparent" />
         <span className="absolute left-3 top-3 rounded-full bg-primary px-2.5 py-1 text-[11px] font-bold text-primary-foreground">
-          🔥 Топ недели
+          {t("guides.featured")}
         </span>
         <span className="absolute right-4 top-4 grid size-12 place-items-center rounded-full bg-primary/90 text-primary-foreground animate-float">
           <Play className="size-5 translate-x-0.5 fill-primary-foreground" />
@@ -161,7 +163,7 @@ export function GuidesTab() {
                 : "border-border bg-card text-muted-foreground",
             )}
           >
-            {f}
+            {f === "all" ? t("guides.filter_all") : f}
           </button>
         ))}
       </div>
@@ -212,6 +214,7 @@ export function GuidesTab() {
 }
 
 function GuideViewer({ guide, onClose }: { guide: ReturnType<typeof apiGuideToDisplay>; onClose: () => void }) {
+  const { t } = useI18n()
   const [liked, setLiked] = useState(false)
   const [saved, setSaved] = useState(false)
 
@@ -223,7 +226,7 @@ function GuideViewer({ guide, onClose }: { guide: ReturnType<typeof apiGuideToDi
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center">
-      <button type="button" aria-label="Закрыть" onClick={onClose} className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
+      <button type="button" aria-label={t("common.close")} onClick={onClose} className="absolute inset-0 bg-background/80 backdrop-blur-sm" />
       <div className="relative mx-auto w-full max-w-md rounded-t-3xl border-t border-border bg-card pb-8 animate-rise">
         {/* Player */}
         <div className="relative aspect-video overflow-hidden rounded-t-3xl">
@@ -237,7 +240,7 @@ function GuideViewer({ guide, onClose }: { guide: ReturnType<typeof apiGuideToDi
             type="button"
             onClick={onClose}
             className="absolute right-3 top-3 grid size-8 place-items-center rounded-lg bg-background/70 text-foreground backdrop-blur"
-            aria-label="Закрыть"
+            aria-label={t("common.close")}
           >
             <X className="size-4" />
           </button>
@@ -269,7 +272,7 @@ function GuideViewer({ guide, onClose }: { guide: ReturnType<typeof apiGuideToDi
                 liked ? "border-primary bg-primary/15 text-primary" : "border-border text-muted-foreground",
               )}
             >
-              <ThumbsUp className={cn("size-4", liked && "fill-primary")} /> Полезно
+              <ThumbsUp className={cn("size-4", liked && "fill-primary")} /> {t("guides.helpful")}
             </button>
             <button
               type="button"
@@ -279,7 +282,7 @@ function GuideViewer({ guide, onClose }: { guide: ReturnType<typeof apiGuideToDi
                 saved ? "border-accent bg-accent/15 text-accent" : "border-border text-muted-foreground",
               )}
             >
-              <Bookmark className={cn("size-4", saved && "fill-accent")} /> Сохранить
+              <Bookmark className={cn("size-4", saved && "fill-accent")} /> {t("guides.save")}
             </button>
           </div>
         </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useRef, useState, useEffect, useCallback } from "react"
+import { useI18n } from "@/lib/i18n"
 import {
   Star,
   Trophy,
@@ -40,6 +41,7 @@ const decorations = [
 ]
 
 export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToast: (m: string) => void }) {
+  const { t } = useI18n()
   const game = games.find((g) => g.id === currentUser.game)
   const {
     stars,
@@ -92,7 +94,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
         window.open(url, "_blank")
       }
     } catch {
-      onToast("Ошибка: не удалось получить ссылку")
+      onToast(t("profile.discord_link_error"))
     }
   }
 
@@ -100,9 +102,9 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
     try {
       await api.post("/api/discord/unlink")
       setDiscord({ connected: false })
-      onToast("Discord отвязан")
+      onToast(t("profile.discord_unlinked"))
     } catch {
-      onToast("Ошибка при отвязке Discord")
+      onToast(t("profile.discord_error"))
     }
   }
 
@@ -121,21 +123,21 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
   async function claim(id: string, pts: number, cns: number) {
     if (claimedAchievements.includes(id)) return
     await claimAchievement(id, pts, cns)
-    onToast(`Награда получена: +${pts} баллов, +${cns} монет`)
+    onToast(t("profile.achievement_claimed_toast", { pts, coins: cns }))
   }
 
   function copyRef() {
     const link = `${referralBotUrl}?start=${referralCode}`
     navigator.clipboard?.writeText(link).then(
-      () => onToast("Реферальная ссылка скопирована!"),
+      () => onToast(t("profile.referral_copied")),
       () => onToast(link),
     )
   }
 
   async function claimStreak() {
     const res = await claimDailyStreak()
-    if (!res.ok) onToast(res.error ?? "Уже забрано")
-    else onToast(`День ${res.day}: +${res.coins} монет!`)
+    if (!res.ok) onToast(res.error ?? t("common.error"))
+    else onToast(t("profile.streak_claimed_toast", { day: res.day, coins: res.coins }))
   }
 
   return (
@@ -152,7 +154,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
               style={{ background: `color-mix(in oklch, ${active.bg} 25%, transparent)` }}
             />
             <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-stars/15 px-2 py-1 text-[10px] font-bold text-stars">
-              <Crown className="size-3 fill-stars" /> PREMIUM
+              <Crown className="size-3 fill-stars" /> {t("profile.card_premium")}
             </span>
           </>
         )}
@@ -164,15 +166,15 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
               onClick={() => fileRef.current?.click()}
               className="relative grid size-20 place-items-center overflow-hidden rounded-3xl font-display text-3xl font-bold text-primary-foreground"
               style={{ background: active.bg, boxShadow: premiumActive ? `0 0 24px -6px ${active.ring}` : "none" }}
-              aria-label="Сменить аватар"
+              aria-label={t("profile.change_avatar")}
             >
               {avatar ? (
-                <img src={avatar || "/placeholder.svg"} alt="Аватар" className="size-full object-cover" />
+                <img src={avatar || "/placeholder.svg"} alt="Avatar" className="size-full object-cover" />
               ) : (
                 nick.charAt(0).toUpperCase()
               )}
               <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-background/70 py-0.5 text-[9px] font-medium text-foreground">
-                <Camera className="size-2.5" /> фото
+                <Camera className="size-2.5" /> {t("profile.photo")}
               </span>
             </button>
             <input ref={fileRef} type="file" accept="image/*" onChange={onPickPhoto} className="hidden" />
@@ -217,8 +219,8 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
         {/* Decorations */}
         <div className="mt-4">
           <p className="mb-2 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
-            <Sparkles className="size-3.5 text-stars" /> Украшение карточки
-            {!premiumActive && <span className="text-[10px] font-normal">· премиум / батл-пасс</span>}
+            <Sparkles className="size-3.5 text-stars" /> {t("profile.deco_title")}
+            {!premiumActive && <span className="text-[10px] font-normal">{t("profile.deco_hint")}</span>}
           </p>
           <div className="flex flex-wrap gap-2">
             {decorations.map((d) => {
@@ -250,9 +252,9 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
         {/* XP bar */}
         <div className="mt-4">
           <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
-            <span>Уровень {currentUser.level}</span>
+            <span>{t("profile.level", { level: currentUser.level })}</span>
             <span>
-              {currentUser.xp}% до {currentUser.level + 1}
+              {t("profile.xp_to_next", { xp: currentUser.xp, next: currentUser.level + 1 })}
             </span>
           </div>
           <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
@@ -267,7 +269,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
             onClick={async () => {
               if (editing) {
                 await saveProfile()
-                onToast("Анкета сохранена")
+                onToast(t("profile.saved"))
               }
               setEditing((e) => !e)
             }}
@@ -275,16 +277,16 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
           >
             {editing ? (
               <>
-                <Check className="size-4" /> Сохранить анкету
+                <Check className="size-4" /> {t("profile.save_profile")}
               </>
             ) : (
               <>
-                <Pencil className="size-4" /> Настроить анкету
+                <Pencil className="size-4" /> {t("profile.edit_profile")}
               </>
             )}
           </button>
           <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-            Аватар, ник и описание — бесплатно. Рамки и украшения — за премиум.
+            {t("profile.edit_hint")}
           </p>
         </div>
       </section>
@@ -293,9 +295,9 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
       <section className="rounded-3xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 font-display text-base font-bold">
-            <Flame className="size-4 text-primary" /> Ежедневный вход
+            <Flame className="size-4 text-primary" /> {t("profile.streak_title")}
           </h2>
-          <span className="text-[11px] font-semibold text-muted-foreground">Стрик: {streakDay} дн.</span>
+          <span className="text-[11px] font-semibold text-muted-foreground">{t("profile.streak_count", { count: streakDay })}</span>
         </div>
         <div className="grid grid-cols-7 gap-1.5">
           {dailyStreakRewards.map((r) => {
@@ -308,7 +310,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
                   reached ? "border-primary/50 bg-primary/10" : "border-border bg-background/40",
                 )}
               >
-                <span className="text-[9px] text-muted-foreground">Д{r.day}</span>
+                <span className="text-[9px] text-muted-foreground">{t("profile.streak_day", { day: r.day })}</span>
                 <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" />
                 <span className="text-[9px] font-bold">{r.coins}</span>
               </div>
@@ -321,7 +323,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
           onClick={claimStreak}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-3 text-sm font-bold text-accent-foreground active:scale-[0.98] disabled:opacity-50"
         >
-          <Gift className="size-4" /> {streakReady ? "Забрать награду дня" : "Уже забрано — жди завтра"}
+          <Gift className="size-4" /> {streakReady ? t("profile.streak_claim") : t("profile.streak_claimed")}
         </button>
       </section>
 
@@ -332,9 +334,9 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
             <Users2 className="size-5" />
           </span>
           <div>
-            <h2 className="font-display text-base font-bold">Приглашай друзей</h2>
+            <h2 className="font-display text-base font-bold">{t("profile.referral_title")}</h2>
             <p className="text-[11px] text-muted-foreground">
-              +{referralReward.coins} монет и +{referralReward.stars} ⭐ за каждого друга
+              {t("profile.referral_reward", { coins: referralReward.coins, stars: referralReward.stars })}
             </p>
           </div>
         </div>
@@ -342,13 +344,13 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="rounded-2xl border border-border bg-background/40 p-3 text-center">
             <p className="font-display text-xl font-bold leading-none">{invitedCount}</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">приглашено</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("profile.referral_invited")}</p>
           </div>
           <div className="rounded-2xl border border-border bg-background/40 p-3 text-center">
             <p className="flex items-center justify-center gap-1 font-display text-xl font-bold leading-none">
               <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {referralEarned}
             </p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">заработано</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("profile.referral_earned")}</p>
           </div>
         </div>
 
@@ -361,7 +363,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
             onClick={copyRef}
             className="flex shrink-0 items-center gap-1 rounded-xl bg-accent px-2.5 py-1.5 text-xs font-bold text-accent-foreground active:scale-95"
           >
-            <Copy className="size-3.5" /> Копировать
+            <Copy className="size-3.5" /> {t("profile.referral_copy")}
           </button>
         </div>
 
@@ -369,11 +371,11 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
           type="button"
           onClick={() => {
             simulateInvite()
-            onToast("Приглашение открыто — поделись с друзьями")
+            onToast(t("profile.referral_shared"))
           }}
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-accent/40 bg-accent/10 py-2.5 text-xs font-semibold text-accent active:scale-95"
         >
-          <Share2 className="size-3.5" /> Поделиться в Telegram
+          <Share2 className="size-3.5" /> {t("profile.referral_share")}
         </button>
       </section>
 
@@ -383,9 +385,9 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
           <div className="flex items-center gap-3">
             <img src="/premium-reveal.png" alt="" className="size-16 shrink-0 object-contain" />
             <div className="min-w-0">
-              <p className="font-display text-base font-bold">Nexus Premium</p>
+              <p className="font-display text-base font-bold">{t("profile.premium_title")}</p>
               <p className="text-xs text-muted-foreground text-pretty">
-                Открой золотой кейс за 150 ⭐ — анимированные рамки и украшения анкеты.
+                {t("profile.premium_desc")}
               </p>
             </div>
           </div>
@@ -394,7 +396,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
             onClick={() => onGo("cases")}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-stars py-3 font-display text-base font-bold text-background active:scale-[0.98]"
           >
-            <Crown className="size-5" /> Получить премиум
+            <Crown className="size-5" /> {t("profile.premium_cta")}
           </button>
         </section>
       )}
@@ -406,9 +408,9 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
             <svg viewBox="0 0 24 24" fill="currentColor" className="size-5"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
           </span>
           <div>
-            <h2 className="font-display text-base font-bold">Discord</h2>
+            <h2 className="font-display text-base font-bold">{t("profile.discord_title")}</h2>
             <p className="text-[11px] text-muted-foreground">
-              {discordLoading ? "Загрузка..." : discord?.connected ? "Привязан" : "Не привязан"}
+              {discordLoading ? t("profile.discord_loading") : discord?.connected ? t("profile.discord_connected") : t("profile.discord_disconnected")}
             </p>
           </div>
         </div>
@@ -419,7 +421,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
             onClick={connectDiscord}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5865F2] py-2.5 text-sm font-semibold text-white active:scale-[0.98]"
           >
-            <ExternalLink className="size-4" /> Привязать Discord
+            <ExternalLink className="size-4" /> {t("profile.discord_connect")}
           </button>
         )}
 
@@ -449,7 +451,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
               onClick={unlinkDiscord}
               className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-2.5 text-xs font-medium text-muted-foreground active:scale-95"
             >
-              <Trash2 className="size-3.5" /> Отвязать Discord
+              <Trash2 className="size-3.5" /> {t("profile.discord_unlink")}
             </button>
           </div>
         )}
@@ -457,15 +459,15 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
 
       {/* Currency stats */}
       <section className="grid grid-cols-3 gap-3">
-        <CoinStat img="/nexus-coin.png" value={coins} label="Монеты" />
-        <StarStat value={stars} label="Звёзды" />
-        <PointStat value={points} label="Баллы" />
+        <CoinStat img="/nexus-coin.png" value={coins} label={t("profile.stat_coins")} />
+        <StarStat value={stars} label={t("profile.stat_stars")} />
+        <PointStat value={points} label={t("profile.stat_points")} />
       </section>
 
       {/* Achievements with rewards */}
       <section>
         <h2 className="mb-3 flex items-center gap-2 font-display text-lg font-bold">
-          <Award className="size-5 text-primary" /> Достижения
+          <Award className="size-5 text-primary" /> {t("profile.achievements_title")}
         </h2>
         <div className="space-y-3">
           {achData.map((a) => {
@@ -477,7 +479,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                      {a.game}
+                      {t("profile.ach_game_label", { game: a.game })}
                     </span>
                     <p className="mt-1.5 font-display text-sm font-bold leading-tight text-balance">{a.title}</p>
                     <p className="text-[11px] text-muted-foreground text-pretty">{a.desc}</p>
@@ -500,7 +502,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
                     />
                   </div>
                   <span className="text-[11px] font-semibold text-muted-foreground">
-                    {a.progress}/{a.minutes} мин
+                    {t("profile.achievement_unlock", { progress: a.progress, target: a.minutes })}
                   </span>
                 </div>
 
@@ -519,14 +521,14 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
                 >
                   {isClaimed ? (
                     <>
-                      <Check className="size-3.5" /> Награда получена
+                      <Check className="size-3.5" /> {t("profile.achievement_claimed")}
                     </>
                   ) : done ? (
                     <>
-                      <Trophy className="size-3.5" /> Забрать награду
+                      <Trophy className="size-3.5" /> {t("profile.achievement_claim")}
                     </>
                   ) : (
-                    "В процессе…"
+                    t("profile.achievement_progress")
                   )}
                 </button>
               </div>
@@ -537,12 +539,12 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
 
       {/* Actions */}
       <section className="overflow-hidden rounded-3xl border border-border bg-card">
-        <Row icon={Crosshair} label="Мои игры и роли" onClick={() => onToast("Скоро: редактор игр и ролей 🎮")} />
-        <Row icon={Share2} label="Поделиться профилем" onClick={() => onToast("Ссылка скопирована! Отправь друзьям 🔗")} />
-        <Row icon={Settings} label="Настройки" onClick={() => onToast("Настройки профиля — скоро ✨")} last />
+        <Row icon={Crosshair} label={t("profile.row_games")} onClick={() => onToast(t("profile.row_games_soon"))} />
+        <Row icon={Share2} label={t("profile.row_share")} onClick={() => onToast(t("profile.row_share_soon"))} />
+        <Row icon={Settings} label={t("profile.row_settings")} onClick={() => onToast(t("profile.row_settings_soon"))} last />
       </section>
 
-      <p className="pb-2 text-center text-xs text-muted-foreground">NEXUS · Telegram Mini App · v1.1</p>
+      <p className="pb-2 text-center text-xs text-muted-foreground">{t("profile.footer")}</p>
     </div>
   )
 }

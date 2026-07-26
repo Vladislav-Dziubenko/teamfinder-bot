@@ -4,6 +4,7 @@ import { useState } from "react"
 import { Swords, Star, Loader2, Crown, UserX } from "lucide-react"
 import { api } from "@/lib/api"
 import { useNexus } from "@/lib/store"
+import { useI18n } from "@/lib/i18n"
 import { PlayerCard } from "./player-card"
 
 const EXTENDED_COST = 8
@@ -54,6 +55,7 @@ export function MatchTab({
   onJoinTeam: (t: any) => void
   onChat?: (p: any) => void
 }) {
+  const { t } = useI18n()
   const { freeSearchesLeft, useFreeSearch, spendStars } = useNexus()
   const [extended, setExtended] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -65,7 +67,7 @@ export function MatchTab({
     if (!extended) {
       const ok = useFreeSearch()
       if (!ok) {
-        setNotice("Бесплатные поиски закончились — открой расширенный поиск")
+        setNotice(t("match.error_free_exhausted"))
         return
       }
     }
@@ -78,11 +80,11 @@ export function MatchTab({
       setGameName(data.game || "")
     } catch (e: any) {
       if (e.message === "no profile") {
-        setNotice("Сначала создай анкету через бота — /start → Поиск тиммейтов")
+        setNotice(t("match.error_no_profile"))
       } else if (e.message === "unauthorized") {
-        setNotice("Открой Mini App через Telegram")
+        setNotice(t("match.error_unauthorized"))
       } else {
-        setNotice(e.message || "Ошибка поиска")
+        setNotice(e.message || t("common.error"))
       }
     } finally {
       setLoading(false)
@@ -92,7 +94,7 @@ export function MatchTab({
   async function unlockExtended() {
     const ok = await spendStars(EXTENDED_COST)
     if (!ok) {
-      setNotice("Недостаточно Telegram Stars")
+      setNotice(t("match.error_not_enough_stars"))
       return
     }
     setExtended(true)
@@ -104,9 +106,9 @@ export function MatchTab({
   return (
     <div className="space-y-4 px-4 py-5">
       <div>
-        <h1 className="font-display text-2xl font-bold">Поиск тиммейтов</h1>
+        <h1 className="font-display text-2xl font-bold">{t("match.title")}</h1>
         <p className="text-sm text-muted-foreground text-pretty">
-          Найди пару по своей игре, рангу и вайбу.
+          {t("match.subtitle")}
         </p>
       </div>
 
@@ -118,7 +120,7 @@ export function MatchTab({
         className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-4 text-base font-bold text-primary-foreground shadow-[0_0_24px_-6px_var(--primary)] transition-transform active:scale-[0.98] disabled:opacity-50"
       >
         {loading ? <Loader2 className="size-5 animate-spin" /> : <Swords className="size-5" />}
-        {loading ? "Поиск…" : "Найти тиммейтов"}
+        {loading ? t("match.searching") : t("match.cta_search")}
       </button>
 
       {/* Extended search */}
@@ -127,10 +129,10 @@ export function MatchTab({
           <Crown className="size-4 text-stars" />
           <span>
             {extended ? (
-              <span className="font-semibold text-accent">Расширенный поиск активен</span>
+              <span className="font-semibold text-accent">{t("match.extended_active")}</span>
             ) : (
               <>
-                Расширенный —{" "}
+                {t("match.extended_label")}{" "}
                 <button type="button" onClick={unlockExtended} className="font-semibold text-primary underline underline-offset-2">
                   {EXTENDED_COST} ⭐
                 </button>
@@ -139,7 +141,7 @@ export function MatchTab({
           </span>
         </div>
         <span className="text-xs text-muted-foreground">
-          ещё {freeSearchesLeft} бесплатно
+          {t("match.free_left", { count: freeSearchesLeft })}
         </span>
       </div>
 
@@ -151,15 +153,15 @@ export function MatchTab({
       {results && results.length === 0 && (
         <div className="flex flex-col items-center gap-3 py-10 text-center">
           <UserX className="size-10 text-muted-foreground" />
-          <p className="text-muted-foreground">Никого не нашли {gameName ? `в ${gameName}` : ""}</p>
-          <p className="max-w-xs text-xs text-muted-foreground">Попробуй позже, когда появится больше игроков</p>
+          <p className="text-muted-foreground">{gameName ? t("match.no_results_in", { game: gameName }) : t("match.no_results_title")}</p>
+          <p className="max-w-xs text-xs text-muted-foreground">{t("match.no_results_hint")}</p>
         </div>
       )}
 
       {results && results.length > 0 && (
         <div className="space-y-4">
           <p className="text-xs text-muted-foreground">
-            Найдено {results.length} игроков {gameName ? `в ${gameName}` : ""}
+            {t("match.found_players", { count: results.length, game: gameName ? ` в ${gameName}` : "" })}
           </p>
           {results.map((r, i) => (
             <PlayerCard
@@ -175,7 +177,7 @@ export function MatchTab({
 
       {results === null && !loading && !notice && (
         <div className="py-10 text-center text-sm text-muted-foreground">
-          Нажми «Найти тиммейтов» чтобы увидеть подходящих игроков
+          {t("match.hint_search")}
         </div>
       )}
     </div>

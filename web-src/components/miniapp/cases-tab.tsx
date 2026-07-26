@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX } from "lucide-react"
 import { lootCases, coinShop, rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
 import { useNexus } from "@/lib/store"
+import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { tick, win as winSfx, whoosh, setMuted, isMuted } from "@/lib/sfx"
 
@@ -44,6 +45,8 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem } | null>(null)
   const [sound, setSound] = useState(true)
 
+  const { t } = useI18n()
+
   useEffect(() => {
     setSound(!isMuted())
   }, [])
@@ -57,7 +60,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   async function handleOpen(c: LootCase) {
     if (spin) return
     if (!c.free && stars < c.costStars) {
-      onToast("Недостаточно Telegram Stars")
+      onToast(t("donate.error_no_stars"))
       return
     }
     const res = await openCase(c.id)
@@ -74,22 +77,22 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       onToast(res.error ?? "Недостаточно монет Nexus")
       return
     }
-    onToast(`Куплено: ${name}`)
+    onToast(t("common.buy") + `: ${name}`)
   }
 
   return (
     <div className="space-y-6 px-4 py-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold">Кейсы Nexus</h1>
+          <h1 className="font-display text-2xl font-bold">{t("cases.title")}</h1>
           <p className="text-sm text-muted-foreground text-pretty">
-            Крути рулетку, выбивай скины и премиум. Шансы указаны для каждого кейса.
+            {t("cases.subtitle")}
           </p>
         </div>
         <button
           type="button"
           onClick={toggleSound}
-          aria-label={sound ? "Выключить звук" : "Включить звук"}
+          aria-label={sound ? t("cases.sound_on") : t("cases.sound_off")}
           className={cn(
             "grid size-10 shrink-0 place-items-center rounded-2xl border transition-colors active:scale-90",
             sound ? "border-accent/40 bg-accent/10 text-accent" : "border-border bg-secondary text-muted-foreground",
@@ -141,16 +144,16 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                   {c.free ? (
                     onCooldown ? (
                       <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground tabular-nums">
-                        <Clock className="size-3" /> Доступно через {formatCooldown(cooldown)}
+                        <Clock className="size-3" /> {t("cases.cooldown", { time: formatCooldown(cooldown) })}
                       </p>
                     ) : (
                       <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-accent">
-                        <Sparkles className="size-3" /> Готов к открытию — 1 раз в день
+                        <Sparkles className="size-3" /> {t("cases.free_ready")}
                       </p>
                     )
                   ) : (
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars">
-                      <Star className="size-3 fill-stars" /> {c.costStars} Stars за открытие
+                      <Star className="size-3 fill-stars" /> {t("cases.cost_stars", { cost: c.costStars })}
                     </p>
                   )}
                 </div>
@@ -169,7 +172,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
               >
                 {isSpin ? (
                   <span className="flex items-center gap-2">
-                    <Package className="size-5 animate-bounce" /> Крутим…
+                    <Package className="size-5 animate-bounce" /> {t("cases.spinning")}
                   </span>
                 ) : c.free ? (
                   onCooldown ? (
@@ -178,12 +181,12 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                     </span>
                   ) : (
                     <>
-                      <Package className="size-5" /> Открыть бесплатно
+                      <Package className="size-5" /> {t("cases.open_free")}
                     </>
                   )
                 ) : (
                   <>
-                    <Star className="size-5 fill-background" /> Открыть за {c.costStars}
+                    <Star className="size-5 fill-background" /> {t("cases.open_stars", { cost: c.costStars })}
                   </>
                 )}
               </button>
@@ -191,7 +194,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
               {/* Шансы выпадения */}
               <div className="mt-4 space-y-2 rounded-2xl border border-border bg-background/40 p-3">
                 <p className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
-                  <Percent className="size-3" /> Шансы выпадения
+                  <Percent className="size-3" /> {t("cases.drop_chances")}
                 </p>
                 {chances.map(({ item, pct }) => {
                   const color = rarityMeta[item.rarity].color
@@ -220,7 +223,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       {/* Inventory */}
       <section>
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold">Твой инвентарь</h2>
+          <h2 className="font-display text-lg font-bold">{t("cases.inventory_title")}</h2>
           <span className="flex items-center gap-1 text-xs font-semibold text-primary">
             <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {coins}
           </span>
@@ -228,7 +231,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         {inventory.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-border py-8 text-center">
             <Package className="mx-auto size-7 text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">Пусто — открой кейс, чтобы что-то выбить</p>
+            <p className="mt-2 text-sm text-muted-foreground">{t("cases.inventory_empty")}</p>
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
@@ -251,11 +254,11 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                   type="button"
                   onClick={async () => {
                     await sellItem(item.uid)
-                    onToast(`Продано за ${item.sell} монет`)
+                    onToast(t("cases.sold_for", { cost: item.sell }))
                   }}
                   className="mt-2.5 flex w-full items-center justify-center gap-1 rounded-xl border border-primary/30 bg-primary/10 py-2 text-xs font-semibold text-primary active:scale-95"
                 >
-                  <Coins className="size-3.5" /> Продать за {item.sell}
+                  <Coins className="size-3.5" /> {t("cases.sell_for", { cost: item.sell })}
                 </button>
               </div>
             ))}
@@ -265,7 +268,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
       {/* Coin shop */}
       <section>
-        <h2 className="mb-3 font-display text-lg font-bold">Магазин за монеты</h2>
+        <h2 className="mb-3 font-display text-lg font-bold">{t("cases.coin_shop_title")}</h2>
         <div className="space-y-3">
           {coinShop.map((s) => (
             <div key={s.key} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
@@ -312,6 +315,7 @@ const WIN_INDEX = 52
 const SPIN_MS = 5600
 
 function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem; onDone: () => void }) {
+  const { t } = useI18n()
   const viewportRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const [tx, setTx] = useState(0)
@@ -390,7 +394,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
 
       <div className="relative z-10 flex flex-col items-center w-full">
         <p className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
-          <Package className="size-3.5" /> {landed ? "Готово" : "Открываем"}
+          <Package className="size-3.5" /> {landed ? t("common.done") : t("cases.opening")}
         </p>
         <p className="mb-4 font-display text-lg font-bold text-balance text-center">{box.name}</p>
 
@@ -464,10 +468,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
         </div>
 
         <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Percent className="size-3.5" /> Шанс этого предмета:{" "}
-          <span className="font-bold tabular-nums" style={{ color: winColor }}>
-            {winPct.toFixed(1)}%
-          </span>
+          <Percent className="size-3.5" /> {t("cases.drop_chance_item", { pct: winPct.toFixed(1) })}
         </p>
       </div>
     </div>
@@ -475,6 +476,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
 }
 
 function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; onClose: () => void }) {
+  const { t } = useI18n()
   const meta = rarityMeta[item.rarity]
   const pct = itemPct(box, item)
   return (
@@ -484,7 +486,7 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
           type="button"
           onClick={onClose}
           className="absolute right-3 top-3 grid size-8 place-items-center rounded-full bg-secondary text-muted-foreground active:scale-90"
-          aria-label="Закрыть"
+          aria-label={t("common.close")}
         >
           <X className="size-4" />
         </button>
@@ -504,22 +506,22 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
         <h3 className="mt-4 font-display text-xl font-bold text-balance">{item.name}</h3>
         <p className="mt-1 text-sm text-muted-foreground text-pretty">{item.desc}</p>
         <p className="mt-2 flex items-center justify-center gap-1 text-xs font-semibold" style={{ color: meta.color }}>
-          <Percent className="size-3.5" /> Шанс выпадения: {pct.toFixed(1)}%
+          <Percent className="size-3.5" /> {t("cases.drop_chance_item", { pct: pct.toFixed(1) })}
         </p>
         {item.grantsPremium && (
           <p className="mt-1 flex items-center justify-center gap-1 text-xs font-semibold text-stars">
-            <Sparkles className="size-3.5" /> Премиум активирован!
+              <Sparkles className="size-3.5" /> {t("cases.premium_activated")}
           </p>
         )}
         <div className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground">
-          <Coins className="size-3.5" /> Продать можно за {item.sell} монет
+          <Coins className="size-3.5" /> {t("cases.sell_hint", { cost: item.sell })}
         </div>
         <button
           type="button"
           onClick={onClose}
           className="mt-4 w-full rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground active:scale-[0.98]"
         >
-          Забрать в инвентарь
+          {t("cases.collect")}
         </button>
       </div>
     </div>

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useI18n } from "@/lib/i18n"
 import {
   TrendingUp,
   Swords,
@@ -27,6 +28,7 @@ import { cn } from "@/lib/utils"
 type Mode = "esports" | "pvp"
 
 export function PredictionsTab({ onToast }: { onToast?: (m: string) => void }) {
+  const { t } = useI18n()
   const { coins: storeCoins, nick } = useNexus()
   const p = usePredictions(storeCoins, nick)
   const [mode, setMode] = useState<Mode>("esports")
@@ -34,25 +36,25 @@ export function PredictionsTab({ onToast }: { onToast?: (m: string) => void }) {
   return (
     <div className="space-y-4 px-4 py-5">
       <div>
-        <h1 className="font-display text-2xl font-bold">Прогнозы</h1>
+        <h1 className="font-display text-2xl font-bold">{t("predictions.title")}</h1>
         <p className="text-sm text-muted-foreground text-pretty">
-          Предсказывай исходы матчей и бросай вызов игрокам. Побеждает знание игры, не удача.
+          {t("predictions.subtitle")}
         </p>
       </div>
 
       {/* Balance + rule */}
       <div className="rounded-3xl border border-border bg-card p-4">
         <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">Твой баланс</span>
+          <span className="text-xs text-muted-foreground">{t("predictions.balance")}</span>
           <span className="flex items-center gap-1.5 font-display text-lg font-bold text-primary">
             <Coins className="size-4" />
             {p.coins}
-            <span className="text-sm font-medium text-muted-foreground">Nexus Coin</span>
+            <span className="text-sm font-medium text-muted-foreground">{t("predictions.currency")}</span>
           </span>
         </div>
         <p className="mt-3 flex items-start gap-2 rounded-2xl bg-accent/10 px-3 py-2 text-[11px] leading-relaxed text-accent">
           <Info className="mt-0.5 size-3.5 shrink-0" />
-          Выигранные монеты нельзя обменять на Stars — только тратить внутри игры (кейсы, баттлпасс, магазин).
+          {t("predictions.info")}
         </p>
       </div>
 
@@ -60,8 +62,8 @@ export function PredictionsTab({ onToast }: { onToast?: (m: string) => void }) {
       <div className="flex rounded-2xl border border-border bg-card p-1">
         {(
           [
-            { m: "esports", label: "Киберспорт", icon: TrendingUp },
-            { m: "pvp", label: "PvP-вызовы", icon: Swords },
+            { m: "esports", label: t("predictions.mode_esports"), icon: TrendingUp },
+            { m: "pvp", label: t("predictions.mode_pvp"), icon: Swords },
           ] as const
         ).map(({ m, label, icon: Icon }) => (
           <button
@@ -93,19 +95,20 @@ function EsportsMode({
   p: ReturnType<typeof usePredictions>
   onToast?: (m: string) => void
 }) {
+  const { t } = useI18n()
   return (
     <div className="space-y-5">
       <section className="space-y-3">
-        <h2 className="font-display text-base font-bold">Актуальные матчи</h2>
+        <h2 className="font-display text-base font-bold">{t("predictions.matches_title")}</h2>
         {p.matches.map((m) => (
           <MatchCard key={m.id} match={m} onPlace={p.placePrediction} onToast={onToast} />
         ))}
       </section>
 
       <section className="space-y-2">
-        <h2 className="font-display text-base font-bold">История прогнозов</h2>
+        <h2 className="font-display text-base font-bold">{t("predictions.history_title")}</h2>
         {p.predictions.length === 0 ? (
-          <Empty text="Пока нет прогнозов" />
+          <Empty text={t("predictions.history_empty")} />
         ) : (
           p.predictions.map((h) => <HistoryRow key={h.id} item={h} />)
         )}
@@ -123,6 +126,7 @@ function MatchCard({
   onPlace: (m: EsportsMatch, side: "A" | "B", amount: number) => { ok: boolean; error?: string }
   onToast?: (m: string) => void
 }) {
+  const { t } = useI18n()
   const [side, setSide] = useState<"A" | "B" | null>(null)
   const [amount, setAmount] = useState("")
 
@@ -130,10 +134,10 @@ function MatchCard({
     if (!side) return
     const res = onPlace(match, side, Number(amount) || 0)
     if (!res.ok) {
-      onToast?.(res.error ?? "Не удалось")
+      onToast?.(res.error ?? t("common.error"))
       return
     }
-    onToast?.(`Прогноз принят: ${side === "A" ? match.teamA : match.teamB}`)
+    onToast?.(t("predictions.bet_placed", { team: side === "A" ? match.teamA : match.teamB }))
     setSide(null)
     setAmount("")
   }
@@ -149,7 +153,7 @@ function MatchCard({
         </span>
         <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <Clock className="size-3" />
-          {startLabel(match.startsAt)}
+          {startLabel(match.startsAt, t)}
         </span>
       </div>
 
@@ -178,12 +182,12 @@ function MatchCard({
                 inputMode="numeric"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/\D/g, ""))}
-                placeholder="Сумма прогноза"
+                placeholder={t("predictions.bet_amount")}
                 className="min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
               />
             </div>
             <div className="flex items-center justify-between px-1 text-[11px] text-muted-foreground">
-              <span>Возможный выигрыш</span>
+              <span>{t("predictions.potential_win")}</span>
               <span className="font-display text-sm font-bold text-primary">{potential} Coin</span>
             </div>
             <button
@@ -191,7 +195,7 @@ function MatchCard({
               onClick={confirm}
               className="w-full rounded-2xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-[0.98]"
             >
-              Сделать прогноз на {side === "A" ? match.teamA : match.teamB}
+              {t("predictions.place_bet", { team: side === "A" ? match.teamA : match.teamB })}
             </button>
           </div>
         )}
@@ -229,10 +233,11 @@ function OddButton({
 }
 
 function HistoryRow({ item }: { item: MatchPrediction }) {
+  const { t } = useI18n()
   const meta = {
-    won: { label: "Выигран", cls: "bg-primary/15 text-primary", icon: Trophy },
-    lost: { label: "Проигран", cls: "bg-destructive/15 text-destructive", icon: CircleDot },
-    pending: { label: "В ожидании", cls: "bg-stars/15 text-stars", icon: Hourglass },
+    won: { label: t("predictions.status_won"), cls: "bg-primary/15 text-primary", icon: Trophy },
+    lost: { label: t("predictions.status_lost"), cls: "bg-destructive/15 text-destructive", icon: CircleDot },
+    pending: { label: t("predictions.status_pending"), cls: "bg-stars/15 text-stars", icon: Hourglass },
   }[item.status]
   const Icon = meta.icon
 
@@ -249,7 +254,7 @@ function HistoryRow({ item }: { item: MatchPrediction }) {
         <p className={cn("font-display text-sm font-bold", statusColor(item.status))}>
           {item.status === "won" ? `+${item.payout}` : item.status === "lost" ? `-${item.amount}` : item.amount}
         </p>
-        <p className="text-[10px] text-muted-foreground">кф {item.odds.toFixed(2)}</p>
+        <p className="text-[10px] text-muted-foreground">{t("predictions.odds", { value: item.odds.toFixed(2) })}</p>
       </div>
     </div>
   )
@@ -264,6 +269,7 @@ function PvpMode({
   p: ReturnType<typeof usePredictions>
   onToast?: (m: string) => void
 }) {
+  const { t } = useI18n()
   const [condition, setCondition] = useState("")
   const [stake, setStake] = useState("")
   const [open, setOpen] = useState(false)
@@ -271,10 +277,10 @@ function PvpMode({
   function create() {
     const res = p.createChallenge(condition, Number(stake) || 0)
     if (!res.ok) {
-      onToast?.(res.error ?? "Не удалось")
+      onToast?.(res.error ?? t("common.error"))
       return
     }
-    onToast?.("Вызов создан — ждём соперника")
+    onToast?.(t("predictions.pvp_created"))
     setCondition("")
     setStake("")
     setOpen(false)
@@ -290,7 +296,7 @@ function PvpMode({
           className="flex w-full items-center justify-between"
         >
           <span className="flex items-center gap-2 font-display text-base font-bold">
-            <Plus className="size-4 text-primary" /> Создать вызов
+            <Plus className="size-4 text-primary" /> {t("predictions.pvp_create")}
           </span>
         </button>
 
@@ -300,7 +306,7 @@ function PvpMode({
               value={condition}
               onChange={(e) => setCondition(e.target.value)}
               rows={2}
-              placeholder="Условие: «угадай число от 1 до 100», «кто наберёт больше очков к пятнице»…"
+              placeholder={t("predictions.pvp_condition_placeholder")}
               className="w-full resize-none rounded-2xl border border-input bg-background px-3 py-2.5 text-sm leading-relaxed outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
             />
             <div className="flex items-center gap-2">
@@ -309,7 +315,7 @@ function PvpMode({
                 inputMode="numeric"
                 value={stake}
                 onChange={(e) => setStake(e.target.value.replace(/\D/g, ""))}
-                placeholder="Ставка (оба вносят поровну)"
+                placeholder={t("predictions.pvp_stake_placeholder")}
                 className="min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
               />
             </div>
@@ -318,7 +324,7 @@ function PvpMode({
               onClick={create}
               className="w-full rounded-2xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-[0.98]"
             >
-              Опубликовать вызов
+              {t("predictions.pvp_publish")}
             </button>
           </div>
         )}
@@ -326,14 +332,14 @@ function PvpMode({
 
       <p className="flex items-start gap-2 px-1 text-[11px] leading-relaxed text-muted-foreground">
         <Info className="mt-0.5 size-3.5 shrink-0" />
-        Победителя определяет создатель вызова после наступления события — исход зависит от игроков, а не от случайности.
+        {t("predictions.pvp_info")}
       </p>
 
       {/* Challenges */}
       <section className="space-y-3">
-        <h2 className="font-display text-base font-bold">Вызовы</h2>
+        <h2 className="font-display text-base font-bold">{t("predictions.pvp_challenges_title")}</h2>
         {p.challenges.length === 0 ? (
-          <Empty text="Активных вызовов нет" />
+          <Empty text={t("predictions.pvp_empty")} />
         ) : (
           p.challenges.map((c) => (
             <ChallengeCard
@@ -341,12 +347,12 @@ function PvpMode({
               challenge={c}
               onAccept={() => {
                 const res = p.acceptChallenge(c.id)
-                if (!res.ok) onToast?.(res.error ?? "Не удалось")
-                else onToast?.("Вызов принят!")
+                if (!res.ok) onToast?.(res.error ?? t("common.error"))
+                else onToast?.(t("predictions.pvp_challenge_accepted"))
               }}
               onResolve={(winnerId) => {
                 p.confirmResult(c.id, winnerId)
-                onToast?.("Результат подтверждён")
+                onToast?.(t("predictions.pvp_result_confirmed"))
               }}
             />
           ))
@@ -365,13 +371,14 @@ function ChallengeCard({
   onAccept: () => void
   onResolve: (winnerId: string) => void
 }) {
+  const { t } = useI18n()
   const isCreator = challenge.creatorId === ME_ID
   const [resolving, setResolving] = useState(false)
 
   const statusMeta = {
-    open: { label: "Открыт", cls: "bg-stars/15 text-stars" },
-    active: { label: "Идёт", cls: "bg-accent/15 text-accent" },
-    finished: { label: "Завершён", cls: "bg-secondary text-muted-foreground" },
+    open: { label: t("predictions.pvp_status_open"), cls: "bg-stars/15 text-stars" },
+    active: { label: t("predictions.pvp_status_active"), cls: "bg-accent/15 text-accent" },
+    finished: { label: t("predictions.pvp_status_finished"), cls: "bg-secondary text-muted-foreground" },
   }[challenge.status]
 
   const iWon = challenge.status === "finished" && challenge.winnerId === ME_ID
@@ -381,7 +388,7 @@ function ChallengeCard({
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <Swords className="size-3.5" />
-          {isCreator ? "Твой вызов" : `от ${challenge.creatorNick}`}
+          {isCreator ? t("predictions.pvp_your_challenge") : t("predictions.pvp_from", { name: challenge.creatorNick })}
         </span>
         <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-bold", statusMeta.cls)}>
           {statusMeta.label}
@@ -394,7 +401,7 @@ function ChallengeCard({
         <span className="flex items-center gap-1.5 text-sm">
           <Coins className="size-4 text-primary" />
           <span className="font-display font-bold">{challenge.stake}</span>
-          <span className="text-xs text-muted-foreground">банк {challenge.stake * 2}</span>
+          <span className="text-xs text-muted-foreground">{t("predictions.pvp_bank", { amount: challenge.stake * 2 })}</span>
         </span>
 
         {challenge.status === "open" && !isCreator && (
@@ -403,18 +410,18 @@ function ChallengeCard({
             onClick={onAccept}
             className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground active:scale-95"
           >
-            Принять
+            {t("predictions.pvp_accept")}
           </button>
         )}
         {challenge.status === "open" && isCreator && (
-          <span className="text-xs text-muted-foreground">Ждём соперника…</span>
+          <span className="text-xs text-muted-foreground">{t("predictions.pvp_waiting")}</span>
         )}
       </div>
 
       {/* Соперник */}
       {challenge.opponentNick && challenge.status !== "open" && (
         <p className="mt-2 text-[11px] text-muted-foreground">
-          Соперник: <span className="text-foreground">{challenge.opponentNick}</span>
+          {t("predictions.pvp_opponent")} <span className="text-foreground">{challenge.opponentNick}</span>
         </p>
       )}
 
@@ -427,25 +434,25 @@ function ChallengeCard({
               onClick={() => setResolving(true)}
               className="w-full rounded-2xl border border-primary/50 bg-primary/10 py-2.5 text-sm font-bold text-primary active:scale-[0.98]"
             >
-              Подтвердить результат
+              {t("predictions.pvp_confirm_result")}
             </button>
           ) : (
             <div className="space-y-2">
-              <p className="text-center text-[11px] text-muted-foreground">Кто победил?</p>
+              <p className="text-center text-[11px] text-muted-foreground">{t("predictions.pvp_who_won")}</p>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => onResolve(ME_ID)}
                   className="rounded-2xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-95"
                 >
-                  Я
+                  {t("predictions.pvp_me")}
                 </button>
                 <button
                   type="button"
                   onClick={() => onResolve(challenge.opponentId ?? "opp")}
                   className="rounded-2xl border border-border bg-secondary/60 py-2.5 text-sm font-bold active:scale-95"
                 >
-                  {challenge.opponentNick ?? "Соперник"}
+                  {challenge.opponentNick ?? t("predictions.pvp_opponent_label")}
                 </button>
               </div>
             </div>
@@ -462,7 +469,7 @@ function ChallengeCard({
           )}
         >
           <CheckCircle2 className="size-4" />
-          {iWon ? `Победа · +${challenge.stake * 2} Coin` : "Поражение"}
+          {iWon ? t("predictions.pvp_victory", { amount: challenge.stake * 2 }) : t("predictions.pvp_defeat")}
         </div>
       )}
     </article>
@@ -485,10 +492,10 @@ function statusColor(status: MatchPrediction["status"]): string {
   return "text-muted-foreground"
 }
 
-function startLabel(ts: number): string {
+function startLabel(ts: number, t: (key: string, vars?: Record<string, unknown>) => string): string {
   const diff = ts - Date.now()
   const h = Math.round(diff / 3600_000)
-  if (h <= 0) return "скоро"
-  if (h < 24) return `через ${h} ч`
-  return `через ${Math.round(h / 24)} дн`
+  if (h <= 0) return t("common.soon")
+  if (h < 24) return t("common.in_hours", { count: h })
+  return t("common.in_days", { count: Math.round(h / 24) })
 }

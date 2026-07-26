@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Check, Smartphone } from "lucide-react"
+import { I18nProvider, useI18n } from "@/lib/i18n"
 import { NexusProvider } from "@/lib/store"
 import { TopBar } from "./top-bar"
 import { BottomNav, type TabId } from "./bottom-nav"
@@ -21,6 +22,7 @@ import { openChatWithPlayer } from "@/lib/chat"
 import type { Player, Team } from "@/lib/data"
 
 function Shell() {
+  const { t } = useI18n()
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -56,12 +58,12 @@ function Shell() {
     return (
       <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center bg-background px-8 text-center">
         <Smartphone className="mb-4 size-16 text-muted-foreground" />
-        <h1 className="font-display text-2xl font-bold">Mini App недоступен</h1>
+        <h1 className="font-display text-2xl font-bold">{t("appshell.not_available_title")}</h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Открой этот сервис через бота <strong>@TeamUpMatchBot</strong> в Telegram — нажми кнопку <strong>Mini App</strong> в /start.
+          {t("appshell.not_available_desc")}
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Прямая ссылка в браузере не работает — нужен Telegram WebView.
+          {t("appshell.not_available_hint")}
         </p>
       </div>
     )
@@ -108,7 +110,9 @@ function Shell() {
 export function AppShell() {
   return (
     <NexusProvider>
-      <Shell />
+      <I18nProvider>
+        <Shell />
+      </I18nProvider>
     </NexusProvider>
   )
 }

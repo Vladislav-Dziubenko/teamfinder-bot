@@ -295,6 +295,21 @@ async def handle_me(request: web.Request):
     })
 
 
+async def handle_user_language(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    await db.ensure_user(user["id"], user.get("username"), user.get("first_name"))
+
+    if request.method == "POST":
+        body = await request.json()
+        lang = body.get("lang", "ru")
+        await db.set_user_language(user["id"], lang)
+        return web.json_response({"ok": True, "lang": lang})
+
+    lang = await db.get_user_language(user["id"])
+    return web.json_response({"lang": lang})
+
+
 async def handle_save_profile(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -1384,6 +1399,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/health", handle_health)
     app.router.add_get("/api/games", handle_games)
     app.router.add_get("/api/me", handle_me)
+    app.router.add_route("GET", "/api/user/language", handle_user_language)
+    app.router.add_route("POST", "/api/user/language", handle_user_language)
     app.router.add_post("/api/profile", handle_save_profile)
     app.router.add_post("/api/profile/hide", handle_hide_profile)
     app.router.add_post("/api/profile/customize", handle_customize_profile)
