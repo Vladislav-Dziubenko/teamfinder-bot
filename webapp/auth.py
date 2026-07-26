@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import json
 import time
 from urllib.parse import parse_qsl
@@ -9,8 +11,9 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
 
     parsed = dict(parse_qsl(init_data))
 
-    parsed.pop("hash", None)
-    parsed.pop("signature", None)
+    hash_val = parsed.pop("hash", None)
+    if not hash_val:
+        return None
 
     auth_date_str = parsed.pop("auth_date", None)
     if not auth_date_str:
@@ -24,6 +27,15 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
     if max_age_seconds is None:
         max_age_seconds = 86400
     if max_age_seconds > 0 and time.time() - auth_date > max_age_seconds:
+        return None
+
+    items = sorted(parsed.items())
+    data_check_string = "\n".join(f"{k}={v}" for k, v in items)
+
+    secret_key = hmac.new(bot_token.encode(), b"WebAppData", hashlib.sha256).digest()
+    computed_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+    if not hmac.compare_digest(computed_hash, hash_val):
         return None
 
     if "user" in parsed:
