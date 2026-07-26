@@ -401,6 +401,8 @@ async def handle_search(request: web.Request):
         }
         results.append(result)
 
+    await db.increment_user_stat(user["id"], "search_count")
+
     return web.json_response({"premium": premium, "is_pro": is_pro, "game": profile["game"], "results": results})
 
 
@@ -596,6 +598,7 @@ async def handle_apply_team(request: web.Request):
 
     is_premium = await db.consume_premium_application_credit(user["id"])
     app_id = await db.apply_to_team(team_id, user["id"], message, is_premium)
+    await db.increment_user_stat(user["id"], "team_app_count")
     return web.json_response({"application_id": app_id, "is_premium": is_premium})
 
 
@@ -1054,6 +1057,18 @@ async def handle_achievements(request: web.Request):
     return web.json_response({"achievements": rows})
 
 
+async def handle_achievements_recent(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    rows = await db.get_user_achievements(user["id"])
+    claimed = [r for r in rows if r["claimed"]]
+    claimed.sort(key=lambda r: r["claimed_at"] or "", reverse=True)
+    return web.json_response([
+        {"id": r["achievement_id"], "title": r["achievement_id"], "game": "", "icon": "🏆", "unlockedAt": (r["claimed_at"] or "")[:10]}
+        for r in claimed[:10]
+    ])
+
+
 async def handle_achievements_claim(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -1218,38 +1233,39 @@ async def handle_pvp_resolve(request: web.Request):
 # Stats API
 # ---------------------------------------------------------------------------
 
-async def handle_stats(request: web.Request):
+async def handle_stats_overview(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-
     stats = await db.get_user_stats(user["id"])
-    currency = await db.get_currency(user["id"])
-    achievements = await db.get_user_achievements(user["id"])
-
-    claimed = sum(1 for a in achievements if a["claimed"])
-
+    profile = await db.get_profile(user["id"])
     return web.json_response({
-        "overview": {
-            "games": stats["games_played"],
-            "wins": stats["wins"],
-            "favoriteGame": "—",
-            "searchMinutes": 0,
-            "gamesDelta": 0,
-            "winsDelta": 0,
-            "searchDelta": 0,
-        },
-        "progress": [],
-        "achievements": {
-            "total": len(achievements),
-            "claimed": claimed,
-            "recent": [],
-        },
-        "rank": {
-            "position": 0,
-            "total": 0,
-            "percentile": 0,
-        },
+        "games": stats["games_played"],
+        "wins": stats["wins"],
+        "favoriteGame": profile["game"] if profile else "—",
+        "searchMinutes": 0,
+        "gamesDelta": 0,
+        "winsDelta": 0,
+        "searchDelta": 0,
     })
+
+
+async def handle_stats_progress(request: web.Request):
+    return web.json_response([])
+
+
+async def handle_stats_rank(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    total = await db.pool.fetchval("SELECT COUNT(*) FROM users")
+    row = await db.pool.fetchrow(
+        "SELECT COUNT(*) AS pos FROM user_currency uc "
+        "JOIN users u ON u.user_id = uc.user_id "
+        "WHERE uc.coins > (SELECT COALESCE(coins, 0) FROM user_currency WHERE user_id = $1)",
+        user["id"],
+    )
+    position = (row["pos"] if row else 0) + 1
+    percentile = round((position / max(total, 1)) * 100)
+    return web.json_response({"position": position, "total": total, "percentile": percentile})
 
 
 async def handle_leaderboard(request: web.Request):
@@ -1444,6 +1460,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/referral/claim", handle_referral_claim)
     app.router.add_post("/api/streak/claim", handle_streak_claim)
     app.router.add_get("/api/achievements", handle_achievements)
+    app.router.add_get("/api/achievements/recent", handle_achievements_recent)
     app.router.add_post("/api/achievements/claim", handle_achievements_claim)
     app.router.add_get("/api/leaderboard", handle_leaderboard)
 
@@ -1462,7 +1479,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/predictions/pvp/{challenge_id}/resolve", handle_pvp_resolve)
 
     # Stats
-    app.router.add_get("/api/stats", handle_stats)
+    app.router.add_get("/api/stats/overview", handle_stats_overview)
+    app.router.add_get("/api/stats/progress", handle_stats_progress)
+    app.router.add_get("/api/stats/rank", handle_stats_rank)
 
     # Discord OAuth
     app.router.add_get("/api/discord/auth", handle_discord_auth)
