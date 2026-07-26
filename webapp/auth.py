@@ -54,6 +54,9 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
         _debug_log("нет hash")
         return None
 
+    # Telegram может добавить signature уже после вычисления hash
+    parsed.pop("signature", None)
+
     auth_date_str = parsed.get("auth_date")
     if not auth_date_str:
         _debug_log("нет auth_date")
@@ -71,6 +74,7 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
         return None
 
     data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
+    _debug_log(f"ключи в data_check_string: {sorted(parsed.keys())}")
     _debug_log(f"data_check_string ({len(data_check_string)} chars): {data_check_string[:200]}...")
     secret_key = hmac.new(bot_token.encode(), b"WebAppData", hashlib.sha256).digest()
     computed_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
