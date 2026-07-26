@@ -54,10 +54,11 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
         _debug_log("нет hash")
         return None
 
-    # Telegram может добавить signature уже после вычисления hash
+    #     # Telegram может добавить signature уже после вычисления hash
     parsed.pop("signature", None)
 
-    auth_date_str = parsed.get("auth_date")
+    # auth_date тоже не входит в data_check_string
+    auth_date_str = parsed.pop("auth_date", None)
     if not auth_date_str:
         _debug_log("нет auth_date")
         return None
