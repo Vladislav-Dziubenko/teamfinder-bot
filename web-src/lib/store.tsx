@@ -13,7 +13,7 @@ import {
   type BattlePassReward,
   type Rarity,
 } from "@/lib/data"
-import { api, telegramReady } from "@/lib/api"
+import { api, telegramReady, UnauthorizedError } from "@/lib/api"
 
 export type InventoryItem = CaseItem & { uid: string; id?: number }
 
@@ -304,6 +304,7 @@ const NexusContext = createContext<Nexus | null>(null)
 export function NexusProvider({ children }: { children: ReactNode }) {
   const [s, setS] = useState<PersistedState>(defaultState)
   const [ready, setReady] = useState(false)
+  const [authError, setAuthError] = useState(false)
   const [now, setNow] = useState(() => Date.now())
 
   useEffect(() => {
@@ -320,6 +321,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         }
       } catch (e) {
         console.error("Failed to load Nexus state", e)
+        if (!cancelled && e instanceof UnauthorizedError) setAuthError(true)
       } finally {
         if (!cancelled) setReady(true)
       }
@@ -597,6 +599,17 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       claimAchievement,
     }
   }, [s, now, refreshMe])
+
+  if (authError) {
+    return (
+      <div className="grid h-dvh place-items-center bg-background text-foreground">
+        <div className="text-center px-6">
+          <p className="text-sm font-medium text-foreground">Перезайдите в приложение</p>
+          <p className="mt-1 text-xs text-muted-foreground">Сессия истекла — закройте и откройте Mini App заново</p>
+        </div>
+      </div>
+    )
+  }
 
   if (!ready) {
     return (

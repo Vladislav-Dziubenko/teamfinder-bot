@@ -26,6 +26,13 @@ export function telegramReady(): void {
   }
 }
 
+export class UnauthorizedError extends Error {
+  constructor() {
+    super("Перезайдите в приложение")
+    this.name = "UnauthorizedError"
+  }
+}
+
 async function request(method: string, path: string, body?: unknown) {
   const headers: Record<string, string> = {
     "X-Telegram-Init-Data": getInitData(),
@@ -41,6 +48,9 @@ async function request(method: string, path: string, body?: unknown) {
   const data = await res.json().catch(() => ({}))
 
   if (!res.ok) {
+    if (res.status === 401) {
+      throw new UnauthorizedError()
+    }
     throw new Error(data.error || `HTTP ${res.status}`)
   }
 
