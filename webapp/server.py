@@ -230,7 +230,9 @@ async def auth_middleware(request: web.Request, handler):
         is_public = any(request.path.startswith(p) for p in PUBLIC_API_PREFIXES)
         settings: Settings = request.app["settings"]
         init_data_raw = request.headers.get("X-Telegram-Init-Data", "")
+        logging.info(f"[AUTH] {request.method} {request.path} init_data_present={bool(init_data_raw)} is_public={is_public}")
         parsed = validate_init_data(init_data_raw, settings.bot_token)
+        logging.info(f"[AUTH] {request.path} parsed={parsed is not None} user_in_parsed={'user' in (parsed or {})}")
         if parsed and "user" in parsed:
             request["init_data"] = parsed
         elif not is_public:
