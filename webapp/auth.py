@@ -45,6 +45,7 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
     if not received_hash:
         return None
 
+    # Проверка времени авторизации
     auth_date_str = parsed.get("auth_date")
     if not auth_date_str:
         return None
@@ -59,6 +60,8 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
         return None
 
     data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
+    # Официальный алгоритм Telegram: HMAC(key=bot_token, msg="WebAppData")
+    # https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
     secret_key = hmac.new(bot_token.encode(), b"WebAppData", hashlib.sha256).digest()
     computed_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
 

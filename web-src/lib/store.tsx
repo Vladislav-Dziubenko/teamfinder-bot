@@ -19,7 +19,7 @@ export type InventoryItem = CaseItem & { uid: string; id?: number }
 
 const DAY_MS = 24 * 60 * 60 * 1000
 // Батл-пасс: следующую награду можно забрать раз в 2 дня (через день)
-const BP_CLAIM_INTERVAL = 2 * DAY_MS
+const BP_CLAIM_INTERVAL = DAY_MS
 const FREE_SEARCHES = 5
 
  type MeResponse = {
@@ -600,23 +600,23 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     }
   }, [s, now, refreshMe])
 
-  if (authError) {
-    return (
-      <div className="grid h-dvh place-items-center bg-background text-foreground">
-        <div className="text-center px-6">
-          <p className="text-sm font-medium text-foreground">Перезайдите в приложение</p>
-          <p className="mt-1 text-xs text-muted-foreground">Сессия истекла — закройте и откройте Mini App заново</p>
-        </div>
-      </div>
-    )
-  }
-
   if (!ready) {
     return (
       <div className="grid h-dvh place-items-center bg-background text-foreground">
         <div className="text-center">
           <div className="mx-auto mb-3 size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
           <p className="text-sm text-muted-foreground">Загрузка…</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (authError) {
+    return (
+      <div className="grid h-dvh place-items-center bg-background text-foreground">
+        <div className="text-center px-6">
+          <p className="text-sm font-medium text-foreground">Перезайдите в приложение</p>
+          <p className="mt-1 text-xs text-muted-foreground">Сессия истекла — закройте и откройте Mini App заново</p>
         </div>
       </div>
     )
