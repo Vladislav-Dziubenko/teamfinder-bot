@@ -683,8 +683,10 @@ async def handle_nexus_cases(request: web.Request):
 
 
 async def handle_nexus_open_case(request: web.Request):
+    logging.info(f"[DEBUG] handle_nexus_open_case called, init_data in request: {'init_data' in request}")
     db: Database = request.app["db"]
     user = _get_user(request)
+    logging.info(f"[DEBUG] handle_nexus_open_case user: {user.get('id') if user else None}")
     body = await request.json()
     case_id = body.get("case_id")
 
@@ -863,8 +865,10 @@ async def handle_battlepass(request: web.Request):
 
 
 async def handle_battlepass_buy(request: web.Request):
+    logging.info(f"[DEBUG] handle_battlepass_buy called, init_data in request: {'init_data' in request}")
     db: Database = request.app["db"]
     user = _get_user(request)
+    logging.info(f"[DEBUG] handle_battlepass_buy user: {user.get('id') if user else None}")
     ok = await db.buy_battlepass_premium(user["id"], BATTLE_PASS_PRICE_STARS)
     if not ok:
         return web.json_response({"error": "already premium or not enough stars"}, status=400)
@@ -872,8 +876,10 @@ async def handle_battlepass_buy(request: web.Request):
 
 
 async def handle_battlepass_claim_tier(request: web.Request):
+    logging.info(f"[DEBUG] handle_battlepass_claim_tier called, init_data in request: {'init_data' in request}")
     db: Database = request.app["db"]
     user = _get_user(request)
+    logging.info(f"[DEBUG] handle_battlepass_claim_tier user: {user.get('id') if user else None}")
     body = await request.json()
     tier_key = body.get("tier_key")
     if not tier_key or not isinstance(tier_key, str):
@@ -899,8 +905,10 @@ async def handle_battlepass_claim_tier(request: web.Request):
 
 
 async def handle_battlepass_claim_next(request: web.Request):
+    logging.info(f"[DEBUG] handle_battlepass_claim_next called, init_data in request: {'init_data' in request}")
     db: Database = request.app["db"]
     user = _get_user(request)
+    logging.info(f"[DEBUG] handle_battlepass_claim_next user: {user.get('id') if user else None}")
     result = await db.claim_next_battlepass_tier(user["id"])
     if not result["ok"]:
         return web.json_response({"error": result["error"]}, status=400)
