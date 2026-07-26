@@ -3,6 +3,7 @@
 import { Users, MapPin, Shield } from "lucide-react"
 import type { Team } from "@/lib/data"
 import { games } from "@/lib/data"
+import { useI18n } from "@/lib/i18n"
 
 export function TeamCard({
   team,
@@ -13,6 +14,7 @@ export function TeamCard({
   onJoin: (t: Team) => void
   index?: number
 }) {
+  const { t } = useI18n()
   const game = games.find((g) => g.id === team.game)
   const slots = Array.from({ length: team.maxMembers })
 

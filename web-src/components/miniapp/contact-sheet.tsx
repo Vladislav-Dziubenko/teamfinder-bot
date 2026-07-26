@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { X, Send, MessageCircle, UserPlus, Check } from "lucide-react"
 import type { Player } from "@/lib/data"
+import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 export function ContactSheet({
@@ -12,6 +13,7 @@ export function ContactSheet({
   player: Player | null
   onClose: () => void
 }) {
+  const { t } = useI18n()
   const [invited, setInvited] = useState(false)
   const [message, setMessage] = useState("")
   const [sent, setSent] = useState(false)
@@ -23,7 +25,7 @@ export function ContactSheet({
       {/* Backdrop */}
       <button
         type="button"
-        aria-label="Закрыть"
+        aria-label={t("common.close")}
         onClick={onClose}
         className="absolute inset-0 bg-background/70 backdrop-blur-sm animate-rise"
       />
@@ -36,7 +38,7 @@ export function ContactSheet({
           type="button"
           onClick={onClose}
           className="absolute right-4 top-4 grid size-8 place-items-center rounded-lg text-muted-foreground active:bg-secondary"
-          aria-label="Закрыть"
+          aria-label={t("common.close")}
         >
           <X className="size-4" />
         </button>
@@ -71,17 +73,17 @@ export function ContactSheet({
               <Send className="size-4" />
             </span>
             <span className="leading-tight">
-              <span className="block text-sm font-semibold text-foreground">Написать в Telegram</span>
+              <span className="block text-sm font-semibold text-foreground">{t("contact_sheet.write_telegram")}</span>
               <span className="block text-xs text-accent">@{player.tgUsername}</span>
             </span>
           </span>
-          <span className="text-xs font-medium text-muted-foreground">Открыть →</span>
+          <span className="text-xs font-medium text-muted-foreground">{t("contact_sheet.open")}</span>
         </a>
 
         {/* In-app message */}
         <div className="mt-3">
           <label className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <MessageCircle className="size-3.5" /> Быстрое сообщение в приложении
+            <MessageCircle className="size-3.5" /> {t("contact_sheet.quick_message")}
           </label>
           <div className="flex gap-2">
             <input
@@ -92,20 +94,20 @@ export function ContactSheet({
                   if (message.trim()) setSent(true)
                 }
               }}
-              placeholder="Го катку на фейсит?"
+              placeholder={t("contact_sheet.input_placeholder")}
               className="min-w-0 flex-1 rounded-xl border border-input bg-secondary/60 px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/60"
             />
             <button
               type="button"
               onClick={() => message.trim() && setSent(true)}
               className="grid size-11 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground transition-transform active:scale-90"
-              aria-label="Отправить"
+              aria-label={t("common.send")}
             >
               {sent ? <Check className="size-5" /> : <Send className="size-5" />}
             </button>
           </div>
           {sent && (
-            <p className="mt-2 text-xs text-accent animate-rise">Сообщение отправлено! Жди ответа 🎮</p>
+            <p className="mt-2 text-xs text-accent animate-rise">{t("contact_sheet.chat_opened")}</p>
           )}
         </div>
 
@@ -122,11 +124,11 @@ export function ContactSheet({
         >
           {invited ? (
             <>
-              <Check className="size-4" /> Приглашение отправлено
+              <Check className="size-4" /> {t("contact_sheet.invite_sent")}
             </>
           ) : (
             <>
-              <UserPlus className="size-4" /> Позвать в команду
+              <UserPlus className="size-4" /> {t("contact_sheet.invite_team")}
             </>
           )}
         </button>

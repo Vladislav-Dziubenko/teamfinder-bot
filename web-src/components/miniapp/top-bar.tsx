@@ -2,8 +2,10 @@
 
 import { Star } from "lucide-react"
 import { useNexus } from "@/lib/store"
+import { useI18n } from "@/lib/i18n"
 
 export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () => void }) {
+  const { t } = useI18n()
   const { stars, coins } = useNexus()
 
   return (
@@ -16,7 +18,7 @@ export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () 
           </div>
           <div className="leading-tight">
             <p className="font-display text-lg font-bold tracking-wide">NEXUS</p>
-            <p className="-mt-1 text-[11px] text-muted-foreground">поиск тиммейтов</p>
+            <p className="-mt-1 text-[11px] text-muted-foreground">{t("nav.match")}</p>
           </div>
         </div>
 

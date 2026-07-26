@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Check } from "lucide-react"
+import { useI18n } from "@/lib/i18n"
 import { NexusProvider } from "@/lib/store"
 import { TopBar } from "./top-bar"
 import { BottomNav, type TabId } from "./bottom-nav"
@@ -21,6 +22,7 @@ import { openChatWithPlayer } from "@/lib/chat"
 import type { Player, Team } from "@/lib/data"
 
 function Shell() {
+  const { t } = useI18n()
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -38,7 +40,7 @@ function Shell() {
   }
 
   function joinTeam(team: Team) {
-    setToast(`Заявка в «${team.name}» отправлена! 🚀`)
+    setToast(t("appshell.toast_team_joined", { team: team.name }))
   }
 
   function openChat(player: Player) {
@@ -58,7 +60,7 @@ function Shell() {
         {tab === "chat" && (
           <ChatTab openChatId={chatOpenId} onOpenConsumed={() => setChatOpenId(null)} />
         )}
-        {tab === "stats" && <StatsTab onOpenLeaderboard={() => setToast("Полный рейтинг скоро появится 🏆")} />}
+        {tab === "stats" && <StatsTab onOpenLeaderboard={() => setToast(t("stats.leaderboard_placeholder"))} />}
         {tab === "cases" && <CasesTab onToast={setToast} />}
         {tab === "battlepass" && <BattlePassTab onToast={setToast} />}
         {tab === "promo" && <PromoTab onToast={setToast} />}

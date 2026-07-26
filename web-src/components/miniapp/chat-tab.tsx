@@ -8,6 +8,7 @@ import {
   useChats,
   type ChatPreview,
 } from "@/lib/chat"
+import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 export function ChatTab({
@@ -17,6 +18,7 @@ export function ChatTab({
   openChatId?: string | null
   onOpenConsumed?: () => void
 }) {
+  const { t } = useI18n()
   const [activeId, setActiveId] = useState<string | null>(openChatId ?? null)
   const chats = useChats()
 
@@ -35,15 +37,15 @@ export function ChatTab({
   return (
     <div className="space-y-4 px-4 py-5">
       <div>
-        <h1 className="font-display text-2xl font-bold">Сообщения</h1>
-        <p className="text-sm text-muted-foreground text-pretty">Общайся с тиммейтами прямо в приложении</p>
+        <h1 className="font-display text-2xl font-bold">{t("chat.title")}</h1>
+        <p className="text-sm text-muted-foreground text-pretty">{t("chat.subtitle")}</p>
       </div>
 
       {chats.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border py-12 text-center">
           <MessagesSquare className="mx-auto size-8 text-muted-foreground" />
-          <p className="mt-2 font-display text-lg font-bold">Пока нет диалогов</p>
-          <p className="text-sm text-muted-foreground">Напиши игроку из поиска тиммейтов</p>
+          <p className="mt-2 font-display text-lg font-bold">{t("chat.empty_title")}</p>
+          <p className="text-sm text-muted-foreground">{t("chat.empty_hint")}</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -92,6 +94,7 @@ function ChatRow({ chat, onClick }: { chat: ChatPreview; onClick: () => void }) 
 }
 
 function ChatConversation({ chatId, onBack }: { chatId: string; onBack: () => void }) {
+  const { t } = useI18n()
   const player = getChatPlayer(chatId)
   const { messages, sendMessage, typing } = useChatMessages(chatId)
   const [draft, setDraft] = useState("")
@@ -114,20 +117,20 @@ function ChatConversation({ chatId, onBack }: { chatId: string; onBack: () => vo
         <button
           type="button"
           onClick={onBack}
-          aria-label="Назад к диалогам"
+          aria-label={t("chat.back")}
           className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90"
         >
           <ChevronLeft className="size-5" />
         </button>
         <img
           src={player?.avatar || "/placeholder.svg"}
-          alt={player?.nick ?? "Игрок"}
+          alt={player?.nick ?? t("common.unknown")}
           className="size-9 rounded-full object-cover"
         />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-sm font-bold">{player?.nick ?? "Игрок"}</p>
+          <p className="truncate font-display text-sm font-bold">{player?.nick ?? t("common.unknown")}</p>
           <p className="text-[11px] text-accent">
-            {typing ? "печатает…" : player?.online ? "в сети" : player?.lastSeen ?? "не в сети"}
+            {typing ? t("common.typing") : player?.online ? t("common.online") : player?.lastSeen ?? t("common.offline")}
           </p>
         </div>
       </header>
@@ -182,14 +185,14 @@ function ChatConversation({ chatId, onBack }: { chatId: string; onBack: () => vo
               submit()
             }
           }}
-          placeholder="Сообщение…"
+          placeholder={t("chat.input_placeholder")}
           className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
         />
         <button
           type="button"
           onClick={submit}
           disabled={!draft.trim()}
-          aria-label="Отправить"
+          aria-label={t("common.send")}
           className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40"
         >
           <Send className="size-5" />

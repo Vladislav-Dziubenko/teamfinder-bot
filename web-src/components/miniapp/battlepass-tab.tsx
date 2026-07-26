@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Crown, Star, Lock, Check, Gift, Clock, Sparkles } from "lucide-react"
 import { rarityMeta, type BattlePassReward } from "@/lib/data"
+import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
@@ -15,6 +16,7 @@ function formatCountdown(ms: number) {
 }
 
 export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
+  const { t } = useI18n()
   const {
     bpPremium,
     bpClaimedCount,
@@ -38,14 +40,14 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
   async function buy() {
     if (buying) return
     if (stars < battlePassPriceStars) {
-      onToast("Недостаточно Telegram Stars")
+      onToast(t("match.error_not_enough_stars"))
       return
     }
     setBuying(true)
     const ok = await buyBattlePass()
     setBuying(false)
-    if (ok) onToast("Премиум-пасс активирован!")
-    else onToast("Не удалось купить премиум-пасс")
+    if (ok) onToast(t("battlepass.bought"))
+    else onToast(t("battlepass.buy_failed"))
   }
 
   async function claim() {
@@ -53,8 +55,8 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
     setClaiming(true)
     const res = await claimNextBpTier()
     setClaiming(false)
-    if (!res.ok) onToast(res.error ?? "Пока нельзя забрать")
-    else onToast(`Награда дня ${res.tierLevel} забрана в инвентарь!`)
+    if (!res.ok) onToast(res.error ?? t("battlepass.claim_failed"))
+    else onToast(t("battlepass.claimed_tier", { level: res.tierLevel }))
   }
 
   return (
@@ -65,8 +67,8 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
         <div className="relative">
           <div className="flex items-center justify-between">
             <div>
-              <span className="text-xs font-medium uppercase tracking-widest text-stars">Сезон 1 · 2026</span>
-              <h1 className="font-display text-2xl font-bold">Nexus Battle Pass</h1>
+              <span className="text-xs font-medium uppercase tracking-widest text-stars">{t("battlepass.season")}</span>
+              <h1 className="font-display text-2xl font-bold">{t("battlepass.title")}</h1>
             </div>
             <span className="grid size-12 place-items-center rounded-2xl bg-stars/15 font-display text-xl font-bold text-stars">
               {claimed}
@@ -77,9 +79,9 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
           <div className="mt-4">
             <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
               <span className="flex items-center gap-1">
-                <Sparkles className="size-3 text-primary" /> Собрано {claimed} / {total}
+                <Sparkles className="size-3 text-primary" /> {t("battlepass.collected", { claimed, total })}
               </span>
-              <span>{allDone ? "Сезон пройден" : `Осталось ${total - claimed}`}</span>
+              <span>{allDone ? t("battlepass.season_done") : t("battlepass.left", { count: total - claimed })}</span>
             </div>
             <div className="h-3 overflow-hidden rounded-full bg-secondary">
               <div
@@ -98,18 +100,18 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
             >
               {buying ? (
                 <span className="flex items-center gap-2">
-                  <span className="size-4 animate-spin rounded-full border-2 border-background border-t-transparent" /> Обработка…
+                  <span className="size-4 animate-spin rounded-full border-2 border-background border-t-transparent" /> {t("common.loading")}
                 </span>
               ) : (
                 <>
-                  <Crown className="size-5" /> Купить премиум за {battlePassPriceStars}
+                  <Crown className="size-5" /> {t("battlepass.buy_premium", { price: battlePassPriceStars })}
                   <Star className="size-4 fill-background" />
                 </>
               )}
             </button>
           ) : (
             <p className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-stars/15 py-3 text-sm font-bold text-stars">
-              <Crown className="size-4 fill-stars" /> Премиум-пасс активен
+              <Crown className="size-4 fill-stars" /> {t("battlepass.premium_active")}
             </p>
           )}
         </div>
@@ -122,16 +124,16 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
             <Gift className="size-5" />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold">Награда дня</p>
+            <p className="text-sm font-bold">{t("battlepass.daily_title")}</p>
             <p className="text-[11px] text-muted-foreground text-pretty">
-              Открывай по одной ступени каждый день. Возвращайся, чтобы собрать весь сезон.
+              {t("battlepass.daily_desc")}
             </p>
           </div>
         </div>
 
         {allDone ? (
           <p className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-secondary py-3 text-sm font-bold text-muted-foreground">
-            <Check className="size-4" /> Все награды сезона собраны
+            <Check className="size-4" /> {t("battlepass.all_claimed")}
           </p>
         ) : bpCanClaim ? (
           <button
@@ -142,17 +144,17 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
           >
             {claiming ? (
               <span className="flex items-center gap-2">
-                <span className="size-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> Забираем…
+                <span className="size-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" /> {t("common.loading")}
               </span>
             ) : (
               <>
-                <Gift className="size-5" /> Забрать награду ур. {nextTier?.level}
+                <Gift className="size-5" /> {t("battlepass.claim_tier", { level: nextTier?.level })}
               </>
             )}
           </button>
         ) : (
           <p className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-secondary py-3 text-sm font-bold text-muted-foreground tabular-nums">
-            <Clock className="size-4" /> Следующая награда через {formatCountdown(bpNextClaimIn)}
+            <Clock className="size-4" /> {t("battlepass.next_in", { time: formatCountdown(bpNextClaimIn) })}
           </p>
         )}
       </section>
@@ -160,10 +162,10 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
       {/* Track legend */}
       <div className="flex items-center justify-center gap-4 text-[11px] font-medium text-muted-foreground">
         <span className="flex items-center gap-1.5">
-          <span className="size-3 rounded-full bg-secondary" /> Бесплатно
+          <span className="size-3 rounded-full bg-secondary" /> {t("battlepass.free_track")}
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="size-3 rounded-full bg-stars" /> Премиум
+          <span className="size-3 rounded-full bg-stars" /> {t("battlepass.premium_track")}
         </span>
       </div>
 

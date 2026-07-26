@@ -3,6 +3,7 @@
 import { Crosshair, Trophy, Clock, Zap, Lock, Star, Crown, Award, MessageCircle } from "lucide-react"
 import type { Player } from "@/lib/data"
 import { games } from "@/lib/data"
+import { useI18n } from "@/lib/i18n"
 
 export function PlayerCard({
   player,
@@ -19,6 +20,7 @@ export function PlayerCard({
   locked?: boolean
   index?: number
 }) {
+  const { t } = useI18n()
   const game = games.find((g) => g.id === player.game)
 
   return (
@@ -52,13 +54,13 @@ export function PlayerCard({
             }}
           >
             {player.reason === "donor" ? <Crown className="size-3" /> : <Award className="size-3" />}
-            {player.reason === "donor" ? "Топ-донатер" : "Ветеран"}
+            {player.reason === "donor" ? t("player_card.badge_donor") : t("player_card.badge_veteran")}
           </span>
         )}
         {!player.locked && (
           <span className="absolute right-3 top-3 flex items-center gap-1 rounded-lg bg-primary/90 px-2 py-1 text-xs font-bold text-primary-foreground">
             <Zap className="size-3 fill-primary-foreground" />
-            {player.vibe}% мэтч
+            {t("player_card.match_pct", { pct: player.vibe })}
           </span>
         )}
 
@@ -72,7 +74,7 @@ export function PlayerCard({
                     : "size-2 rounded-full bg-muted-foreground"
                 }
               />
-              {player.online ? "в сети" : player.lastSeen ?? "не в сети"}
+              {player.online ? t("common.online") : player.lastSeen ?? t("common.offline")}
             </span>
             <div className="absolute bottom-3 left-3">
               <h3 className="font-display text-xl font-bold leading-none">{player.nick}</h3>
@@ -90,9 +92,9 @@ export function PlayerCard({
               <Lock className="size-5 text-stars" />
             </span>
             <p className="font-display text-base font-bold text-balance">
-              {player.reason === "donor" ? "Анкета топ-донатера" : "Анкета ветерана"}
+              {player.reason === "donor" ? t("player_card.locked_donor") : t("player_card.locked_veteran")}
             </p>
-            <p className="text-[11px] text-muted-foreground">Открой за Telegram Stars</p>
+            <p className="text-[11px] text-muted-foreground">{t("player_card.locked_hint")}</p>
           </div>
         )}
       </div>
@@ -100,11 +102,11 @@ export function PlayerCard({
       <div className="p-4">
         {/* stats */}
         <div className="grid grid-cols-3 gap-2 text-center">
-          <Stat icon={Crosshair} label="Роль" value={locked ? "???" : player.role} />
-          <Stat icon={Trophy} label="Винрейт" value={locked ? "??" : `${player.winrate}%`} />
+          <Stat icon={Crosshair} label={t("player_card.stat_role")} value={locked ? "???" : player.role} />
+          <Stat icon={Trophy} label={t("player_card.stat_winrate")} value={locked ? "??" : `${player.winrate}%`} />
           <Stat
             icon={Clock}
-            label="В игре"
+            label={t("player_card.stat_hours")}
             value={
               locked
                 ? "??"
@@ -135,7 +137,7 @@ export function PlayerCard({
             onClick={() => onUnlock?.(player)}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-stars py-3 text-sm font-bold text-background shadow-[0_0_20px_-6px_var(--stars)] transition-transform active:scale-[0.98]"
           >
-            <Star className="size-4 fill-background" /> Открыть за {player.unlockStars} Stars
+            <Star className="size-4 fill-background" /> {t("player_card.unlock_for", { cost: player.unlockStars })}
           </button>
         ) : (
           <div className="mt-4 flex gap-2">
@@ -144,7 +146,7 @@ export function PlayerCard({
               onClick={() => onConnect(player)}
               className="flex-1 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-[0_0_20px_-6px_var(--primary)] transition-transform active:scale-[0.98]"
             >
-              Связаться
+              {t("player_card.connect")}
             </button>
             {onChat && (
               <button

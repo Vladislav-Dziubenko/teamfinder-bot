@@ -3,9 +3,11 @@
 import { useState } from "react"
 import { Ticket, Gift, Plus, Check, Star, Sparkles, Copy, Users2 } from "lucide-react"
 import { useNexus } from "@/lib/store"
+import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 export function PromoTab({ onToast }: { onToast: (m: string) => void }) {
+  const { t } = useI18n()
   const { promoCodes, redeemedCodes, redeemPromo, createPromo } = useNexus()
   const [tab, setTab] = useState<"redeem" | "create">("redeem")
 

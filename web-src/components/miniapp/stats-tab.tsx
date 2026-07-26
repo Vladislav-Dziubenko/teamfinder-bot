@@ -10,9 +10,11 @@ import {
   getOverview, getProgress, useRecentAchievements, useRankInfo,
   type StatRange, type OverviewStat, type ProgressPoint,
 } from "@/lib/stats"
+import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void }) {
+  const { t } = useI18n()
   const [range, setRange] = useState<StatRange>("7")
   const [ov, setOv] = useState<OverviewStat | null>(null)
   const [progress, setProgress] = useState<ProgressPoint[]>([])
