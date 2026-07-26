@@ -49,7 +49,7 @@ CORS_ALLOW = {
 # ---------------------------------------------------------------------------
 # Rate limiting — авторизованные /api/ эндпоинты (по user_id)
 # ---------------------------------------------------------------------------
-WEB_RATE_LIMIT = 30
+WEB_RATE_LIMIT = 120
 WEB_RATE_WINDOW = 60
 web_user_requests: defaultdict[int, list[float]] = defaultdict(list)
 
