@@ -77,13 +77,25 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
     data_check_string = "\n".join(f"{k}={v}" for k, v in sorted(parsed.items()))
     _debug_log(f"ключи в data_check_string: {sorted(parsed.keys())}")
     _debug_log(f"data_check_string ПОЛНОСТЬЮ ({len(data_check_string)} chars): {data_check_string!r}")
-    secret_key = hmac.new(bot_token.encode(), b"WebAppData", hashlib.sha256).digest()
-    computed_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
-    _debug_log(f"BOT_TOKEN начало={bot_token[:8]}... конец=...{bot_token[-4:]}")
-    _debug_log(f"hash received={received_hash} computed={computed_hash}")
 
-    if not hmac.compare_digest(computed_hash, received_hash):
-        _debug_log(f"HMAC не совпал")
+    # Telegram Python-пример:  secret = HMAC(key=bot_token, msg="WebAppData")
+    secret_py = hmac.new(bot_token.encode(), b"WebAppData", hashlib.sha256).digest()
+    hash_py = hmac.new(secret_py, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+    # Telegram Node.js пример: secret = HMAC(key="WebAppData", msg=bot_token)  (аргументы переставлены)
+    secret_js = hmac.new(b"WebAppData", bot_token.encode(), hashlib.sha256).digest()
+    hash_js = hmac.new(secret_js, data_check_string.encode(), hashlib.sha256).hexdigest()
+
+    _debug_log(f"BOT_TOKEN начало={bot_token[:8]}... конец=...{bot_token[-4:]}")
+    _debug_log(f"hash received={received_hash}")
+    _debug_log(f"hash Python={hash_py} JS={hash_js}")
+
+    if hmac.compare_digest(hash_py, received_hash):
+        _debug_log("HMAC совпал (Python)")
+    elif hmac.compare_digest(hash_js, received_hash):
+        _debug_log("HMAC совпал (JS)")
+    else:
+        _debug_log("HMAC не совпал ни с одним вариантом")
         return None
 
     if "user" in parsed:
