@@ -50,6 +50,28 @@ export const api = {
   post: (path: string, body?: unknown) => request("POST", path, body),
 }
 
+export function openTelegramLink(url: string): void {
+  if (typeof window !== "undefined" && url) {
+    const wa = window.Telegram?.WebApp
+    if (wa?.openTelegramLink) {
+      wa.openTelegramLink(url)
+    } else {
+      openLink(url)
+    }
+  }
+}
+
+export function openInvoice(url: string): void {
+  if (typeof window !== "undefined" && url) {
+    const wa = window.Telegram?.WebApp
+    if (wa?.openInvoice) {
+      wa.openInvoice(url, () => {})
+    } else {
+      openLink(url)
+    }
+  }
+}
+
 export function openLink(url: string) {
   if (typeof window !== "undefined") {
     window.open(url, "_blank")

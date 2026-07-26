@@ -10,7 +10,7 @@ import {
   type Rarity,
   type StarPack,
 } from "@/lib/data"
-import { api, telegramReady } from "@/lib/api"
+import { api, telegramReady, openInvoice } from "@/lib/api"
 
 export type InventoryItem = CaseItem & { uid: string; id?: number }
 
@@ -317,6 +317,7 @@ type Nexus = PersistedState & {
   spendStars: (n: number) => Promise<boolean>
   spendCoins: (n: number) => Promise<boolean>
   buyCoinPack: (packId: string) => Promise<{ ok: boolean; error?: string }>
+  buyStarPack: (packId: string) => Promise<{ ok: boolean; error?: string }>
   buyShopItem: (key: string) => Promise<{ ok: boolean; error?: string }>
   activatePremium: () => void
   addToInventory: (item: CaseItem) => void
@@ -427,6 +428,18 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         return { ok: true }
       } catch (e: any) {
         return { ok: false, error: e.message || "Не удалось обменять" }
+      }
+    }
+
+    const buyStarPack = async (packId: string): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await api.post("/api/pay/invoice", { type: "star_pack", pack_id: packId })
+        if (res?.invoice_link) {
+          openInvoice(res.invoice_link)
+        }
+        return { ok: true }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Не удалось открыть оплату" }
       }
     }
 

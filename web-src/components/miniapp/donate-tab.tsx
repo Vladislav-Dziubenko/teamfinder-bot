@@ -5,7 +5,7 @@ import { Star, Check, Crown, Sparkles, Zap, Trophy, Award, Loader2 } from "lucid
 import type { StarPack, LeaderEntry } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
-import { api } from "@/lib/api"
+import { api, openInvoice } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const coinPacks = [
@@ -16,7 +16,7 @@ const coinPacks = [
 
 export function DonateTab() {
   const { t } = useI18n()
-  const { starPacks, stars, nick, avatar, coins, buyCoinPack, refresh } = useNexus()
+  const { starPacks, stars, nick, avatar, coins, buyStarPack, refresh } = useNexus()
   const [selected, setSelected] = useState<StarPack | null>(null)
   const [done, setDone] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
@@ -46,17 +46,20 @@ export function DonateTab() {
     if (buying || !selected) return
     setBuying(true)
     try {
-      await api.post("/api/donate/buy", { pack_id: selected.id })
-      await refresh()
-      setDone(true)
-      setTimeout(() => {
-        setDone(false)
-        setSelected(null)
+      const res = await buyStarPack(selected.id)
+      if (res.ok) {
+        setDone(true)
+        setTimeout(() => {
+          setDone(false)
+          setSelected(null)
+          setBuying(false)
+        }, 1800)
+      } else {
+        setFlash(res.error ?? t("common.error"))
         setBuying(false)
-      }, 1800)
+      }
     } catch (e: any) {
       setFlash(e.message || t("common.error"))
-      setTimeout(() => setFlash(null), 2000)
       setBuying(false)
     }
   }
