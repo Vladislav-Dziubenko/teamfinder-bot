@@ -26,3 +26,6 @@ tmp/
 
 # Temporary patches
 *.patch
+
+# Backup
+web-src-backup/

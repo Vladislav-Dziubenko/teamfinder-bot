@@ -2,7 +2,6 @@
 
 import { Home, Swords, Package, Trophy, Ticket, User, BarChart3, MessageCircle, TrendingUp } from "lucide-react"
 import { useTotalUnread } from "@/lib/chat"
-import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 export type TabId =
@@ -18,16 +17,16 @@ export type TabId =
   | "donate"
   | "profile"
 
-const items: { id: TabId; key: string; icon: typeof Home }[] = [
-  { id: "home", key: "nav.home", icon: Home },
-  { id: "match", key: "nav.match", icon: Swords },
-  { id: "predictions", key: "nav.predictions", icon: TrendingUp },
-  { id: "chat", key: "nav.chat", icon: MessageCircle },
-  { id: "stats", key: "nav.stats", icon: BarChart3 },
-  { id: "cases", key: "nav.cases", icon: Package },
-  { id: "battlepass", key: "nav.battlepass", icon: Trophy },
-  { id: "promo", key: "nav.promo", icon: Ticket },
-  { id: "profile", key: "nav.profile", icon: User },
+const items: { id: TabId; label: string; icon: typeof Home }[] = [
+  { id: "home", label: "Главная", icon: Home },
+  { id: "match", label: "Тиммейты", icon: Swords },
+  { id: "predictions", label: "Прогнозы", icon: TrendingUp },
+  { id: "chat", label: "Чат", icon: MessageCircle },
+  { id: "stats", label: "Статы", icon: BarChart3 },
+  { id: "cases", label: "Кейсы", icon: Package },
+  { id: "battlepass", label: "Пасс", icon: Trophy },
+  { id: "promo", label: "Промо", icon: Ticket },
+  { id: "profile", label: "Профиль", icon: User },
 ]
 
 export function BottomNav({
@@ -38,13 +37,12 @@ export function BottomNav({
   onChange: (t: TabId) => void
 }) {
   const unread = useTotalUnread()
-  const { t } = useI18n()
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md">
       <div className="border-t border-border bg-card/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
         <ul className="no-scrollbar flex items-stretch overflow-x-auto px-1">
-          {items.map(({ id, key, icon: Icon }) => {
+          {items.map(({ id, label, icon: Icon }) => {
             const isActive = active === id
             const showBadge = id === "chat" && unread > 0
             return (
@@ -79,7 +77,7 @@ export function BottomNav({
                       isActive ? "text-foreground" : "text-muted-foreground",
                     )}
                   >
-                    {t(key)}
+                    {label}
                   </span>
                 </button>
               </li>

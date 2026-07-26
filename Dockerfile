@@ -2,16 +2,11 @@
 FROM node:20-alpine AS frontend
 WORKDIR /app/web-src
 
-# Use pnpm (lockfile is pnpm-lock.yaml)
-RUN corepack enable
+COPY web-src/package.json web-src/package-lock.json ./
+RUN npm ci
 
-# Install dependencies
-COPY web-src/package.json web-src/pnpm-lock.yaml web-src/pnpm-workspace.yaml ./
-RUN pnpm install --frozen-lockfile
-
-# Build static site into web-src/out
 COPY web-src/ ./
-RUN pnpm build
+RUN npm run build
 
 # ---------- Runtime stage: Python bot + aiohttp static server ----------
 FROM python:3.11-slim

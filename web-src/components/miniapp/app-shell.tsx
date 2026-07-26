@@ -1,8 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Check, Smartphone } from "lucide-react"
-import { I18nProvider, useI18n } from "@/lib/i18n"
+import { Check } from "lucide-react"
 import { NexusProvider } from "@/lib/store"
 import { TopBar } from "./top-bar"
 import { BottomNav, type TabId } from "./bottom-nav"
@@ -22,16 +21,10 @@ import { openChatWithPlayer } from "@/lib/chat"
 import type { Player, Team } from "@/lib/data"
 
 function Shell() {
-  const { t } = useI18n()
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [chatOpenId, setChatOpenId] = useState<string | null>(null)
-  const [initDataOk, setInitDataOk] = useState<boolean | null>(null)
-
-  useEffect(() => {
-    setInitDataOk(!!(typeof window !== "undefined" && window.Telegram?.WebApp?.initData))
-  }, [])
 
   useEffect(() => {
     if (!toast) return
@@ -52,21 +45,6 @@ function Shell() {
     const id = openChatWithPlayer(player.id)
     setChatOpenId(id)
     goTab("chat")
-  }
-
-  if (initDataOk === false) {
-    return (
-      <div className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center bg-background px-8 text-center">
-        <Smartphone className="mb-4 size-16 text-muted-foreground" />
-        <h1 className="font-display text-2xl font-bold">{t("appshell.not_available_title")}</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("appshell.not_available_desc")}
-        </p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          {t("appshell.not_available_hint")}
-        </p>
-      </div>
-    )
   }
 
   return (
@@ -91,7 +69,7 @@ function Shell() {
 
       <BottomNav active={tab} onChange={goTab} />
 
-      <ContactSheet player={contact} onClose={() => setContact(null)} onOpenChat={(chatId) => { goTab("chat"); setChatId(chatId) }} />
+      <ContactSheet player={contact} onClose={() => setContact(null)} />
 
       {toast && (
         <div className="fixed inset-x-0 top-16 z-[60] mx-auto flex max-w-md justify-center px-4">
@@ -110,9 +88,7 @@ function Shell() {
 export function AppShell() {
   return (
     <NexusProvider>
-      <I18nProvider>
-        <Shell />
-      </I18nProvider>
+      <Shell />
     </NexusProvider>
   )
 }

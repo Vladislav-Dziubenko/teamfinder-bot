@@ -9,7 +9,6 @@ import {
   type ChatPreview,
 } from "@/lib/chat"
 import { cn } from "@/lib/utils"
-import { useI18n } from "@/lib/i18n"
 
 export function ChatTab({
   openChatId,
@@ -18,7 +17,6 @@ export function ChatTab({
   openChatId?: string | null
   onOpenConsumed?: () => void
 }) {
-  const { t } = useI18n()
   const [activeId, setActiveId] = useState<string | null>(openChatId ?? null)
   const chats = useChats()
 
@@ -37,15 +35,15 @@ export function ChatTab({
   return (
     <div className="space-y-4 px-4 py-5">
       <div>
-        <h1 className="font-display text-2xl font-bold">{t("chat.title")}</h1>
-        <p className="text-sm text-muted-foreground text-pretty">{t("chat.subtitle")}</p>
+        <h1 className="font-display text-2xl font-bold">Сообщения</h1>
+        <p className="text-sm text-muted-foreground text-pretty">Общайся с тиммейтами прямо в приложении</p>
       </div>
 
       {chats.length === 0 ? (
         <div className="rounded-3xl border border-dashed border-border py-12 text-center">
           <MessagesSquare className="mx-auto size-8 text-muted-foreground" />
-          <p className="mt-2 font-display text-lg font-bold">{t("chat.empty_title")}</p>
-          <p className="text-sm text-muted-foreground">{t("chat.empty_hint")}</p>
+          <p className="mt-2 font-display text-lg font-bold">Пока нет диалогов</p>
+          <p className="text-sm text-muted-foreground">Напиши игроку из поиска тиммейтов</p>
         </div>
       ) : (
         <div className="space-y-2">
@@ -59,7 +57,6 @@ export function ChatTab({
 }
 
 function ChatRow({ chat, onClick }: { chat: ChatPreview; onClick: () => void }) {
-  const { t } = useI18n()
   return (
     <button
       type="button"
@@ -79,7 +76,7 @@ function ChatRow({ chat, onClick }: { chat: ChatPreview; onClick: () => void }) 
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate font-display text-sm font-bold">{chat.player.nick}</p>
-          <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime(chat.lastTs, t)}</span>
+          <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime(chat.lastTs)}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="truncate text-sm text-muted-foreground">{chat.lastText}</p>
@@ -95,7 +92,6 @@ function ChatRow({ chat, onClick }: { chat: ChatPreview; onClick: () => void }) 
 }
 
 function ChatConversation({ chatId, onBack }: { chatId: string; onBack: () => void }) {
-  const { t } = useI18n()
   const player = getChatPlayer(chatId)
   const { messages, sendMessage, typing } = useChatMessages(chatId)
   const [draft, setDraft] = useState("")

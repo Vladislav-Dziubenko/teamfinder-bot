@@ -35,69 +35,30 @@ export type RankInfo = {
   percentile: number
 }
 
-type StatsCache = {
-  overview: OverviewStat
-  achievements: UnlockedAchievement[]
-  rank: RankInfo
+export async function getOverview(range: StatRange): Promise<OverviewStat> {
+  return api.get("/api/stats/overview?range=" + range)
 }
 
-let statsCache: StatsCache | null = null
-const listeners = new Set<() => void>()
-
-function emit() {
-  listeners.forEach((l) => l())
+export async function getProgress(range: StatRange): Promise<ProgressPoint[]> {
+  return api.get("/api/stats/progress?range=" + range)
 }
 
-async function loadStats() {
-  try {
-    const data = await api.get("/api/stats")
-    statsCache = {
-      overview: data.overview || { games: 0, wins: 0, favoriteGame: "—", searchMinutes: 0, gamesDelta: 0, winsDelta: 0, searchDelta: 0 },
-      achievements: (data.achievements?.recent || []).map((a: any) => ({
-        id: a.id || "",
-        title: a.title || "",
-        game: a.game || "",
-        icon: a.icon || "🏆",
-        unlockedAt: a.unlockedAt || "",
-      })),
-      rank: data.rank || { position: 0, total: 0, percentile: 0 },
-    }
-    emit()
-  } catch {
-    // keep cache
-  }
-}
+export function useRecentAchievements(): UnlockedAchievement[] {
+  const [items, setItems] = useState<UnlockedAchievement[]>([])
 
-export function getOverview(range: StatRange): OverviewStat {
-  if (!statsCache) return { games: 0, wins: 0, favoriteGame: "—", searchMinutes: 0, gamesDelta: 0, winsDelta: 0, searchDelta: 0 }
-  return statsCache.overview
-}
-
-export function getProgress(range: StatRange): ProgressPoint[] {
-  return []
-}
-
-export function useAchievements(): UnlockedAchievement[] {
-  const [, force] = useState(0)
   useEffect(() => {
-    const l = () => force((n) => n + 1)
-    listeners.add(l)
-    loadStats()
-    return () => { listeners.delete(l) }
+    api.get("/api/achievements/recent").then(setItems)
   }, [])
-  return statsCache?.achievements || []
+
+  return items
 }
 
-export function useRankInfo(): RankInfo {
-  const [, force] = useState(0)
+export function useRankInfo(): RankInfo | null {
+  const [info, setInfo] = useState<RankInfo | null>(null)
+
   useEffect(() => {
-    const l = () => force((n) => n + 1)
-    listeners.add(l)
-    loadStats()
-    return () => { listeners.delete(l) }
+    api.get("/api/stats/rank").then(setInfo)
   }, [])
-  return statsCache?.rank || { position: 0, total: 0, percentile: 0 }
-}
 
-export const recentAchievements: UnlockedAchievement[] = []
-export const rankInfo: RankInfo = { position: 0, total: 0, percentile: 0 }
+  return info
+}

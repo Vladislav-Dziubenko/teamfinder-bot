@@ -3,10 +3,8 @@ declare global {
     Telegram?: {
       WebApp?: {
         initData: string
-        openLink?: (url: string) => void
         openTelegramLink?: (url: string) => void
         shareURL?: (url: string, text?: string) => void
-        openInvoice?: (url: string, callback: (status: string) => void) => void
         ready: () => void
       }
     }
@@ -26,13 +24,6 @@ export function telegramReady(): void {
   }
 }
 
-export class UnauthorizedError extends Error {
-  constructor() {
-    super("Перезайдите в приложение")
-    this.name = "UnauthorizedError"
-  }
-}
-
 async function request(method: string, path: string, body?: unknown) {
   const headers: Record<string, string> = {
     "X-Telegram-Init-Data": getInitData(),
@@ -48,9 +39,6 @@ async function request(method: string, path: string, body?: unknown) {
   const data = await res.json().catch(() => ({}))
 
   if (!res.ok) {
-    if (res.status === 401) {
-      throw new UnauthorizedError()
-    }
     throw new Error(data.error || `HTTP ${res.status}`)
   }
 
@@ -60,4 +48,10 @@ async function request(method: string, path: string, body?: unknown) {
 export const api = {
   get: (path: string) => request("GET", path),
   post: (path: string, body?: unknown) => request("POST", path, body),
+}
+
+export function openLink(url: string) {
+  if (typeof window !== "undefined") {
+    window.open(url, "_blank")
+  }
 }

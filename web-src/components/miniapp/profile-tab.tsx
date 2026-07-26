@@ -1,7 +1,6 @@
 "use client"
 
-import { useRef, useState, useEffect, useCallback } from "react"
-import { useI18n } from "@/lib/i18n"
+import { useState, useEffect, useRef } from "react"
 import {
   Star,
   Trophy,
@@ -22,17 +21,35 @@ import {
   Users2,
   Copy,
   Flame,
-  ExternalLink,
+  Disc,
+  Link2,
   Trash2,
-  Loader2,
 } from "lucide-react"
-import { currentUser, games, achievements as achData, referralReward, referralBotUrl, dailyStreakRewards } from "@/lib/data"
+import { api, openLink } from "@/lib/api"
 import { useNexus } from "@/lib/store"
-import { api } from "@/lib/api"
+import { games, dailyStreakRewards } from "@/lib/data"
 import type { TabId } from "./bottom-nav"
 import { cn } from "@/lib/utils"
 
-// Украшения карточки — доступны при премиуме / открыты в батл-пассе
+type DiscordStatus = {
+  connected: boolean
+  username?: string
+  avatar?: string
+  global_name?: string
+  connections?: Array<{ id: string; type: string; name: string }>
+}
+
+type AchievementItem = {
+  id: string
+  game: string
+  title: string
+  desc: string
+  minutes: number
+  progress: number
+  points: number
+  coins: number
+}
+
 const decorations = [
   { id: "orange", label: "Neon", ring: "var(--primary)", bg: "var(--primary)" },
   { id: "gold", label: "Gold", ring: "var(--stars)", bg: "var(--stars)" },
@@ -41,8 +58,6 @@ const decorations = [
 ]
 
 export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToast: (m: string) => void }) {
-  const { t } = useI18n()
-  const game = games.find((g) => g.id === currentUser.game)
   const {
     stars,
     coins,
@@ -58,56 +73,39 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
     setBio,
     setDeco,
     saveProfile,
-    claimAchievement,
     claimedAchievements,
     invitedCount,
     referralEarned,
     referralCode,
+    referralBotUrl,
+    referralReward,
     simulateInvite,
     streakDay,
     lastStreakAt,
     claimDailyStreak,
+    level,
+    wins,
+    refresh,
   } = useNexus()
 
   const [editing, setEditing] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
-  const [discord, setDiscord] = useState<{
-    connected: boolean
-    username?: string
-    global_name?: string
-    avatar?: string
-    connections?: { type: string; name: string; verified: boolean }[]
-  } | null>(null)
+
+  const [discord, setDiscord] = useState<DiscordStatus | null>(null)
   const [discordLoading, setDiscordLoading] = useState(true)
 
+  const [achievements, setAchievements] = useState<AchievementItem[]>([])
+  const [achLoading, setAchLoading] = useState(true)
+
   useEffect(() => {
-    api.get("/api/discord/status").then(setDiscord).catch(() => setDiscord({ connected: false }))
-    .finally(() => setDiscordLoading(false))
+    api.get("/api/discord/status").then(setDiscord).catch(() => setDiscord(null)).finally(() => setDiscordLoading(false))
   }, [])
 
-  async function connectDiscord() {
-    try {
-      const { url } = await api.get("/api/discord/auth")
-      if (window.Telegram?.WebApp?.openLink) {
-        window.Telegram.WebApp.openLink(url)
-      } else {
-        window.open(url, "_blank")
-      }
-    } catch {
-      onToast(t("profile.discord_link_error"))
-    }
-  }
+  useEffect(() => {
+    api.get("/api/achievements/list").then((data) => setAchievements(data?.achievements ?? data ?? [])).catch(() => setAchievements([])).finally(() => setAchLoading(false))
+  }, [])
 
-  async function unlinkDiscord() {
-    try {
-      await api.post("/api/discord/unlink")
-      setDiscord({ connected: false })
-      onToast(t("profile.discord_unlinked"))
-    } catch {
-      onToast(t("profile.discord_error"))
-    }
-  }
-
+  const game = games.find((g) => g.id === "cs2") ?? games[0]
   const active = decorations.find((d) => d.id === deco) ?? decorations[0]
   const decoAvailable = (id: string) => id === "orange" || premiumActive || unlockedDecos.includes(id)
   const streakReady = !lastStreakAt || Date.now() - lastStreakAt >= 24 * 60 * 60 * 1000
@@ -122,22 +120,27 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
 
   async function claim(id: string, pts: number, cns: number) {
     if (claimedAchievements.includes(id)) return
-    await claimAchievement(id, pts, cns)
-    onToast(t("profile.achievement_claimed_toast", { pts, coins: cns }))
+    try {
+      await api.post("/api/achievements/claim", { achievement_id: id, points: pts, coins: cns })
+      await refresh()
+      onToast(`Награда получена: +${pts} баллов, +${cns} монет`)
+    } catch (e: any) {
+      onToast(e.message || "Ошибка")
+    }
   }
 
   function copyRef() {
     const link = `${referralBotUrl}?start=${referralCode}`
     navigator.clipboard?.writeText(link).then(
-      () => onToast(t("profile.referral_copied")),
+      () => onToast("Реферальная ссылка скопирована!"),
       () => onToast(link),
     )
   }
 
   async function claimStreak() {
     const res = await claimDailyStreak()
-    if (!res.ok) onToast(res.error ?? t("common.error"))
-    else onToast(t("profile.streak_claimed_toast", { day: res.day, coins: res.coins }))
+    if (!res.ok) onToast(res.error ?? "Уже забрано")
+    else onToast(`День ${res.day}: +${res.coins} монет!`)
   }
 
   return (
@@ -154,7 +157,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
               style={{ background: `color-mix(in oklch, ${active.bg} 25%, transparent)` }}
             />
             <span className="absolute right-4 top-4 flex items-center gap-1 rounded-full bg-stars/15 px-2 py-1 text-[10px] font-bold text-stars">
-              <Crown className="size-3 fill-stars" /> {t("profile.card_premium")}
+              <Crown className="size-3 fill-stars" /> PREMIUM
             </span>
           </>
         )}
@@ -166,20 +169,20 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
               onClick={() => fileRef.current?.click()}
               className="relative grid size-20 place-items-center overflow-hidden rounded-3xl font-display text-3xl font-bold text-primary-foreground"
               style={{ background: active.bg, boxShadow: premiumActive ? `0 0 24px -6px ${active.ring}` : "none" }}
-              aria-label={t("profile.change_avatar")}
+              aria-label="Сменить аватар"
             >
               {avatar ? (
-                <img src={avatar || "/placeholder.svg"} alt="Avatar" className="size-full object-cover" />
+                <img src={avatar || "/placeholder.svg"} alt="Аватар" className="size-full object-cover" />
               ) : (
                 nick.charAt(0).toUpperCase()
               )}
               <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-0.5 bg-background/70 py-0.5 text-[9px] font-medium text-foreground">
-                <Camera className="size-2.5" /> {t("profile.photo")}
+                <Camera className="size-2.5" /> фото
               </span>
             </button>
             <input ref={fileRef} type="file" accept="image/*" onChange={onPickPhoto} className="hidden" />
             <span className="absolute -bottom-1 -right-1 rounded-lg bg-stars px-1.5 py-0.5 font-display text-xs font-bold text-background">
-              {currentUser.level}
+              {level}
             </span>
           </div>
 
@@ -194,7 +197,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
             ) : (
               <h1 className="font-display text-2xl font-bold leading-tight">{nick}</h1>
             )}
-            <p className="text-sm text-muted-foreground">{currentUser.rank}</p>
+            <p className="text-sm text-muted-foreground">Уровень {level}</p>
             <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium">
               <Gamepad2 className="size-3 text-primary" /> {game?.name}
             </span>
@@ -219,8 +222,8 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
         {/* Decorations */}
         <div className="mt-4">
           <p className="mb-2 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
-            <Sparkles className="size-3.5 text-stars" /> {t("profile.deco_title")}
-            {!premiumActive && <span className="text-[10px] font-normal">{t("profile.deco_hint")}</span>}
+            <Sparkles className="size-3.5 text-stars" /> Украшение карточки
+            {!premiumActive && <span className="text-[10px] font-normal">· премиум / батл-пасс</span>}
           </p>
           <div className="flex flex-wrap gap-2">
             {decorations.map((d) => {
@@ -249,19 +252,6 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
           </div>
         </div>
 
-        {/* XP bar */}
-        <div className="mt-4">
-          <div className="mb-1 flex justify-between text-[11px] text-muted-foreground">
-            <span>{t("profile.level", { level: currentUser.level })}</span>
-            <span>
-              {t("profile.xp_to_next", { xp: currentUser.xp, next: currentUser.level + 1 })}
-            </span>
-          </div>
-          <div className="h-2.5 overflow-hidden rounded-full bg-secondary">
-            <div className="h-full rounded-full" style={{ width: `${currentUser.xp}%`, background: active.bg }} />
-          </div>
-        </div>
-
         {/* Edit controls — бесплатно для всех */}
         <div className="mt-4">
           <button
@@ -269,7 +259,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
             onClick={async () => {
               if (editing) {
                 await saveProfile()
-                onToast(t("profile.saved"))
+                onToast("Анкета сохранена")
               }
               setEditing((e) => !e)
             }}
@@ -277,27 +267,93 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
           >
             {editing ? (
               <>
-                <Check className="size-4" /> {t("profile.save_profile")}
+                <Check className="size-4" /> Сохранить анкету
               </>
             ) : (
               <>
-                <Pencil className="size-4" /> {t("profile.edit_profile")}
+                <Pencil className="size-4" /> Настроить анкету
               </>
             )}
           </button>
           <p className="mt-1.5 text-center text-[11px] text-muted-foreground">
-            {t("profile.edit_hint")}
+            Аватар, ник и описание — бесплатно. Рамки и украшения — за премиум.
           </p>
         </div>
+      </section>
+
+      {/* Discord connection */}
+      <section className="rounded-3xl border border-border bg-card p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="flex items-center gap-2 font-display text-base font-bold">
+            <Disc className="size-4 text-[#5865F2]" /> Discord
+          </h2>
+          {discordLoading && <span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />}
+        </div>
+
+        {discord?.connected ? (
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              {discord.avatar && (
+                <img src={discord.avatar} alt="" className="size-10 rounded-full" />
+              )}
+              <div className="min-w-0">
+                <p className="font-display text-sm font-bold truncate">{discord.global_name || discord.username}</p>
+                <p className="text-[11px] text-muted-foreground">@{discord.username}</p>
+              </div>
+            </div>
+            {discord.connections && discord.connections.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {discord.connections.map((c) => (
+                  <span key={c.id} className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
+                    {c.name || c.type}
+                  </span>
+                ))}
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  await api.post("/api/discord/unlink")
+                  const res = await api.get("/api/discord/status")
+                  setDiscord(res)
+                  onToast("Discord отвязан")
+                } catch {
+                  onToast("Ошибка отвязки Discord")
+                }
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/40 bg-destructive/10 py-2.5 text-xs font-semibold text-destructive active:scale-95"
+            >
+              <Trash2 className="size-3.5" /> Отвязать Discord
+            </button>
+          </div>
+        ) : (
+          !discordLoading && (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const { url } = await api.get("/api/discord/auth")
+                  openLink(url)
+                } catch {
+                  onToast("Ошибка подключения Discord")
+                }
+              }}
+              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5865F2] py-3 text-sm font-bold text-white active:scale-[0.98]"
+            >
+              <Link2 className="size-4" /> Подключить Discord
+            </button>
+          )
+        )}
       </section>
 
       {/* Daily streak — тренд-фишка */}
       <section className="rounded-3xl border border-border bg-card p-4">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="flex items-center gap-2 font-display text-base font-bold">
-            <Flame className="size-4 text-primary" /> {t("profile.streak_title")}
+            <Flame className="size-4 text-primary" /> Ежедневный вход
           </h2>
-          <span className="text-[11px] font-semibold text-muted-foreground">{t("profile.streak_count", { count: streakDay })}</span>
+          <span className="text-[11px] font-semibold text-muted-foreground">Стрик: {streakDay} дн.</span>
         </div>
         <div className="grid grid-cols-7 gap-1.5">
           {dailyStreakRewards.map((r) => {
@@ -310,7 +366,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
                   reached ? "border-primary/50 bg-primary/10" : "border-border bg-background/40",
                 )}
               >
-                <span className="text-[9px] text-muted-foreground">{t("profile.streak_day", { day: r.day })}</span>
+                <span className="text-[9px] text-muted-foreground">Д{r.day}</span>
                 <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" />
                 <span className="text-[9px] font-bold">{r.coins}</span>
               </div>
@@ -323,7 +379,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
           onClick={claimStreak}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-3 text-sm font-bold text-accent-foreground active:scale-[0.98] disabled:opacity-50"
         >
-          <Gift className="size-4" /> {streakReady ? t("profile.streak_claim") : t("profile.streak_claimed")}
+          <Gift className="size-4" /> {streakReady ? "Забрать награду дня" : "Уже забрано — жди завтра"}
         </button>
       </section>
 
@@ -334,9 +390,9 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
             <Users2 className="size-5" />
           </span>
           <div>
-            <h2 className="font-display text-base font-bold">{t("profile.referral_title")}</h2>
+            <h2 className="font-display text-base font-bold">Приглашай друзей</h2>
             <p className="text-[11px] text-muted-foreground">
-              {t("profile.referral_reward", { coins: referralReward.coins, stars: referralReward.stars })}
+              +{referralReward.coins} монет и +{referralReward.stars} ⭐ за каждого друга
             </p>
           </div>
         </div>
@@ -344,26 +400,26 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
         <div className="mt-3 grid grid-cols-2 gap-2">
           <div className="rounded-2xl border border-border bg-background/40 p-3 text-center">
             <p className="font-display text-xl font-bold leading-none">{invitedCount}</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("profile.referral_invited")}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">приглашено</p>
           </div>
           <div className="rounded-2xl border border-border bg-background/40 p-3 text-center">
             <p className="flex items-center justify-center gap-1 font-display text-xl font-bold leading-none">
               <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {referralEarned}
             </p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("profile.referral_earned")}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">заработано</p>
           </div>
         </div>
 
         <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-background/40 px-3 py-2.5">
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-            t.me/…?start={referralCode}
+            {referralBotUrl}?start={referralCode}
           </span>
           <button
             type="button"
             onClick={copyRef}
             className="flex shrink-0 items-center gap-1 rounded-xl bg-accent px-2.5 py-1.5 text-xs font-bold text-accent-foreground active:scale-95"
           >
-            <Copy className="size-3.5" /> {t("profile.referral_copy")}
+            <Copy className="size-3.5" /> Копировать
           </button>
         </div>
 
@@ -371,11 +427,11 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
           type="button"
           onClick={() => {
             simulateInvite()
-            onToast(t("profile.referral_shared"))
+            onToast("Приглашение открыто — поделись с друзьями")
           }}
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-accent/40 bg-accent/10 py-2.5 text-xs font-semibold text-accent active:scale-95"
         >
-          <Share2 className="size-3.5" /> {t("profile.referral_share")}
+          <Share2 className="size-3.5" /> Поделиться в Telegram
         </button>
       </section>
 
@@ -385,9 +441,9 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
           <div className="flex items-center gap-3">
             <img src="/premium-reveal.png" alt="" className="size-16 shrink-0 object-contain" />
             <div className="min-w-0">
-              <p className="font-display text-base font-bold">{t("profile.premium_title")}</p>
+              <p className="font-display text-base font-bold">Nexus Premium</p>
               <p className="text-xs text-muted-foreground text-pretty">
-                {t("profile.premium_desc")}
+                Открой золотой кейс за 150 ⭐ — анимированные рамки и украшения анкеты.
               </p>
             </div>
           </div>
@@ -396,155 +452,105 @@ export function ProfileTab({ onGo, onToast }: { onGo: (t: TabId) => void; onToas
             onClick={() => onGo("cases")}
             className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-stars py-3 font-display text-base font-bold text-background active:scale-[0.98]"
           >
-            <Crown className="size-5" /> {t("profile.premium_cta")}
+            <Crown className="size-5" /> Получить премиум
           </button>
         </section>
       )}
 
-      {/* Discord integration */}
-      <section className="overflow-hidden rounded-3xl border border-border bg-card p-4">
-        <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-xl bg-indigo-500/15 text-indigo-400">
-            <svg viewBox="0 0 24 24" fill="currentColor" className="size-5"><path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
-          </span>
-          <div>
-            <h2 className="font-display text-base font-bold">{t("profile.discord_title")}</h2>
-            <p className="text-[11px] text-muted-foreground">
-              {discordLoading ? t("profile.discord_loading") : discord?.connected ? t("profile.discord_connected") : t("profile.discord_disconnected")}
-            </p>
-          </div>
-        </div>
-
-        {!discordLoading && !discord?.connected && (
-          <button
-            type="button"
-            onClick={connectDiscord}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5865F2] py-2.5 text-sm font-semibold text-white active:scale-[0.98]"
-          >
-            <ExternalLink className="size-4" /> {t("profile.discord_connect")}
-          </button>
-        )}
-
-        {!discordLoading && discord?.connected && (
-          <div className="mt-3 space-y-2">
-            <div className="flex items-center gap-2 rounded-2xl bg-secondary/50 px-3 py-2">
-              {discord.avatar && (
-                <img src={discord.avatar} alt="" className="size-8 rounded-full" />
-              )}
-              <span className="text-sm font-medium">{discord.global_name || discord.username}</span>
-            </div>
-            {discord.connections && discord.connections.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {discord.connections.map((c, i) => (
-                  <span key={i} className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                    {c.type === "steam" && "🟦 Steam"}
-                    {c.type === "xbox" && "🎮 Xbox"}
-                    {c.type === "epic" && "🟣 Epic"}
-                    {c.type === "riot" && "🔴 Riot"}
-                    {!["steam","xbox","epic","riot"].includes(c.type) && c.name}
-                  </span>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={unlinkDiscord}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-border py-2.5 text-xs font-medium text-muted-foreground active:scale-95"
-            >
-              <Trash2 className="size-3.5" /> {t("profile.discord_unlink")}
-            </button>
-          </div>
-        )}
-      </section>
-
       {/* Currency stats */}
       <section className="grid grid-cols-3 gap-3">
-        <CoinStat img="/nexus-coin.png" value={coins} label={t("profile.stat_coins")} />
-        <StarStat value={stars} label={t("profile.stat_stars")} />
-        <PointStat value={points} label={t("profile.stat_points")} />
+        <CoinStat img="/nexus-coin.png" value={coins} label="Монеты" />
+        <StarStat value={stars} label="Звёзды" />
+        <PointStat value={points} label="Баллы" />
       </section>
 
       {/* Achievements with rewards */}
       <section>
         <h2 className="mb-3 flex items-center gap-2 font-display text-lg font-bold">
-          <Award className="size-5 text-primary" /> {t("profile.achievements_title")}
+          <Award className="size-5 text-primary" /> Достижения
         </h2>
-        <div className="space-y-3">
-          {achData.map((a) => {
-            const done = a.progress >= a.minutes
-            const isClaimed = claimedAchievements.includes(a.id)
-            const pct = Math.min(100, Math.round((a.progress / a.minutes) * 100))
-            return (
-              <div key={a.id} className="rounded-2xl border border-border bg-card p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                      {t("profile.ach_game_label", { game: a.game })}
+        {achLoading ? (
+          <div className="flex justify-center py-8">
+            <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {achievements.map((a) => {
+              const done = a.progress >= a.minutes
+              const isClaimed = claimedAchievements.includes(a.id)
+              const pct = Math.min(100, Math.round((a.progress / a.minutes) * 100))
+              return (
+                <div key={a.id} className="rounded-2xl border border-border bg-card p-4">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                        {a.game}
+                      </span>
+                      <p className="mt-1.5 font-display text-sm font-bold leading-tight text-balance">{a.title}</p>
+                      <p className="text-[11px] text-muted-foreground text-pretty">{a.desc}</p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <p className="flex items-center justify-end gap-0.5 text-xs font-bold text-primary">
+                        +{a.points} <span className="text-[10px] font-medium text-muted-foreground">балл</span>
+                      </p>
+                      <p className="flex items-center justify-end gap-1 text-xs font-bold text-foreground">
+                        <img src="/nexus-coin.png" alt="" className="size-3.5 rounded-full" /> +{a.coins}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex items-center gap-2">
+                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
+                      <div
+                        className={cn("h-full rounded-full", done ? "bg-accent" : "bg-primary")}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <span className="text-[11px] font-semibold text-muted-foreground">
+                      {a.progress}/{a.minutes} мин
                     </span>
-                    <p className="mt-1.5 font-display text-sm font-bold leading-tight text-balance">{a.title}</p>
-                    <p className="text-[11px] text-muted-foreground text-pretty">{a.desc}</p>
                   </div>
-                  <div className="shrink-0 text-right">
-                    <p className="flex items-center justify-end gap-0.5 text-xs font-bold text-primary">
-                      +{a.points} <span className="text-[10px] font-medium text-muted-foreground">балл</span>
-                    </p>
-                    <p className="flex items-center justify-end gap-1 text-xs font-bold text-foreground">
-                      <img src="/nexus-coin.png" alt="" className="size-3.5 rounded-full" /> +{a.coins}
-                    </p>
-                  </div>
-                </div>
 
-                <div className="mt-3 flex items-center gap-2">
-                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">
-                    <div
-                      className={cn("h-full rounded-full", done ? "bg-accent" : "bg-primary")}
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  <span className="text-[11px] font-semibold text-muted-foreground">
-                    {t("profile.achievement_unlock", { progress: a.progress, target: a.minutes })}
-                  </span>
+                  <button
+                    type="button"
+                    disabled={!done || isClaimed}
+                    onClick={() => claim(a.id, a.points, a.coins)}
+                    className={cn(
+                      "mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition-all active:scale-95 disabled:opacity-50",
+                      isClaimed
+                        ? "bg-secondary text-muted-foreground"
+                        : done
+                          ? "bg-accent text-accent-foreground"
+                          : "bg-secondary text-muted-foreground",
+                    )}
+                  >
+                    {isClaimed ? (
+                      <>
+                        <Check className="size-3.5" /> Награда получена
+                      </>
+                    ) : done ? (
+                      <>
+                        <Trophy className="size-3.5" /> Забрать награду
+                      </>
+                    ) : (
+                      "В процессе…"
+                    )}
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  disabled={!done || isClaimed}
-                  onClick={() => claim(a.id, a.points, a.coins)}
-                  className={cn(
-                    "mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl py-2 text-xs font-bold transition-all active:scale-95 disabled:opacity-50",
-                    isClaimed
-                      ? "bg-secondary text-muted-foreground"
-                      : done
-                        ? "bg-accent text-accent-foreground"
-                        : "bg-secondary text-muted-foreground",
-                  )}
-                >
-                  {isClaimed ? (
-                    <>
-                      <Check className="size-3.5" /> {t("profile.achievement_claimed")}
-                    </>
-                  ) : done ? (
-                    <>
-                      <Trophy className="size-3.5" /> {t("profile.achievement_claim")}
-                    </>
-                  ) : (
-                    t("profile.achievement_progress")
-                  )}
-                </button>
-              </div>
-            )
-          })}
-        </div>
+              )
+            })}
+          </div>
+        )}
       </section>
 
       {/* Actions */}
       <section className="overflow-hidden rounded-3xl border border-border bg-card">
-        <Row icon={Crosshair} label={t("profile.row_games")} onClick={() => onToast(t("profile.row_games_soon"))} />
-        <Row icon={Share2} label={t("profile.row_share")} onClick={() => onToast(t("profile.row_share_soon"))} />
-        <Row icon={Settings} label={t("profile.row_settings")} onClick={() => onToast(t("profile.row_settings_soon"))} last />
+        <Row icon={Crosshair} label="Мои игры и роли" />
+        <Row icon={Share2} label="Поделиться профилем" />
+        <Row icon={Settings} label="Настройки" last />
       </section>
 
-      <p className="pb-2 text-center text-xs text-muted-foreground">{t("profile.footer")}</p>
+      <p className="pb-2 text-center text-xs text-muted-foreground">NEXUS · Telegram Mini App · v1.1</p>
     </div>
   )
 }
@@ -579,11 +585,10 @@ function PointStat({ value, label }: { value: number; label: string }) {
   )
 }
 
-function Row({ icon: Icon, label, onClick, last }: { icon: typeof Trophy; label: string; onClick?: () => void; last?: boolean }) {
+function Row({ icon: Icon, label, last }: { icon: typeof Trophy; label: string; last?: boolean }) {
   return (
     <button
       type="button"
-      onClick={onClick}
       className={`flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-secondary ${
         last ? "" : "border-b border-border"
       }`}
