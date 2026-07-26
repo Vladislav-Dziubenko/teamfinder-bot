@@ -37,7 +37,7 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
         return None
 
     try:
-        parsed = dict(parse_qsl(init_data, strict_parsing=True))
+        parsed = dict(parse_qsl(init_data))
     except ValueError:
         return None
 
@@ -45,13 +45,13 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
     if not received_hash:
         return None
 
-    # Проверка времени авторизации
-    auth_date_str = parsed.get("auth_date")
+    # auth_date тоже не входит в data_check_string
+    auth_date_str = parsed.pop("auth_date", None)
     if not auth_date_str:
         return None
     try:
         auth_date = int(auth_date_str)
-    except ValueError:
+    except (ValueError, TypeError):
         return None
 
     if max_age_seconds is None:
