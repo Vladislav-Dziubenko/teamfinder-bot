@@ -297,6 +297,8 @@ async def handle_me(request: web.Request):
         "achievements": results[6],
         "case_cooldowns": case_cooldowns,
         "premium_active": results[7],
+        "star_packs": STAR_PACKS,
+        "battlepass_tiers": BATTLE_PASS_TIERS,
     })
 
 
