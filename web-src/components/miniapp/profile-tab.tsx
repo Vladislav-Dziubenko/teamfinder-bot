@@ -21,24 +21,14 @@ import {
   Users2,
   Copy,
   Flame,
-  Disc,
-  Link2,
-  Trash2,
 } from "lucide-react"
 import { api, openLink } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { games, dailyStreakRewards } from "@/lib/data"
 import type { TabId } from "./bottom-nav"
+import { DiscordSection } from "@/components/miniapp/discord-section"
 import { cn } from "@/lib/utils"
-
-type DiscordStatus = {
-  connected: boolean
-  username?: string
-  avatar?: string
-  global_name?: string
-  connections?: Array<{ id: string; type: string; name: string }>
-}
 
 type AchievementItem = {
   id: string
@@ -93,15 +83,8 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
   const [editing, setEditing] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
-  const [discord, setDiscord] = useState<DiscordStatus | null>(null)
-  const [discordLoading, setDiscordLoading] = useState(true)
-
   const [achievements, setAchievements] = useState<AchievementItem[]>([])
   const [achLoading, setAchLoading] = useState(true)
-
-  useEffect(() => {
-    api.get("/api/discord/status").then(setDiscord).catch(() => setDiscord(null)).finally(() => setDiscordLoading(false))
-  }, [])
 
   useEffect(() => {
     api.get("/api/achievements/list").then((data) => setAchievements(data?.achievements ?? data ?? [])).catch(() => setAchievements([])).finally(() => setAchLoading(false))
@@ -284,70 +267,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
       </section>
 
       {/* Discord connection */}
-      <section className="rounded-3xl border border-border bg-card p-4">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 font-display text-base font-bold">
-            <Disc className="size-4 text-[#5865F2]" /> {t("profile.discord_title")}
-          </h2>
-          {discordLoading && <span className="size-4 animate-spin rounded-full border-2 border-primary border-t-transparent" />}
-        </div>
-
-        {discord?.connected ? (
-          <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              {discord.avatar && (
-                <img src={discord.avatar} alt="" className="size-10 rounded-full" />
-              )}
-              <div className="min-w-0">
-                <p className="font-display text-sm font-bold truncate">{discord.global_name || discord.username}</p>
-                <p className="text-[11px] text-muted-foreground">@{discord.username}</p>
-              </div>
-            </div>
-            {discord.connections && discord.connections.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {discord.connections.map((c) => (
-                  <span key={c.id} className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
-                    {c.name || c.type}
-                  </span>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await api.post("/api/discord/unlink")
-                  const res = await api.get("/api/discord/status")
-                  setDiscord(res)
-                  onToast(t("profile.discord_unlinked"))
-                } catch {
-                  onToast(t("profile.discord_error"))
-                }
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl border border-destructive/40 bg-destructive/10 py-2.5 text-xs font-semibold text-destructive active:scale-95"
-            >
-              <Trash2 className="size-3.5" /> {t("profile.discord_unlink")}
-            </button>
-          </div>
-        ) : (
-          !discordLoading && (
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  const { url } = await api.get("/api/discord/auth")
-                  openLink(url)
-                } catch {
-                  onToast(t("profile.discord_link_error"))
-                }
-              }}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#5865F2] py-3 text-sm font-bold text-white active:scale-[0.98]"
-            >
-              <Link2 className="size-4" /> {t("profile.discord_connect")}
-            </button>
-          )
-        )}
-      </section>
+      <DiscordSection />
 
       {/* Daily streak — тренд-фишка */}
       <section className="rounded-3xl border border-border bg-card p-4">

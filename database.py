@@ -149,12 +149,21 @@ CREATE TABLE IF NOT EXISTS discord_connections (
     discord_username TEXT,
     discord_global_name TEXT,
     discord_avatar TEXT,
-    access_token TEXT NOT NULL,
-    refresh_token TEXT NOT NULL,
+    access_token TEXT,
+    refresh_token TEXT,
+    access_token_enc TEXT,
+    refresh_token_enc TEXT,
     token_expires_at TEXT,
     connected_at TEXT NOT NULL,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS oauth_states (
+    state TEXT PRIMARY KEY,
+    telegram_user_id BIGINT NOT NULL,
+    created_at TEXT NOT NULL,
+    used INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS user_battlepass (
@@ -447,6 +456,29 @@ class Database:
                 except asyncpg.PostgresError as e:
                     print(f"Migration warning while checking {table}.user_id: {e}")
 
+        # Discord OAuth: oauth_states table for PKCE/state storage
+        try:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS oauth_states (
+                    state TEXT PRIMARY KEY,
+                    telegram_user_id BIGINT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    used INTEGER NOT NULL DEFAULT 0
+                )
+            """)
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning for oauth_states table: {e}")
+
+        # Discord: add encrypted token columns to existing table
+        for col, col_type in [
+            ("access_token_enc", "TEXT"),
+            ("refresh_token_enc", "TEXT"),
+        ]:
+            try:
+                await conn.execute(f"ALTER TABLE discord_connections ADD COLUMN IF NOT EXISTS {col} {col_type}")
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning for discord_connections.{col}: {e}")
+
         # Data migration: older promo_codes tables used column name `reward` instead of `reward_json`
         if await self._column_exists(conn, "promo_codes", "reward") and await self._column_exists(conn, "promo_codes", "reward_json"):
             try:
@@ -705,22 +737,24 @@ class Database:
         import importlib
         crypto = importlib.import_module("webapp.crypto")
         now = datetime.utcnow().isoformat()
-        access_enc = crypto.encrypt_token(data["access_token"], self._bot_token) if self._bot_token else data["access_token"]
-        refresh_enc = crypto.encrypt_token(data["refresh_token"], self._bot_token) if self._bot_token else data["refresh_token"]
+        access_enc = crypto.encrypt_token(data["access_token"], self._bot_token) if self._bot_token else ""
+        refresh_enc = crypto.encrypt_token(data["refresh_token"], self._bot_token) if self._bot_token else ""
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
                 INSERT INTO discord_connections (user_id, discord_id, discord_username, discord_global_name,
-                    discord_avatar, access_token, refresh_token, token_expires_at, connected_at, updated_at)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                    discord_avatar, access_token, refresh_token, access_token_enc, refresh_token_enc, token_expires_at, connected_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 ON CONFLICT (user_id) DO UPDATE SET
                     discord_id=EXCLUDED.discord_id, discord_username=EXCLUDED.discord_username,
                     discord_global_name=EXCLUDED.discord_global_name, discord_avatar=EXCLUDED.discord_avatar,
                     access_token=EXCLUDED.access_token, refresh_token=EXCLUDED.refresh_token,
+                    access_token_enc=EXCLUDED.access_token_enc, refresh_token_enc=EXCLUDED.refresh_token_enc,
                     token_expires_at=EXCLUDED.token_expires_at, updated_at=EXCLUDED.updated_at
                 """,
                 user_id, data["discord_id"], data.get("discord_username"),
                 data.get("discord_global_name"), data.get("discord_avatar"),
+                "", "",  # plain columns left empty
                 access_enc, refresh_enc,
                 data.get("token_expires_at"), now, now,
             )
@@ -735,8 +769,12 @@ class Database:
                 import importlib
                 crypto = importlib.import_module("webapp.crypto")
                 try:
-                    data["access_token"] = crypto.decrypt_token(data["access_token"], self._bot_token)
-                    data["refresh_token"] = crypto.decrypt_token(data["refresh_token"], self._bot_token)
+                    at = data.get("access_token_enc")
+                    rt = data.get("refresh_token_enc")
+                    if at:
+                        data["access_token"] = crypto.decrypt_token(at, self._bot_token)
+                    if rt:
+                        data["refresh_token"] = crypto.decrypt_token(rt, self._bot_token)
                 except Exception:
                     pass
             return data
@@ -749,6 +787,28 @@ class Database:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow("SELECT user_id FROM discord_connections WHERE discord_id = $1", str(discord_id))
             return row["user_id"] if row else None
+
+    async def create_oauth_state(self, state: str, telegram_user_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            now = datetime.utcnow().isoformat()
+            await conn.execute(
+                "INSERT INTO oauth_states (state, telegram_user_id, created_at, used) VALUES ($1, $2, $3, 0) ON CONFLICT (state) DO NOTHING",
+                state, telegram_user_id, datetime.utcnow().isoformat(),
+            )
+
+    async def get_oauth_state(self, state: str) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM oauth_states WHERE state = $1", state)
+            return dict(row) if row else None
+
+    async def mark_oauth_state_used(self, state: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute("UPDATE oauth_states SET used = 1 WHERE state = $1", state)
+
+    async def cleanup_oauth_states(self) -> None:
+        async with self.pool.acquire() as conn:
+            cutoff = (datetime.utcnow() - timedelta(minutes=15)).isoformat()
+            await conn.execute("DELETE FROM oauth_states WHERE created_at < $1", cutoff)
 
     async def create_team(self, captain_id: int, game: str, name: str, description: str, max_players: int) -> int:
         async with self.pool.acquire() as conn:

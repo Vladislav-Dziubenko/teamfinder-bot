@@ -1294,9 +1294,36 @@ async def handle_discord_auth(request: web.Request):
     if not user:
         return web.json_response({"error": "unauthorized"}, status=401)
 
-    state = _make_state(settings.bot_token, user["id"])
-    url = build_auth_url(settings.discord_client_id, settings.discord_redirect_uri, state)
-    return web.json_response({"url": url})
+    # Generate state token and store in oauth_states table with TTL 10 min
+    import secrets
+    state = secrets.token_urlsafe(32)
+    telegram_user_id = user["id"]
+    created_at = datetime.utcnow().isoformat()
+    try:
+        await db.pool.execute(
+            """
+            INSERT INTO oauth_states (state, telegram_user_id, created_at, used)
+            VALUES ($1, $2, $3, 0)
+            """,
+            state, telegram_user_id, created_at,
+        )
+    except Exception as e:
+        logging.error(f"[discord.auth] Failed to store state: {e}")
+        return web.json_response({"error": "internal server error"}, status=500)
+
+    # Build Discord OAuth URL
+    params = {
+        "client_id": settings.discord_client_id,
+        "redirect_uri": settings.discord_redirect_uri,
+        "response_type": "code",
+        "scope": "identify",
+        "state": state,
+        "prompt": "consent",
+    }
+    from urllib.parse import urlencode
+    url = f"https://discord.com/api/oauth2/authorize?{urlencode(params)}"
+    logging.info(f"[discord.auth] user={telegram_user_id} state={state[:16]}...")
+    return web.json_response({"url": f"https://discord.com/api/oauth2/authorize?{urlencode(params)}"})
 
 
 async def handle_discord_callback(request: web.Request):
@@ -1306,31 +1333,64 @@ async def handle_discord_callback(request: web.Request):
     state = request.query.get("state")
     error = request.query.get("error")
 
+    logging.info(f"[discord.callback] hit state_present={bool(state)} code_present={bool(code)}")
+
     if error or not code or not state:
-        redirect_url = settings.webapp_url
+        redirect_url = settings.webapp_url or settings.public_app_url
         if redirect_url:
-            raise web.HTTPFound(redirect_url)
+            reason = error or "missing_params"
+            raise web.HTTPFound(f"{redirect_url}?discord=error&reason={reason}")
         return web.json_response({"error": "oauth failed"}, status=400)
 
-    user_id = _verify_state(settings.bot_token, state)
-    if user_id is None:
-        redirect_url = settings.webapp_url
+    # Lookup state in oauth_states table
+    row = await db.pool.fetchrow(
+        "SELECT telegram_user_id, used, created_at FROM oauth_states WHERE state = $1",
+        state,
+    )
+    logging.info(f"[discord.callback] state_lookup state={state[:16]}... found_user={row['telegram_user_id'] if row else None} code_present={bool(code)}")
+
+    if not row:
+        redirect_url = settings.public_app_url or settings.webapp_url
         if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?discord=error")
+            raise web.HTTPFound(f"{redirect_url}?discord=error&reason=bad_state")
         return web.json_response({"error": "invalid state"}, status=400)
 
+    if row["used"]:
+        redirect_url = settings.public_app_url or settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?discord=error&reason=bad_state")
+        return web.json_response({"error": "state already used"}, status=400)
+
+    # Check TTL (10 minutes)
+    created_at = datetime.fromisoformat(row["created_at"])
+    if (datetime.utcnow() - created_at).total_seconds() > 600:
+        redirect_url = settings.public_app_url or settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?discord=error&reason=state_expired")
+        return web.json_response({"error": "state expired"}, status=400)
+
+    # Mark state as used
+    await db.pool.execute("UPDATE oauth_states SET used = 1 WHERE state = $1", state)
+
+    user_id = row["telegram_user_id"]
+
+    # Exchange code for token
     token_data = await exchange_code(settings.discord_client_id, settings.discord_client_secret, settings.discord_redirect_uri, code)
     if not token_data or "access_token" not in token_data:
-        redirect_url = settings.webapp_url
+        logging.error(f"[discord.callback] token_exchange status=failed body={str(token_data)[:300]}")
+        redirect_url = settings.public_app_url or settings.webapp_url
         if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?discord=error")
+            raise web.HTTPFound(f"{redirect_url}?discord=error&reason=token")
         return web.json_response({"error": "token exchange failed"}, status=400)
 
+    logging.info(f"[discord.callback] token_exchange status=200 body={str(token_data)[:300]}")
+
+    # Fetch Discord user
     discord_user = await fetch_discord_user(token_data["access_token"])
     if not discord_user:
-        redirect_url = settings.webapp_url
+        redirect_url = settings.public_app_url or settings.webapp_url
         if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?discord=error")
+            raise web.HTTPFound(f"{redirect_url}?discord=error&reason=user_fetch")
         return web.json_response({"error": "failed to fetch user"}, status=400)
 
     avatar = None
@@ -1341,6 +1401,7 @@ async def handle_discord_callback(request: web.Request):
     if token_data.get("expires_in"):
         expires_at = datetime.utcfromtimestamp(time() + token_data["expires_in"]).isoformat()
 
+    # UPSERT into discord_links (using existing discord_connections table)
     await db.save_discord_connection(user_id, {
         "discord_id": discord_user["id"],
         "discord_username": discord_user.get("username"),
@@ -1351,10 +1412,15 @@ async def handle_discord_callback(request: web.Request):
         "token_expires_at": expires_at,
     })
 
-    redirect_url = settings.webapp_url
-    if redirect_url:
-        raise web.HTTPFound(f"{redirect_url}?discord=connected")
-    return web.json_response({"ok": True})
+    logging.info(f"[discord.callback] linked telegram={user_id} discord={discord_user['id']}")
+
+    # Redirect to main fallback
+    bot_username = settings.telegram_bot_username or "TeamUpMatchBot"
+    primary_redirect = f"https://t.me/{bot_username}?start=discord_ok"
+    fallback_redirect = settings.public_app_url or settings.webapp_url
+    if fallback_redirect:
+        raise web.HTTPFound(f"{fallback_redirect}?discord=ok")
+    raise web.HTTPFound(primary_redirect)
 
 
 async def handle_discord_status(request: web.Request):
@@ -1365,7 +1431,7 @@ async def handle_discord_status(request: web.Request):
 
     conn = await db.get_discord_connection(user["id"])
     if not conn:
-        return web.json_response({"connected": False})
+        return web.json_response({"linked": False})
 
     connections = []
     try:
@@ -1374,16 +1440,12 @@ async def handle_discord_status(request: web.Request):
         logging.warning(f"Failed to fetch Discord connections: {e}")
 
     return web.json_response({
-        "connected": True,
+        "linked": True,
         "discord_id": conn["discord_id"],
         "username": conn["discord_username"],
         "global_name": conn["discord_global_name"],
-        "avatar": conn["discord_avatar"],
-        "connected_at": conn["connected_at"],
-        "connections": [
-            {"type": c["type"], "name": c.get("name", ""), "verified": c.get("verified", False)}
-            for c in connections if c.get("visibility", 0) != 0
-        ],
+        "avatar_url": conn["discord_avatar"],
+        "linked_at": conn["connected_at"],
     })
 
 
