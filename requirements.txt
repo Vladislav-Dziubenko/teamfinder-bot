@@ -2,3 +2,4 @@ aiogram>=3.22.0
 asyncpg==0.30.0
 python-dotenv>=1.2.2
 aiohttp>=3.13.4
+cryptography>=42.0.0

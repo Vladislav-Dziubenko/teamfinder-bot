@@ -27,7 +27,7 @@ logging.basicConfig(
 async def main():
     try:
         settings = load_settings()
-        db = Database(settings.database_url)
+        db = Database(settings.database_url, bot_token=settings.bot_token)
         await db.connect()
 
         bot = Bot(

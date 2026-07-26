@@ -268,8 +268,9 @@ SCHEMA_STATEMENTS = [
 
 
 class Database:
-    def __init__(self, database_url: str):
+    def __init__(self, database_url: str, bot_token: str = ""):
         self.database_url = database_url
+        self._bot_token = bot_token
         self._pool: asyncpg.Pool | None = None
 
     async def connect(self) -> None:
@@ -701,7 +702,11 @@ class Database:
             return row is not None
 
     async def save_discord_connection(self, user_id: int, data: dict) -> None:
+        import importlib
+        crypto = importlib.import_module("webapp.crypto")
         now = datetime.utcnow().isoformat()
+        access_enc = crypto.encrypt_token(data["access_token"], self._bot_token) if self._bot_token else data["access_token"]
+        refresh_enc = crypto.encrypt_token(data["refresh_token"], self._bot_token) if self._bot_token else data["refresh_token"]
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
@@ -716,14 +721,25 @@ class Database:
                 """,
                 user_id, data["discord_id"], data.get("discord_username"),
                 data.get("discord_global_name"), data.get("discord_avatar"),
-                data["access_token"], data["refresh_token"],
+                access_enc, refresh_enc,
                 data.get("token_expires_at"), now, now,
             )
 
     async def get_discord_connection(self, user_id: int) -> dict | None:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM discord_connections WHERE user_id = $1", user_id)
-            return dict(row) if row else None
+            if not row:
+                return None
+            data = dict(row)
+            if self._bot_token:
+                import importlib
+                crypto = importlib.import_module("webapp.crypto")
+                try:
+                    data["access_token"] = crypto.decrypt_token(data["access_token"], self._bot_token)
+                    data["refresh_token"] = crypto.decrypt_token(data["refresh_token"], self._bot_token)
+                except Exception:
+                    pass
+            return data
 
     async def remove_discord_connection(self, user_id: int) -> None:
         async with self.pool.acquire() as conn:
