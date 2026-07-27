@@ -172,7 +172,7 @@ async def cache_static_middleware(request: web.Request, handler):
     if not request.path.startswith("/api/") and request.path != "/health":
         if not response.headers.get("Cache-Control"):
             if request.path == "/" or request.path == "/index.html":
-                response.headers["Cache-Control"] = "no-cache, must-revalidate"
+                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             elif request.path.startswith("/_next/static/"):
                 response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
             else:
