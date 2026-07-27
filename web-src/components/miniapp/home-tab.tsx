@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n"
 import { useMe } from "@/lib/store"
 import type { TabId } from "./bottom-nav"
 import type { Player } from "@/lib/data"
+import { DiscordSection } from "@/components/miniapp/discord-section"
 
 type Quest = {
   title: string
@@ -36,11 +37,11 @@ export function HomeTab({
       try {
         const [questData, countData] = await Promise.all([
           api.get("/api/nexus/quests"),
-          api.get("/api/search/count"),
+          api.get("/api/online"),
         ])
         if (!cancelled) {
           setQuests(questData.quests ?? [])
-          setSearchCount(countData.count ?? 0)
+          setSearchCount(countData.online ?? 0)
         }
       } catch (e: any) {
         if (!cancelled) setError(e.message || t("common.error"))
@@ -49,9 +50,7 @@ export function HomeTab({
       }
     }
     load()
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [])
 
   const daily = quests[0]
@@ -66,7 +65,6 @@ export function HomeTab({
 
   return (
     <div className="space-y-6 px-4 py-5">
-      {/* Hero */}
       <section className="animate-rise relative overflow-hidden rounded-3xl border border-border">
         <img src="/hero-arena.png" alt="" className="h-52 w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/10" />
@@ -90,20 +88,19 @@ export function HomeTab({
         </div>
       </section>
 
-      {/* Quick stats */}
       <section className="grid grid-cols-2 gap-3">
         <MiniStat icon={Trophy} value={wins ?? "—"} label={t("stats.wins")} tint="var(--primary)" />
         <MiniStat icon={Flame} value={level ? `LVL ${level}` : "—"} label={t("common.level")} tint="var(--stars)" />
       </section>
 
-      {/* Quick access */}
       <section className="grid grid-cols-3 gap-3">
         <QuickLink icon={Trophy} label={t("home.stat_battlepass")} tint="var(--stars)" onClick={() => onGo("battlepass")} />
         <QuickLink icon={Ticket} label={t("home.quick_promo")} tint="var(--primary)" onClick={() => onGo("promo")} />
         <QuickLink icon={BookOpen} label={t("home.quick_guides")} tint="var(--accent)" onClick={() => onGo("guides")} />
       </section>
 
-      {/* Daily quest */}
+      <DiscordSection />
+
       {loading ? (
         <section className="flex items-center justify-center rounded-3xl border border-border p-10">
           <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
@@ -122,9 +119,7 @@ export function HomeTab({
                   style={{ width: `${Math.min(100, (daily.progress / daily.target) * 100)}%` }}
                 />
               </div>
-              <span className="text-xs font-semibold text-primary">
-                {daily.progress}/{daily.target}
-              </span>
+              <span className="text-xs font-semibold text-primary">{daily.progress}/{daily.target}</span>
             </div>
           </div>
         </section>
@@ -133,27 +128,10 @@ export function HomeTab({
   )
 }
 
-function QuickLink({
-  icon: Icon,
-  label,
-  tint,
-  onClick,
-}: {
-  icon: typeof Trophy
-  label: string
-  tint: string
-  onClick: () => void
-}) {
+function QuickLink({ icon: Icon, label, tint, onClick }: { icon: typeof Trophy; label: string; tint: string; onClick: () => void }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-card p-3 text-center active:scale-95"
-    >
-      <span
-        className="grid size-9 place-items-center rounded-xl"
-        style={{ background: `color-mix(in oklch, ${tint} 15%, transparent)` }}
-      >
+    <button type="button" onClick={onClick} className="flex flex-col items-center gap-1.5 rounded-2xl border border-border bg-card p-3 text-center active:scale-95">
+      <span className="grid size-9 place-items-center rounded-xl" style={{ background: `color-mix(in oklch, ${tint} 15%, transparent)` }}>
         <Icon className="size-5" style={{ color: tint }} />
       </span>
       <span className="text-[11px] font-semibold">{label}</span>
@@ -161,17 +139,7 @@ function QuickLink({
   )
 }
 
-function MiniStat({
-  icon: Icon,
-  value,
-  label,
-  tint,
-}: {
-  icon: typeof Trophy
-  value: string | number
-  label: string
-  tint: string
-}) {
+function MiniStat({ icon: Icon, value, label, tint }: { icon: typeof Trophy; value: string | number; label: string; tint: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-3 text-center">
       <Icon className="mx-auto size-5" style={{ color: tint }} />
