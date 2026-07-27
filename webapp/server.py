@@ -140,6 +140,22 @@ def _get_user(request: web.Request) -> dict | None:
     return request.get("init_data", {}).get("user")
 
 
+_SENTINEL = object()
+
+@web.middleware
+async def timing_middleware(request: web.Request, handler):
+    start = time()
+    response = _SENTINEL
+    try:
+        response = await handler(request)
+        return response
+    finally:
+        elapsed = time() - start
+        status = response.status if response is not _SENTINEL else 0
+        level = logging.WARNING if elapsed > 1.0 else logging.INFO
+        logging.log(level, "[TIMING] %s %s → %d (%.3fs)", request.method, request.path, status, elapsed)
+
+
 @web.middleware
 async def cors_middleware(request: web.Request, handler):
     if request.method == "OPTIONS":
@@ -1492,7 +1508,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # 3. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
     # Если поменять порядок — rate limiter получит init_data=None и вернёт 500.
     # Порядок: cors → cache → error → auth → rate_limit
-    app = web.Application(middlewares=[cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, web_rate_limit_middleware])
+    app = web.Application(middlewares=[timing_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, web_rate_limit_middleware])
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot

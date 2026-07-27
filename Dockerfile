@@ -21,4 +21,7 @@ COPY . .
 # Replace the old static folder with the freshly built Mini App
 COPY --from=frontend /app/web-src/out /app/webapp/static
 
+HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:${PORT:-8080}/health')" || exit 1
+
 CMD ["python", "main.py"]
