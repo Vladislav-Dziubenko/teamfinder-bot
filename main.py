@@ -33,10 +33,11 @@ logging.info("INIT PORT_ENV=%s  WEBAPP_PORT_ENV=%s  RENDER_EXTERNAL_URL=%s",
 async def main():
     try:
         settings = load_settings()
-        db = Database(settings.database_url, bot_token=settings.bot_token)
-        await db.connect()
-        logging.info("TIMING db.connect() done  +%.2fs", time.monotonic() - _PROCESS_START)
 
+        # ---- Шаг 1: создаём db-объект (пул НЕ подключён) ----
+        db = Database(settings.database_url, bot_token=settings.bot_token)
+
+        # ---- Шаг 2: Telegram bot setup (быстро, без БД) ----
         bot = Bot(
             token=settings.bot_token,
             default=DefaultBotProperties(parse_mode=ParseMode.HTML),
@@ -54,22 +55,32 @@ async def main():
         dp.include_router(admin.router)
         dp.include_router(discord.router)
 
+        # ---- Шаг 3: создаём приложение, регистрируем роуты ----
+        web_app = create_app(db, settings, bot)
+        web_app["db_ready"] = False
+
+        # ---- Шаг 4: открываем порт МГНОВЕННО (без БД) ----
         port = int(os.getenv("PORT", settings.webapp_port))
         logging.info("PORT=%s  WEBAPP_PORT=%s → resolved port=%d", os.getenv("PORT"), settings.webapp_port, port)
-        web_app = create_app(db, settings, bot)
-
         runner = web.AppRunner(web_app)
         await runner.setup()
         site = web.TCPSite(runner, settings.webapp_host, port)
         await site.start()
         logging.info("TIMING site.start() done  +%.2fs  port=%d", time.monotonic() - _PROCESS_START, port)
         logging.info(f"WebApp сервер запущен на http://{settings.webapp_host}:{port}")
-        if settings.webapp_url:
-            logging.info(f"Mini App URL: {settings.webapp_url}")
-        else:
-            logging.warning("WEBAPP_URL не задан — кнопка Mini App в /start не появится")
 
-        # Graceful shutdown
+        # ---- Шаг 5: инициализация БД в фоне (не блокирует порт) ----
+        async def _init_db():
+            try:
+                await db.connect()
+                web_app["db_ready"] = True
+                logging.info("TIMING db.connect() done  +%.2fs", time.monotonic() - _PROCESS_START)
+            except Exception as e:
+                logging.exception("DB init failed: %s", e)
+
+        asyncio.create_task(_init_db())
+
+        # ---- Graceful shutdown ----
         shutdown_event = asyncio.Event()
         polling_task: asyncio.Task | None = None
 

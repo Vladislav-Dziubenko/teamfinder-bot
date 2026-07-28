@@ -142,6 +142,8 @@ def _get_user(request: web.Request) -> dict | None:
 
 _SENTINEL = object()
 
+_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches")
+
 @web.middleware
 async def timing_middleware(request: web.Request, handler):
     start = time()
@@ -154,6 +156,15 @@ async def timing_middleware(request: web.Request, handler):
         status = response.status if response is not _SENTINEL else 0
         level = logging.WARNING if elapsed > 1.0 else logging.INFO
         logging.log(level, "[TIMING] %s %s → %d (%.3fs)", request.method, request.path, status, elapsed)
+
+
+@web.middleware
+async def db_ready_middleware(request: web.Request, handler):
+    if request.path.startswith("/api/"):
+        if not request.app.get("db_ready", False):
+            if not any(request.path.startswith(p) for p in _DB_FREE_PREFIXES):
+                return web.json_response({"error": "service warming up"}, status=503)
+    return await handler(request)
 
 
 @web.middleware
@@ -1508,7 +1519,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # 3. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
     # Если поменять порядок — rate limiter получит init_data=None и вернёт 500.
     # Порядок: cors → cache → error → auth → rate_limit
-    app = web.Application(middlewares=[timing_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, web_rate_limit_middleware])
+    app = web.Application(middlewares=[timing_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, web_rate_limit_middleware])
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot
