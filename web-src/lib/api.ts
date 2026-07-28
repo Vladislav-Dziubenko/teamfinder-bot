@@ -39,7 +39,9 @@ async function request(method: string, path: string, body?: unknown) {
   const data = await res.json().catch(() => ({}))
 
   if (!res.ok) {
-    throw new Error(data.error || `HTTP ${res.status}`)
+    const err = new Error(data.error || `HTTP ${res.status}`) as any
+    err.status = res.status
+    throw err
   }
 
   return data

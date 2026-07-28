@@ -362,15 +362,19 @@ export function NexusProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    async function load() {
+    async function load(attempt = 0) {
       try {
         const me = (await api.get("/api/me")) as MeResponse
         if (!cancelled) {
           setS(mapMeToState(me))
+          setReady(true)
         }
-      } catch (e) {
+      } catch (e: any) {
+        if (e?.status === 503 && attempt < 10) {
+          await new Promise((r) => setTimeout(r, 1000 + attempt * 500))
+          if (!cancelled) return load(attempt + 1)
+        }
         console.error("Failed to load Nexus state", e)
-      } finally {
         if (!cancelled) setReady(true)
       }
     }
