@@ -4,11 +4,6 @@ import { useState, useEffect, useRef } from "react"
 import {
   Star,
   Trophy,
-  Crosshair,
-  Settings,
-  Share2,
-  Gamepad2,
-  ChevronRight,
   Crown,
   Camera,
   Pencil,
@@ -21,6 +16,10 @@ import {
   Users2,
   Copy,
   Flame,
+  Globe,
+  ChevronRight,
+  Gamepad2,
+  Share2,
 } from "lucide-react"
 import { api, openLink } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
@@ -29,6 +28,7 @@ import { games, dailyStreakRewards } from "@/lib/data"
 import type { TabId } from "./bottom-nav"
 import { DiscordSection } from "@/components/miniapp/discord-section"
 import { cn } from "@/lib/utils"
+import { LanguageSelector } from "./language-selector"
 
 type AchievementItem = {
   id: string
@@ -81,6 +81,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
   } = useNexus()
 
   const [editing, setEditing] = useState(false)
+  const [showLang, setShowLang] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [achievements, setAchievements] = useState<AchievementItem[]>([])
@@ -465,12 +466,21 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
         )}
       </section>
 
-      {/* Actions */}
-      <section className="overflow-hidden rounded-3xl border border-border bg-card">
-        <Row icon={Crosshair} label="Мои игры и роли" />
-        <Row icon={Share2} label="Поделиться профилем" />
-        <Row icon={Settings} label="Настройки" last />
-      </section>
+      {/* Language */}
+      <button
+        type="button"
+        onClick={() => setShowLang(true)}
+        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 text-left active:bg-secondary"
+      >
+        <Globe className="size-5 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{t("lang.title")}</p>
+          <p className="text-xs text-muted-foreground">{t("lang.subtitle")}</p>
+        </div>
+        <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+      </button>
+
+      {showLang && <LanguageSelector onClose={() => setShowLang(false)} />}
 
       <p className="pb-2 text-center text-xs text-muted-foreground">NEXUS · Telegram Mini App · v1.1</p>
     </div>
@@ -507,17 +517,4 @@ function PointStat({ value, label }: { value: number; label: string }) {
   )
 }
 
-function Row({ icon: Icon, label, last }: { icon: typeof Trophy; label: string; last?: boolean }) {
-  return (
-    <button
-      type="button"
-      className={`flex w-full items-center gap-3 px-4 py-3.5 text-left active:bg-secondary ${
-        last ? "" : "border-b border-border"
-      }`}
-    >
-      <Icon className="size-5 text-muted-foreground" />
-      <span className="flex-1 text-sm font-medium">{label}</span>
-      <ChevronRight className="size-4 text-muted-foreground" />
-    </button>
-  )
-}
+

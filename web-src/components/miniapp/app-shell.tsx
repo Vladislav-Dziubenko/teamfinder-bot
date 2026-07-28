@@ -17,6 +17,7 @@ import { PromoTab } from "./promo-tab"
 import { StatsTab } from "./stats-tab"
 import { ChatTab } from "./chat-tab"
 import { PredictionsTab } from "./predictions-tab"
+import { FriendsTab } from "./friends-tab"
 import { ContactSheet } from "./contact-sheet"
 import { openChatWithPlayer } from "@/lib/chat"
 import type { Player, Team } from "@/lib/data"
@@ -68,6 +69,7 @@ function Shell() {
         {tab === "guides" && <GuidesTab />}
         {tab === "donate" && <DonateTab />}
         {tab === "profile" && <ProfileTab onGo={goTab} onToast={setToast} />}
+        {tab === "friends" && <FriendsTab onChat={openChat} />}
       </main>
 
       <BottomNav active={tab} onChange={goTab} />

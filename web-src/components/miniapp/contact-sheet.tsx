@@ -1,10 +1,11 @@
 "use client"
 
 import { useState } from "react"
-import { X, Send, MessageCircle, UserPlus, Check } from "lucide-react"
+import { X, Send, MessageCircle, UserPlus, UserCheck, Check, Loader2 } from "lucide-react"
 import type { Player } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
+import { api } from "@/lib/api"
 
 export function ContactSheet({
   player,
@@ -17,6 +18,18 @@ export function ContactSheet({
   const [invited, setInvited] = useState(false)
   const [message, setMessage] = useState("")
   const [sent, setSent] = useState(false)
+  const [friendLoading, setFriendLoading] = useState(false)
+  const [friendSent, setFriendSent] = useState(false)
+
+  async function addFriend() {
+    setFriendLoading(true)
+    try {
+      const res = await api.post("/api/friends/add/" + player!.id)
+      if (res.error === "cannot add yourself") return
+      setFriendSent(true)
+    } catch {}
+    setFriendLoading(false)
+  }
 
   if (!player) return null
 
@@ -110,6 +123,31 @@ export function ContactSheet({
             <p className="mt-2 text-xs text-accent animate-rise">{t("contact_sheet.chat_opened")}</p>
           )}
         </div>
+
+        {/* Add friend */}
+        <button
+          type="button"
+          onClick={addFriend}
+          disabled={friendSent || friendLoading}
+          className={cn(
+            "mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold transition-all active:scale-[0.98]",
+            friendSent
+              ? "bg-accent/15 text-accent"
+              : "bg-primary text-primary-foreground shadow-[0_0_20px_-4px_var(--primary)]",
+          )}
+        >
+          {friendLoading ? (
+            <Loader2 className="size-4 animate-spin" />
+          ) : friendSent ? (
+            <>
+              <UserCheck className="size-4" /> {t("common.done")}
+            </>
+          ) : (
+            <>
+              <UserPlus className="size-4" /> {t("contact_sheet.add_friend")}
+            </>
+          )}
+        </button>
 
         {/* Invite to team */}
         <button

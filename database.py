@@ -267,6 +267,18 @@ CREATE TABLE IF NOT EXISTS user_stats (
     updated_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
+
+CREATE TABLE IF NOT EXISTS user_friends (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    friend_id BIGINT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE (user_id, friend_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id),
+    FOREIGN KEY (friend_id) REFERENCES users(user_id)
+);
 """
 
 SCHEMA_STATEMENTS = [
@@ -427,6 +439,8 @@ class Database:
             ("user_achievements", "achievement_id", "TEXT NOT NULL DEFAULT ''"),
             ("user_achievements", "claimed", "INTEGER NOT NULL DEFAULT 0"),
             ("user_achievements", "claimed_at", "TEXT"),
+
+            ("users", "last_active_at", "TEXT"),
         ]
 
         for table, column, col_type in column_migrations:
@@ -576,10 +590,11 @@ class Database:
                 print(f"Index creation warning: {e}")
 
     async def ensure_user(self, user_id: int, username: str | None, first_name: str | None) -> None:
+        now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
             await conn.execute(
-                "INSERT INTO users (user_id, username, first_name, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO NOTHING",
-                user_id, username or "", first_name or "", datetime.utcnow().isoformat(),
+                "INSERT INTO users (user_id, username, first_name, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET last_active_at = $4",
+                user_id, username or "", first_name or "", now,
             )
 
     async def get_user_language(self, user_id: int) -> str:
@@ -1615,6 +1630,88 @@ class Database:
                         "unread": unread or 0,
                     })
             return sorted(results, key=lambda x: x["last_ts"], reverse=True)
+
+    # ---------- Friends ----------
+
+    async def send_friend_request(self, user_id: int, friend_id: int) -> dict:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """INSERT INTO user_friends (user_id, friend_id, status, created_at, updated_at)
+                   VALUES ($1, $2, 'pending', $3, $3)
+                   ON CONFLICT (user_id, friend_id) DO UPDATE SET status = 'pending', updated_at = $3
+                   RETURNING id""",
+                user_id, friend_id, now,
+            )
+            return {"ok": True, "id": row["id"]}
+
+    async def accept_friend_request(self, user_id: int, friend_id: int) -> bool:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                "UPDATE user_friends SET status = 'accepted', updated_at = $1 WHERE user_id = $2 AND friend_id = $3 AND status = 'pending'",
+                now, friend_id, user_id,
+            )
+            if result != "UPDATE 1":
+                return False
+            await conn.execute(
+                "INSERT INTO user_friends (user_id, friend_id, status, created_at, updated_at) VALUES ($1, $2, 'accepted', $3, $3) ON CONFLICT (user_id, friend_id) DO UPDATE SET status = 'accepted', updated_at = $3",
+                user_id, friend_id, now,
+            )
+            return True
+
+    async def decline_friend_request(self, user_id: int, friend_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM user_friends WHERE user_id = $1 AND friend_id = $2 AND status = 'pending'",
+                friend_id, user_id,
+            )
+            return result != "DELETE 0"
+
+    async def remove_friend(self, user_id: int, friend_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            r1 = await conn.execute(
+                "DELETE FROM user_friends WHERE user_id = $1 AND friend_id = $2 AND status = 'accepted'",
+                user_id, friend_id,
+            )
+            r2 = await conn.execute(
+                "DELETE FROM user_friends WHERE user_id = $1 AND friend_id = $2 AND status = 'accepted'",
+                friend_id, user_id,
+            )
+            return r1 != "DELETE 0" or r2 != "DELETE 0"
+
+    async def get_friends(self, user_id: int) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT uf.friend_id, mp.nick, mp.avatar,
+                          EXISTS(SELECT 1 FROM users u2 WHERE u2.user_id = uf.friend_id AND u2.last_active_at IS NOT NULL AND u2.last_active_at > $2) AS online
+                   FROM user_friends uf
+                   LEFT JOIN mini_app_profiles mp ON mp.user_id = uf.friend_id
+                   WHERE uf.user_id = $1 AND uf.status = 'accepted'
+                   ORDER BY uf.updated_at DESC""",
+                user_id, (datetime.utcnow() - timedelta(minutes=5)).isoformat(),
+            )
+            return [dict(r) for r in rows]
+
+    async def get_friend_requests(self, user_id: int) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT uf.user_id AS requester_id, mp.nick, mp.avatar
+                   FROM user_friends uf
+                   LEFT JOIN mini_app_profiles mp ON mp.user_id = uf.user_id
+                   WHERE uf.friend_id = $1 AND uf.status = 'pending'
+                   ORDER BY uf.created_at DESC""",
+                user_id,
+            )
+            return [dict(r) for r in rows]
+
+    async def get_friend_status(self, user_id: int, other_id: int) -> str | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT status FROM user_friends WHERE user_id = $1 AND friend_id = $2",
+                user_id, other_id,
+            )
+            return row["status"] if row else None
 
     # ---------- Predictions ----------
 

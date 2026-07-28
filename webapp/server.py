@@ -1184,6 +1184,67 @@ async def handle_chat_send(request: web.Request):
 
 
 # ---------------------------------------------------------------------------
+# Friends API
+# ---------------------------------------------------------------------------
+
+async def handle_friend_add(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    friend_id_str = request.match_info.get("user_id")
+    try:
+        friend_id = int(friend_id_str)
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    if friend_id == user["id"]:
+        return web.json_response({"error": "cannot add yourself"}, status=400)
+    result = await db.send_friend_request(user["id"], friend_id)
+    return web.json_response(result)
+
+async def handle_friend_accept(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        friend_id = int(request.match_info.get("user_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    ok = await db.accept_friend_request(user["id"], friend_id)
+    if not ok:
+        return web.json_response({"error": "no pending request"}, status=400)
+    return web.json_response({"ok": True})
+
+async def handle_friend_decline(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        friend_id = int(request.match_info.get("user_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    ok = await db.decline_friend_request(user["id"], friend_id)
+    return web.json_response({"ok": ok})
+
+async def handle_friend_remove(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        friend_id = int(request.match_info.get("user_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    ok = await db.remove_friend(user["id"], friend_id)
+    return web.json_response({"ok": ok})
+
+async def handle_friend_list(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    friends = await db.get_friends(user["id"])
+    return web.json_response({"friends": friends})
+
+async def handle_friend_requests(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    requests = await db.get_friend_requests(user["id"])
+    return web.json_response({"requests": requests})
+
+# ---------------------------------------------------------------------------
 # Predictions API
 # ---------------------------------------------------------------------------
 
@@ -1617,6 +1678,14 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/chat/list", handle_chat_list)
     app.router.add_get("/api/chat/{chat_id}", handle_chat_messages)
     app.router.add_post("/api/chat/{chat_id}/send", handle_chat_send)
+
+    # Friends
+    app.router.add_post("/api/friends/add/{user_id}", handle_friend_add)
+    app.router.add_post("/api/friends/accept/{user_id}", handle_friend_accept)
+    app.router.add_post("/api/friends/decline/{user_id}", handle_friend_decline)
+    app.router.add_post("/api/friends/remove/{user_id}", handle_friend_remove)
+    app.router.add_get("/api/friends/list", handle_friend_list)
+    app.router.add_get("/api/friends/requests", handle_friend_requests)
 
     # Predictions
     app.router.add_get("/api/predictions/matches", handle_predictions_matches)

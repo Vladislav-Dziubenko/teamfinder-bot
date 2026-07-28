@@ -50,6 +50,16 @@
   "nav.battlepass": "Пасс",
   "nav.promo": "Промо",
   "nav.profile": "Профиль",
+  "nav.friends": "Друзья",
+
+  "friends.title": "Друзья",
+  "friends.subtitle": "Находи и общайся с тиммейтами",
+  "friends.friends_tab": "Друзья",
+  "friends.requests_tab": "Запросы",
+  "friends.empty_title": "Пока нет друзей",
+  "friends.empty_hint": "Найди игрока и отправь заявку через его профиль",
+  "friends.no_requests": "Нет входящих заявок",
+  "friends.request_from": "хочет добавить тебя в друзья",
 
   "topbar.tagline": "поиск тиммейтов",
   "topbar.coins": "Nexus монеты",
@@ -57,6 +67,7 @@
   "topbar.language": "Язык",
 
   "lang.title": "Язык приложения",
+  "lang.subtitle": "Выберите язык из 35 доступных",
   "lang.search": "Поиск языка…",
 
   "appshell.not_available_title": "Mini App недоступен",
@@ -355,6 +366,7 @@
   "contact_sheet.invite_sent": "Приглашение отправлено",
   "contact_sheet.invite_error": "Не удалось создать команду. Попробуй позже.",
   "contact_sheet.open": "Открыть →",
+  "contact_sheet.add_friend": "Добавить в друзья",
 
   "team.member_count": "{members}/{max} в составе",
   "team.needs_player": "Нужен игрок",

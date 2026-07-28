@@ -50,6 +50,16 @@
   "nav.battlepass": "Pass",
   "nav.promo": "Promo",
   "nav.profile": "Profile",
+  "nav.friends": "Friends",
+
+  "friends.title": "Friends",
+  "friends.subtitle": "Find and chat with teammates",
+  "friends.friends_tab": "Friends",
+  "friends.requests_tab": "Requests",
+  "friends.empty_title": "No friends yet",
+  "friends.empty_hint": "Find a player and send a request from their profile",
+  "friends.no_requests": "No incoming requests",
+  "friends.request_from": "wants to add you as a friend",
 
   "topbar.tagline": "find teammates",
   "topbar.coins": "Nexus coins",
@@ -57,6 +67,7 @@
   "topbar.language": "Language",
 
   "lang.title": "App language",
+  "lang.subtitle": "Choose from 35 languages",
   "lang.search": "Search language…",
 
   "appshell.not_available_title": "Mini App unavailable",
@@ -355,6 +366,7 @@
   "contact_sheet.invite_sent": "Invitation sent",
   "contact_sheet.invite_error": "Failed to create team. Try later.",
   "contact_sheet.open": "Open →",
+  "contact_sheet.add_friend": "Add friend",
 
   "team.member_count": "{members}/{max} members",
   "team.needs_player": "Need a player",
