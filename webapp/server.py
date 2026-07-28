@@ -1623,10 +1623,11 @@ async def handle_discord_callback(request: web.Request):
 
     if error or not code or not state:
         redirect_url = settings.webapp_url or settings.public_app_url
+        reason = error or ("missing_code" if not code else "missing_state")
+        logging.warning(f"[discord.callback] early_error reason={reason}")
         if redirect_url:
-            reason = error or "missing_params"
             raise web.HTTPFound(f"{redirect_url}?discord=error&reason={reason}")
-        return web.json_response({"error": "oauth failed"}, status=400)
+        return web.json_response({"error": f"oauth early failure: {reason}"}, status=400)
 
     # Lookup state in oauth_states table
     row = await db.pool.fetchrow(
@@ -1857,8 +1858,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/friends/list", handle_friend_list)
     app.router.add_get("/api/friends/requests", handle_friend_requests)
 
-    app.router.add_static("/", STATIC_DIR, show_index=False)
-    return app
+
+    # Predictions
     app.router.add_get("/api/predictions/matches", handle_predictions_matches)
     app.router.add_post("/api/predictions/place", handle_predictions_place)
     app.router.add_get("/api/predictions/history", handle_predictions_history)
