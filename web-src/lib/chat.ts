@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Player } from "@/lib/data"
 import { api } from "@/lib/api"
 
@@ -31,8 +31,20 @@ export function useChats(): ChatPreview[] {
   const [chats, setChats] = useState<ChatPreview[]>([])
 
   useEffect(() => {
-    api.get("/api/chat/list").then((data: { chats?: ChatPreview[] }) => {
-      const list = data.chats ?? []
+    api.get("/api/chat/list").then((data: { chats?: any[] }) => {
+      const list: ChatPreview[] = (data.chats ?? []).map((c: any) => ({
+        id: c.chat_id ?? c.id ?? "",
+        player: {
+          id: c.other_id ?? 0,
+          nick: c.other_nick ?? "Unknown",
+          avatar: c.other_avatar ?? null,
+          online: false,
+          lastSeen: null,
+        },
+        lastText: c.last_text ?? "",
+        lastTs: c.last_ts ? new Date(c.last_ts).getTime() : Date.now(),
+        unread: c.unread ?? 0,
+      }))
       setChats(list)
       _chats = list
     })
@@ -51,34 +63,64 @@ export function useUnreadCount(chatId: string): number {
   return useMemo(() => chats.find((c) => c.id === chatId)?.unread ?? 0, [chats, chatId])
 }
 
+function mapMsg(m: any): ChatMessage {
+  return {
+    id: String(m.id ?? ""),
+    chatId: m.chat_id ?? "",
+    senderId: m.sender_id === "me" ? "me" : String(m.sender_id ?? ""),
+    text: m.text ?? "",
+    ts: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+    status: "sent",
+  }
+}
+
 export function useChatMessages(chatId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [typing, setTyping] = useState(false)
+  const pollingRef = useRef<ReturnType<typeof setInterval>>()
 
   useEffect(() => {
     if (!chatId) {
       setMessages([])
       return
     }
-    api.get("/api/chat/messages/" + chatId).then((data: { messages?: ChatMessage[] }) => setMessages(data.messages ?? []))
+    async function fetchMsgs() {
+      try {
+        const data = await api.get("/api/chat/" + chatId)
+        setMessages((data.messages ?? []).map(mapMsg))
+      } catch {}
+    }
+    fetchMsgs()
+    pollingRef.current = setInterval(fetchMsgs, 5000)
+    return () => clearInterval(pollingRef.current)
   }, [chatId])
 
   const sendMessage = useCallback(async (text: string) => {
     if (!chatId) return
-    await api.post("/api/chat/send", { chat_id: chatId, text })
-    setTyping(false)
+    const id = "opt-" + Date.now()
+    const optimistic: ChatMessage = {
+      id,
+      chatId,
+      senderId: "me",
+      text,
+      ts: Date.now(),
+      status: "sent",
+    }
+    setMessages((prev) => [...prev, optimistic])
+    try {
+      await api.post("/api/chat/" + chatId + "/send", { text })
+    } catch {}
   }, [chatId])
 
   return { messages, sendMessage, typing }
 }
 
 export async function sendMessageRaw(chatId: string, text: string): Promise<void> {
-  await api.post("/api/chat/send", { chat_id: chatId, text })
+  await api.post("/api/chat/" + chatId + "/send", { text })
 }
 
 export async function openChatWithPlayer(playerId: string): Promise<string> {
-  const res = await api.get("/api/chat/create/" + playerId)
-  return (res as { chatId?: string }).chatId ?? chatIdForPlayer(playerId)
+  return chatIdForPlayer(playerId)
 }
 
 export function getChatPlayer(chatId: string) {
