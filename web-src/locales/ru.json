@@ -378,6 +378,11 @@
   "profile.share_title": "Поделиться профилем",
   "profile.share_hint": "Скинь ссылку другу — он сможет добавить тебя",
   "profile.share_copied": "Ссылка на профиль скопирована! 🔗",
+  "profile.share_menu_title": "Поделиться профилем",
+  "profile.share_copy": "Копировать ссылку",
+  "profile.share_copy_hint": "Скопировать в буфер обмена",
+  "profile.share_telegram": "Отправить в Telegram",
+  "profile.share_telegram_hint": "Выбрать чаты для отправки",
 
   "team.member_count": "{members}/{max} в составе",
   "team.needs_player": "Нужен игрок",

@@ -20,6 +20,8 @@ import {
   ChevronRight,
   Gamepad2,
   Share2,
+  Send,
+  X,
 } from "lucide-react"
 import { api, openLink } from "@/lib/api"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
@@ -83,6 +85,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
 
   const [editing, setEditing] = useState(false)
   const [showLang, setShowLang] = useState(false)
+  const [showShare, setShowShare] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [achievements, setAchievements] = useState<AchievementItem[]>([])
@@ -470,11 +473,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
       {/* Share Profile */}
       <button
         type="button"
-        onClick={() => {
-          const link = me.referralBotUrl + "?start=profile_" + me.userId
-          navigator.clipboard.writeText(link).catch(() => {})
-          onToast(t("profile.share_copied"))
-        }}
+        onClick={() => setShowShare(true)}
         className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 text-left active:bg-secondary"
       >
         <Share2 className="size-5 text-primary" />
@@ -484,6 +483,68 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
         </div>
         <ChevronRight className="size-4 text-muted-foreground shrink-0" />
       </button>
+
+      {showShare && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <button
+            type="button"
+            aria-label={t("common.close")}
+            onClick={() => setShowShare(false)}
+            className="absolute inset-0 bg-background/70 backdrop-blur-sm"
+          />
+          <div className="relative mx-auto w-full max-w-md rounded-t-3xl border-t border-border bg-card p-5 pb-8 animate-rise">
+            <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-muted-foreground/40" />
+            <button
+              type="button"
+              onClick={() => setShowShare(false)}
+              className="absolute right-4 top-4 grid size-8 place-items-center rounded-lg text-muted-foreground active:bg-secondary"
+            >
+              <X className="size-4" />
+            </button>
+            <p className="mb-4 text-center font-display text-base font-bold">{t("profile.share_menu_title")}</p>
+            <div className="space-y-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const link = me.referralBotUrl + "?start=profile_" + me.userId
+                  navigator.clipboard.writeText(link).catch(() => {})
+                  setShowShare(false)
+                  onToast(t("profile.share_copied"))
+                }}
+                className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 text-left active:bg-secondary"
+              >
+                <Copy className="size-5 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">{t("profile.share_copy")}</p>
+                  <p className="text-xs text-muted-foreground">{t("profile.share_copy_hint")}</p>
+                </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const link = me.referralBotUrl + "?start=profile_" + me.userId
+                  setShowShare(false)
+                  try {
+                    const wa = (window as any).Telegram?.WebApp
+                    if (wa?.shareURL) {
+                      wa.shareURL(link)
+                    } else {
+                      window.open(link, "_blank")
+                    }
+                  } catch {}
+                }}
+                className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 text-left active:bg-secondary"
+              >
+                <Send className="size-5 text-primary" />
+                <div>
+                  <p className="text-sm font-medium">{t("profile.share_telegram")}</p>
+                  <p className="text-xs text-muted-foreground">{t("profile.share_telegram_hint")}</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Language */}
       <button

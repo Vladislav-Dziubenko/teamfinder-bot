@@ -378,6 +378,11 @@
   "profile.share_title": "Share profile",
   "profile.share_hint": "Send link to a friend so they can add you",
   "profile.share_copied": "Profile link copied! 🔗",
+  "profile.share_menu_title": "Share profile",
+  "profile.share_copy": "Copy link",
+  "profile.share_copy_hint": "Copy to clipboard",
+  "profile.share_telegram": "Send to Telegram",
+  "profile.share_telegram_hint": "Choose chats to send",
 
   "team.member_count": "{members}/{max} members",
   "team.needs_player": "Need a player",
