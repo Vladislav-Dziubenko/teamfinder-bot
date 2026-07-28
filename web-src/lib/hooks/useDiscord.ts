@@ -48,12 +48,7 @@ export function useDiscord() {
       setBusy(true)
       setError(null)
       const { url } = await api.get<AuthResp>("/api/discord/auth")
-      const tg = (window as any)?.Telegram?.WebApp
-      if (tg?.openLink) {
-        tg.openLink(url, { try_instant_view: false })
-      } else {
-        window.open(url, "_blank", "noopener,noreferrer")
-      }
+      window.open(url, "_blank", "noopener,noreferrer")
     } catch (e: any) {
       setError(e?.message ?? "Не удалось открыть Discord")
     } finally {
