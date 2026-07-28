@@ -1254,8 +1254,12 @@ async def handle_chat_list(request: web.Request):
 
 async def handle_chat_messages(request: web.Request):
     db: Database = request.app["db"]
+    user = _get_user(request)
     chat_id = request.match_info["chat_id"]
     messages = await db.get_chat_messages(chat_id)
+    for msg in messages:
+        if msg.get("sender_id") == user["id"]:
+            msg["sender_id"] = "me"
     return web.json_response({"messages": messages})
 
 
@@ -1305,7 +1309,7 @@ async def handle_user_search(request: web.Request):
             """SELECT u.user_id, mp.nick, mp.avatar
                FROM users u
                LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
-               WHERE LOWER(u.username) LIKE $1 AND mp.nick IS NOT NULL
+               WHERE (LOWER(u.username) LIKE $1 OR LOWER(mp.nick) LIKE $1) AND mp.nick IS NOT NULL
                LIMIT 20""",
             f"%{query}%",
         )

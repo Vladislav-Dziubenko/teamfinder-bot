@@ -119,7 +119,7 @@ export async function sendMessageRaw(chatId: string, text: string): Promise<void
   await api.post("/api/chat/" + chatId + "/send", { text })
 }
 
-export async function openChatWithPlayer(playerId: string): Promise<string> {
+export function openChatWithPlayer(playerId: string): string {
   return chatIdForPlayer(playerId)
 }
 

@@ -1628,6 +1628,7 @@ class Database:
                     ) if other_id else None
                     results.append({
                         "chat_id": cid,
+                        "other_id": other_id,
                         "other_nick": profile["nick"] if profile else other_id_str,
                         "other_avatar": profile["avatar"] if profile else None,
                         "last_text": row["text"],
