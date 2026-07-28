@@ -319,6 +319,8 @@ async def handle_me(request: web.Request):
 
     bot_username = getattr(request.app.get("bot"), "username", None) or "TeamUpMatchBot"
     referral_bot_url = f"https://t.me/{bot_username}"
+    app_short_name = "nexus"
+    direct_app_url = f"https://t.me/{bot_username}/{app_short_name}"
 
     return web.json_response({
         "user": user,
@@ -335,6 +337,7 @@ async def handle_me(request: web.Request):
         "star_packs": STAR_PACKS,
         "battlepass_tiers": BATTLE_PASS_TIERS,
         "referral_bot_url": referral_bot_url,
+        "direct_app_url": direct_app_url,
     })
 
 

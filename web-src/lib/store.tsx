@@ -62,6 +62,7 @@ type MeResponse = {
   star_packs: StarPack[]
   daily_streak_rewards: { day: number; coins: number }[]
   referral_bot_url: string
+  direct_app_url: string
   referral_reward: { coins: number; stars: number }
   battlepass_price_stars: number
   battlepass_xp_per_level: number
@@ -104,6 +105,7 @@ type PersistedState = {
   battlePassPriceStars: number
   battlePassXpPerLevel: number
   referralBotUrl: string
+  directAppUrl: string
   defaultPromoCodes: PromoCode[]
   dailyStreakRewards: { day: number; coins: number }[]
   starPacks: StarPack[]
@@ -199,6 +201,7 @@ function defaultState(): PersistedState {
     battlePassPriceStars: 0,
     battlePassXpPerLevel: 0,
     referralBotUrl: "",
+    directAppUrl: "",
     defaultPromoCodes: [],
     dailyStreakRewards: [],
     starPacks: [],
@@ -268,6 +271,7 @@ function mapMeToState(me: MeResponse): PersistedState {
     battlePassPriceStars: me.battlepass_price_stars ?? 250,
     battlePassXpPerLevel: me.battlepass_xp_per_level ?? 100,
     referralBotUrl: me.referral_bot_url || "https://t.me/NexusTeammatesBot",
+    directAppUrl: me.direct_app_url || "",
     defaultPromoCodes,
     dailyStreakRewards: me.daily_streak_rewards || [],
     starPacks: me.star_packs || [],
@@ -698,6 +702,7 @@ export function useMe() {
       premiumActive: nexus.premiumActive,
       referralCode: nexus.referralCode,
       referralBotUrl: nexus.referralBotUrl,
+      directAppUrl: nexus.directAppUrl,
       streakDay: nexus.streakDay,
       level: nexus.level,
       wins: nexus.wins,
@@ -716,6 +721,7 @@ export function useMe() {
       nexus.premiumActive,
       nexus.referralCode,
       nexus.referralBotUrl,
+      nexus.directAppUrl,
       nexus.streakDay,
       nexus.level,
       nexus.wins,
