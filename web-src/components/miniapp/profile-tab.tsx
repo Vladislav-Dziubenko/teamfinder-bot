@@ -22,8 +22,8 @@ import {
   Share2,
 } from "lucide-react"
 import { api, openLink } from "@/lib/api"
-import { useI18n } from "@/lib/i18n"
-import { useNexus } from "@/lib/store"
+import { useI18n, LANGUAGES } from "@/lib/i18n"
+import { useNexus, useMe } from "@/lib/store"
 import { games, dailyStreakRewards } from "@/lib/data"
 import type { TabId } from "./bottom-nav"
 import { DiscordSection } from "@/components/miniapp/discord-section"
@@ -50,6 +50,7 @@ const decorations = [
 
 export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onToast: (m: string) => void }) {
   const { t } = useI18n()
+  const me = useMe()
   const {
     stars,
     coins,
@@ -465,6 +466,24 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
           </div>
         )}
       </section>
+
+      {/* Share Profile */}
+      <button
+        type="button"
+        onClick={() => {
+          const link = "https://t.me/TeamUpMatchBot/app?startapp=profile_" + me.userId
+          navigator.clipboard.writeText(link).catch(() => {})
+          onToast(t("profile.share_copied"))
+        }}
+        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 text-left active:bg-secondary"
+      >
+        <Share2 className="size-5 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{t("profile.share_title")}</p>
+          <p className="text-xs text-muted-foreground">{t("profile.share_hint")}</p>
+        </div>
+        <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+      </button>
 
       {/* Language */}
       <button

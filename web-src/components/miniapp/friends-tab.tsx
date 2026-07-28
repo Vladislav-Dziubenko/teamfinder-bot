@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { UserPlus, UserCheck, UserX, MessageCircle, Clock, ChevronRight, Users } from "lucide-react"
+import { UserPlus, UserCheck, UserX, MessageCircle, Clock, Users, Search, Loader2 } from "lucide-react"
 import { api } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import type { Player } from "@/lib/data"
@@ -19,6 +19,12 @@ type FriendRequest = {
   avatar: string | null
 }
 
+type FoundUser = {
+  id: number
+  nick: string
+  avatar: string | null
+}
+
 export function FriendsTab({
   onChat,
 }: {
@@ -28,6 +34,9 @@ export function FriendsTab({
   const [friends, setFriends] = useState<Friend[]>([])
   const [requests, setRequests] = useState<FriendRequest[]>([])
   const [tab, setTab] = useState<"friends" | "requests">("friends")
+  const [searchQuery, setSearchQuery] = useState("")
+  const [searchResults, setSearchResults] = useState<FoundUser[]>([])
+  const [searching, setSearching] = useState(false)
 
   function load() {
     api.get("/api/friends/list").then((d: any) => setFriends(d.friends ?? []))
@@ -35,6 +44,22 @@ export function FriendsTab({
   }
 
   useEffect(load, [])
+
+  useEffect(() => {
+    if (searchQuery.length < 2) {
+      setSearchResults([])
+      return
+    }
+    const delay = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const d = await api.get("/api/user/search?q=" + encodeURIComponent(searchQuery))
+        setSearchResults(d.users ?? [])
+      } catch {}
+      setSearching(false)
+    }, 400)
+    return () => clearTimeout(delay)
+  }, [searchQuery])
 
   async function accept(id: number) {
     await api.post("/api/friends/accept/" + id)
@@ -51,6 +76,13 @@ export function FriendsTab({
     load()
   }
 
+  async function addFriend(id: number) {
+    await api.post("/api/friends/add/" + id)
+    setSearchQuery("")
+    setSearchResults([])
+    load()
+  }
+
   return (
     <div className="space-y-4 px-4 py-5">
       <div className="flex items-center justify-between">
@@ -60,7 +92,11 @@ export function FriendsTab({
         </div>
         <button
           type="button"
-          onClick={() => setTab(tab === "friends" ? "requests" : "friends")}
+          onClick={() => {
+            setTab(tab === "friends" ? "requests" : "friends")
+            setSearchQuery("")
+            setSearchResults([])
+          }}
           className="relative rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold active:scale-95"
         >
           {tab === "friends" ? t("friends.requests_tab") : t("friends.friends_tab")}
@@ -72,7 +108,56 @@ export function FriendsTab({
         </button>
       </div>
 
-      {tab === "friends" ? (
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <input
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          placeholder={t("friends.search_placeholder")}
+          className="w-full rounded-xl border border-input bg-secondary/60 py-2.5 pl-10 pr-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/60"
+        />
+        {searching && (
+          <Loader2 className="absolute right-3.5 top-1/2 size-4 -translate-y-1/2 animate-spin text-muted-foreground" />
+        )}
+      </div>
+
+      {searchResults.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground">{t("friends.search_results")}</p>
+          {searchResults.map((u) => (
+            <div
+              key={u.id}
+              className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
+            >
+              <img
+                src={u.avatar || "/placeholder.svg"}
+                alt={u.nick}
+                className="size-11 rounded-2xl object-cover"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-display text-sm font-bold">{u.nick}</p>
+              </div>
+              <div className="flex gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => onChat?.({ id: u.id, nick: u.nick, avatar: u.avatar ?? "" } as Player)}
+                  className="grid size-9 place-items-center rounded-xl bg-primary/15 text-primary active:scale-90"
+                >
+                  <MessageCircle className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => addFriend(u.id)}
+                  className="grid size-9 place-items-center rounded-xl bg-accent/15 text-accent active:scale-90"
+                >
+                  <UserPlus className="size-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : tab === "friends" ? (
         friends.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-border py-12 text-center">
             <Users className="mx-auto size-8 text-muted-foreground" />

@@ -60,6 +60,8 @@
   "friends.empty_hint": "Find a player and send a request from their profile",
   "friends.no_requests": "No incoming requests",
   "friends.request_from": "wants to add you as a friend",
+  "friends.search_placeholder": "Enter player username...",
+  "friends.search_results": "Search results",
 
   "topbar.tagline": "find teammates",
   "topbar.coins": "Nexus coins",
@@ -367,6 +369,14 @@
   "contact_sheet.invite_error": "Failed to create team. Try later.",
   "contact_sheet.open": "Open →",
   "contact_sheet.add_friend": "Add friend",
+
+  "profile_view.not_found": "Profile not found",
+  "profile_view.send_message": "Message",
+  "profile_view.add_friend": "Add friend",
+
+  "profile.share_title": "Share profile",
+  "profile.share_hint": "Send link to a friend so they can add you",
+  "profile.share_copied": "Profile link copied! 🔗",
 
   "team.member_count": "{members}/{max} members",
   "team.needs_player": "Need a player",

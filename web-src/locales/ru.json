@@ -60,6 +60,8 @@
   "friends.empty_hint": "Найди игрока и отправь заявку через его профиль",
   "friends.no_requests": "Нет входящих заявок",
   "friends.request_from": "хочет добавить тебя в друзья",
+  "friends.search_placeholder": "Введите username игрока...",
+  "friends.search_results": "Результаты поиска",
 
   "topbar.tagline": "поиск тиммейтов",
   "topbar.coins": "Nexus монеты",
@@ -367,6 +369,14 @@
   "contact_sheet.invite_error": "Не удалось создать команду. Попробуй позже.",
   "contact_sheet.open": "Открыть →",
   "contact_sheet.add_friend": "Добавить в друзья",
+
+  "profile_view.not_found": "Профиль не найден",
+  "profile_view.send_message": "Написать",
+  "profile_view.add_friend": "В друзья",
+
+  "profile.share_title": "Поделиться профилем",
+  "profile.share_hint": "Скинь ссылку другу — он сможет добавить тебя",
+  "profile.share_copied": "Ссылка на профиль скопирована! 🔗",
 
   "team.member_count": "{members}/{max} в составе",
   "team.needs_player": "Нужен игрок",

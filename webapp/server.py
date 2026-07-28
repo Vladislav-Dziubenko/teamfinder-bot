@@ -1187,6 +1187,38 @@ async def handle_chat_send(request: web.Request):
 # Friends API
 # ---------------------------------------------------------------------------
 
+async def handle_user_search(request: web.Request):
+    db: Database = request.app["db"]
+    query = request.query.get("q", "").strip().lower()
+    if not query or len(query) < 2:
+        return web.json_response({"users": []})
+    async with db.pool.acquire() as conn:
+        rows = await conn.fetch(
+            """SELECT u.user_id, mp.nick, mp.avatar
+               FROM users u
+               LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
+               WHERE LOWER(u.username) LIKE $1 AND mp.nick IS NOT NULL
+               LIMIT 20""",
+            f"%{query}%",
+        )
+    return web.json_response({"users": [{"id": r["user_id"], "nick": r["nick"], "avatar": r["avatar"]} for r in rows]})
+
+async def handle_profile_by_id(request: web.Request):
+    db: Database = request.app["db"]
+    try:
+        target_id = int(request.match_info.get("user_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    prof = await db.get_mini_app_profile(target_id)
+    if not prof or not prof.get("nick"):
+        return web.json_response({"error": "profile not found"}, status=404)
+    return web.json_response({
+        "id": target_id,
+        "nick": prof.get("nick"),
+        "avatar": prof.get("avatar"),
+        "bio": prof.get("bio"),
+    })
+
 async def handle_friend_add(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -1678,6 +1710,10 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/chat/list", handle_chat_list)
     app.router.add_get("/api/chat/{chat_id}", handle_chat_messages)
     app.router.add_post("/api/chat/{chat_id}/send", handle_chat_send)
+
+    # Profile
+    app.router.add_get("/api/profile/by-id/{user_id}", handle_profile_by_id)
+    app.router.add_get("/api/user/search", handle_user_search)
 
     # Friends
     app.router.add_post("/api/friends/add/{user_id}", handle_friend_add)

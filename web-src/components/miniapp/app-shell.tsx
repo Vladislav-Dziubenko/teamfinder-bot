@@ -19,6 +19,7 @@ import { ChatTab } from "./chat-tab"
 import { PredictionsTab } from "./predictions-tab"
 import { FriendsTab } from "./friends-tab"
 import { ContactSheet } from "./contact-sheet"
+import { ProfileViewSheet } from "./profile-view-sheet"
 import { openChatWithPlayer } from "@/lib/chat"
 import type { Player, Team } from "@/lib/data"
 
@@ -28,12 +29,24 @@ function Shell() {
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [chatOpenId, setChatOpenId] = useState<string | null>(null)
+  const [sharedProfileId, setSharedProfileId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 2400)
     return () => clearTimeout(t)
   }, [toast])
+
+  useEffect(() => {
+    try {
+      const wa = (window as any).Telegram?.WebApp
+      const sp = wa?.initDataUnsafe?.start_param
+      if (sp && sp.startsWith("profile_")) {
+        const id = parseInt(sp.replace("profile_", ""), 10)
+        if (!isNaN(id)) setSharedProfileId(id)
+      }
+    } catch {}
+  }, [])
 
   function goTab(t: TabId) {
     setTab(t)
@@ -75,6 +88,19 @@ function Shell() {
       <BottomNav active={tab} onChange={goTab} />
 
       <ContactSheet player={contact} onClose={() => setContact(null)} />
+
+      {sharedProfileId && (
+        <ProfileViewSheet
+          userId={sharedProfileId}
+          onClose={() => setSharedProfileId(null)}
+          onChat={(id) => {
+            const cid = openChatWithPlayer(String(id))
+            setChatOpenId(cid)
+            goTab("chat")
+            setSharedProfileId(null)
+          }}
+        />
+      )}
 
       {toast && (
         <div className="fixed inset-x-0 top-16 z-[60] mx-auto flex max-w-md justify-center px-4">

@@ -98,6 +98,7 @@ type PersistedState = {
   lastQuestAt: number
   level: number
   wins: number
+  userId: number
   lootCases: LootCase[]
   battlePassTiers: BattlePassTier[]
   battlePassPriceStars: number
@@ -202,6 +203,7 @@ function defaultState(): PersistedState {
     dailyStreakRewards: [],
     starPacks: [],
     referralReward: { coins: 0, stars: 0 },
+    userId: 0,
   }
 }
 
@@ -258,6 +260,7 @@ function mapMeToState(me: MeResponse): PersistedState {
     lastStreakAt: streak.last_streak_at ? new Date(streak.last_streak_at).getTime() : 0,
     claimedAchievements: achievements.filter((a) => a.claimed).map((a) => a.achievement_id),
     lastQuestAt: 0,
+    userId: user.id ?? 0,
     level: user.level ?? 0,
     wins: user.wins ?? 0,
     lootCases,
@@ -697,6 +700,7 @@ export function useMe() {
       streakDay: nexus.streakDay,
       level: nexus.level,
       wins: nexus.wins,
+      userId: nexus.userId,
       refresh: nexus.refresh,
     }),
     [
@@ -713,6 +717,7 @@ export function useMe() {
       nexus.streakDay,
       nexus.level,
       nexus.wins,
+      nexus.userId,
       nexus.refresh,
     ],
   )
