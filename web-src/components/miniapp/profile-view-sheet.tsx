@@ -5,7 +5,7 @@ import { X, UserPlus, UserCheck, MessageCircle, Clock, Loader2 } from "lucide-re
 import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
 
-interface SharedProfile {
+export interface SharedProfile {
   id: number
   nick: string
   avatar: string | null
@@ -19,7 +19,7 @@ export function ProfileViewSheet({
 }: {
   userId: number
   onClose: () => void
-  onChat: (id: number) => void
+  onChat: (id: number, nick: string, avatar: string | null) => void
 }) {
   const { t } = useI18n()
   const [profile, setProfile] = useState<SharedProfile | null>(null)
@@ -95,7 +95,7 @@ export function ProfileViewSheet({
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={() => onChat(userId)}
+                onClick={() => onChat(userId, profile.nick, profile.avatar)}
                 className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98]"
               >
                 <MessageCircle className="size-4" /> {t("profile_view.send_message")}

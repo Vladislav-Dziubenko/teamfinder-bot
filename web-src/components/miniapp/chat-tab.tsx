@@ -11,11 +11,15 @@ import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
+import type { Player } from "@/lib/data"
+
 export function ChatTab({
   openChatId,
+  openPlayer,
   onOpenConsumed,
 }: {
   openChatId?: string | null
+  openPlayer?: Player
   onOpenConsumed?: () => void
 }) {
   const { t } = useI18n()
@@ -32,7 +36,7 @@ export function ChatTab({
 
   if (activeId) {
     const found = chats.find((c) => c.id === activeId)
-    return <ChatConversation chatId={activeId} player={found?.player} onBack={() => setActiveId(null)} />
+    return <ChatConversation chatId={activeId} player={openPlayer ?? found?.player} onBack={() => setActiveId(null)} />
   }
 
   return (

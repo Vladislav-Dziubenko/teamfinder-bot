@@ -28,7 +28,7 @@ function Shell() {
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const [chatOpenId, setChatOpenId] = useState<string | null>(null)
+  const [chatOpen, setChatOpen] = useState<{ chatId: string; player: Player } | null>(null)
   const [sharedProfileId, setSharedProfileId] = useState<number | null>(null)
 
   useEffect(() => {
@@ -70,8 +70,7 @@ function Shell() {
   }
 
   function openChat(player: Player) {
-    const id = openChatWithPlayer(player.id)
-    setChatOpenId(id)
+    setChatOpen({ chatId: openChatWithPlayer(player.id), player })
     goTab("chat")
   }
 
@@ -84,7 +83,7 @@ function Shell() {
         {tab === "match" && <MatchTab onConnect={setContact} onJoinTeam={joinTeam} onChat={openChat} />}
         {tab === "predictions" && <PredictionsTab onToast={setToast} />}
         {tab === "chat" && (
-          <ChatTab openChatId={chatOpenId} onOpenConsumed={() => setChatOpenId(null)} />
+          <ChatTab openChatId={chatOpen?.chatId ?? null} openPlayer={chatOpen?.player} onOpenConsumed={() => setChatOpen(null)} />
         )}
         {tab === "stats" && <StatsTab onOpenLeaderboard={() => setToast(t("stats.leaderboard_placeholder"))} />}
         {tab === "cases" && <CasesTab onToast={setToast} />}
@@ -104,9 +103,8 @@ function Shell() {
         <ProfileViewSheet
           userId={sharedProfileId}
           onClose={() => setSharedProfileId(null)}
-          onChat={(id) => {
-            const cid = openChatWithPlayer(String(id))
-            setChatOpenId(cid)
+          onChat={(id, nick, avatar) => {
+            setChatOpen({ chatId: openChatWithPlayer(String(id)), player: { id, nick, avatar } as Player })
             goTab("chat")
             setSharedProfileId(null)
           }}
