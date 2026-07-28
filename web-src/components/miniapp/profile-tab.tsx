@@ -524,12 +524,13 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
                 onClick={() => {
                   const link = me.referralBotUrl + "?start=profile_" + me.userId
                   setShowShare(false)
+                  const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("👋 Загляни в мой профиль в TeamFinder!")
                   try {
                     const wa = (window as any).Telegram?.WebApp
-                    if (wa?.shareURL) {
-                      wa.shareURL(link)
+                    if (wa?.openTelegramLink) {
+                      wa.openTelegramLink(shareUrl)
                     } else {
-                      window.open(link, "_blank")
+                      window.open(shareUrl, "_blank")
                     }
                   } catch {}
                 }}
