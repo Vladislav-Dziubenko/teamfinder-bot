@@ -1856,6 +1856,18 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/friends/list", handle_friend_list)
     app.router.add_get("/api/friends/requests", handle_friend_requests)
 
+    # Telegram webhook
+    async def handle_webhook(request: web.Request) -> web.Response:
+        bot = request.app["bot"]
+        dp = request.app.get("dispatcher")
+        if dp is None:
+            return web.json_response({"error": "dispatcher not ready"}, status=503)
+        update = await request.json()
+        await dp.feed_webhook_update(bot, update)
+        return web.json_response({"ok": True})
+
+    app.router.add_post("/webhook", handle_webhook)
+
     # Predictions
     app.router.add_get("/api/predictions/matches", handle_predictions_matches)
     app.router.add_post("/api/predictions/place", handle_predictions_place)
