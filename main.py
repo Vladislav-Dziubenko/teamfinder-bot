@@ -3,6 +3,7 @@ import logging
 import os
 import signal
 import sys
+import time
 
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
@@ -17,11 +18,16 @@ from handlers import start, profile, search, guides, payments, admin, discord
 from middleware import InjectMiddleware, RateLimitMiddleware
 from webapp.server import create_app
 
+_PROCESS_START = time.monotonic()
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     stream=sys.stdout,
 )
+
+logging.info("INIT PORT_ENV=%s  WEBAPP_PORT_ENV=%s  RENDER_EXTERNAL_URL=%s",
+             os.environ.get("PORT"), os.environ.get("WEBAPP_PORT"), os.environ.get("RENDER_EXTERNAL_URL"))
 
 
 async def main():
@@ -29,6 +35,7 @@ async def main():
         settings = load_settings()
         db = Database(settings.database_url, bot_token=settings.bot_token)
         await db.connect()
+        logging.info("TIMING db.connect() done  +%.2fs", time.monotonic() - _PROCESS_START)
 
         bot = Bot(
             token=settings.bot_token,
@@ -55,6 +62,7 @@ async def main():
         await runner.setup()
         site = web.TCPSite(runner, settings.webapp_host, port)
         await site.start()
+        logging.info("TIMING site.start() done  +%.2fs  port=%d", time.monotonic() - _PROCESS_START, port)
         logging.info(f"WebApp сервер запущен на http://{settings.webapp_host}:{port}")
         if settings.webapp_url:
             logging.info(f"Mini App URL: {settings.webapp_url}")
