@@ -317,6 +317,9 @@ async def handle_me(request: web.Request):
         last_open = await db.get_last_case_open(user["id"], case_id)
         case_cooldowns[case_id] = last_open
 
+    bot_username = getattr(request.app.get("bot"), "username", None) or "TeamUpMatchBot"
+    referral_bot_url = f"https://t.me/{bot_username}"
+
     return web.json_response({
         "user": user,
         "currency": results[0],
@@ -331,6 +334,7 @@ async def handle_me(request: web.Request):
         "premium_active": results[7],
         "star_packs": STAR_PACKS,
         "battlepass_tiers": BATTLE_PASS_TIERS,
+        "referral_bot_url": referral_bot_url,
     })
 
 
