@@ -58,7 +58,7 @@ export function TeamCard({
       </div>
       <div className="mt-2 flex items-center justify-between text-xs">
         <span className="flex items-center gap-1 text-muted-foreground">
-          <Users className="size-3.5" /> {team.members}/{team.maxMembers} в составе
+           <Users className="size-3.5" /> {t("team.member_count", { members: team.members, max: team.maxMembers })}
         </span>
         <span className="flex items-center gap-1 font-medium text-accent">
           <Shield className="size-3.5" /> {team.minRank}
@@ -66,7 +66,7 @@ export function TeamCard({
       </div>
 
       <div className="mt-3 rounded-2xl bg-secondary/50 p-3">
-        <p className="text-xs text-muted-foreground">Нужен игрок</p>
+        <p className="text-xs text-muted-foreground">{t("team.needs_player")}</p>
         <p className="font-display text-base font-semibold text-primary">{team.needRole}</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
           {team.vibe.map((v) => (
@@ -82,7 +82,7 @@ export function TeamCard({
         onClick={() => onJoin(team)}
         className="mt-4 w-full rounded-2xl border border-primary/40 bg-primary/10 py-3 text-sm font-semibold text-primary transition-transform active:scale-[0.98]"
       >
-        Подать заявку
+        {t("team.apply")}
       </button>
     </article>
   )

@@ -111,8 +111,8 @@ export function PlayerCard({
               locked
                 ? "??"
                 : player.hours > 999
-                  ? `${(player.hours / 1000).toFixed(1)}k ч`
-                  : `${player.hours} ч`
+                  ? `${(player.hours / 1000).toFixed(1)}k ${t("common.hour_short")}`
+                  : `${player.hours} ${t("common.hour_short")}`
             }
           />
         </div>
@@ -152,7 +152,7 @@ export function PlayerCard({
               <button
                 type="button"
                 onClick={() => onChat(player)}
-                aria-label={`Написать ${player.nick}`}
+                aria-label={t("player_card.send_message", { name: player.nick })}
                 className="grid size-12 shrink-0 place-items-center rounded-2xl border border-border bg-secondary/60 text-accent transition-transform active:scale-[0.95]"
               >
                 <MessageCircle className="size-5" />

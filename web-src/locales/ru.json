@@ -97,6 +97,8 @@
   "match.error_no_profile": "Сначала создай анкету через бота — /start → Поиск тиммейтов",
   "match.error_unauthorized": "Открой Mini App через Telegram",
   "match.error_not_enough_stars": "Недостаточно Telegram Stars",
+  "match.players_tab": "Игроки",
+  "match.teams_tab": "Команды",
 
   "cases.title": "Кейсы Nexus",
   "cases.subtitle": "Крути рулетку, выбивай скины и премиум. Шансы указаны для каждого кейса.",
@@ -350,5 +352,9 @@
   "contact_sheet.invite_team": "Позвать в команду",
   "contact_sheet.invite_sent": "Приглашение отправлено",
   "contact_sheet.invite_error": "Не удалось создать команду. Попробуй позже.",
-  "contact_sheet.open": "Открыть →"
+  "contact_sheet.open": "Открыть →",
+
+  "team.member_count": "{members}/{max} в составе",
+  "team.needs_player": "Нужен игрок",
+  "team.apply": "Подать заявку"
 }

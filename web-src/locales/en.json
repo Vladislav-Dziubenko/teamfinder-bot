@@ -97,6 +97,8 @@
   "match.error_no_profile": "Create a profile first via bot — /start → Find teammates",
   "match.error_unauthorized": "Open Mini App via Telegram",
   "match.error_not_enough_stars": "Not enough Telegram Stars",
+  "match.players_tab": "Players",
+  "match.teams_tab": "Teams",
 
   "cases.title": "Nexus Cases",
   "cases.subtitle": "Spin the wheel, get skins and premium. Odds shown for each case.",
@@ -350,5 +352,9 @@
   "contact_sheet.invite_team": "Invite to team",
   "contact_sheet.invite_sent": "Invitation sent",
   "contact_sheet.invite_error": "Failed to create team. Try later.",
-  "contact_sheet.open": "Open →"
+  "contact_sheet.open": "Open →",
+
+  "team.member_count": "{members}/{max} members",
+  "team.needs_player": "Need a player",
+  "team.apply": "Apply"
 }
