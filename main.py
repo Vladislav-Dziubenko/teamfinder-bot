@@ -92,12 +92,13 @@ async def main():
 
         # Webhook — единственный способ получать апдейты (не конфликтует с локальным polling)
         webhook_url = f"{settings.webapp_url.rstrip('/')}/webhook"
+        logging.info(f"WEBAPP_URL={settings.webapp_url}  webhook_url={webhook_url}")
         try:
-            await bot.set_webhook(
+            result = await bot.set_webhook(
                 url=webhook_url,
                 allowed_updates=dp.resolve_used_update_types(),
             )
-            logging.info(f"Webhook установлен: {webhook_url}")
+            logging.info(f"Webhook установлен: {webhook_url}  result={result}")
         except Exception as e:
             logging.error(f"Не удалось установить webhook: {e}")
             raise
