@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { ChevronLeft, Send, MessagesSquare, CheckCheck, Check } from "lucide-react"
+import { ChevronLeft, Send, MessagesSquare, CheckCheck, Check, Languages, Loader2 } from "lucide-react"
 import {
   getChatPlayer,
   useChatMessages,
@@ -9,6 +9,7 @@ import {
   type ChatPreview,
 } from "@/lib/chat"
 import { useI18n } from "@/lib/i18n"
+import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 export function ChatTab({
@@ -93,6 +94,72 @@ function ChatRow({ chat, onClick }: { chat: ChatPreview; onClick: () => void }) 
   )
 }
 
+type Message = {
+  id: string
+  senderId: string
+  text: string
+  ts: number
+  status?: "sent" | "read"
+}
+
+function MessageBubble({ message: m, mine }: { message: Message; mine: boolean }) {
+  const { t, lang } = useI18n()
+  const [translated, setTranslated] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  async function doTranslate() {
+    setLoading(true)
+    try {
+      const res = await api.post("/api/translate", { text: m.text, target: lang })
+      setTranslated(res.translated ?? null)
+    } catch {}
+    setLoading(false)
+  }
+
+  return (
+    <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
+      <div
+        className={cn(
+          "max-w-[78%] rounded-2xl px-3 py-2 text-sm",
+          mine
+            ? "rounded-br-md bg-primary text-primary-foreground"
+            : "rounded-bl-md border border-border bg-card text-card-foreground",
+        )}
+      >
+        <p className="text-pretty leading-relaxed">{translated ?? m.text}</p>
+        {translated && translated !== m.text && (
+          <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground">
+            {m.text}
+          </p>
+        )}
+        <div className="mt-1 flex items-center justify-between gap-2">
+          <span
+            className={cn(
+              "flex items-center gap-1 text-[10px]",
+              mine ? "text-primary-foreground/70" : "text-muted-foreground",
+            )}
+          >
+            {clockTime(m.ts)}
+            {mine &&
+              (m.status === "read" ? <CheckCheck className="size-3" /> : <Check className="size-3" />)}
+          </span>
+          {!mine && (
+            <button
+              type="button"
+              onClick={doTranslate}
+              disabled={loading}
+              className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-foreground active:scale-90 disabled:opacity-40"
+              aria-label={t("chat.translate")}
+            >
+              {loading ? <Loader2 className="size-3 animate-spin" /> : <Languages className="size-3" />}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function ChatConversation({ chatId, onBack }: { chatId: string; onBack: () => void }) {
   const { t } = useI18n()
   const player = getChatPlayer(chatId)
@@ -140,28 +207,7 @@ function ChatConversation({ chatId, onBack }: { chatId: string; onBack: () => vo
         {messages.map((m) => {
           const mine = m.senderId === "me"
           return (
-            <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
-              <div
-                className={cn(
-                  "max-w-[78%] rounded-2xl px-3 py-2 text-sm",
-                  mine
-                    ? "rounded-br-md bg-primary text-primary-foreground"
-                    : "rounded-bl-md border border-border bg-card text-card-foreground",
-                )}
-              >
-                <p className="text-pretty leading-relaxed">{m.text}</p>
-                <span
-                  className={cn(
-                    "mt-1 flex items-center justify-end gap-1 text-[10px]",
-                    mine ? "text-primary-foreground/70" : "text-muted-foreground",
-                  )}
-                >
-                  {clockTime(m.ts)}
-                  {mine &&
-                    (m.status === "read" ? <CheckCheck className="size-3" /> : <Check className="size-3" />)}
-                </span>
-              </div>
-            </div>
+            <MessageBubble key={m.id} message={m} mine={mine} />
           )
         })}
 

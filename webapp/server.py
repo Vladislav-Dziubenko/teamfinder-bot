@@ -1187,6 +1187,26 @@ async def handle_chat_send(request: web.Request):
 # Friends API
 # ---------------------------------------------------------------------------
 
+async def handle_translate(request: web.Request):
+    try:
+        data = await request.json()
+    except:
+        return web.json_response({"error": "invalid json"}, status=400)
+    text = (data.get("text") or "").strip()
+    target = (data.get("target") or "en").strip()
+    if not text:
+        return web.json_response({"error": "empty text"}, status=400)
+    try:
+        import urllib.request, urllib.parse, json
+        url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=" + urllib.parse.quote(target) + "&dt=t&q=" + urllib.parse.quote(text)
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            result = json.loads(resp.read().decode())
+            translated = "".join(part[0] for part in result[0] if part[0])
+            return web.json_response({"translated": translated})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=502)
+
 async def handle_user_search(request: web.Request):
     db: Database = request.app["db"]
     query = request.query.get("q", "").strip().lower()
@@ -1714,6 +1734,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # Profile
     app.router.add_get("/api/profile/by-id/{user_id}", handle_profile_by_id)
     app.router.add_get("/api/user/search", handle_user_search)
+    app.router.add_post("/api/translate", handle_translate)
 
     # Friends
     app.router.add_post("/api/friends/add/{user_id}", handle_friend_add)

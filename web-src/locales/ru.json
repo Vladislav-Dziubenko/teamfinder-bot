@@ -246,6 +246,7 @@
   "chat.back": "Назад к диалогам",
   "chat.input_placeholder": "Сообщение…",
   "chat.send_to": "Написать {name}",
+  "chat.translate": "Перевести",
 
   "predictions.title": "Прогнозы",
   "predictions.subtitle": "Предсказывай исходы матчей и бросай вызов игрокам. Побеждает знание игры, не удача.",

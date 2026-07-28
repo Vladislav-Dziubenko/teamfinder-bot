@@ -246,6 +246,7 @@
   "chat.back": "Back to chats",
   "chat.input_placeholder": "Message…",
   "chat.send_to": "Message {name}",
+  "chat.translate": "Translate",
 
   "predictions.title": "Predictions",
   "predictions.subtitle": "Predict match outcomes and challenge players. Game knowledge wins, not luck.",
