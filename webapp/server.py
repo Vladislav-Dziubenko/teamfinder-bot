@@ -20,6 +20,7 @@ from datetime import datetime, timedelta
 from time import time
 
 from aiohttp import web
+from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 
 import json
 
@@ -1774,7 +1775,7 @@ async def handle_client_error(request: web.Request):
     return web.json_response({"ok": True})
 
 
-def create_app(db: Database, settings: Settings, bot) -> web.Application:
+def create_app(db: Database, settings: Settings, bot, dp=None) -> web.Application:
     # Порядок middleware критичен — менять только осознанно:
     # 1. security_middleware     — самый внешний: CSP + security headers на любой ответ (включая ошибки)
     # 2. error_middleware        — перехватывает все исключения, скрывает стектрейс от клиента
@@ -1856,39 +1857,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/friends/list", handle_friend_list)
     app.router.add_get("/api/friends/requests", handle_friend_requests)
 
-    # Telegram webhook
-    async def handle_webhook(request: web.Request) -> web.Response:
-        bot = request.app["bot"]
-        dp = request.app.get("dispatcher")
-        if dp is None:
-            logging.warning("Webhook: dispatcher not ready yet")
-            return web.json_response({"error": "dispatcher not ready"}, status=503)
-        body = await request.read()
-        import json
-        try:
-            update = json.loads(body)
-            update_id = update.get("update_id", "?")
-            logging.info(f"Webhook received update_id={update_id}")
-            await dp.feed_webhook_update(bot, update)
-            return web.json_response({"ok": True})
-        except Exception as e:
-            logging.error(f"Webhook error: {e}")
-            return web.json_response({"error": str(e)}, status=500)
-
-    app.router.add_post("/webhook", handle_webhook)
-
-    # GET /webhook — показать статус вебхука (для отладки)
-    async def handle_webhook_status(request: web.Request) -> web.Response:
-        bot = request.app["bot"]
-        wh = await bot.get_webhook_info()
-        return web.json_response({
-            "url": wh.url,
-            "has_custom_certificate": wh.has_custom_certificate,
-            "pending_update_count": wh.pending_update_count,
-            "last_error_date": wh.last_error_date,
-            "last_error_message": wh.last_error_message,
-        })
-    app.router.add_get("/webhook", handle_webhook_status)
+    # Telegram webhook handler (aiogram built-in)
+    # SimpleRequestHandler handles both GET (verification) and POST (updates)
+    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
 
     # Predictions
     app.router.add_get("/api/predictions/matches", handle_predictions_matches)

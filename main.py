@@ -55,8 +55,7 @@ async def main():
         dp.include_router(discord.router)
 
         # ---- Шаг 3: создаём приложение, регистрируем роуты ----
-        web_app = create_app(db, settings, bot)
-        web_app["dispatcher"] = dp
+        web_app = create_app(db, settings, bot, dp)
         web_app["db_ready"] = False
 
         # ---- Шаг 4: открываем порт МГНОВЕННО (без БД) ----
