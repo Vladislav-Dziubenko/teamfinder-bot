@@ -22,8 +22,6 @@ from time import time
 from aiohttp import web
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 
-import json
-
 from config import Settings
 from data.games import (
     GAMES, LOOKING_FOR, PLAYTIME,
