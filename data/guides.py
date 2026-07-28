@@ -31,15 +31,6 @@ GUIDES = [
         ),
     },
     {
-        "id": "cs2_video",
-        "game": "cs2",
-        "title": "Видео: настройка прицела + кроссхейр про",
-        "type": "video",
-        "stars": 3,
-        "text": "🎬 Видео-разбор настроек прицела от опытных игроков.",
-        "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    },
-    {
         "id": "cs2_video2",
         "game": "cs2",
         "title": "СимПлей CS2: механики прицела",
@@ -140,15 +131,6 @@ GUIDES = [
         ),
     },
     {
-        "id": "wt_video",
-        "game": "wt",
-        "title": "Видео: идеальный первый вылет",
-        "type": "video",
-        "stars": 6,
-        "text": "🎬 Видео: разбор первого боя без слива.",
-        "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
-    },
-    {
         "id": "dota_roles",
         "game": "dota2",
         "title": "Роли и лайнинг Dota 2",
@@ -231,15 +213,6 @@ GUIDES = [
             "• Таймеры и триггеры для ловушек\n"
             "• Оптимизация под сервер (лаги от тикающих схем)"
         ),
-    },
-    {
-        "id": "minecraft_video",
-        "game": "minecraft",
-        "title": "Видео: билд-техники для командных проектов",
-        "type": "video",
-        "stars": 3,
-        "text": "🎬 Видео: как быстро строить симметричные постройки в команде.",
-        "video_url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     },
     {
         "id": "fortnite_building",
