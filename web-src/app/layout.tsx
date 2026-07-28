@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next'
 import { Geist, Oswald } from 'next/font/google'
 import Script from 'next/script'
 import { ErrorBoundary } from '@/components/error-boundary'
+import { I18nProvider } from '@/lib/i18n'
 import './globals.css'
 
 const geist = Geist({
@@ -53,7 +54,9 @@ export default function RootLayout({
           }}
         />
         <ErrorBoundary>
-          {children}
+          <I18nProvider>
+            {children}
+          </I18nProvider>
         </ErrorBoundary>
         {process.env.NODE_ENV === 'production' && <Analytics />}
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
