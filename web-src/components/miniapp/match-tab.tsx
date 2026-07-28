@@ -213,9 +213,9 @@ export function MatchTab({
           </span>
           {(
             [
-              { k: "match", l: t("player_card.match_pct") },
+              { k: "match", l: t("match.sort_match") },
               { k: "level", l: t("common.level") },
-              { k: "rank", l: t("profile.level") },
+              { k: "rank", l: t("profile.rank") },
               { k: "time", l: t("stats.search_time") },
             ] as const
           ).map((s) => (

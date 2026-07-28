@@ -99,6 +99,7 @@
   "match.error_not_enough_stars": "Недостаточно Telegram Stars",
   "match.players_tab": "Игроки",
   "match.teams_tab": "Команды",
+  "match.sort_match": "% Совпадение",
 
   "cases.title": "Кейсы Nexus",
   "cases.subtitle": "Крути рулетку, выбивай скины и премиум. Шансы указаны для каждого кейса.",
@@ -283,6 +284,7 @@
   "profile.deco_title": "Украшение карточки",
   "profile.deco_hint": "· премиум / батл-пасс",
   "profile.level": "Уровень {level}",
+  "profile.rank": "Звание",
   "profile.xp_to_next": "{xp}% до {next}",
   "profile.save_profile": "Сохранить анкету",
   "profile.edit_profile": "Настроить анкету",

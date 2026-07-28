@@ -99,6 +99,7 @@
   "match.error_not_enough_stars": "Not enough Telegram Stars",
   "match.players_tab": "Players",
   "match.teams_tab": "Teams",
+  "match.sort_match": "% Match",
 
   "cases.title": "Nexus Cases",
   "cases.subtitle": "Spin the wheel, get skins and premium. Odds shown for each case.",
@@ -283,6 +284,7 @@
   "profile.deco_title": "Card decoration",
   "profile.deco_hint": "· premium / battle pass",
   "profile.level": "Level {level}",
+  "profile.rank": "Rank",
   "profile.xp_to_next": "{xp}% to {next}",
   "profile.save_profile": "Save profile",
   "profile.edit_profile": "Edit profile",
