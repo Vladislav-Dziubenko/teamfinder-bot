@@ -1702,12 +1702,10 @@ async def handle_discord_callback(request: web.Request):
     logging.info(f"[discord.callback] linked telegram={user_id} discord={discord_user['id']}")
 
     # Redirect to main fallback
-    bot_username = settings.telegram_bot_username or "TeamUpMatchBot"
-    primary_redirect = f"https://t.me/{bot_username}?start=discord_ok"
     fallback_redirect = settings.public_app_url or settings.webapp_url
     if fallback_redirect:
         raise web.HTTPFound(f"{fallback_redirect}?discord=ok")
-    raise web.HTTPFound(primary_redirect)
+    raise web.HTTPFound("https://t.me/teamfinder_bot?start=discord_ok")
 
 
 async def handle_discord_status(request: web.Request):
