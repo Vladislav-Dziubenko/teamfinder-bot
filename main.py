@@ -48,6 +48,7 @@ async def main():
         dp.include_router(discord.router)
 
         port = int(os.getenv("PORT", settings.webapp_port))
+        logging.info("PORT=%s  WEBAPP_PORT=%s → resolved port=%d", os.getenv("PORT"), settings.webapp_port, port)
         web_app = create_app(db, settings, bot)
 
         runner = web.AppRunner(web_app)
