@@ -22,6 +22,10 @@ export type ChatPreview = {
 }
 
 export function chatIdForPlayer(playerId: number | string): string {
+  if (typeof playerId !== "number" && typeof playerId !== "string") {
+    console.error("chatIdForPlayer received non-primitive:", playerId)
+    return ""
+  }
   return `dm-${playerId}`
 }
 
@@ -80,7 +84,7 @@ export function useChatMessages(chatId: string | null) {
   const pollingRef = useRef<ReturnType<typeof setInterval>>()
 
   useEffect(() => {
-    if (!chatId) {
+    if (!chatId || chatId === "[object Promise]" || chatId === "[object Object]") {
       setMessages([])
       return
     }
