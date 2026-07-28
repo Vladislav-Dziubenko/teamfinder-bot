@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from "react"
 import { ChevronLeft, Send, MessagesSquare, CheckCheck, Check, Languages, Loader2 } from "lucide-react"
 import {
-  getChatPlayer,
   useChatMessages,
   useChats,
   type ChatPreview,
@@ -32,7 +31,8 @@ export function ChatTab({
   }, [openChatId])
 
   if (activeId) {
-    return <ChatConversation chatId={activeId} onBack={() => setActiveId(null)} />
+    const found = chats.find((c) => c.id === activeId)
+    return <ChatConversation chatId={activeId} player={found?.player} onBack={() => setActiveId(null)} />
   }
 
   return (
@@ -160,9 +160,8 @@ function MessageBubble({ message: m, mine }: { message: Message; mine: boolean }
   )
 }
 
-function ChatConversation({ chatId, onBack }: { chatId: string; onBack: () => void }) {
+function ChatConversation({ chatId, player, onBack }: { chatId: string; player?: ChatPreview["player"]; onBack: () => void }) {
   const { t } = useI18n()
-  const player = getChatPlayer(chatId)
   const { messages, sendMessage, typing } = useChatMessages(chatId)
   const [draft, setDraft] = useState("")
   const scrollRef = useRef<HTMLDivElement>(null)

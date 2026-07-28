@@ -21,7 +21,7 @@ export type ChatPreview = {
   unread: number
 }
 
-export function chatIdForPlayer(playerId: string): string {
+export function chatIdForPlayer(playerId: number | string): string {
   return `dm-${playerId}`
 }
 
@@ -119,7 +119,7 @@ export async function sendMessageRaw(chatId: string, text: string): Promise<void
   await api.post("/api/chat/" + chatId + "/send", { text })
 }
 
-export function openChatWithPlayer(playerId: string): string {
+export function openChatWithPlayer(playerId: number | string): string {
   return chatIdForPlayer(playerId)
 }
 
