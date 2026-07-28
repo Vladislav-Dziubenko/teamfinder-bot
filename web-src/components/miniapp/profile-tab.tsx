@@ -127,8 +127,13 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
     )
   }
 
+  const [streakClaiming, setStreakClaiming] = useState(false)
+
   async function claimStreak() {
+    if (streakClaiming) return
+    setStreakClaiming(true)
     const res = await claimDailyStreak()
+    setStreakClaiming(false)
     if (!res.ok) onToast(res.error ?? t("profile.streak_claimed"))
     else onToast(t("profile.streak_claimed_toast", { day: res.day, coins: res.coins }))
   }
@@ -302,7 +307,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
         </div>
         <button
           type="button"
-          disabled={!streakReady}
+          disabled={!streakReady || streakClaiming}
           onClick={claimStreak}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-accent py-3 text-sm font-bold text-accent-foreground active:scale-[0.98] disabled:opacity-50"
         >
@@ -353,7 +358,16 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
         <button
           type="button"
           onClick={() => {
-            simulateInvite()
+            const link = me.referralBotUrl + "?start=" + me.referralCode
+            const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("🎮 Присоединяйся ко мне в TeamFinder!")
+            try {
+              const wa = (window as any).Telegram?.WebApp
+              if (wa?.openTelegramLink) {
+                wa.openTelegramLink(shareUrl)
+              } else {
+                window.open(shareUrl, "_blank")
+              }
+            } catch {}
             onToast(t("profile.referral_shared"))
           }}
           className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-accent/40 bg-accent/10 py-2.5 text-xs font-semibold text-accent active:scale-95"

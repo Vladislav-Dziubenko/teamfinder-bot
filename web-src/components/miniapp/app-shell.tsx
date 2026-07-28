@@ -49,6 +49,9 @@ function Shell() {
       const qp = params.get("show_profile")
       if (qp) {
         id = parseInt(qp, 10)
+        params.delete("show_profile")
+        const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "")
+        window.history.replaceState({}, "", newUrl)
       }
       if (id && !isNaN(id)) setSharedProfileId(id)
     } catch {}

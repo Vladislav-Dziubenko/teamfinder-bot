@@ -22,7 +22,8 @@ async def cmd_start(message: Message, db: Database, settings: Settings):
         profile_id = args.replace("profile_", "")
         try:
             int(profile_id)
-            webapp_url = webapp_url.rstrip("/") + f"?show_profile={profile_id}"
+            sep = "&" if "?" in webapp_url else "?"
+            webapp_url = webapp_url.rstrip("/") + f"{sep}show_profile={profile_id}"
         except ValueError:
             pass
 
