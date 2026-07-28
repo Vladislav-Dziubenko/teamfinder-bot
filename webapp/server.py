@@ -1577,6 +1577,9 @@ async def handle_discord_auth(request: web.Request):
     if not user:
         return web.json_response({"error": "unauthorized"}, status=401)
 
+    if not settings.discord_client_id or not settings.discord_redirect_uri:
+        return web.json_response({"error": "Discord not configured"}, status=503)
+
     # Generate state token and store in oauth_states table with TTL 10 min
     import secrets
     state = secrets.token_urlsafe(32)
