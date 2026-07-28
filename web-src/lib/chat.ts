@@ -31,9 +31,10 @@ export function useChats(): ChatPreview[] {
   const [chats, setChats] = useState<ChatPreview[]>([])
 
   useEffect(() => {
-    api.get("/api/chat/list").then((data: ChatPreview[]) => {
-      setChats(data)
-      _chats = data
+    api.get("/api/chat/list").then((data: { chats?: ChatPreview[] }) => {
+      const list = data.chats ?? []
+      setChats(list)
+      _chats = list
     })
   }, [])
 
@@ -58,7 +59,7 @@ export function useChatMessages(chatId: string | null): ChatMessage[] {
       setMessages([])
       return
     }
-    api.get("/api/chat/messages/" + chatId).then(setMessages)
+    api.get("/api/chat/messages/" + chatId).then((data: { messages?: ChatMessage[] }) => setMessages(data.messages ?? []))
   }, [chatId])
 
   return messages
