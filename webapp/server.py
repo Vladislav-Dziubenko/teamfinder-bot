@@ -11,7 +11,9 @@ webapp/static/ (index.html/style.css) своими, сохранив вызов�
 """
 
 import gzip
+import html
 import logging
+import re
 from pathlib import Path
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -36,11 +38,61 @@ from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
 
 STATIC_DIR = Path(__file__).parent / "static"
 
+
+def _resolve_allowed_origins(settings: Settings) -> set[str]:
+    """Разрешённые CORS-origin — домен самого приложения + локальная разработка."""
+    origins = set()
+    for url in (settings.webapp_url, getattr(settings, "public_app_url", None)):
+        if url:
+            parsed = url.rstrip("/")
+            origins.add(parsed)
+            if parsed.startswith("https://"):
+                origins.add(parsed.replace("https://", "http://"))
+    origins.add("http://localhost:3000")
+    return origins
+
+
+def sanitize(text: str, max_len: int = 0) -> str:
+    """Удаляет управляющие символы и обрезает длину. HTML-экранирование на фронтенде (React)."""
+    if not isinstance(text, str):
+        text = str(text)
+    text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+    text = text.strip()
+    if max_len > 0:
+        text = text[:max_len]
+    return text
+
+
 # ---------------------------------------------------------------------------
-# CORS — разрешаем запросы с любых origin (нужно если фронт будет отдельно)
+# Content-Security-Policy и security-заголовки
+# ---------------------------------------------------------------------------
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Permissions-Policy": "geolocation=(), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), accelerometer=(), gyroscope=()",
+    "X-XSS-Protection": "0",
+    "Cross-Origin-Opener-Policy": "same-origin",
+    "Cross-Origin-Resource-Policy": "same-origin",
+}
+
+CSP = (
+    "default-src 'self';"
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org;"
+    "style-src 'self' 'unsafe-inline';"
+    "img-src 'self' data: https:;"
+    "font-src 'self' data:;"
+    "connect-src 'self' https://translate.googleapis.com;"
+    "frame-ancestors https://telegram.org;"
+    "base-uri 'self';"
+    "form-action 'self';"
+    "object-src 'none'"
+)
+
+# ---------------------------------------------------------------------------
+# CORS — разрешаем запросы только с домена приложения
 # ---------------------------------------------------------------------------
 CORS_ALLOW = {
-    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, X-Telegram-Init-Data",
     "Access-Control-Max-Age": "86400",
@@ -168,12 +220,34 @@ async def db_ready_middleware(request: web.Request, handler):
 
 
 @web.middleware
+async def security_middleware(request: web.Request, handler):
+    response = await handler(request)
+    for k, v in SECURITY_HEADERS.items():
+        response.headers[k] = v
+    response.headers["Content-Security-Policy"] = CSP
+    origin = request.headers.get("Origin", "")
+    if origin:
+        allowed = request.app.get("allowed_origins", set())
+        if origin in allowed:
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Vary"] = "Origin"
+    return response
+
+
+@web.middleware
 async def cors_middleware(request: web.Request, handler):
     if request.method == "OPTIONS":
-        return web.json_response({}, headers=CORS_ALLOW)
+        resp = web.json_response({}, headers=CORS_ALLOW)
+        origin = request.headers.get("Origin", "")
+        allowed = request.app.get("allowed_origins", set())
+        if origin in allowed:
+            resp.headers["Access-Control-Allow-Origin"] = origin
+            resp.headers["Vary"] = "Origin"
+        return resp
     response = await handler(request)
     for k, v in CORS_ALLOW.items():
-        response.headers[k] = v
+        if k != "Access-Control-Allow-Origin":
+            response.headers[k] = v
     return response
 
 
@@ -375,16 +449,16 @@ async def handle_save_profile(request: web.Request):
     data = {
         "user_id": user["id"],
         "game": body["game"],
-        "nickname": str(body["nickname"]).strip()[:32],
+        "nickname": sanitize(body["nickname"], 32),
         "rank": body["rank"],
         "role": body["role"],
         "playtime": body["playtime"],
         "looking_for": body["looking_for"],
-        "region": str(body.get("region", "")).strip()[:40],
+        "region": sanitize(body.get("region", ""), 40),
         "language": body.get("language", "RU"),
-        "contact": str(body["contact"]).strip()[:80],
+        "contact": sanitize(body["contact"], 80),
         "has_mic": bool(body.get("has_mic", True)),
-        "description": str(body.get("description", "")).strip()[:300],
+        "description": sanitize(body.get("description", ""), 300),
     }
     await db.save_profile(data)
     return web.json_response({"profile": await db.get_profile(user["id"])})
@@ -402,7 +476,14 @@ async def handle_customize_profile(request: web.Request):
     user = _get_user(request)
     body = await request.json()
     allowed = {"avatar", "nick", "bio", "deco"}
-    data = {k: body.get(k) for k in allowed if k in body}
+    data = {}
+    for k in allowed:
+        if k in body:
+            v = body.get(k)
+            if k in ("nick", "bio"):
+                data[k] = sanitize(v, 64 if k == "nick" else 500)
+            else:
+                data[k] = v
     await db.save_mini_app_profile(user["id"], data)
     return web.json_response({"profile": await db.get_mini_app_profile(user["id"])})
 
@@ -1183,7 +1264,7 @@ async def handle_chat_send(request: web.Request):
     user = _get_user(request)
     chat_id = request.match_info["chat_id"]
     body = await request.json()
-    text = str(body.get("text", "")).strip()[:500]
+    text = sanitize(body.get("text", ""), 500)
     if not text:
         return web.json_response({"error": "empty message"}, status=400)
     msg = await db.send_message(chat_id, user["id"], text)
@@ -1673,12 +1754,14 @@ async def handle_client_error(request: web.Request):
 
 def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # Порядок middleware критичен — менять только осознанно:
-    # 1. error_middleware        — перехватывает все исключения, скрывает стектрейс от клиента
-    # 2. auth_middleware         — проверяет X-Telegram-Init-Data, пишет request["init_data"]
-    # 3. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
+    # 1. security_middleware     — самый внешний: CSP + security headers на любой ответ (включая ошибки)
+    # 2. error_middleware        — перехватывает все исключения, скрывает стектрейс от клиента
+    # 3. auth_middleware         — проверяет X-Telegram-Init-Data, пишет request["init_data"]
+    # 4. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
     # Если поменять порядок — rate limiter получит init_data=None и вернёт 500.
-    # Порядок: cors → cache → error → auth → rate_limit
-    app = web.Application(middlewares=[timing_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, web_rate_limit_middleware])
+    # Порядок: security → timing → db_ready → cors → gzip → cache → error → auth → rate_limit
+    app = web.Application(middlewares=[security_middleware, timing_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, web_rate_limit_middleware])
+    app["allowed_origins"] = _resolve_allowed_origins(settings)
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot

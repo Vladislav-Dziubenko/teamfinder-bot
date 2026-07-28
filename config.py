@@ -17,6 +17,7 @@ class Settings:
     price_premium_application: int
     database_url: str
     webapp_url: str
+    public_app_url: str
     webapp_host: str
     webapp_port: int
     discord_client_id: str
@@ -73,6 +74,7 @@ def load_settings() -> Settings:
         price_premium_application=int(os.getenv("PRICE_PREMIUM_APPLICATION", "2")),
         database_url=database_url,
         webapp_url=_resolve_webapp_url(),
+        public_app_url=os.getenv("PUBLIC_APP_URL", _resolve_webapp_url()),
         webapp_host=os.getenv("WEBAPP_HOST", "0.0.0.0"),
         webapp_port=int(os.getenv("WEBAPP_PORT", "8080")),
         discord_client_id=os.getenv("DISCORD_CLIENT_ID", "").strip(),
