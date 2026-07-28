@@ -43,7 +43,7 @@ export function BottomNav({
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md">
       <div className="border-t border-border bg-card/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <ul className="no-scrollbar flex items-stretch overflow-x-auto px-1">
+        <ul className="no-scrollbar flex items-stretch gap-0.5 overflow-x-auto px-1">
           {items.map(({ id, labelKey, icon: Icon }) => {
             const isActive = active === id
             const showBadge = id === "chat" && unread > 0
@@ -75,7 +75,7 @@ export function BottomNav({
                   </span>
                   <span
                     className={cn(
-                      "text-[10px] font-medium tracking-wide transition-colors",
+                      "max-w-full truncate text-[10px] font-medium tracking-wide transition-colors",
                       isActive ? "text-foreground" : "text-muted-foreground",
                     )}
                   >

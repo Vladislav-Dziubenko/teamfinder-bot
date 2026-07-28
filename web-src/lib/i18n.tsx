@@ -144,7 +144,10 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => {
       const dict = dictionaries[lang] || dictionaries[DEFAULT_LANG]
-      let str = dict[key] ?? dictionaries[DEFAULT_LANG][key] ?? key
+      let str = dict[key] ?? dictionaries["en"]?.[key] ?? key
+      if (str === key && dict[key] === undefined && dictionaries["en"]?.[key] === undefined) {
+        console.warn("[i18n] missing key:", key, "lang:", lang)
+      }
       if (vars) {
         for (const [k, v] of Object.entries(vars)) {
           str = str.replace(new RegExp(`\\{${k}\\}`, "g"), String(v))
