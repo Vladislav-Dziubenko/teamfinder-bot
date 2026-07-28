@@ -6,7 +6,7 @@ import { rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/dat
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { cn } from "@/lib/utils"
-import { tick, win as winSfx, whoosh, setMuted, isMuted } from "@/lib/sfx"
+import { tick, win as winSfx, whoosh, setMuted, isMuted, ensureAudio } from "@/lib/sfx"
 
 const rarityRank: Record<Rarity, number> = { common: 0, rare: 2, epic: 3, premium: 4 }
 
@@ -50,7 +50,7 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem, lootCases } = useNexus()
+  const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem, lootCases, refresh } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem } | null>(null)
   const [sound, setSound] = useState(true)
@@ -316,7 +316,16 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       )}
 
       {/* Reveal modal */}
-      {reveal && <RevealModal item={reveal.item} box={reveal.box} onClose={() => setReveal(null)} />}
+      {reveal && (
+        <RevealModal
+          item={reveal.item}
+          box={reveal.box}
+          onClose={() => {
+            setReveal(null)
+            refresh()
+          }}
+        />
+      )}
     </div>
   )
 }
@@ -350,7 +359,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
     const jitter = (Math.random() - 0.5) * (CELL * 0.5)
     const target = WIN_INDEX * STRIDE + CELL / 2 - width / 2 + jitter
 
-    whoosh()
+    ;(async () => { await ensureAudio(); whoosh() })()
 
     const raf = requestAnimationFrame(() => {
       requestAnimationFrame(() => {

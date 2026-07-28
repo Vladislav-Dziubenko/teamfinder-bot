@@ -479,7 +479,6 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       if (!c.free && s.stars < c.costStars) return { ok: false, error: "Недостаточно Telegram Stars" }
       try {
         const data = await api.post("/api/nexus/cases/open", { case_id: caseId })
-        await refresh()
         return { ok: true, item: data.item as CaseItem }
       } catch (e: any) {
         return { ok: false, error: e.message || "Не удалось открыть кейс" }

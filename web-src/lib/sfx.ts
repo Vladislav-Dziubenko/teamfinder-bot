@@ -14,9 +14,14 @@ function ac(): AudioContext | null {
     master.gain.value = 0.5
     master.connect(ctx.destination)
   }
-  // мобильные браузеры стартуют контекст в suspended до жеста пользователя
-  if (ctx.state === "suspended") void ctx.resume()
   return ctx
+}
+
+/** Ensure AudioContext is running (unlock on mobile after user gesture). Call before any sound. */
+export async function ensureAudio(): Promise<void> {
+  const c = ac()
+  if (!c) return
+  if (c.state === "suspended") await c.resume()
 }
 
 export function setMuted(v: boolean) {
