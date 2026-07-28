@@ -26,22 +26,25 @@ function formatCooldown(ms: number) {
 }
 
 function caseChances(c: LootCase) {
-  const totalW = c.items.reduce((s, i) => s + i.weight, 0)
-  return c.items.map((i) => ({ item: i, pct: (i.weight / totalW) * 100 }))
+  const items = c.items ?? []
+  const totalW = items.reduce((s, i) => s + i.weight, 0)
+  return items.map((i) => ({ item: i, pct: (i.weight / totalW) * 100 }))
 }
 
 function pickWeighted(items: CaseItem[]) {
-  const total = items.reduce((s, i) => s + i.weight, 0)
+  const list = items ?? []
+  const total = list.reduce((s, i) => s + i.weight, 0)
   let r = Math.random() * total
-  for (const it of items) {
+  for (const it of list) {
     r -= it.weight
     if (r <= 0) return it
   }
-  return items[items.length - 1]
+  return list[list.length - 1]
 }
 
 function itemPct(c: LootCase, item: CaseItem) {
-  const totalW = c.items.reduce((s, i) => s + i.weight, 0)
+  const items = c.items ?? []
+  const totalW = items.reduce((s, i) => s + i.weight, 0)
   return (item.weight / totalW) * 100
 }
 

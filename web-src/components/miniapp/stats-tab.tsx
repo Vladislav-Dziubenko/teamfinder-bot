@@ -67,7 +67,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
                 <Legend color="var(--accent)" label="Победы" />
               </div>
             </div>
-            {progress.length > 0 && (
+            {Array.isArray(progress) && progress.length > 0 && (
               <div className="h-44 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={progress} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
@@ -98,8 +98,8 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
           <section>
             <div className="mb-2 flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h2 className="font-display text-base font-bold">Последние достижения</h2></div>
             <div className="space-y-2">
-              {achievements.length === 0 && <p className="text-sm text-muted-foreground">Пока нет достижений</p>}
-              {achievements.map((a) => (
+              {(!Array.isArray(achievements) || achievements.length === 0) && <p className="text-sm text-muted-foreground">Пока нет достижений</p>}
+              {Array.isArray(achievements) && achievements.map((a) => (
                 <div key={a.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5">
                   <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary/60 text-xl">{a.icon}</span>
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{a.title}</p><p className="text-[11px] text-muted-foreground">{a.game}</p></div>

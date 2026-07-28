@@ -131,17 +131,17 @@ export function PromoTab({ onToast }: { onToast: (m: string) => void }) {
                       <div className="min-w-0 flex-1">
                         <p className="font-mono text-sm font-bold tracking-wide">{c.code}</p>
                         <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                          {c.reward.coins > 0 && (
+                          {c.reward?.coins ? (
                             <span className="flex items-center gap-0.5">
                               <img src="/nexus-coin.png" alt="" className="size-3 rounded-full" /> {c.reward.coins}
                             </span>
-                          )}
-                          {c.reward.stars > 0 && (
+                          ) : null}
+                          {c.reward?.stars ? (
                             <span className="flex items-center gap-0.5 text-stars">
                               <Star className="size-3 fill-stars" /> {c.reward.stars}
                             </span>
-                          )}
-                          {c.reward.xp ? <span className="text-accent">+{c.reward.xp} XP</span> : null}
+                          ) : null}
+                          {c.reward?.xp ? <span className="text-accent">+{c.reward.xp} XP</span> : null}
                         </p>
                       </div>
                       {used ? (
@@ -226,16 +226,18 @@ export function PromoTab({ onToast }: { onToast: (m: string) => void }) {
                       </button>
                     </div>
                     <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground">
-                      <span className="flex items-center gap-0.5">
-                        <img src="/nexus-coin.png" alt="" className="size-3 rounded-full" /> {c.reward.coins}
-                      </span>
-                      {c.reward.stars > 0 && (
+                      {c.reward?.coins ? (
+                        <span className="flex items-center gap-0.5">
+                          <img src="/nexus-coin.png" alt="" className="size-3 rounded-full" /> {c.reward.coins}
+                        </span>
+                      ) : null}
+                      {c.reward?.stars ? (
                         <span className="flex items-center gap-0.5 text-stars">
                           <Star className="size-3 fill-stars" /> {c.reward.stars}
                         </span>
-                      )}
+                      ) : null}
                       <span className="ml-auto">
-                        {c.uses}/{c.maxUses} активаций
+                        {t("promo.usage", { uses: c.uses ?? 0, maxUses: c.maxUses ?? 0 })}
                       </span>
                     </div>
                     <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-secondary">

@@ -120,7 +120,7 @@ export function PlayerCard({
         {/* tags */}
         {!locked && (
           <div className="mt-3 flex flex-wrap gap-1.5">
-            {player.tags.map((t) => (
+            {(player.tags ?? []).map((t) => (
               <span
                 key={t}
                 className="rounded-full border border-border bg-secondary/60 px-2.5 py-1 text-[11px] text-muted-foreground"

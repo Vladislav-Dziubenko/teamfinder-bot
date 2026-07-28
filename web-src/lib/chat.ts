@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import type { Player } from "@/lib/data"
 import { api } from "@/lib/api"
 
@@ -51,8 +51,9 @@ export function useUnreadCount(chatId: string): number {
   return useMemo(() => chats.find((c) => c.id === chatId)?.unread ?? 0, [chats, chatId])
 }
 
-export function useChatMessages(chatId: string | null): ChatMessage[] {
+export function useChatMessages(chatId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [typing, setTyping] = useState(false)
 
   useEffect(() => {
     if (!chatId) {
@@ -62,10 +63,16 @@ export function useChatMessages(chatId: string | null): ChatMessage[] {
     api.get("/api/chat/messages/" + chatId).then((data: { messages?: ChatMessage[] }) => setMessages(data.messages ?? []))
   }, [chatId])
 
-  return messages
+  const sendMessage = useCallback(async (text: string) => {
+    if (!chatId) return
+    await api.post("/api/chat/send", { chat_id: chatId, text })
+    setTyping(false)
+  }, [chatId])
+
+  return { messages, sendMessage, typing }
 }
 
-export async function sendMessage(chatId: string, text: string): Promise<void> {
+export async function sendMessageRaw(chatId: string, text: string): Promise<void> {
   await api.post("/api/chat/send", { chat_id: chatId, text })
 }
 

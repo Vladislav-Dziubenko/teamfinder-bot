@@ -69,7 +69,7 @@ export function TeamCard({
         <p className="text-xs text-muted-foreground">{t("team.needs_player")}</p>
         <p className="font-display text-base font-semibold text-primary">{team.needRole}</p>
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {team.vibe.map((v) => (
+          {(team.vibe ?? []).map((v) => (
             <span key={v} className="rounded-full bg-background/60 px-2 py-0.5 text-[11px] text-muted-foreground">
               {v}
             </span>
