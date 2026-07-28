@@ -344,7 +344,8 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
   const [go, setGo] = useState(false)
   const [landed, setLanded] = useState(false)
   const doneRef = useRef(false)
-  const winColor = rarityMeta[winner.rarity].color
+  const meta = rarityMeta[winner.rarity]
+  const winColor = meta?.color ?? "#888"
 
   const reel = useMemo(() => {
     const arr: CaseItem[] = []
@@ -372,13 +373,15 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
     let rafTick = 0
     const track = trackRef.current
     const loop = () => {
-      if (track) {
-        const m = new DOMMatrixReadOnly(getComputedStyle(track).transform)
-        const cell = Math.round(-m.m41 / STRIDE)
-        if (cell !== lastCell) {
-          lastCell = cell
-          tick(0.9 + Math.random() * 0.2)
-        }
+      if (track && !doneRef.current) {
+        try {
+          const m = new DOMMatrixReadOnly(getComputedStyle(track).transform)
+          const cell = Math.round(-m.m41 / STRIDE)
+          if (cell !== lastCell) {
+            lastCell = cell
+            tick(0.9 + Math.random() * 0.2)
+          }
+        } catch {}
       }
       if (!doneRef.current) rafTick = requestAnimationFrame(loop)
     }
@@ -397,7 +400,9 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
     if (doneRef.current) return
     doneRef.current = true
     setLanded(true)
-    winSfx(rarityRank[winner.rarity])
+    try {
+      winSfx(rarityRank[winner.rarity] ?? 0)
+    } catch {}
     setTimeout(onDone, 620)
   }
 
