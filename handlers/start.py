@@ -13,6 +13,19 @@ router = Router()
 async def cmd_start(message: Message, db: Database, settings: Settings):
     await db.ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
 
+    args = ""
+    if message.text and " " in message.text:
+        args = message.text.split(" ", 1)[1].strip()
+
+    webapp_url = settings.webapp_url
+    if args and args.startswith("profile_") and webapp_url:
+        profile_id = args.replace("profile_", "")
+        try:
+            int(profile_id)
+            webapp_url = webapp_url.rstrip("/") + f"?show_profile={profile_id}"
+        except ValueError:
+            pass
+
     text = (
         "👋 <b>TeamFinder</b> — бот для поиска команд в играх!\n\n"
         "🎮 <b>CS2, Roblox, WoT, War Thunder</b> и другие\n\n"
@@ -22,11 +35,10 @@ async def cmd_start(message: Message, db: Database, settings: Settings):
 
     if settings.webapp_url:
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Открыть TeamFinder", web_app=WebAppInfo(url=settings.webapp_url))]
+            [InlineKeyboardButton(text="🚀 Открыть TeamFinder", web_app=WebAppInfo(url=webapp_url))]
         ])
         await message.answer(text, reply_markup=kb)
     else:
-        # WEBAPP_URL не задан в .env — работаем в классическом режиме на клавиатуре
         await message.answer(
             text + "\n\n⚠️ Mini App пока не подключено (нет WEBAPP_URL в .env).",
         )

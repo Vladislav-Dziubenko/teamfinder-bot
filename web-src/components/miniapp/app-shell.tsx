@@ -39,12 +39,18 @@ function Shell() {
 
   useEffect(() => {
     try {
+      let id: number | null = null
       const wa = (window as any).Telegram?.WebApp
       const sp = wa?.initDataUnsafe?.start_param
       if (sp && sp.startsWith("profile_")) {
-        const id = parseInt(sp.replace("profile_", ""), 10)
-        if (!isNaN(id)) setSharedProfileId(id)
+        id = parseInt(sp.replace("profile_", ""), 10)
       }
+      const params = new URLSearchParams(window.location.search)
+      const qp = params.get("show_profile")
+      if (qp) {
+        id = parseInt(qp, 10)
+      }
+      if (id && !isNaN(id)) setSharedProfileId(id)
     } catch {}
   }, [])
 

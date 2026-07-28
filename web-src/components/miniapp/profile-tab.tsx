@@ -471,7 +471,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
       <button
         type="button"
         onClick={() => {
-          const link = me.referralBotUrl + "/app?startapp=profile_" + me.userId
+          const link = me.referralBotUrl + "?start=profile_" + me.userId
           navigator.clipboard.writeText(link).catch(() => {})
           onToast(t("profile.share_copied"))
         }}
