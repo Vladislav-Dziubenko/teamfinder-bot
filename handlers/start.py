@@ -17,16 +17,6 @@ async def cmd_start(message: Message, db: Database, settings: Settings):
     if message.text and " " in message.text:
         args = message.text.split(" ", 1)[1].strip()
 
-    webapp_url = settings.webapp_url
-    if args and args.startswith("profile_") and webapp_url:
-        profile_id = args.replace("profile_", "")
-        try:
-            int(profile_id)
-            sep = "&" if "?" in webapp_url else "?"
-            webapp_url = webapp_url.rstrip("/") + f"{sep}show_profile={profile_id}"
-        except ValueError:
-            pass
-
     text = (
         "👋 <b>TeamFinder</b> — бот для поиска команд в играх!\n\n"
         "🎮 <b>CS2, Roblox, WoT, War Thunder</b> и другие\n\n"
@@ -36,7 +26,7 @@ async def cmd_start(message: Message, db: Database, settings: Settings):
 
     if settings.webapp_url:
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Открыть TeamFinder", web_app=WebAppInfo(url=webapp_url))]
+            [InlineKeyboardButton(text="🚀 Открыть TeamFinder", web_app=WebAppInfo(url=settings.webapp_url))]
         ])
         await message.answer(text, reply_markup=kb)
     else:

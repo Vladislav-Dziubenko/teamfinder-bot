@@ -520,7 +520,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
               <button
                 type="button"
                 onClick={() => {
-                  const link = me.referralBotUrl + "?start=profile_" + me.userId
+                  const link = me.referralBotUrl + "/app?startapp=profile_" + me.userId
                   navigator.clipboard.writeText(link).catch(() => {})
                   setShowShare(false)
                   onToast(t("profile.share_copied"))
@@ -536,7 +536,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
               <button
                 type="button"
                 onClick={() => {
-                  const link = me.referralBotUrl + "?start=profile_" + me.userId
+                  const link = me.referralBotUrl + "/app?startapp=profile_" + me.userId
                   setShowShare(false)
                   const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("👋 Загляни в мой профиль в TeamFinder!")
                   try {
