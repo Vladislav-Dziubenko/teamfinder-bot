@@ -20,7 +20,6 @@ from datetime import datetime, timedelta
 from time import time
 
 from aiohttp import web
-from aiogram.webhook.aiohttp_server import SimpleRequestHandler
 
 from config import Settings
 from data.games import (
@@ -1773,7 +1772,7 @@ async def handle_client_error(request: web.Request):
     return web.json_response({"ok": True})
 
 
-def create_app(db: Database, settings: Settings, bot, dp=None) -> web.Application:
+def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # Порядок middleware критичен — менять только осознанно:
     # 1. security_middleware     — самый внешний: CSP + security headers на любой ответ (включая ошибки)
     # 2. error_middleware        — перехватывает все исключения, скрывает стектрейс от клиента
@@ -1855,11 +1854,8 @@ def create_app(db: Database, settings: Settings, bot, dp=None) -> web.Applicatio
     app.router.add_get("/api/friends/list", handle_friend_list)
     app.router.add_get("/api/friends/requests", handle_friend_requests)
 
-    # Telegram webhook handler (aiogram built-in)
-    # SimpleRequestHandler handles both GET (verification) and POST (updates)
-    SimpleRequestHandler(dispatcher=dp, bot=bot).register(app, path="/webhook")
-
-    # Predictions
+    app.router.add_static("/", STATIC_DIR, show_index=False)
+    return app
     app.router.add_get("/api/predictions/matches", handle_predictions_matches)
     app.router.add_post("/api/predictions/place", handle_predictions_place)
     app.router.add_get("/api/predictions/history", handle_predictions_history)

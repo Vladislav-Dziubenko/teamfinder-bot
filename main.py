@@ -8,6 +8,7 @@ import time
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
+from aiogram.exceptions import TelegramConflictError
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
@@ -55,7 +56,7 @@ async def main():
         dp.include_router(discord.router)
 
         # ---- Шаг 3: создаём приложение, регистрируем роуты ----
-        web_app = create_app(db, settings, bot, dp)
+        web_app = create_app(db, settings, bot)
         web_app["db_ready"] = False
 
         # ---- Шаг 4: открываем порт МГНОВЕННО (без БД) ----
@@ -89,18 +90,40 @@ async def main():
         signal.signal(signal.SIGTERM, _signal_handler)
         signal.signal(signal.SIGINT, _signal_handler)
 
-        # Webhook — единственный способ получать апдейты (не конфликтует с локальным polling)
-        webhook_url = f"{settings.webapp_url.rstrip('/')}/webhook"
-        logging.info(f"WEBAPP_URL={settings.webapp_url}  webhook_url={webhook_url}")
+        # Удаляем старый webhook (мог остаться от предыдущего деплоя с webhook'ом)
         try:
-            result = await bot.set_webhook(
-                url=webhook_url,
-                allowed_updates=dp.resolve_used_update_types(),
-            )
-            logging.info(f"Webhook установлен: {webhook_url}  result={result}")
+            await bot.delete_webhook()
+            logging.info("Старый webhook удалён")
         except Exception as e:
-            logging.error(f"Не удалось установить webhook: {e}")
-            raise
+            logging.warning(f"Не удалось удалить webhook: {e}")
+
+        # Polling в фоне — сервер запущен, порт открыт, Render видит порт
+        async def polling_loop():
+            while not shutdown_event.is_set():
+                try:
+                    await dp.start_polling(
+                        bot,
+                        allowed_updates=dp.resolve_used_update_types(),
+                    )
+                except TelegramConflictError:
+                    if shutdown_event.is_set():
+                        break
+                    logging.warning("TelegramConflictError — другой инстанс поллит. Жду 30с...")
+                    try:
+                        await asyncio.wait_for(shutdown_event.wait(), timeout=30)
+                    except asyncio.TimeoutError:
+                        pass
+                except Exception as e:
+                    if shutdown_event.is_set():
+                        break
+                    logging.error(f"Polling error: {e}")
+                    try:
+                        await asyncio.wait_for(shutdown_event.wait(), timeout=5)
+                    except asyncio.TimeoutError:
+                        pass
+
+        polling_task = asyncio.create_task(polling_loop())
+        logging.info("Polling запущен в фоне")
 
         try:
             await shutdown_event.wait()
@@ -108,10 +131,12 @@ async def main():
             pass
         finally:
             logging.info("Shutting down...")
-            try:
-                await bot.delete_webhook()
-            except Exception:
-                pass
+            if polling_task:
+                polling_task.cancel()
+                try:
+                    await polling_task
+                except (asyncio.CancelledError, Exception):
+                    pass
             await runner.cleanup()
             await db.close()
             await bot.session.close()
