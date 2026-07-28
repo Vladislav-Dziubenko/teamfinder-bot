@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, UserPlus, UserCheck, MessageCircle, Loader2 } from "lucide-react"
+import { X, UserPlus, UserCheck, MessageCircle, Clock, Loader2 } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
 
@@ -25,12 +25,13 @@ export function ProfileViewSheet({
   const [profile, setProfile] = useState<SharedProfile | null>(null)
   const [loading, setLoading] = useState(true)
   const [friendLoading, setFriendLoading] = useState(false)
-  const [friendSent, setFriendSent] = useState(false)
+  const [friendStatus, setFriendStatus] = useState<string | null>(null)
 
   useEffect(() => {
     api.get("/api/profile/by-id/" + userId).then((d: any) => {
-      if (d.error) setProfile(null)
-      else setProfile(d)
+      if (d.error) { setProfile(null); return }
+      setProfile(d)
+      setFriendStatus(d.friend_status ?? null)
     }).catch(() => setProfile(null)).finally(() => setLoading(false))
   }, [userId])
 
@@ -39,7 +40,7 @@ export function ProfileViewSheet({
     try {
       const res = await api.post("/api/friends/add/" + userId)
       if (res.error === "cannot add yourself") return
-      setFriendSent(true)
+      if (res.already_sent || res.ok) setFriendStatus("outgoing")
     } catch {}
     setFriendLoading(false)
   }
@@ -102,13 +103,17 @@ export function ProfileViewSheet({
               <button
                 type="button"
                 onClick={addFriend}
-                disabled={friendSent || friendLoading}
+                disabled={!!friendStatus || friendLoading}
                 className="flex flex-1 items-center justify-center gap-2 rounded-2xl border border-border bg-secondary/60 py-3 text-sm font-semibold active:scale-[0.98] disabled:opacity-50"
               >
                 {friendLoading ? (
                   <Loader2 className="size-4 animate-spin" />
-                ) : friendSent ? (
-                  <><UserCheck className="size-4" /> {t("common.done")}</>
+                ) : friendStatus === "accepted" ? (
+                  <><UserCheck className="size-4" /> {t("profile_view.friend_accepted")}</>
+                ) : friendStatus === "outgoing" ? (
+                  <><Clock className="size-4" /> {t("profile_view.friend_pending")}</>
+                ) : friendStatus === "incoming" ? (
+                  <><UserPlus className="size-4" /> {t("profile_view.friend_incoming")}</>
                 ) : (
                   <><UserPlus className="size-4" /> {t("profile_view.add_friend")}</>
                 )}

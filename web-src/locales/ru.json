@@ -374,6 +374,9 @@
   "profile_view.not_found": "Профиль не найден",
   "profile_view.send_message": "Написать",
   "profile_view.add_friend": "В друзья",
+  "profile_view.friend_accepted": "Друзья",
+  "profile_view.friend_pending": "Ожидание",
+  "profile_view.friend_incoming": "Принять",
 
   "profile.share_title": "Поделиться профилем",
   "profile.share_hint": "Скинь ссылку другу — он сможет добавить тебя",

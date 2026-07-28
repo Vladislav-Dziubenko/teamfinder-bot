@@ -1313,6 +1313,8 @@ async def handle_user_search(request: web.Request):
 
 async def handle_profile_by_id(request: web.Request):
     db: Database = request.app["db"]
+    user = _get_user(request)
+    current_id = user["id"] if user else None
     try:
         target_id = int(request.match_info.get("user_id"))
     except (ValueError, TypeError):
@@ -1320,11 +1322,23 @@ async def handle_profile_by_id(request: web.Request):
     prof = await db.get_mini_app_profile(target_id)
     if not prof or not prof.get("nick"):
         return web.json_response({"error": "profile not found"}, status=404)
+    # Статус дружбы (проверяем обе стороны)
+    friend_status = None
+    if current_id and current_id != target_id:
+        fwd = await db.get_friend_status(current_id, target_id)
+        rev = await db.get_friend_status(target_id, current_id)
+        if fwd == "accepted" or rev == "accepted":
+            friend_status = "accepted"
+        elif fwd == "pending":
+            friend_status = "outgoing"
+        elif rev == "pending":
+            friend_status = "incoming"
     return web.json_response({
         "id": target_id,
         "nick": prof.get("nick"),
         "avatar": prof.get("avatar"),
         "bio": prof.get("bio"),
+        "friend_status": friend_status,
     })
 
 async def handle_friend_add(request: web.Request):

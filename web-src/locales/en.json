@@ -374,6 +374,9 @@
   "profile_view.not_found": "Profile not found",
   "profile_view.send_message": "Message",
   "profile_view.add_friend": "Add friend",
+  "profile_view.friend_accepted": "Friends",
+  "profile_view.friend_pending": "Pending",
+  "profile_view.friend_incoming": "Accept",
 
   "profile.share_title": "Share profile",
   "profile.share_hint": "Send link to a friend so they can add you",

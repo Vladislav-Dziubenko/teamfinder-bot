@@ -596,6 +596,11 @@ class Database:
                 "INSERT INTO users (user_id, username, first_name, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET last_active_at = $4",
                 user_id, username or "", first_name or "", now,
             )
+            # Создаём mini_app_profiles запись, если её нет (для ника/аватарки в чате и списке друзей)
+            await conn.execute(
+                "INSERT INTO mini_app_profiles (user_id, nick) VALUES ($1, $2) ON CONFLICT (user_id) DO NOTHING",
+                user_id, first_name or username or f"User{user_id}",
+            )
 
     async def get_user_language(self, user_id: int) -> str:
         async with self.pool.acquire() as conn:
@@ -1636,11 +1641,19 @@ class Database:
     async def send_friend_request(self, user_id: int, friend_id: int) -> dict:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
+            # Проверяем, нет ли уже принятой дружбы в любую сторону
+            existing = await conn.fetchrow(
+                "SELECT status FROM user_friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)",
+                user_id, friend_id,
+            )
+            if existing:
+                if existing["status"] == "accepted":
+                    return {"ok": False, "error": "already friends"}
+                if existing["status"] == "pending":
+                    # Запрос уже отправлен — не дублируем
+                    return {"ok": True, "already_sent": True}
             row = await conn.fetchrow(
-                """INSERT INTO user_friends (user_id, friend_id, status, created_at, updated_at)
-                   VALUES ($1, $2, 'pending', $3, $3)
-                   ON CONFLICT (user_id, friend_id) DO UPDATE SET status = 'pending', updated_at = $3
-                   RETURNING id""",
+                "INSERT INTO user_friends (user_id, friend_id, status, created_at, updated_at) VALUES ($1, $2, 'pending', $3, $3) RETURNING id",
                 user_id, friend_id, now,
             )
             return {"ok": True, "id": row["id"]}
