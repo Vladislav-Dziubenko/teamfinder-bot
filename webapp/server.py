@@ -142,7 +142,7 @@ def _get_user(request: web.Request) -> dict | None:
 
 _SENTINEL = object()
 
-_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches")
+_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error")
 
 @web.middleware
 async def timing_middleware(request: web.Request, handler):
@@ -250,6 +250,7 @@ PUBLIC_API_PREFIXES = (
     "/api/search/count",
     "/api/online",
     "/api/discord/callback",
+    "/api/client-error",
 )
 
 @web.middleware
@@ -258,7 +259,7 @@ async def auth_middleware(request: web.Request, handler):
         is_public = any(request.path.startswith(p) for p in PUBLIC_API_PREFIXES)
         settings: Settings = request.app["settings"]
         init_data_raw = request.headers.get("X-Telegram-Init-Data", "")
-        logging.info(f"[AUTH] {request.method} {request.path} init_data_present={bool(init_data_raw)} is_public={is_public}")
+        logging.info(f"[AUTH] {request.method} {request.path} init_data_present={bool(init_data_raw)} init_data_len={len(init_data_raw)} is_public={is_public}")
         parsed = validate_init_data(init_data_raw, settings.bot_token)
         logging.info(f"[AUTH] {request.path} parsed={parsed is not None} user_in_parsed={'user' in (parsed or {})}")
         if parsed and "user" in parsed:
@@ -325,6 +326,7 @@ async def handle_me(request: web.Request):
         "streak": results[4],
         "referral": results[5],
         "achievements": results[6],
+        "cases": list(CASES_CONFIG.values()),
         "case_cooldowns": case_cooldowns,
         "premium_active": results[7],
         "star_packs": STAR_PACKS,
@@ -445,6 +447,8 @@ async def handle_search(request: web.Request):
 
 
 async def handle_guides(request: web.Request):
+    init_data_raw = request.headers.get("X-Telegram-Init-Data", "")
+    logging.info(f"[AUTH] GET {request.path} init_data_present={bool(init_data_raw)} init_data_len={len(init_data_raw)} (handler)")
     db: Database = request.app["db"]
     user = _get_user(request)
     game = request.query.get("game")
@@ -717,10 +721,11 @@ async def handle_nexus_cases(request: web.Request):
 
 
 async def handle_nexus_open_case(request: web.Request):
-    logging.info(f"[DEBUG] handle_nexus_open_case called, init_data in request: {'init_data' in request}")
+    init_data_raw = request.headers.get("X-Telegram-Init-Data", "")
+    logging.info(f"[AUTH] POST {request.path} init_data_present={bool(init_data_raw)} init_data_len={len(init_data_raw)} (handler)")
     db: Database = request.app["db"]
     user = _get_user(request)
-    logging.info(f"[DEBUG] handle_nexus_open_case user: {user.get('id') if user else None}")
+    logging.info(f"[AUTH] POST {request.path} user_parsed={user is not None} user_id={user.get('id') if user else None}")
     body = await request.json()
     case_id = body.get("case_id")
 
@@ -1511,6 +1516,27 @@ async def handle_discord_unlink(request: web.Request):
     return web.json_response({"ok": True})
 
 
+async def handle_client_error(request: web.Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    message = body.get("message", "")
+    stack = body.get("stack", "")
+    component_stack = body.get("componentStack", "")
+    tab = body.get("tab", "unknown")
+    url = body.get("url", "")
+    stack_preview = "\n".join(stack.split("\n")[:3]) if stack else "(no stack)"
+    logging.error(
+        "[CLIENT_ERROR] tab=%s message=%s stack=%s",
+        tab, message, stack_preview,
+    )
+    if component_stack:
+        logging.error("[CLIENT_ERROR] componentStack=%s", component_stack[:300])
+    if url:
+        logging.info("[CLIENT_ERROR] url=%s", url)
+    return web.json_response({"ok": True})
+
 
 def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # Порядок middleware критичен — менять только осознанно:
@@ -1535,6 +1561,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/profile/customize", handle_customize_profile)
     app.router.add_get("/api/search/count", handle_search_count)
     app.router.add_get("/api/online", handle_online)
+    app.router.add_post("/api/client-error", handle_client_error)
     app.router.add_get("/api/search", handle_search)
     app.router.add_get("/api/guides", handle_guides)
     app.router.add_get("/api/guides/{guide_id}", handle_guide_detail)

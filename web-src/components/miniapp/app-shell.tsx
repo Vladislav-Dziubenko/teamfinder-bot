@@ -36,6 +36,7 @@ function Shell() {
 
   function goTab(t: TabId) {
     setTab(t)
+    if (typeof window !== "undefined") window.__NEXUS_TAB = t
     document.getElementById("miniapp-scroll")?.scrollTo({ top: 0, behavior: "smooth" })
   }
 
