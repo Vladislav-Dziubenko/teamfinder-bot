@@ -1256,6 +1256,8 @@ async def handle_chat_messages(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
     messages = await db.get_chat_messages(chat_id)
     for msg in messages:
         if msg.get("sender_id") == user["id"]:
@@ -1267,6 +1269,8 @@ async def handle_chat_send(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
     body = await request.json()
     text = sanitize(body.get("text", ""), 500)
     if not text:

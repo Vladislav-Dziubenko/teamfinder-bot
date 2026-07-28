@@ -1578,6 +1578,21 @@ class Database:
 
     # ---------- Chat ----------
 
+    async def can_access_chat(self, chat_id: str, user_id: int) -> bool:
+        """Проверяет, имеет ли пользователь доступ к чату (свои DM или отправлял туда)."""
+        async with self.pool.acquire() as conn:
+            other_id_str = chat_id.replace("dm-", "")
+            if other_id_str.isdigit():
+                other_id = int(other_id_str)
+                if other_id == user_id:
+                    return True  # пользователь — получатель в этом DM
+            # пользователь отправлял сообщения в этот чат
+            row = await conn.fetchval(
+                "SELECT 1 FROM chat_messages WHERE chat_id = $1 AND sender_id = $2 LIMIT 1",
+                chat_id, user_id,
+            )
+            return row == 1
+
     async def send_message(self, chat_id: str, sender_id: int, text: str) -> dict:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
