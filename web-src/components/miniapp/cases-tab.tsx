@@ -338,6 +338,7 @@ const WIN_INDEX = 52
 const SPIN_MS = 5600
 
 function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem; onDone: () => void }) {
+  const { t } = useI18n()
   const viewportRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const [tx, setTx] = useState(0)
@@ -496,6 +497,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
 }
 
 function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; onClose: () => void }) {
+  const { t } = useI18n()
   const meta = rarityMeta[item.rarity]
   const pct = itemPct(box, item)
   return (
