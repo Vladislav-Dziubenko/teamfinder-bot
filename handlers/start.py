@@ -1,5 +1,5 @@
 from aiogram import Router, F
-from aiogram.filters import Command, CommandObject
+from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
 
 from config import Settings
@@ -9,7 +9,7 @@ from keyboards.menus import main_menu
 router = Router()
 
 
-@router.message(Command(commands=["start"], deep_link=True))
+@router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, db: Database, settings: Settings):
     await db.ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
 
