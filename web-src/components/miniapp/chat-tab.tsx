@@ -24,7 +24,11 @@ export function ChatTab({
 }) {
   const { t } = useI18n()
   const [activeId, setActiveId] = useState<string | null>(openChatId ?? null)
+  const playerRef = useRef<Player | undefined>(openPlayer)
   const chats = useChats()
+
+  // Keep the latest openPlayer so it doesn't get lost when parent consumes it
+  if (openPlayer) playerRef.current = openPlayer
 
   useEffect(() => {
     if (openChatId) {
@@ -34,9 +38,14 @@ export function ChatTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [openChatId])
 
+  function closeChat() {
+    setActiveId(null)
+    playerRef.current = undefined
+  }
+
   if (activeId) {
     const found = chats.find((c) => c.id === activeId)
-    return <ChatConversation chatId={activeId} player={openPlayer ?? found?.player} onBack={() => setActiveId(null)} />
+    return <ChatConversation chatId={activeId} player={playerRef.current ?? found?.player} onBack={closeChat} />
   }
 
   return (
