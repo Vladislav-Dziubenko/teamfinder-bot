@@ -697,9 +697,9 @@ COIN_SHOP = [
 ]
 
 QUESTS_CONFIG = [
-    {"id": "play-cs16", "title": "Играй в CS 1.6", "desc": "Проведи 60 минут в CS 1.6", "reward": 50, "targetMinutes": 60},
-    {"id": "play-dota2", "title": "Играй в Dota 2", "desc": "Проведи 60 минут в Dota 2", "reward": 50, "targetMinutes": 60},
-    {"id": "play-csgo", "title": "Играй в CS:GO", "desc": "Проведи 60 минут в CS:GO", "reward": 50, "targetMinutes": 60},
+    {"id": "play-cs16", "title": "Играй в CS 1.6", "desc": "Проведи 60 минут в CS 1.6", "reward": 12, "targetMinutes": 60},
+    {"id": "play-dota2", "title": "Играй в Dota 2", "desc": "Проведи 60 минут в Dota 2", "reward": 12, "targetMinutes": 60},
+    {"id": "play-csgo", "title": "Играй в CS:GO", "desc": "Проведи 60 минут в CS:GO", "reward": 12, "targetMinutes": 60},
 ]
 
 
@@ -832,7 +832,20 @@ async def handle_nexus_quests(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     progress = await db.get_all_quests_progress(user["id"])
-    return web.json_response({"quests": QUESTS_CONFIG, "progress": progress})
+    progress_by_quest = {p["quest_id"]: p for p in progress}
+    quests = []
+    for q in QUESTS_CONFIG:
+        entry = dict(q)
+        p = progress_by_quest.get(q["id"])
+        if p:
+            entry["progress"] = p["progress_minutes"]
+            entry["completed"] = bool(p["completed"])
+        else:
+            entry["progress"] = 0
+            entry["completed"] = False
+        entry["target"] = q["targetMinutes"]
+        quests.append(entry)
+    return web.json_response({"quests": quests})
 
 
 async def handle_nexus_shop(request: web.Request):

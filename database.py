@@ -991,6 +991,7 @@ class Database:
                 VALUES ($1, $2, $3, 0, $4)
                 ON CONFLICT (user_id, quest_id) DO UPDATE SET
                     progress_minutes = user_quests.progress_minutes + $3,
+                    completed = 0,
                     updated_at = $4
                 """,
                 user_id, quest_id, minutes, datetime.utcnow().isoformat(),
