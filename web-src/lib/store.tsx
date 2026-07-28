@@ -465,11 +465,16 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     const sellItem = async (uid: string) => {
       const found = s.inventory.find((i: InventoryItem) => i.uid === uid)
       if (!found || found.id == null) return
+      setS((p) => ({
+        ...p,
+        coins: p.coins + (found.sell ?? 0),
+        inventory: p.inventory.filter((i) => i.uid !== uid),
+      }))
       try {
         await api.post("/api/nexus/inventory/sell", { item_id: found.id })
-        await refresh()
       } catch (e) {
         console.error("sellItem failed", e)
+        await refresh()
       }
     }
 
