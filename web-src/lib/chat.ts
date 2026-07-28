@@ -35,23 +35,37 @@ export function useChats(): ChatPreview[] {
   const [chats, setChats] = useState<ChatPreview[]>([])
 
   useEffect(() => {
-    api.get("/api/chat/list").then((data: { chats?: any[] }) => {
-      const list: ChatPreview[] = (data.chats ?? []).map((c: any) => ({
-        id: c.chat_id ?? c.id ?? "",
-        player: {
-          id: c.other_id ?? 0,
-          nick: c.other_nick ?? "Unknown",
-          avatar: c.other_avatar ?? null,
-          online: false,
-          lastSeen: null,
-        },
-        lastText: c.last_text ?? "",
-        lastTs: c.last_ts ? new Date(c.last_ts).getTime() : Date.now(),
-        unread: c.unread ?? 0,
-      }))
-      setChats(list)
-      _chats = list
-    })
+    let cancelled = false
+    async function load(attempt = 0) {
+      try {
+        const data: any = await api.get("/api/chat/list")
+        if (cancelled) return
+        const list: ChatPreview[] = (data.chats ?? []).map((c: any) => ({
+          id: c.chat_id ?? c.id ?? "",
+          player: {
+            id: c.other_id ?? 0,
+            nick: c.other_nick ?? "Unknown",
+            avatar: c.other_avatar ?? null,
+            online: false,
+            lastSeen: null,
+          },
+          lastText: c.last_text ?? "",
+          lastTs: c.last_ts ? new Date(c.last_ts).getTime() : Date.now(),
+          unread: c.unread ?? 0,
+        }))
+        setChats(list)
+        _chats = list
+      } catch (e: any) {
+        if (e?.status === 503 && attempt < 10 && !cancelled) {
+          await new Promise((r) => setTimeout(r, 1000 + attempt * 500))
+          return load(attempt + 1)
+        }
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   return chats
@@ -88,15 +102,26 @@ export function useChatMessages(chatId: string | null) {
       setMessages([])
       return
     }
-    async function fetchMsgs() {
+    let cancelled = false
+    async function fetchMsgs(attempt = 0) {
       try {
-        const data = await api.get("/api/chat/" + chatId)
-        setMessages((data.messages ?? []).map(mapMsg))
-      } catch {}
+        const data: any = await api.get("/api/chat/" + chatId)
+        if (!cancelled) {
+          setMessages((data.messages ?? []).map(mapMsg))
+        }
+      } catch (e: any) {
+        if (e?.status === 503 && attempt < 10 && !cancelled) {
+          await new Promise((r) => setTimeout(r, 1000 + attempt * 500))
+          return fetchMsgs(attempt + 1)
+        }
+      }
     }
     fetchMsgs()
     pollingRef.current = setInterval(fetchMsgs, 5000)
-    return () => clearInterval(pollingRef.current)
+    return () => {
+      cancelled = true
+      clearInterval(pollingRef.current)
+    }
   }, [chatId])
 
   const sendMessage = useCallback(async (text: string) => {
