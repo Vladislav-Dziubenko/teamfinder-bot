@@ -374,7 +374,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1000)
+    const id = setInterval(() => setNow(Date.now()), 30_000)
     return () => clearInterval(id)
   }, [])
 
