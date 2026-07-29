@@ -22,7 +22,7 @@ export function ChatTab({
   openPlayer?: Player
   onOpenConsumed?: () => void
 }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [activeId, setActiveId] = useState<string | null>(openChatId ?? null)
   const playerRef = useRef<Player | undefined>(openPlayer)
   const chats = useChats()
