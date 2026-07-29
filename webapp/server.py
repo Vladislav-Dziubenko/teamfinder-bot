@@ -13,6 +13,7 @@ webapp/static/ (index.html/style.css) своими, сохранив вызов�
 import gzip
 import html
 import logging
+import random
 import re
 import asyncio
 from pathlib import Path
@@ -892,7 +893,6 @@ async def handle_nexus_open_case(request: web.Request):
     case_config = CASES_CONFIG[case_id]
 
     # Roll item server-side (outcome is independent of the transaction)
-    import random
     items = case_config["items"]
     total_weight = sum(item["weight"] for item in items)
     rand = random.uniform(0, total_weight)

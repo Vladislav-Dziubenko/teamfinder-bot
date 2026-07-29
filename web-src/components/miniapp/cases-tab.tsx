@@ -335,7 +335,7 @@ const GAP = 12
 const STRIDE = CELL + GAP
 const REEL_LEN = 60
 const WIN_INDEX = 52
-const SPIN_MS = 5600
+const SPIN_MS = 1500
 
 function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem; onDone: () => void }) {
   const { t } = useI18n()
