@@ -25,6 +25,7 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     stream=sys.stdout,
 )
+logging.getLogger("aiogram.dispatcher").setLevel(logging.WARNING)
 
 logging.info("INIT PORT_ENV=%s  WEBAPP_PORT_ENV=%s  RENDER_EXTERNAL_URL=%s",
              os.environ.get("PORT"), os.environ.get("WEBAPP_PORT"), os.environ.get("RENDER_EXTERNAL_URL"))
@@ -90,35 +91,37 @@ async def main():
         signal.signal(signal.SIGTERM, _signal_handler)
         signal.signal(signal.SIGINT, _signal_handler)
 
-        # Удаляем старый webhook и сбрасываем сессию, чтобы избежать ConflictError при перезапуске
+        # Удаляем старый webhook + дропаем pending updates, чтобы чистый старт
         try:
-            await bot.delete_webhook()
-            await bot.session.close()
-            logging.info("Старый webhook удалён, сессия сброшена")
+            await bot.delete_webhook(drop_pending_updates=True)
+            logging.info("Старый webhook удалён, pending updates сброшены")
         except Exception as e:
             logging.warning(f"Не удалось удалить webhook: {e}")
 
+        # Небольшая пауза, чтобы старый Render-инстанс успел закрыть polling-сессию
+        await asyncio.sleep(3)
+
         # Polling в фоне — сервер запущен, порт открыт, Render видит порт
         async def polling_loop():
-            retry_delay = 2.0
+            retry_delay = 5.0
             while not shutdown_event.is_set():
                 try:
                     await dp.start_polling(
                         bot,
                         allowed_updates=dp.resolve_used_update_types(),
                     )
-                    retry_delay = 2.0
+                    retry_delay = 5.0
                 except TelegramConflictError:
                     if shutdown_event.is_set():
                         break
-                    logging.warning("TelegramConflictError — другой инстанс поллит. Жду %.0fс...", retry_delay)
+                    logging.warning("TelegramConflictError — другой инстанс поллит. Повтор через %.0fс...", retry_delay)
                     await asyncio.sleep(retry_delay)
-                    retry_delay = min(retry_delay * 2, 30.0)
+                    retry_delay = min(retry_delay * 2, 60.0)
                 except Exception as e:
                     if shutdown_event.is_set():
                         break
                     logging.error(f"Polling error: {e}")
-                    await asyncio.sleep(5)
+                    await asyncio.sleep(10)
 
         polling_task = asyncio.create_task(polling_loop())
         logging.info("Polling запущен в фоне")
