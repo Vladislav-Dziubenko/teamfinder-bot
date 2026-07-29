@@ -7,10 +7,15 @@ export type Game = {
 
 export const games: Game[] = [
   { id: "cs2", name: "Counter-Strike 2", short: "CS2", color: "var(--primary)" },
-  { id: "dota", name: "Dota 2", short: "Dota", color: "var(--accent)" },
-  { id: "valorant", name: "Valorant", short: "VAL", color: "var(--destructive)" },
-  { id: "pubg", name: "PUBG", short: "PUBG", color: "var(--stars)" },
-  { id: "apex", name: "Apex Legends", short: "APEX", color: "var(--chart-5)" },
+  { id: "roblox", name: "Roblox", short: "RBX", color: "var(--chart-1)" },
+  { id: "wot", name: "World of Tanks", short: "WoT", color: "var(--destructive)" },
+  { id: "wt", name: "War Thunder", short: "WT", color: "var(--chart-4)" },
+  { id: "dota2", name: "Dota 2", short: "Dota", color: "var(--accent)" },
+  { id: "valorant", name: "Valorant", short: "VAL", color: "var(--chart-5)" },
+  { id: "minecraft", name: "Minecraft", short: "MC", color: "var(--stars)" },
+  { id: "fortnite", name: "Fortnite", short: "FN", color: "var(--chart-3)" },
+  { id: "apex", name: "Apex Legends", short: "APEX", color: "var(--chart-2)" },
+  { id: "rust", name: "Rust", short: "Rust", color: "var(--chart-6)" },
 ]
 
 export type Player = {
@@ -100,7 +105,7 @@ export const players: Player[] = [
     nick: "midOrFeed",
     realName: "Дима",
     avatar: "/player-4.png",
-    game: "dota",
+    game: "dota2",
     rank: "Divine 3",
     role: "Мидер",
     kd: 0,
@@ -221,7 +226,7 @@ export const teams: Team[] = [
     id: "t3",
     name: "Radiant Wolves",
     tag: "RWLV",
-    game: "dota",
+    game: "dota2",
     needRole: "Хард саппорт (5)",
     minRank: "Ancient+",
     members: 4,
@@ -258,7 +263,7 @@ export const guides: Guide[] = [
   {
     id: "g2",
     title: "Как быстро поднять MMR: гайд по мид-лейну",
-    game: "dota",
+    game: "dota2",
     cover: "/guide-moba.png",
     author: "MidGod",
     duration: "14:02",

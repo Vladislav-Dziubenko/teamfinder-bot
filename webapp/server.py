@@ -555,6 +555,38 @@ async def handle_search(request: web.Request):
         return web.json_response({"players": players, "teams": []})
 
     game_to_search = game_filter if game_filter and game_filter != "all" else profile["game"]
+
+    # When searching by nickname with "all" games, search across every game
+    if game_filter == "all" and query:
+        rows = await db.pool.fetch(
+            """SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role
+               FROM users u
+               LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
+               JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
+               WHERE p.game IN ('cs2','roblox','wot','wt','dota2','valorant','minecraft','fortnite','apex','rust')
+                 AND LOWER(COALESCE(mp.nick, '')) LIKE $1
+               LIMIT 20""",
+            f"%{query}%",
+        )
+        await db.increment_user_stat(user["id"], "search_count")
+        players = [
+            {
+                "id": str(r["user_id"]),
+                "user_id": r["user_id"],
+                "nick": r["nick"] or f"User{r['user_id']}",
+                "avatar": r["avatar"] or f"/player-{((r['user_id'] % 4) + 1)}.png",
+                "game": r["game"] or "unknown",
+                "rank": r["rank"] or "",
+                "role": r["role"] or "",
+                "vibe": 0,
+                "hours": 0,
+                "level": None,
+                "online": False,
+                "lastSeen": None,
+            }
+            for r in rows
+        ]
+        return web.json_response({"players": players, "teams": []})
     is_pro = await db.is_pro(user["id"])
     premium = is_pro or await db.has_search_boost(user["id"], game_to_search)
     candidates = await db.list_profiles_by_game(game_to_search, exclude_user_id=user["id"])
