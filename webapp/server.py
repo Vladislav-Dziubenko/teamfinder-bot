@@ -569,6 +569,8 @@ async def handle_search(request: web.Request):
             f"%{query}%",
         )
         await db.increment_user_stat(user["id"], "search_count")
+        asyncio.create_task(db.update_quest_progress(user["id"], "do-searches", 1))
+        asyncio.create_task(db.update_quest_progress(user["id"], "do-searches-2", 1))
         players = [
             {
                 "id": str(r["user_id"]),
@@ -624,6 +626,8 @@ async def handle_search(request: web.Request):
         })
 
     await db.increment_user_stat(user["id"], "search_count")
+    asyncio.create_task(db.update_quest_progress(user["id"], "do-searches", 1))
+    asyncio.create_task(db.update_quest_progress(user["id"], "do-searches-2", 1))
 
     return web.json_response({"premium": premium, "is_pro": is_pro, "game": game_to_search, "players": players, "teams": []})
 
@@ -884,9 +888,10 @@ COIN_SHOP = [
 ]
 
 QUESTS_CONFIG = [
-    {"id": "play-cs16", "title": "Играй в CS 1.6", "desc": "Проведи 60 минут в CS 1.6", "reward": 12, "targetMinutes": 60},
-    {"id": "play-dota2", "title": "Играй в Dota 2", "desc": "Проведи 60 минут в Dota 2", "reward": 12, "targetMinutes": 60},
-    {"id": "play-csgo", "title": "Играй в CS:GO", "desc": "Проведи 60 минут в CS:GO", "reward": 12, "targetMinutes": 60},
+    {"id": "open-cases", "title": "Открой 25 кейсов", "desc": "Открой 25 кейсов в Nexus", "reward": "40 ⭐", "rewardStars": 40, "target": 25},
+    {"id": "do-searches", "title": "Сделай 14 поисков", "desc": "Найди тиммейтов 14 раз", "reward": "35 ⭐", "rewardStars": 35, "target": 14},
+    {"id": "open-cases-2", "title": "Открой 50 кейсов", "desc": "Открой 50 кейсов в Nexus", "reward": "75 ⭐", "rewardStars": 75, "target": 50},
+    {"id": "do-searches-2", "title": "Сделай 30 поисков", "desc": "Найди тиммейтов 30 раз", "reward": "60 ⭐", "rewardStars": 60, "target": 30},
 ]
 
 
@@ -965,6 +970,10 @@ async def handle_nexus_open_case(request: web.Request):
                 await db.set_pro_status(user["id"], days=1, conn=conn)
             await db.add_battlepass_xp(user["id"], 20, conn)
 
+    # Track quest progress: case opened
+    asyncio.create_task(db.update_quest_progress(user["id"], "open-cases", 1))
+    asyncio.create_task(db.update_quest_progress(user["id"], "open-cases-2", 1))
+
     return web.json_response({
         "item": rolled_item,
         "last_open_at": datetime.utcnow().isoformat(),
@@ -1029,9 +1038,30 @@ async def handle_nexus_quests(request: web.Request):
         else:
             entry["progress"] = 0
             entry["completed"] = False
-        entry["target"] = q["targetMinutes"]
+        entry["target"] = q["target"]
         quests.append(entry)
     return web.json_response({"quests": quests})
+
+
+async def handle_nexus_claim_quest_reward(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    quest_id = body.get("quest_id")
+    if not quest_id:
+        return web.json_response({"error": "quest_id required"}, status=400)
+    quest_config = next((q for q in QUESTS_CONFIG if q["id"] == quest_id), None)
+    if not quest_config:
+        return web.json_response({"error": "unknown quest"}, status=400)
+    progress = await db.get_all_quests_progress(user["id"])
+    prog = next((p for p in progress if p["quest_id"] == quest_id), None)
+    if not prog or prog["progress_minutes"] < quest_config["target"]:
+        return web.json_response({"error": "quest not completed"}, status=400)
+    if prog["completed"]:
+        return web.json_response({"error": "already claimed"}, status=400)
+    await db.adjust_currency(user["id"], stars=quest_config["rewardStars"])
+    await db.complete_quest(user["id"], prog["id"])
+    return web.json_response({"ok": True, "stars": quest_config["rewardStars"]})
 
 
 async def handle_nexus_shop(request: web.Request):
@@ -1924,6 +1954,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/nexus/inventory", handle_nexus_inventory)
     app.router.add_post("/api/nexus/inventory/sell", handle_nexus_sell)
     app.router.add_get("/api/nexus/quests", handle_nexus_quests)
+    app.router.add_post("/api/nexus/quests/claim", handle_nexus_claim_quest_reward)
     app.router.add_get("/api/nexus/shop", handle_nexus_shop)
     app.router.add_post("/api/nexus/shop/buy", handle_nexus_buy)
     app.router.add_post("/api/nexus/exchange", handle_nexus_exchange)
