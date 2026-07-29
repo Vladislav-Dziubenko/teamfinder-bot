@@ -566,6 +566,21 @@ class Database:
                 datetime.utcnow().isoformat(),
             )
 
+        # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
+        try:
+            await conn.execute("""
+                WITH old_ids AS (
+                    SELECT DISTINCT chat_id FROM chat_messages WHERE chat_id ~ '^dm-\\d+$'
+                )
+                UPDATE chat_messages cm
+                SET chat_id = 'dm-' || LEAST(cm.sender_id, CAST(REPLACE(oi.chat_id, 'dm-', '') AS BIGINT))
+                              || '-' || GREATEST(cm.sender_id, CAST(REPLACE(oi.chat_id, 'dm-', '') AS BIGINT))
+                FROM old_ids oi
+                WHERE cm.chat_id = oi.chat_id
+            """)
+        except asyncpg.PostgresError as e:
+            print(f"Chat migration warning: {e}")
+
         # Performance indexes for frequent queries
         perf_indexes = [
             "CREATE INDEX IF NOT EXISTS idx_profiles_game_active ON profiles (game, is_active)",
@@ -1600,14 +1615,11 @@ class Database:
     # ---------- Chat ----------
 
     async def can_access_chat(self, chat_id: str, user_id: int) -> bool:
-        """Проверяет, имеет ли пользователь доступ к чату (свои DM или отправлял туда)."""
         async with self.pool.acquire() as conn:
-            other_id_str = chat_id.replace("dm-", "")
-            if other_id_str.isdigit():
-                other_id = int(other_id_str)
-                if other_id == user_id:
-                    return True  # пользователь — получатель в этом DM
-            # пользователь отправлял сообщения в этот чат
+            parts = chat_id.replace("dm-", "").split("-")
+            numeric_parts = [int(p) for p in parts if p.isdigit()]
+            if user_id in numeric_parts:
+                return True
             row = await conn.fetchval(
                 "SELECT 1 FROM chat_messages WHERE chat_id = $1 AND sender_id = $2 LIMIT 1",
                 chat_id, user_id,
@@ -1633,22 +1645,30 @@ class Database:
 
     async def get_user_chats(self, user_id: int) -> list[dict]:
         async with self.pool.acquire() as conn:
-            # Chats where user sent a message
-            sent = await conn.fetch(
-                "SELECT DISTINCT chat_id FROM chat_messages WHERE sender_id = $1",
+            rows = await conn.fetch(
+                """SELECT DISTINCT chat_id FROM chat_messages
+                   WHERE sender_id = $1
+                      OR chat_id LIKE $2
+                      OR chat_id LIKE $3""",
                 user_id,
+                f"dm-{user_id}-%",
+                f"dm-%-{user_id}",
             )
-            # Chats where user is the recipient (chat_id = dm-{user_id})
-            received = await conn.fetch(
-                "SELECT DISTINCT chat_id FROM chat_messages WHERE chat_id = $1",
-                f"dm-{user_id}",
-            )
-            all_ids = set(r["chat_id"] for r in sent) | set(r["chat_id"] for r in received)
-            all_ids.add(f"dm-{user_id}")
+            all_ids = set(r["chat_id"] for r in rows)
             results = []
             for cid in all_ids:
-                # Skip invalid chats
-                if not cid or not isinstance(cid, str) or not cid.startswith("dm-") or cid == f"dm-{user_id}":
+                if not cid or not isinstance(cid, str) or not cid.startswith("dm-"):
+                    continue
+                parts = cid.replace("dm-", "").split("-")
+                numeric_parts = [int(p) for p in parts if p.isdigit()]
+                if len(numeric_parts) == 2:
+                    a, b = numeric_parts
+                    other_id = a if b == user_id else b
+                elif len(numeric_parts) == 1:
+                    other_id = numeric_parts[0]
+                else:
+                    continue
+                if other_id == user_id:
                     continue
                 row = await conn.fetchrow(
                     "SELECT id, chat_id, sender_id, text, created_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT 1",
@@ -1659,21 +1679,17 @@ class Database:
                         "SELECT COUNT(*) FROM chat_messages WHERE chat_id = $1 AND sender_id != $2 AND id > COALESCE((SELECT MAX(id) FROM chat_messages WHERE chat_id = $1 AND sender_id = $2), 0)",
                         cid, user_id,
                     )
-                    other_id_str = cid.replace("dm-", "")
-                    other_id = int(other_id_str) if other_id_str.isdigit() else 0
-                    if not other_id:
-                        continue
                     profile = await conn.fetchrow(
                         "SELECT COALESCE(mp.nick, $2) AS nick, mp.avatar, u.last_active_at FROM mini_app_profiles mp LEFT JOIN users u ON u.user_id = mp.user_id WHERE mp.user_id = $1",
                         other_id, str(other_id),
-                    ) if other_id else None
+                    )
                     other_avatar = profile["avatar"] if profile else f"/player-{((other_id % 4) + 1)}.png"
                     other_online = profile and profile["last_active_at"] and (datetime.utcnow() - datetime.fromisoformat(profile["last_active_at"])).total_seconds() < 300
                     other_last_seen = profile["last_active_at"] if profile else None
                     results.append({
                         "chat_id": cid,
                         "other_id": other_id,
-                        "other_nick": profile["nick"] if profile else other_id_str,
+                        "other_nick": profile["nick"] if profile else str(other_id),
                         "other_avatar": other_avatar,
                         "other_online": bool(other_online),
                         "other_last_seen": other_last_seen,

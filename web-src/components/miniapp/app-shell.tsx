@@ -21,10 +21,12 @@ import { FriendsTab } from "./friends-tab"
 import { ContactSheet } from "./contact-sheet"
 import { ProfileViewSheet } from "./profile-view-sheet"
 import { openChatWithPlayer } from "@/lib/chat"
+import { useMe } from "@/lib/store"
 import type { Player, Team } from "@/lib/data"
 
 function Shell() {
   const { t } = useI18n()
+  const me = useMe()
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -70,7 +72,7 @@ function Shell() {
   }
 
   function openChat(player: Player) {
-    setChatOpen({ chatId: openChatWithPlayer(player.id), player })
+    setChatOpen({ chatId: openChatWithPlayer(me.userId, player.id), player })
     goTab("chat")
   }
 
@@ -105,7 +107,7 @@ function Shell() {
           onClose={() => setSharedProfileId(null)}
           onChat={(id, nick, avatar) => {
             setChatOpen({
-              chatId: openChatWithPlayer(String(id)),
+              chatId: openChatWithPlayer(me.userId, String(id)),
               player: { id, nick, avatar, game: "", rank: "", role: "", kd: 0, winrate: 0, hours: 0, online: false, tags: [], bio: "", tgUsername: "", vibe: 0, locked: false },
             })
             goTab("chat")

@@ -21,12 +21,9 @@ export type ChatPreview = {
   unread: number
 }
 
-export function chatIdForPlayer(playerId: number | string): string {
-  if (typeof playerId !== "number" && typeof playerId !== "string") {
-    console.error("chatIdForPlayer received non-primitive:", playerId)
-    return ""
-  }
-  return `dm-${playerId}`
+export function chatIdForPair(id1: number | string, id2: number | string): string {
+  const [a, b] = [String(id1), String(id2)].sort()
+  return `dm-${a}-${b}`
 }
 
 let _chats: ChatPreview[] = []
@@ -42,7 +39,6 @@ export function useChats(): ChatPreview[] {
         const data: any = await api.get("/api/chat/list")
         if (cancelled) return
         const list: ChatPreview[] = (data.chats ?? []).map((c: any) => {
-          // Defensive: never let a Promise/object leak into a rendered string.
           const rawNick = c.other_nick
           const nick =
             typeof rawNick === "string" && rawNick.trim()
@@ -168,8 +164,8 @@ export async function sendMessageRaw(chatId: string, text: string): Promise<void
   await api.post("/api/chat/" + chatId + "/send", { text })
 }
 
-export function openChatWithPlayer(playerId: number | string): string {
-  return chatIdForPlayer(playerId)
+export function openChatWithPlayer(myId: number | string, otherId: number | string): string {
+  return chatIdForPair(myId, otherId)
 }
 
 export function getChatPlayer(chatId: string) {
