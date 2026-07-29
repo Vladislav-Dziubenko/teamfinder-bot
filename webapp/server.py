@@ -20,7 +20,9 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from time import time
 
-from aiohttp import web
+from urllib.parse import urlencode
+
+from aiohttp import web, ClientSession, ClientTimeout
 
 from config import Settings
 from data.games import (
@@ -193,7 +195,7 @@ def _get_user(request: web.Request) -> dict | None:
 
 _SENTINEL = object()
 
-_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error", "/api/discord/status", "/api/discord/auth", "/api/discord/unlink")
+_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error", "/api/discord/status", "/api/discord/auth", "/api/discord/callback", "/api/discord/unlink")
 
 @web.middleware
 async def timing_middleware(request: web.Request, handler):
@@ -770,9 +772,11 @@ async def handle_create_team(request: web.Request):
 async def handle_team_applications(request: web.Request):
     if _public_rate_limit(request):
         return web.json_response({"error": "rate limit exceeded"}, status=429)
-    # Не кэшируем: капитан команды должен видеть актуальные заявки сразу
     db: Database = request.app["db"]
-    team_id = int(request.match_info["team_id"])
+    try:
+        team_id = int(request.match_info["team_id"])
+    except ValueError:
+        return web.json_response({"error": "invalid team_id"}, status=400)
     status = request.query.get("status")
     applications = await db.get_team_applications(team_id, status)
     return web.json_response({"applications": applications})
@@ -781,7 +785,10 @@ async def handle_team_applications(request: web.Request):
 async def handle_apply_team(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    team_id = int(request.match_info["team_id"])
+    try:
+        team_id = int(request.match_info["team_id"])
+    except ValueError:
+        return web.json_response({"error": "invalid team_id"}, status=400)
     body = await request.json()
     message = str(body.get("message", "")).strip()[:500]
 
@@ -1345,18 +1352,17 @@ async def handle_chat_send(request: web.Request):
 async def handle_translate(request: web.Request):
     try:
         data = await request.json()
-    except:
+    except Exception:
         return web.json_response({"error": "invalid json"}, status=400)
     text = (data.get("text") or "").strip()
     target = (data.get("target") or "en").strip()
     if not text:
         return web.json_response({"error": "empty text"}, status=400)
     try:
-        import urllib.request, urllib.parse, json
-        url = "https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=" + urllib.parse.quote(target) + "&dt=t&q=" + urllib.parse.quote(text)
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            result = json.loads(resp.read().decode())
+        url = ("https://translate.googleapis.com/translate_a/single"
+               "?client=gtx&sl=auto&tl=" + target + "&dt=t&q=" + urlencode(text))
+        async with request.app["session"].get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=ClientTimeout(total=10)) as resp:
+            result = await resp.json()
             translated = "".join(part[0] for part in result[0] if part[0])
             return web.json_response({"translated": translated})
     except Exception as e:
@@ -1496,6 +1502,8 @@ async def handle_predictions_place(request: web.Request):
     if not isinstance(amount, int) or amount <= 0:
         return web.json_response({"error": "invalid amount"}, status=400)
 
+    if side not in ("A", "B"):
+        return web.json_response({"error": "invalid side"}, status=400)
     odds = match["oddsA"] if side == "A" else match["oddsB"]
     label = f"{match['teamA']} vs {match['teamB']} · {match['tournament']}"
     team = match["teamA"] if side == "A" else match["teamB"]
@@ -1568,8 +1576,10 @@ async def handle_pvp_resolve(request: web.Request):
 
     if not winner_id:
         return web.json_response({"error": "winner_id required"}, status=400)
-
-    ok = await db.resolve_pvp_challenge(int(challenge_id), int(winner_id))
+    try:
+        ok = await db.resolve_pvp_challenge(int(challenge_id), int(winner_id))
+    except ValueError:
+        return web.json_response({"error": "invalid id"}, status=400)
     if not ok:
         return web.json_response({"error": "cannot resolve challenge"}, status=400)
     return web.json_response({"ok": True})
@@ -1851,6 +1861,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot
+    app["session"] = ClientSession()
 
     app.router.add_get("/", handle_index)
     app.router.add_get("/health", handle_health)

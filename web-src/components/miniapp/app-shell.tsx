@@ -104,7 +104,10 @@ function Shell() {
           userId={sharedProfileId}
           onClose={() => setSharedProfileId(null)}
           onChat={(id, nick, avatar) => {
-            setChatOpen({ chatId: openChatWithPlayer(String(id)), player: { id, nick, avatar } as Player })
+            setChatOpen({
+              chatId: openChatWithPlayer(String(id)),
+              player: { id, nick, avatar, game: "", rank: "", role: "", kd: 0, winrate: 0, hours: 0, online: false, tags: [], bio: "", tgUsername: "", vibe: 0, locked: false },
+            })
             goTab("chat")
             setSharedProfileId(null)
           }}

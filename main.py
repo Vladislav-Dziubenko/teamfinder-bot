@@ -141,6 +141,8 @@ async def main():
             await runner.cleanup()
             await db.close()
             await bot.session.close()
+            if "session" in web_app:
+                await web_app["session"].close()
             logging.info("Shutdown complete")
 
     except Exception as e:

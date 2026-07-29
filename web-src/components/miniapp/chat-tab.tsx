@@ -143,7 +143,7 @@ function MessageBubble({ message: m, mine }: { message: Message; mine: boolean }
             : "rounded-bl-md border border-border bg-card text-card-foreground",
         )}
       >
-        <p className="text-pretty leading-relaxed">{translated ?? m.text}</p>
+        <p className="text-pretty leading-relaxed">{translated || m.text}</p>
         {translated && translated !== m.text && (
           <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground">
             {m.text}

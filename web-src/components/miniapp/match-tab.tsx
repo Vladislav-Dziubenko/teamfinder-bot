@@ -85,14 +85,14 @@ export function MatchTab({
         (game === "all" || p.game === game) &&
         (applied === "" ||
           p.nick.toLowerCase().includes(applied.toLowerCase()) ||
-          p.role.toLowerCase().includes(applied.toLowerCase()) ||
-          p.rank.toLowerCase().includes(applied.toLowerCase())),
+          (p.role || "").toLowerCase().includes(applied.toLowerCase()) ||
+          (p.rank || "").toLowerCase().includes(applied.toLowerCase())),
     )
     const sorted = [...list].sort((a, b) => {
       if (sort === "level") return (b.level ?? 0) - (a.level ?? 0)
-      if (sort === "time") return b.hours - a.hours
+      if (sort === "time") return (b.hours ?? 0) - (a.hours ?? 0)
       if (sort === "rank") return rankOrder.indexOf(a.rank) - rankOrder.indexOf(b.rank)
-      return b.vibe - a.vibe
+      return (b.vibe ?? 0) - (a.vibe ?? 0)
     })
     return sorted
   }, [searchResults, game, applied, sort])

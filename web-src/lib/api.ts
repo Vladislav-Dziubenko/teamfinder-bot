@@ -4,6 +4,7 @@ declare global {
       WebApp?: {
         initData: string
         openTelegramLink?: (url: string) => void
+        openInvoice?: (url: string, callback?: () => void) => void
         shareURL?: (url: string, text?: string) => void
         ready: () => void
       }
@@ -48,8 +49,8 @@ async function request(method: string, path: string, body?: unknown) {
 }
 
 export const api = {
-  get: (path: string) => request("GET", path),
-  post: (path: string, body?: unknown) => request("POST", path, body),
+  get: <T = any>(path: string): Promise<T> => request("GET", path) as Promise<T>,
+  post: <T = any>(path: string, body?: unknown): Promise<T> => request("POST", path, body) as Promise<T>,
 }
 
 export function openTelegramLink(url: string): void {

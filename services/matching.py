@@ -59,7 +59,7 @@ def score_match(my: dict, other: dict) -> int:
             if highlighted:
                 score += 5
         except ValueError:
-            pass
+            highlighted = False
         other["_highlighted"] = highlighted
     else:
         other["_highlighted"] = False
