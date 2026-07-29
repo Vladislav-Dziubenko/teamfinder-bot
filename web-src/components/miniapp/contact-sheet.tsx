@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { X, Send, MessageCircle, UserPlus, UserCheck, Check, Loader2 } from "lucide-react"
 import type { Player } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
@@ -20,13 +20,24 @@ export function ContactSheet({
   const [sent, setSent] = useState(false)
   const [friendLoading, setFriendLoading] = useState(false)
   const [friendSent, setFriendSent] = useState(false)
+  const [friendStatus, setFriendStatus] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!player?.id) return
+    api.get("/api/profile/by-id/" + player.id).then((d: any) => {
+      setFriendStatus(d.friend_status ?? null)
+    }).catch(() => {})
+  }, [player?.id])
 
   async function addFriend() {
     setFriendLoading(true)
     try {
       const res = await api.post("/api/friends/add/" + player!.id)
       if (res.error === "cannot add yourself") return
-      setFriendSent(true)
+      if (res.already_sent || res.ok) {
+        setFriendSent(true)
+        setFriendStatus("outgoing")
+      }
     } catch {}
     setFriendLoading(false)
   }
@@ -128,7 +139,7 @@ export function ContactSheet({
         <button
           type="button"
           onClick={addFriend}
-          disabled={friendSent || friendLoading}
+          disabled={!!friendStatus || friendLoading}
           className={cn(
             "mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold transition-all active:scale-[0.98]",
             friendSent
@@ -138,9 +149,13 @@ export function ContactSheet({
         >
           {friendLoading ? (
             <Loader2 className="size-4 animate-spin" />
-          ) : friendSent ? (
+          ) : friendSent || friendStatus === "outgoing" ? (
             <>
-              <UserCheck className="size-4" /> {t("common.done")}
+              <Clock className="size-4" /> {t("contact_sheet.invite_sent")}
+            </>
+          ) : friendStatus === "accepted" ? (
+            <>
+              <UserCheck className="size-4" /> {t("profile_view.friend_accepted")}
             </>
           ) : (
             <>
@@ -149,27 +164,29 @@ export function ContactSheet({
           )}
         </button>
 
-        {/* Invite to team */}
-        <button
-          type="button"
-          onClick={() => setInvited(true)}
-          className={cn(
-            "mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold transition-all active:scale-[0.98]",
-            invited
-              ? "bg-accent/15 text-accent"
-              : "bg-primary text-primary-foreground shadow-[0_0_20px_-4px_var(--primary)]",
-          )}
-        >
-          {invited ? (
-            <>
-              <Check className="size-4" /> {t("contact_sheet.invite_sent")}
-            </>
-          ) : (
-            <>
-              <UserPlus className="size-4" /> {t("contact_sheet.invite_team")}
-            </>
-          )}
-        </button>
+        {/* Invite to team — only if not already friends */}
+        {friendStatus !== "accepted" && (
+          <button
+            type="button"
+            onClick={() => setInvited(true)}
+            className={cn(
+              "mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-semibold transition-all active:scale-[0.98]",
+              invited
+                ? "bg-accent/15 text-accent"
+                : "bg-primary text-primary-foreground shadow-[0_0_20px_-4px_var(--primary)]",
+            )}
+          >
+            {invited ? (
+              <>
+                <Check className="size-4" /> {t("contact_sheet.invite_sent")}
+              </>
+            ) : (
+              <>
+                <UserPlus className="size-4" /> {t("contact_sheet.invite_team")}
+              </>
+            )}
+          </button>
+        )}
       </div>
     </div>
   )
