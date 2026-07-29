@@ -1638,6 +1638,9 @@ class Database:
             all_ids.add(f"dm-{user_id}")
             results = []
             for cid in all_ids:
+                # Skip invalid chats
+                if not cid or not isinstance(cid, str) or not cid.startswith("dm-") or cid == f"dm-{user_id}":
+                    continue
                 row = await conn.fetchrow(
                     "SELECT id, chat_id, sender_id, text, created_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT 1",
                     cid,
@@ -1649,11 +1652,13 @@ class Database:
                     )
                     other_id_str = cid.replace("dm-", "")
                     other_id = int(other_id_str) if other_id_str.isdigit() else 0
+                    if not other_id:
+                        continue
                     profile = await conn.fetchrow(
                         "SELECT COALESCE(mp.nick, $2) AS nick, mp.avatar, u.last_active_at FROM mini_app_profiles mp LEFT JOIN users u ON u.user_id = mp.user_id WHERE mp.user_id = $1",
                         other_id, str(other_id),
                     ) if other_id else None
-                    other_avatar = profile["avatar"] if profile else f"/player-{((other_id % 4) + 1)}.png" if other_id else None
+                    other_avatar = profile["avatar"] if profile else f"/player-{((other_id % 4) + 1)}.png"
                     other_online = profile and profile["last_active_at"] and (datetime.utcnow() - datetime.fromisoformat(profile["last_active_at"])).total_seconds() < 300
                     other_last_seen = profile["last_active_at"] if profile else None
                     results.append({

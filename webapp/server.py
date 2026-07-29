@@ -517,41 +517,80 @@ async def handle_online(request: web.Request):
 async def handle_search(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
+    query = request.query.get("q", "").strip().lower()
+    game_filter = request.query.get("game", "").strip().lower()
 
     profile = await db.get_profile(user["id"])
     if not profile:
-        return web.json_response({"error": "no profile"}, status=400)
+        # Allow search even without a profile — search by nickname across all users
+        players = []
+        if query:
+            rows = await db.pool.fetch(
+                """SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role
+                   FROM users u
+                   LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
+                   LEFT JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
+                   WHERE LOWER(COALESCE(mp.nick, '')) LIKE $1
+                   LIMIT 20""",
+                f"%{query}%",
+            )
+            for r in rows:
+                players.append({
+                    "id": str(r["user_id"]),
+                    "user_id": r["user_id"],
+                    "nick": r["nick"] or f"User{r['user_id']}",
+                    "avatar": r["avatar"] or f"/player-{((r['user_id'] % 4) + 1)}.png",
+                    "game": r["game"] or "unknown",
+                    "rank": r["rank"] or "",
+                    "role": r["role"] or "",
+                    "vibe": 0,
+                    "hours": 0,
+                    "level": None,
+                    "online": False,
+                    "lastSeen": None,
+                })
+        return web.json_response({"players": players, "teams": []})
 
+    game_to_search = game_filter if game_filter and game_filter != "all" else profile["game"]
     is_pro = await db.is_pro(user["id"])
-    premium = is_pro or await db.has_search_boost(user["id"], profile["game"])
-    candidates = await db.list_profiles_by_game(profile["game"], exclude_user_id=user["id"])
-    matches = find_matches(profile, candidates, limit=10 if premium else 3)
+    premium = is_pro or await db.has_search_boost(user["id"], game_to_search)
+    candidates = await db.list_profiles_by_game(game_to_search, exclude_user_id=user["id"])
 
-    results = []
+    # Filter by nickname if q provided
+    if query:
+        candidates = [c for c in candidates if query in c.get("nickname", "").lower()]
+
+    matches = find_matches(profile, candidates, limit=50 if premium else 20)
+
+    players = []
     for p, score in matches:
         contact_unlocked = await db.has_unlocked_contact(user["id"], p["id"])
-        # Fetch mini_app_profile for avatar/nick
         mini_profile = await db.get_mini_app_profile(p["user_id"])
         nick = mini_profile.get("nick") or p["nickname"]
         avatar = mini_profile.get("avatar") or f"/player-{((p['user_id'] % 4) + 1)}.png"
-        result = {
-            "id": p["id"],
+        contact = p["contact"] if premium or contact_unlocked else None
+        players.append({
+            "id": str(p["user_id"]),
             "user_id": p["user_id"],
             "nick": nick,
             "avatar": avatar,
             "nickname": p["nickname"] if premium else "🔒 Скрыто",
+            "game": p["game"],
             "rank": p["rank"],
             "role": p["role"],
             "playtime": p["playtime"],
             "region": p.get("region", ""),
-            "score": score,
-            "contact": p["contact"] if premium or contact_unlocked else None,
-        }
-        results.append(result)
+            "vibe": score,
+            "hours": int(p.get("playtime", 0)) if p.get("playtime", "").isdigit() else 0,
+            "level": None,
+            "online": False,
+            "lastSeen": None,
+            "contact": contact,
+        })
 
     await db.increment_user_stat(user["id"], "search_count")
 
-    return web.json_response({"premium": premium, "is_pro": is_pro, "game": profile["game"], "results": results})
+    return web.json_response({"premium": premium, "is_pro": is_pro, "game": game_to_search, "players": players, "teams": []})
 
 
 async def handle_guides(request: web.Request):
