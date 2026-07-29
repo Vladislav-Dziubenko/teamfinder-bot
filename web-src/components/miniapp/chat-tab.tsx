@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-import { ChevronLeft, Send, MessagesSquare, CheckCheck, Check, Languages, Loader2 } from "lucide-react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
+import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2 } from "lucide-react"
 import {
   useChatMessages,
   useChats,
@@ -119,7 +119,7 @@ type Message = {
   status?: "sent" | "read"
 }
 
-function MessageBubble({ message: m, mine }: { message: Message; mine: boolean }) {
+const MessageBubble = React.memo(function MessageBubble({ message: m, mine }: { message: Message; mine: boolean }) {
   const { t, lang } = useI18n()
   const [translated, setTranslated] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -175,17 +175,33 @@ function MessageBubble({ message: m, mine }: { message: Message; mine: boolean }
       </div>
     </div>
   )
-}
+})
 
 function ChatConversation({ chatId, player, onBack }: { chatId: string; player?: ChatPreview["player"]; onBack: () => void }) {
   const { t } = useI18n()
   const { messages, sendMessage, typing } = useChatMessages(chatId)
   const [draft, setDraft] = useState("")
+  const [showEmoji, setShowEmoji] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages.length, typing])
+
+  const emojis = useMemo(
+    () => ["😀","😂","🥰","😎","🤔","😢","😡","🔥","⭐","💯","❤️","👍","🎉","✨","💪","🙏","😢","🤗","🤩","💀"],
+    [],
+  )
+
+  function insertEmoji(emoji: string) {
+    setDraft((d) => d + emoji)
+    inputRef.current?.focus()
+  }
+
+  function openStickerPanel() {
+    inputRef.current?.focus()
+  }
 
   function submit() {
     if (!draft.trim()) return
@@ -197,19 +213,10 @@ function ChatConversation({ chatId, player, onBack }: { chatId: string; player?:
     <div className="fixed inset-x-0 top-0 bottom-[60px] z-50 mx-auto flex max-w-md flex-col bg-background pb-[env(safe-area-inset-bottom)]">
       {/* Header */}
       <header className="flex items-center gap-3 border-b border-border bg-card/85 px-3 py-3 backdrop-blur-xl">
-        <button
-          type="button"
-          onClick={onBack}
-          aria-label={t("chat.back")}
-          className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90"
-        >
+        <button type="button" onClick={onBack} aria-label={t("chat.back")} className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90">
           <ChevronLeft className="size-5" />
         </button>
-        <img
-          src={player?.avatar || "/placeholder.svg"}
-          alt={player?.nick ?? t("common.unknown")}
-          className="size-9 rounded-full object-cover"
-        />
+        <img src={player?.avatar || "/placeholder.svg"} alt={player?.nick ?? t("common.unknown")} className="size-9 rounded-full object-cover" />
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-sm font-bold">{player?.nick ?? t("common.unknown")}</p>
           <p className="text-[11px] text-accent">
@@ -222,11 +229,8 @@ function ChatConversation({ chatId, player, onBack }: { chatId: string; player?:
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
         {messages.map((m) => {
           const mine = m.senderId === "me"
-          return (
-            <MessageBubble key={m.id} message={m} mine={mine} />
-          )
+          return <MessageBubble key={m.id} message={m} mine={mine} />
         })}
-
         {typing && (
           <div className="flex justify-start">
             <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-border bg-card px-3 py-3">
@@ -236,27 +240,27 @@ function ChatConversation({ chatId, player, onBack }: { chatId: string; player?:
         )}
       </div>
 
+      {/* Emoji strip */}
+      {showEmoji && (
+        <div className="flex flex-wrap gap-1.5 border-t border-border bg-card/85 px-3 py-2 backdrop-blur-xl">
+          {emojis.map((e) => (
+            <button key={e} type="button" onClick={() => insertEmoji(e)} className="grid size-9 place-items-center rounded-lg text-lg active:scale-90">
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Input */}
       <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2.5 backdrop-blur-xl">
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) {
-              e.preventDefault()
-              submit()
-            }
-          }}
-          placeholder={t("chat.input_placeholder")}
-          className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
-        />
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!draft.trim()}
-          aria-label={t("common.send")}
-          className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40"
-        >
+        <button type="button" onClick={() => setShowEmoji((v) => !v)} aria-label={t("chat.emoji")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
+          <Smile className="size-5" />
+        </button>
+        <button type="button" onClick={openStickerPanel} aria-label={t("chat.sticker")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
+          <Sticker className="size-5" />
+        </button>
+        <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }} placeholder={t("chat.input_placeholder")} className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50" />
+        <button type="button" onClick={submit} disabled={!draft.trim()} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
           <Send className="size-5" />
         </button>
       </div>
