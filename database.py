@@ -1649,7 +1649,7 @@ class Database:
                     )
                     other_id_str = cid.replace("dm-", "")
                     other_id = int(other_id_str) if other_id_str.isdigit() else 0
-                     profile = await conn.fetchrow(
+                    profile = await conn.fetchrow(
                         "SELECT COALESCE(nick, $2) AS nick, avatar FROM mini_app_profiles WHERE user_id = $1",
                         other_id, other_id_str,
                     ) if other_id else None
