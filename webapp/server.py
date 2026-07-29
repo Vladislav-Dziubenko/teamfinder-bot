@@ -14,6 +14,7 @@ import gzip
 import html
 import logging
 import re
+import asyncio
 from pathlib import Path
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -289,6 +290,21 @@ async def error_middleware(request: web.Request, handler):
         # внутренних путей и текста ошибки.
         logging.exception("Unhandled exception in %s %s", request.method, request.path)
         return web.json_response({"error": "internal server error"}, status=500)
+
+
+@web.middleware
+async def active_middleware(request: web.Request, handler):
+    """Updates last_active_at for authenticated users on each API call (fire-and-forget)."""
+    response = await handler(request)
+    if request.path.startswith("/api/"):
+        user = _get_user(request)
+        if user and "id" in user:
+            db: Database = request.app["db"]
+            asyncio.ensure_future(db.pool.execute(
+                "UPDATE users SET last_active_at = $1 WHERE user_id = $2",
+                datetime.utcnow().isoformat(), user["id"],
+            ))
+    return response
 
 
 @web.middleware
@@ -1787,10 +1803,11 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # 1. security_middleware     — самый внешний: CSP + security headers на любой ответ (включая ошибки)
     # 2. error_middleware        — перехватывает все исключения, скрывает стектрейс от клиента
     # 3. auth_middleware         — проверяет X-Telegram-Init-Data, пишет request["init_data"]
-    # 4. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
+    # 4. active_middleware      — обновляет last_active_at (fire-and-forget) для авторизованных
+    # 5. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
     # Если поменять порядок — rate limiter получит init_data=None и вернёт 500.
-    # Порядок: security → timing → db_ready → cors → gzip → cache → error → auth → rate_limit
-    app = web.Application(middlewares=[security_middleware, timing_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, web_rate_limit_middleware])
+    # Порядок: security → timing → db_ready → cors → gzip → cache → error → auth → active → rate_limit
+    app = web.Application(middlewares=[security_middleware, timing_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, active_middleware, web_rate_limit_middleware])
     app["allowed_origins"] = _resolve_allowed_origins(settings)
     app["db"] = db
     app["settings"] = settings

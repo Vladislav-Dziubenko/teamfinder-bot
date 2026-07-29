@@ -1650,15 +1650,19 @@ class Database:
                     other_id_str = cid.replace("dm-", "")
                     other_id = int(other_id_str) if other_id_str.isdigit() else 0
                     profile = await conn.fetchrow(
-                        "SELECT COALESCE(nick, $2) AS nick, avatar FROM mini_app_profiles WHERE user_id = $1",
-                        other_id, other_id_str,
+                        "SELECT COALESCE(mp.nick, $2) AS nick, mp.avatar, u.last_active_at FROM mini_app_profiles mp LEFT JOIN users u ON u.user_id = mp.user_id WHERE mp.user_id = $1",
+                        other_id, str(other_id),
                     ) if other_id else None
                     other_avatar = profile["avatar"] if profile else f"/player-{((other_id % 4) + 1)}.png" if other_id else None
+                    other_online = profile and profile["last_active_at"] and (datetime.utcnow() - datetime.fromisoformat(profile["last_active_at"])).total_seconds() < 300
+                    other_last_seen = profile["last_active_at"] if profile else None
                     results.append({
                         "chat_id": cid,
                         "other_id": other_id,
                         "other_nick": profile["nick"] if profile else other_id_str,
                         "other_avatar": other_avatar,
+                        "other_online": bool(other_online),
+                        "other_last_seen": other_last_seen,
                         "last_text": row["text"],
                         "last_ts": row["created_at"],
                         "unread": unread or 0,

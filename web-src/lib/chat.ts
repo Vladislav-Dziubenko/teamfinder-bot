@@ -33,6 +33,7 @@ let _chats: ChatPreview[] = []
 
 export function useChats(): ChatPreview[] {
   const [chats, setChats] = useState<ChatPreview[]>([])
+  const pollingRef = useRef<ReturnType<typeof setInterval>>()
 
   useEffect(() => {
     let cancelled = false
@@ -49,14 +50,16 @@ export function useChats(): ChatPreview[] {
               : "Unknown"
           const rawAvatar = c.other_avatar
           const avatar = typeof rawAvatar === "string" ? rawAvatar : null
+          const online = c.other_online === true
+          const lastSeen = c.other_last_seen ?? null
           return {
             id: c.chat_id ?? c.id ?? "",
             player: {
               id: c.other_id ?? 0,
               nick,
               avatar,
-              online: false,
-              lastSeen: null,
+              online,
+              lastSeen,
             },
             lastText: c.last_text ?? "",
             lastTs: c.last_ts ? new Date(c.last_ts).getTime() : Date.now(),
@@ -73,8 +76,10 @@ export function useChats(): ChatPreview[] {
       }
     }
     load()
+    pollingRef.current = setInterval(load, 10000)
     return () => {
       cancelled = true
+      clearInterval(pollingRef.current)
     }
   }, [])
 
