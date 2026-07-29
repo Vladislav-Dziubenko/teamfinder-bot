@@ -68,7 +68,7 @@ export function ChatTab({
       ) : (
         <div className="space-y-2">
           {chats.map((c) => (
-            <ChatRow key={c.id} chat={c} onClick={() => setActiveId(c.id)} />
+            <ChatRow key={c.id} chat={c} onClick={() => setActiveId(c.id)} lang={lang} />
           ))}
         </div>
       )}
@@ -76,7 +76,7 @@ export function ChatTab({
   )
 }
 
-function ChatRow({ chat, onClick }: { chat: ChatPreview; onClick: () => void }) {
+function ChatRow({ chat, onClick, lang }: { chat: ChatPreview; onClick: () => void; lang: string }) {
   return (
     <button
       type="button"
@@ -96,7 +96,7 @@ function ChatRow({ chat, onClick }: { chat: ChatPreview; onClick: () => void }) 
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <p className="truncate font-display text-sm font-bold">{chat.player.nick}</p>
-          <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime(chat.lastTs)}</span>
+          <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime(chat.lastTs, lang)}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
           <p className="truncate text-sm text-muted-foreground">{chat.lastText}</p>
@@ -156,7 +156,7 @@ function MessageBubble({ message: m, mine }: { message: Message; mine: boolean }
               mine ? "text-primary-foreground/70" : "text-muted-foreground",
             )}
           >
-            {clockTime(m.ts)}
+            {formatMsgTime(m.ts, lang)}
             {mine &&
               (m.status === "read" ? <CheckCheck className="size-3" /> : <Check className="size-3" />)}
           </span>
@@ -273,16 +273,18 @@ function Dot({ delay = "0ms" }: { delay?: string }) {
   )
 }
 
-function clockTime(ts: number): string {
-  return new Date(ts).toLocaleTimeString("ru-RU", { hour: "2-digit", minute: "2-digit" })
+function formatMsgTime(ts: number, lang: string): string {
+  return relativeTime(ts, lang)
 }
 
-function relativeTime(ts: number): string {
+function relativeTime(ts: number, lang: string): string {
   const diff = Date.now() - ts
   const min = Math.floor(diff / 60_000)
-  if (min < 1) return "сейчас"
-  if (min < 60) return `${min} мин`
+  const rtf = new Intl.RelativeTimeFormat(lang, { numeric: "auto" })
+  if (min < 1) return rtf.format(0, "minute")
+  if (min < 60) return rtf.format(-min, "minute")
   const h = Math.floor(min / 60)
-  if (h < 24) return `${h} ч`
-  return `${Math.floor(h / 24)} дн`
+  if (h < 24) return rtf.format(-h, "hour")
+  const d = Math.floor(h / 24)
+  return rtf.format(-d, "day")
 }

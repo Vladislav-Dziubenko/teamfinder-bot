@@ -106,6 +106,7 @@ function mapMsg(m: any): ChatMessage {
 export function useChatMessages(chatId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [typing, setTyping] = useState(false)
+  const optimisticIds = useRef<Set<string>>(new Set())
   const pollingRef = useRef<ReturnType<typeof setInterval>>()
 
   useEffect(() => {
@@ -116,6 +117,7 @@ export function useChatMessages(chatId: string | null) {
       chatId.includes("[object Object]")
     ) {
       setMessages([])
+      optimisticIds.current.clear()
       return
     }
     let cancelled = false
@@ -123,7 +125,12 @@ export function useChatMessages(chatId: string | null) {
       try {
         const data: any = await api.get("/api/chat/" + chatId)
         if (!cancelled) {
-          setMessages((data.messages ?? []).map(mapMsg))
+          const serverMsgs = (data.messages ?? []).map(mapMsg)
+          const serverIds = new Set(serverMsgs.map((m: ChatMessage) => m.id))
+          setMessages((prev) => {
+            const kept = prev.filter((m) => m.id.startsWith("opt-") && !serverIds.has(m.id))
+            return [...serverMsgs, ...kept]
+          })
         }
       } catch (e: any) {
         if (e?.status === 503 && attempt < 10 && !cancelled) {
@@ -143,6 +150,7 @@ export function useChatMessages(chatId: string | null) {
   const sendMessage = useCallback(async (text: string) => {
     if (!chatId) return
     const id = "opt-" + Date.now()
+    optimisticIds.current.add(id)
     const optimistic: ChatMessage = {
       id,
       chatId,
