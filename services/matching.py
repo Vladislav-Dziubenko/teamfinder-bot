@@ -55,10 +55,14 @@ def score_match(my: dict, other: dict) -> int:
 
     if other.get("highlighted_until"):
         try:
-            if datetime.fromisoformat(other["highlighted_until"]) > datetime.utcnow():
+            highlighted = datetime.fromisoformat(other["highlighted_until"]) > datetime.utcnow()
+            if highlighted:
                 score += 5
         except ValueError:
             pass
+        other["_highlighted"] = highlighted
+    else:
+        other["_highlighted"] = False
 
     if my.get("region") and other.get("region") and my["region"].lower() == other["region"].lower():
         score += 10
@@ -74,7 +78,7 @@ def find_matches(my_profile: dict, candidates: list[dict], limit: int = 10) -> l
         s = score_match(my_profile, c)
         if s >= 25:
             scored.append((c, s))
-    scored.sort(key=lambda x: (-x[1], x[0].get("highlighted_until") is not None))
+    scored.sort(key=lambda x: (-x[1], -int(x[0].get("_highlighted", False))))
     return scored[:limit]
 
 
