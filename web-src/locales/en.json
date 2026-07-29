@@ -40,7 +40,6 @@
   "common.in_days": "in {count} d",
   "common.via": "via",
   "common.unknown": "Unknown",
-
   "nav.home": "Home",
   "nav.match": "Teammates",
   "nav.predictions": "Predictions",
@@ -51,7 +50,6 @@
   "nav.promo": "Promo",
   "nav.profile": "Profile",
   "nav.friends": "Friends",
-
   "friends.title": "Friends",
   "friends.subtitle": "Find and chat with teammates",
   "friends.friends_tab": "Friends",
@@ -62,16 +60,13 @@
   "friends.request_from": "wants to add you as a friend",
   "friends.search_placeholder": "Enter player username...",
   "friends.search_results": "Search results",
-
   "topbar.tagline": "find teammates",
   "topbar.coins": "Nexus coins",
   "topbar.stars": "Telegram Stars",
   "topbar.language": "Language",
-
   "lang.title": "App language",
   "lang.subtitle": "Choose from 35 languages",
   "lang.search": "Search language…",
-
   "appshell.not_available_title": "Mini App unavailable",
   "appshell.not_available_desc": "Open this service via @TeamUpMatchBot in Telegram — press Mini App button in /start.",
   "appshell.not_available_hint": "Direct browser link won't work — Telegram WebView required.",
@@ -79,7 +74,6 @@
   "appshell.toast_leaderboard_soon": "Full leaderboard coming soon 🏆",
   "appshell.reauth_title": "Re-enter the app",
   "appshell.reauth_desc": "Session expired — close and reopen the Mini App",
-
   "home.hero_players": "{count} players searching",
   "home.hero_title": "Find your dream team",
   "home.hero_subtitle": "Find teammates by game, rank and vibe — no toxic randoms.",
@@ -93,7 +87,6 @@
   "home.quest_title": "Daily quest",
   "home.quest_reward": "Reward: {reward} ⭐",
   "home.free_searches": "Free searches left: {count}",
-
   "match.title": "Find teammates",
   "match.subtitle": "Find a match by game, rank and vibe.",
   "match.cta_search": "Find teammates",
@@ -113,7 +106,6 @@
   "match.players_tab": "Players",
   "match.teams_tab": "Teams",
   "match.sort_match": "% Match",
-
   "cases.title": "Nexus Cases",
   "cases.subtitle": "Spin the wheel, get skins and premium. Odds shown for each case.",
   "cases.sound_on": "Mute sound",
@@ -133,13 +125,12 @@
   "cases.premium_activated": "Premium activated!",
   "cases.sell_hint": "Can be sold for {cost} coins",
   "cases.collect": "Collect to inventory",
-  "cases.drop_chance_item": "This item chance: {pct}%",
+  "cases.drop_chance_item": "This item chance: {pct}",
   "cases.opening": "Opening",
   "rarity.common": "Common",
   "rarity.rare": "Rare",
   "rarity.epic": "Epic",
   "rarity.premium": "Premium",
-
   "donate.title": "Support & upgrade",
   "donate.subtitle": "Pay with Telegram Stars ⭐ — profile boost, PRO status and Nexus coins.",
   "donate.perk_boost": "Boost",
@@ -164,7 +155,6 @@
   "donate.coins_added": "+{count} Nexus coins added!",
   "donate.payment_cancelled": "Payment cancelled",
   "donate.payment_success": "✅ {perk} — paid! ⭐",
-
   "battlepass.season": "Season 1 · 2026",
   "battlepass.title": "Nexus Battle Pass",
   "battlepass.collected": "Collected {claimed} / {total}",
@@ -184,7 +174,6 @@
   "battlepass.buy_failed": "Failed to buy premium pass",
   "battlepass.claimed_tier": "Day {level} reward claimed to inventory!",
   "battlepass.claim_failed": "Cannot claim yet",
-
   "promo.title": "Promocodes",
   "promo.subtitle": "Redeem codes for rewards or create your own and share with friends.",
   "promo.tab_redeem": "Redeem",
@@ -209,7 +198,6 @@
   "promo.activated": "Activated! {rewards}",
   "promo.created": "Promocode {code} created!",
   "promo.code_copied": "Code {code} copied",
-
   "guides.title": "Guides & analysis",
   "guides.subtitle": "Watch right in the app",
   "guides.featured": "🔥 Top of the week",
@@ -222,7 +210,6 @@
   "guides.type_video": "Video",
   "guides.level_beginner": "Beginner",
   "guides.level_advanced": "Advanced",
-
   "stats.title": "Statistics",
   "stats.subtitle": "Your progress, achievements and leaderboard rank",
   "stats.period_7d": "7 days",
@@ -238,7 +225,6 @@
   "stats.rank": "overall · top {pct}% of {total}",
   "stats.achievements_title": "Recent achievements",
   "stats.leaderboard_placeholder": "Full leaderboard coming soon 🏆",
-
   "chat.title": "Messages",
   "chat.subtitle": "Chat with teammates right in the app",
   "chat.empty_title": "No chats yet",
@@ -247,7 +233,6 @@
   "chat.input_placeholder": "Message…",
   "chat.send_to": "Message {name}",
   "chat.translate": "Translate",
-
   "predictions.title": "Predictions",
   "predictions.subtitle": "Predict match outcomes and challenge players. Game knowledge wins, not luck.",
   "predictions.balance": "Your balance",
@@ -291,7 +276,6 @@
   "predictions.pvp_defeat": "Defeat",
   "predictions.pvp_challenge_accepted": "Challenge accepted!",
   "predictions.pvp_result_confirmed": "Result confirmed",
-
   "profile.card_premium": "PREMIUM",
   "profile.change_avatar": "Change avatar",
   "profile.photo": "photo",
@@ -347,7 +331,6 @@
   "profile.row_settings_soon": "Profile settings — coming soon ✨",
   "profile.footer": "NEXUS · Telegram Mini App · v1.1",
   "profile.ach_game_label": "{game}",
-
   "player_card.badge_donor": "Top donor",
   "player_card.badge_veteran": "Veteran",
   "player_card.match_pct": "{pct}% match",
@@ -360,7 +343,6 @@
   "player_card.unlock_for": "Unlock for {cost} Stars",
   "player_card.connect": "Contact",
   "player_card.send_message": "Message {name}",
-
   "contact_sheet.write_telegram": "Write on Telegram",
   "contact_sheet.quick_message": "Quick in-app message",
   "contact_sheet.input_placeholder": "Wanna play?",
@@ -370,14 +352,12 @@
   "contact_sheet.invite_error": "Failed to create team. Try later.",
   "contact_sheet.open": "Open →",
   "contact_sheet.add_friend": "Add friend",
-
   "profile_view.not_found": "Profile not found",
   "profile_view.send_message": "Message",
   "profile_view.add_friend": "Add friend",
   "profile_view.friend_accepted": "Friends",
   "profile_view.friend_pending": "Pending",
   "profile_view.friend_incoming": "Accept",
-
   "profile.share_title": "Share profile",
   "profile.share_hint": "Send link to a friend so they can add you",
   "profile.share_copied": "Profile link copied! 🔗",
@@ -386,7 +366,6 @@
   "profile.share_copy_hint": "Copy to clipboard",
   "profile.share_telegram": "Send to Telegram",
   "profile.share_telegram_hint": "Choose chats to send",
-
   "team.member_count": "{members}/{max} members",
   "team.needs_player": "Need a player",
   "team.apply": "Apply"

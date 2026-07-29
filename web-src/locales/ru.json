@@ -40,7 +40,6 @@
   "common.in_days": "через {count} дн",
   "common.via": "через",
   "common.unknown": "Неизвестно",
-
   "nav.home": "Главная",
   "nav.match": "Тиммейты",
   "nav.predictions": "Прогнозы",
@@ -51,7 +50,6 @@
   "nav.promo": "Промо",
   "nav.profile": "Профиль",
   "nav.friends": "Друзья",
-
   "friends.title": "Друзья",
   "friends.subtitle": "Находи и общайся с тиммейтами",
   "friends.friends_tab": "Друзья",
@@ -62,16 +60,13 @@
   "friends.request_from": "хочет добавить тебя в друзья",
   "friends.search_placeholder": "Введите username игрока...",
   "friends.search_results": "Результаты поиска",
-
   "topbar.tagline": "поиск тиммейтов",
   "topbar.coins": "Nexus монеты",
   "topbar.stars": "Telegram Stars",
   "topbar.language": "Язык",
-
   "lang.title": "Язык приложения",
   "lang.subtitle": "Выберите язык из 35 доступных",
   "lang.search": "Поиск языка…",
-
   "appshell.not_available_title": "Mini App недоступен",
   "appshell.not_available_desc": "Открой этот сервис через бота @TeamUpMatchBot в Telegram — нажми кнопку Mini App в /start.",
   "appshell.not_available_hint": "Прямая ссылка в браузере не работает — нужен Telegram WebView.",
@@ -79,7 +74,6 @@
   "appshell.toast_leaderboard_soon": "Полный рейтинг скоро появится 🏆",
   "appshell.reauth_title": "Перезайдите в приложение",
   "appshell.reauth_desc": "Сессия истекла — закройте и откройте Mini App заново",
-
   "home.hero_players": "{count} игроков в поиске",
   "home.hero_title": "Найди свою команду мечты",
   "home.hero_subtitle": "Подбор тиммейтов по игре, рангу и вайбу — без токсиков и рандомов.",
@@ -93,7 +87,6 @@
   "home.quest_title": "Задание дня",
   "home.quest_reward": "Награда: {reward} ⭐",
   "home.free_searches": "Осталось бесплатных поисков: {count}",
-
   "match.title": "Поиск тиммейтов",
   "match.subtitle": "Найди пару по своей игре, рангу и вайбу.",
   "match.cta_search": "Найти тиммейтов",
@@ -113,7 +106,6 @@
   "match.players_tab": "Игроки",
   "match.teams_tab": "Команды",
   "match.sort_match": "% Совпадение",
-
   "cases.title": "Кейсы Nexus",
   "cases.subtitle": "Крути рулетку, выбивай скины и премиум. Шансы указаны для каждого кейса.",
   "cases.sound_on": "Выключить звук",
@@ -133,13 +125,12 @@
   "cases.premium_activated": "Премиум активирован!",
   "cases.sell_hint": "Продать можно за {cost} монет",
   "cases.collect": "Забрать в инвентарь",
-  "cases.drop_chance_item": "Шанс этого предмета: {pct}%",
+  "cases.drop_chance_item": "Шанс этого предмета: {pct}",
   "cases.opening": "Открываем",
   "rarity.common": "Обычный",
   "rarity.rare": "Редкий",
   "rarity.epic": "Эпический",
   "rarity.premium": "Премиум",
-
   "donate.title": "Поддержи и прокачайся",
   "donate.subtitle": "Оплата в Telegram Stars ⭐ — буст профиля, PRO-статус и монеты Nexus.",
   "donate.perk_boost": "Буст",
@@ -164,7 +155,6 @@
   "donate.coins_added": "+{count} монет Nexus зачислено!",
   "donate.payment_cancelled": "Оплата отменена",
   "donate.payment_success": "✅ {perk} — оплачено! ⭐",
-
   "battlepass.season": "Сезон 1 · 2026",
   "battlepass.title": "Nexus Battle Pass",
   "battlepass.collected": "Собрано {claimed} / {total}",
@@ -184,7 +174,6 @@
   "battlepass.buy_failed": "Не удалось купить премиум-пасс",
   "battlepass.claimed_tier": "Награда дня {level} забрана в инвентарь!",
   "battlepass.claim_failed": "Пока нельзя забрать",
-
   "promo.title": "Промокоды",
   "promo.subtitle": "Активируй коды за награды или создавай свои и делись с друзьями.",
   "promo.tab_redeem": "Активировать",
@@ -209,7 +198,6 @@
   "promo.activated": "Активировано! {rewards}",
   "promo.created": "Промокод {code} создан!",
   "promo.code_copied": "Код {code} скопирован",
-
   "guides.title": "Гайды и разборы",
   "guides.subtitle": "Смотри прямо в приложении",
   "guides.featured": "🔥 Топ недели",
@@ -222,7 +210,6 @@
   "guides.type_video": "Видео",
   "guides.level_beginner": "Новичок",
   "guides.level_advanced": "Продвинутый",
-
   "stats.title": "Статистика",
   "stats.subtitle": "Твой прогресс, достижения и место в рейтинге",
   "stats.period_7d": "7 дней",
@@ -238,7 +225,6 @@
   "stats.rank": "в общем рейтинге · топ {pct}% из {total}",
   "stats.achievements_title": "Последние достижения",
   "stats.leaderboard_placeholder": "Полный рейтинг скоро появится 🏆",
-
   "chat.title": "Сообщения",
   "chat.subtitle": "Общайся с тиммейтами прямо в приложении",
   "chat.empty_title": "Пока нет диалогов",
@@ -247,7 +233,6 @@
   "chat.input_placeholder": "Сообщение…",
   "chat.send_to": "Написать {name}",
   "chat.translate": "Перевести",
-
   "predictions.title": "Прогнозы",
   "predictions.subtitle": "Предсказывай исходы матчей и бросай вызов игрокам. Побеждает знание игры, не удача.",
   "predictions.balance": "Твой баланс",
@@ -291,7 +276,6 @@
   "predictions.pvp_defeat": "Поражение",
   "predictions.pvp_challenge_accepted": "Вызов принят!",
   "predictions.pvp_result_confirmed": "Результат подтверждён",
-
   "profile.card_premium": "PREMIUM",
   "profile.change_avatar": "Сменить аватар",
   "profile.photo": "фото",
@@ -347,7 +331,6 @@
   "profile.row_settings_soon": "Настройки профиля — скоро ✨",
   "profile.footer": "NEXUS · Telegram Mini App · v1.1",
   "profile.ach_game_label": "{game}",
-
   "player_card.badge_donor": "Топ-донатер",
   "player_card.badge_veteran": "Ветеран",
   "player_card.match_pct": "{pct}% мэтч",
@@ -360,7 +343,6 @@
   "player_card.unlock_for": "Открыть за {cost} Stars",
   "player_card.connect": "Связаться",
   "player_card.send_message": "Написать {name}",
-
   "contact_sheet.write_telegram": "Написать в Telegram",
   "contact_sheet.quick_message": "Быстрое сообщение в приложении",
   "contact_sheet.input_placeholder": "Го катку на фейсит?",
@@ -370,14 +352,12 @@
   "contact_sheet.invite_error": "Не удалось создать команду. Попробуй позже.",
   "contact_sheet.open": "Открыть →",
   "contact_sheet.add_friend": "Добавить в друзья",
-
   "profile_view.not_found": "Профиль не найден",
   "profile_view.send_message": "Написать",
   "profile_view.add_friend": "В друзья",
   "profile_view.friend_accepted": "Друзья",
   "profile_view.friend_pending": "Ожидание",
   "profile_view.friend_incoming": "Принять",
-
   "profile.share_title": "Поделиться профилем",
   "profile.share_hint": "Скинь ссылку другу — он сможет добавить тебя",
   "profile.share_copied": "Ссылка на профиль скопирована! 🔗",
@@ -386,7 +366,6 @@
   "profile.share_copy_hint": "Скопировать в буфер обмена",
   "profile.share_telegram": "Отправить в Telegram",
   "profile.share_telegram_hint": "Выбрать чаты для отправки",
-
   "team.member_count": "{members}/{max} в составе",
   "team.needs_player": "Нужен игрок",
   "team.apply": "Подать заявку"
