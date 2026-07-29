@@ -61,19 +61,33 @@ export function FriendsTab({
     return () => clearTimeout(delay)
   }, [searchQuery])
 
+  const [processing, setProcessing] = useState<number | null>(null)
+
   async function accept(id: number) {
-    await api.post("/api/friends/accept/" + id)
-    load()
+    setProcessing(id)
+    try {
+      await api.post("/api/friends/accept/" + id)
+      load()
+    } catch {}
+    setProcessing(null)
   }
 
   async function decline(id: number) {
-    await api.post("/api/friends/decline/" + id)
-    load()
+    setProcessing(id)
+    try {
+      await api.post("/api/friends/decline/" + id)
+      load()
+    } catch {}
+    setProcessing(null)
   }
 
   async function remove(id: number) {
-    await api.post("/api/friends/remove/" + id)
-    load()
+    setProcessing(id)
+    try {
+      await api.post("/api/friends/remove/" + id)
+      load()
+    } catch {}
+    setProcessing(null)
   }
 
   async function addFriend(id: number) {
@@ -237,16 +251,26 @@ export function FriendsTab({
                   <button
                     type="button"
                     onClick={() => accept(r.requester_id)}
-                    className="grid size-9 place-items-center rounded-xl bg-accent/15 text-accent active:scale-90"
+                    disabled={processing !== null}
+                    className="grid size-9 place-items-center rounded-xl bg-accent/15 text-accent active:scale-90 disabled:opacity-50"
                   >
-                    <UserCheck className="size-4" />
+                    {processing === r.requester_id ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <UserCheck className="size-4" />
+                    )}
                   </button>
                   <button
                     type="button"
                     onClick={() => decline(r.requester_id)}
-                    className="grid size-9 place-items-center rounded-xl bg-destructive/10 text-destructive active:scale-90"
+                    disabled={processing !== null}
+                    className="grid size-9 place-items-center rounded-xl bg-destructive/10 text-destructive active:scale-90 disabled:opacity-50"
                   >
-                    <UserX className="size-4" />
+                    {processing === r.requester_id ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <UserX className="size-4" />
+                    )}
                   </button>
                 </div>
               </div>
