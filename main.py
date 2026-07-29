@@ -90,37 +90,35 @@ async def main():
         signal.signal(signal.SIGTERM, _signal_handler)
         signal.signal(signal.SIGINT, _signal_handler)
 
-        # Удаляем старый webhook (мог остаться от предыдущего деплоя с webhook'ом)
+        # Удаляем старый webhook и сбрасываем сессию, чтобы избежать ConflictError при перезапуске
         try:
             await bot.delete_webhook()
-            logging.info("Старый webhook удалён")
+            await bot.session.close()
+            logging.info("Старый webhook удалён, сессия сброшена")
         except Exception as e:
             logging.warning(f"Не удалось удалить webhook: {e}")
 
         # Polling в фоне — сервер запущен, порт открыт, Render видит порт
         async def polling_loop():
+            retry_delay = 2.0
             while not shutdown_event.is_set():
                 try:
                     await dp.start_polling(
                         bot,
                         allowed_updates=dp.resolve_used_update_types(),
                     )
+                    retry_delay = 2.0
                 except TelegramConflictError:
                     if shutdown_event.is_set():
                         break
-                    logging.warning("TelegramConflictError — другой инстанс поллит. Жду 30с...")
-                    try:
-                        await asyncio.wait_for(shutdown_event.wait(), timeout=30)
-                    except asyncio.TimeoutError:
-                        pass
+                    logging.warning("TelegramConflictError — другой инстанс поллит. Жду %.0fс...", retry_delay)
+                    await asyncio.sleep(retry_delay)
+                    retry_delay = min(retry_delay * 2, 30.0)
                 except Exception as e:
                     if shutdown_event.is_set():
                         break
                     logging.error(f"Polling error: {e}")
-                    try:
-                        await asyncio.wait_for(shutdown_event.wait(), timeout=5)
-                    except asyncio.TimeoutError:
-                        pass
+                    await asyncio.sleep(5)
 
         polling_task = asyncio.create_task(polling_loop())
         logging.info("Polling запущен в фоне")
