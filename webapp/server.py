@@ -543,7 +543,7 @@ async def handle_search(request: web.Request):
                    FROM users u
                    LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
                    LEFT JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
-                   WHERE LOWER(COALESCE(mp.nick, '')) LIKE $1
+                   WHERE LOWER(COALESCE(mp.nick, '')) LIKE $1 OR LOWER(COALESCE(p.nickname, '')) LIKE $1
                    LIMIT 20""",
                 f"%{query}%",
             )
@@ -576,7 +576,7 @@ async def handle_search(request: web.Request):
                LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
                JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
                WHERE p.game IN ('cs2','roblox','wot','wt','dota2','valorant','minecraft','fortnite','apex','rust')
-                 AND LOWER(COALESCE(mp.nick, '')) LIKE $1
+                 AND (LOWER(COALESCE(mp.nick, '')) LIKE $1 OR LOWER(COALESCE(p.nickname, '')) LIKE $1)
                LIMIT 20""",
             f"%{query}%",
         )
