@@ -1609,7 +1609,7 @@ class Database:
             )
             return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": text, "created_at": now}
 
-    async def get_chat_messages(self, chat_id: str, limit: int = 500) -> list[dict]:
+    async def get_chat_messages(self, chat_id: str, limit: int = 5000) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT id, chat_id, sender_id, text, created_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
