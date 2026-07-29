@@ -447,8 +447,9 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         const res = await api.post("/api/pay/invoice", { type: "star_pack", pack_id: packId })
         if (res?.invoice_link) {
           openInvoice(res.invoice_link)
+          return { ok: true }
         }
-        return { ok: true }
+        return { ok: false, error: "Не удалось получить ссылку на оплату" }
       } catch (e: any) {
         return { ok: false, error: e.message || "Не удалось открыть оплату" }
       }
