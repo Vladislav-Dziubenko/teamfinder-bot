@@ -85,7 +85,7 @@
   "home.quick_promo": "Промокоды",
   "home.quick_guides": "Гайды",
   "home.quest_title": "Задание дня",
-  "home.quest_reward": "Награда: {reward} ⭐",
+  "home.quest_reward": "Награда: {reward}",
   "home.free_searches": "Осталось бесплатных поисков: {count}",
   "match.title": "Поиск тиммейтов",
   "match.subtitle": "Найди пару по своей игре, рангу и вайбу.",

@@ -85,7 +85,7 @@
   "home.quick_promo": "Promocodes",
   "home.quick_guides": "Guides",
   "home.quest_title": "Daily quest",
-  "home.quest_reward": "Reward: {reward} ⭐",
+  "home.quest_reward": "Reward: {reward}",
   "home.free_searches": "Free searches left: {count}",
   "match.title": "Find teammates",
   "match.subtitle": "Find a match by game, rank and vibe.",
