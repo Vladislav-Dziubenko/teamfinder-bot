@@ -1722,7 +1722,9 @@ async def handle_discord_status(request: web.Request):
     try:
         connections = await fetch_discord_connections(conn["access_token"])
     except Exception as e:
-        logging.warning(f"Failed to fetch Discord connections: {e}")
+        logging.warning(f"Discord token invalid or expired for user {user['id']}: {e}")
+        await db.remove_discord_connection(user["id"])
+        return web.json_response({"linked": False})
 
     return web.json_response({
         "linked": True,
