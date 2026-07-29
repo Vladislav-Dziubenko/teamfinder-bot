@@ -36,10 +36,10 @@ export type Player = {
   vibe: number // % совместимости
   level?: number
   lastSeen?: string // «5 мин назад» и т.п.
-  // «необычные» анкеты — задонатили или очень опытные. Открываются за звёзды.
+  searching_minutes?: number
   locked?: boolean
   unlockStars?: number
-  reason?: "donor" | "veteran" // почему закрыт
+  reason?: "donor" | "veteran"
 }
 
 export const players: Player[] = [

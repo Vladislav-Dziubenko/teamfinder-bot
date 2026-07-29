@@ -1,6 +1,6 @@
 "use client"
 
-import { Crosshair, Trophy, Clock, Zap, Lock, Star, Crown, Award, MessageCircle } from "lucide-react"
+import { Crosshair, Trophy, Clock, Zap, Lock, Star, Crown, Award, MessageCircle, Search } from "lucide-react"
 import type { Player } from "@/lib/data"
 import { games } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
@@ -101,7 +101,7 @@ export function PlayerCard({
 
       <div className="p-4">
         {/* stats */}
-        <div className="grid grid-cols-3 gap-2 text-center">
+        <div className="grid grid-cols-4 gap-2 text-center">
           <Stat icon={Crosshair} label={t("player_card.stat_role")} value={locked ? "???" : player.role} />
           <Stat icon={Trophy} label={t("player_card.stat_winrate")} value={locked ? "??" : `${player.winrate}%`} />
           <Stat
@@ -114,6 +114,11 @@ export function PlayerCard({
                   ? `${(player.hours / 1000).toFixed(1)}k ${t("common.hour_short")}`
                   : `${player.hours} ${t("common.hour_short")}`
             }
+          />
+          <Stat
+            icon={Search}
+            label={t("player_card.stat_searching")}
+            value={locked ? "??" : player.searching_minutes ? `${player.searching_minutes} ${t("common.min_short")}` : "—"}
           />
         </div>
 

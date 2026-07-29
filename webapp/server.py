@@ -194,6 +194,17 @@ def _get_user(request: web.Request) -> dict | None:
     return request.get("init_data", {}).get("user")
 
 
+def _calc_searching_minutes(searching_since: str | None) -> int:
+    if not searching_since:
+        return 0
+    try:
+        since = datetime.fromisoformat(searching_since)
+        minutes = int((datetime.utcnow() - since).total_seconds() // 60)
+        return max(0, minutes) if minutes < 30 else 0
+    except Exception:
+        return 0
+
+
 _SENTINEL = object()
 
 _DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error", "/api/discord/status", "/api/discord/auth", "/api/discord/callback", "/api/discord/unlink")
@@ -525,11 +536,10 @@ async def handle_search(request: web.Request):
 
     profile = await db.get_profile(user["id"])
     if not profile:
-        # Allow search even without a profile — search by nickname across all users
         players = []
         if query:
             rows = await db.pool.fetch(
-                """SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role
+                """SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
                    FROM users u
                    LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
                    LEFT JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
@@ -551,7 +561,9 @@ async def handle_search(request: web.Request):
                     "level": None,
                     "online": False,
                     "lastSeen": None,
+                    "searching_minutes": _calc_searching_minutes(r["searching_since"]),
                 })
+        asyncio.create_task(db.update_searching_since(user["id"]))
         return web.json_response({"players": players, "teams": []})
 
     game_to_search = game_filter if game_filter and game_filter != "all" else profile["game"]
@@ -559,7 +571,7 @@ async def handle_search(request: web.Request):
     # When searching by nickname with "all" games, search across every game
     if game_filter == "all" and query:
         rows = await db.pool.fetch(
-            """SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role
+            """SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
                FROM users u
                LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
                JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
@@ -585,9 +597,11 @@ async def handle_search(request: web.Request):
                 "level": None,
                 "online": False,
                 "lastSeen": None,
+                "searching_minutes": _calc_searching_minutes(r["searching_since"]),
             }
             for r in rows
         ]
+        asyncio.create_task(db.update_searching_since(user["id"]))
         return web.json_response({"players": players, "teams": []})
     is_pro = await db.is_pro(user["id"])
     premium = is_pro or await db.has_search_boost(user["id"], game_to_search)
@@ -623,11 +637,13 @@ async def handle_search(request: web.Request):
             "online": False,
             "lastSeen": None,
             "contact": contact,
+            "searching_minutes": _calc_searching_minutes(p.get("searching_since")),
         })
 
     await db.increment_user_stat(user["id"], "search_count")
     asyncio.create_task(db.update_quest_progress(user["id"], "do-searches", 1))
     asyncio.create_task(db.update_quest_progress(user["id"], "do-searches-2", 1))
+    asyncio.create_task(db.update_searching_since(user["id"]))
 
     return web.json_response({"premium": premium, "is_pro": is_pro, "game": game_to_search, "players": players, "teams": []})
 

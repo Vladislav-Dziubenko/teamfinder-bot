@@ -340,6 +340,7 @@
   "player_card.stat_role": "Роль",
   "player_card.stat_winrate": "Винрейт",
   "player_card.stat_hours": "В игре",
+  "player_card.stat_searching": "Ищет",
   "player_card.unlock_for": "Открыть за {cost} Stars",
   "player_card.connect": "Связаться",
   "player_card.send_message": "Написать {name}",

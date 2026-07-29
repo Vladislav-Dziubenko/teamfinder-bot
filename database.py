@@ -437,6 +437,8 @@ class Database:
 
             ("user_achievements", "user_id", "BIGINT"),
             ("user_achievements", "achievement_id", "TEXT NOT NULL DEFAULT ''"),
+
+            ("profiles", "searching_since", "TEXT"),
             ("user_achievements", "claimed", "INTEGER NOT NULL DEFAULT 0"),
             ("user_achievements", "claimed_at", "TEXT"),
 
@@ -1108,6 +1110,13 @@ class Database:
                 await conn.execute(sql, *params)
         else:
             await conn.execute(sql, *params)
+
+    async def update_searching_since(self, user_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE profiles SET searching_since = $1 WHERE user_id = $2",
+                datetime.utcnow().isoformat(), user_id,
+            )
 
     async def _unlock_decoration_conn(self, conn: asyncpg.Connection, user_id: int, deco_id: str) -> None:
         row = await conn.fetchrow("SELECT unlocked_decos FROM mini_app_profiles WHERE user_id = $1", user_id)

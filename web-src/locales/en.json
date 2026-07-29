@@ -340,6 +340,7 @@
   "player_card.stat_role": "Role",
   "player_card.stat_winrate": "Winrate",
   "player_card.stat_hours": "Playtime",
+  "player_card.stat_searching": "Searching",
   "player_card.unlock_for": "Unlock for {cost} Stars",
   "player_card.connect": "Contact",
   "player_card.send_message": "Message {name}",
