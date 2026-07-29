@@ -3,3 +3,4 @@ asyncpg==0.30.0
 python-dotenv>=1.2.2
 aiohttp>=3.13.4
 cryptography>=42.0.0
+redis[asyncio]==5.2.1

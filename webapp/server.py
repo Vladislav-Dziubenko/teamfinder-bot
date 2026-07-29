@@ -17,7 +17,6 @@ import random
 import re
 import asyncio
 from pathlib import Path
-from collections import defaultdict
 from datetime import datetime, timedelta
 from time import time
 
@@ -37,6 +36,11 @@ from services.matching import find_matches
 from webapp.auth import validate_init_data
 from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
                             fetch_discord_connections, revoke_token, _make_state, _verify_state)
+from webapp.redis_client import (
+    init_redis, close_redis,
+    rate_limit_check,
+    cache_get, cache_set, cache_delete_pattern,
+)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
@@ -102,29 +106,29 @@ CORS_ALLOW = {
 
 # ---------------------------------------------------------------------------
 # Rate limiting — авторизованные /api/ эндпоинты (по user_id)
+# Реализован через Redis sorted set (ключ rate:{user_id}).
+# Fallback: если Redis недоступен — пропускаем rate-limit для запроса.
 # ---------------------------------------------------------------------------
 WEB_RATE_LIMIT = 120
 WEB_RATE_WINDOW = 60
-web_user_requests: defaultdict[int, list[float]] = defaultdict(list)
 
 # ---------------------------------------------------------------------------
 # Rate limiting — публичные /api/ эндпоинты (по IP, без авторизации)
 # Применяется к: /api/leaderboard, /api/teams, /api/teams/{id}/applications
+# Остаётся in-memory (IP не требует персистентности)
 # ---------------------------------------------------------------------------
 PUBLIC_RATE_LIMIT = 60   # запросов
 PUBLIC_RATE_WINDOW = 60  # секунд
+from collections import defaultdict
 public_ip_requests: defaultdict[str, list[float]] = defaultdict(list)
 
 # ---------------------------------------------------------------------------
-# In-memory кэш для публичных read-heavy эндпоинтов
-# Ключ → (timestamp_записи, данные).  TTL = 30 сек.
+# Кэш для публичных read-heavy эндпоинтов — Redis GET/SETEX, TTL 2 сек.
+# Fallback: если Redis недоступен — кэш пропускается, данные берутся из БД.
 # Применяется к: /api/leaderboard, /api/teams (с учётом ?game=)
-# /api/teams/{id}/applications — НЕ кэшируется (зависит от {team_id} + ?status,
-#   актуальность заявок важна для капитана команды)
+# /api/teams/{id}/applications — НЕ кэшируется (актуальность важна)
 # ---------------------------------------------------------------------------
-CACHE_TTL = 30  # секунд
-_response_cache: dict[str, tuple[float, object]] = {}
-_LAST_CACHE_CLEANUP = 0.0
+CACHE_TTL = 2  # секунд
 
 # ---------------------------------------------------------------------------
 # Star packs (маппинг для Telegram Stars invoice)
@@ -144,37 +148,6 @@ def _client_ip(request: web.Request) -> str:
     forwarded = request.headers.get("X-Forwarded-For", "")
     ip = forwarded.split(",")[0].strip() if forwarded else ""
     return ip or request.remote or "unknown"
-
-
-def _cache_cleanup() -> None:
-    global _LAST_CACHE_CLEANUP
-    now = time()
-    if now - _LAST_CACHE_CLEANUP < 300:
-        return
-    _LAST_CACHE_CLEANUP = now
-    cutoff = now - CACHE_TTL
-    stale = [k for k, (ts, _) in _response_cache.items() if ts < cutoff]
-    for k in stale:
-        _response_cache.pop(k, None)
-
-    # Clean up rate-limit dicts too
-    for d in (web_user_requests, public_ip_requests):
-        for uid in list(d.keys()):
-            d[uid] = [t for t in d[uid] if now - t < 60]
-            if not d[uid]:
-                del d[uid]
-
-
-def _cache_get(key: str) -> object | None:
-    _cache_cleanup()
-    entry = _response_cache.get(key)
-    if entry and (time() - entry[0]) < CACHE_TTL:
-        return entry[1]
-    return None
-
-
-def _cache_set(key: str, data: object) -> None:
-    _response_cache[key] = (time(), data)
 
 
 def _public_rate_limit(request: web.Request) -> bool:
@@ -334,13 +307,9 @@ async def web_rate_limit_middleware(request: web.Request, handler):
             user = init_data.get("user")
             if user and "id" in user:
                 user_id = user["id"]
-                now = time()
-                web_user_requests[user_id] = [
-                    t for t in web_user_requests[user_id] if now - t < WEB_RATE_WINDOW
-                ]
-                if len(web_user_requests[user_id]) >= WEB_RATE_LIMIT:
+                blocked = await rate_limit_check(user_id, WEB_RATE_LIMIT, WEB_RATE_WINDOW)
+                if blocked:
                     return web.json_response({"error": "rate limit exceeded"}, status=429)
-                web_user_requests[user_id].append(now)
     return await handler(request)
 
 
@@ -785,13 +754,13 @@ async def handle_teams(request: web.Request):
     game = request.query.get("game")
     # Кэш-ключ включает game-фильтр: "teams:cs2", "teams:dota2", "teams:" (все)
     cache_key = f"teams:{game or ''}"
-    cached = _cache_get(cache_key)
+    cached = await cache_get(cache_key)
     if cached is not None:
         return web.json_response(cached)
     db: Database = request.app["db"]
     teams = await db.list_teams(game)
     data = {"teams": teams}
-    _cache_set(cache_key, data)
+    await cache_set(cache_key, data, CACHE_TTL)
     return web.json_response(data)
 
 
@@ -816,9 +785,7 @@ async def handle_create_team(request: web.Request):
     # Это покрывает все комбинации фильтров (?game=, ?region= и любые будущие),
     # поэтому добавление нового query-параметра в handle_teams не требует правок здесь.
     # Соглашение: все кэш-ключи handle_teams ДОЛЖНЫ начинаться с "teams:".
-    teams_keys = [k for k in _response_cache if k.startswith("teams:")]
-    for k in teams_keys:
-        _response_cache.pop(k, None)
+    await cache_delete_pattern("teams:*")
     return web.json_response({"team_id": team_id, "team": await db.get_team(team_id)})
 
 
@@ -1705,13 +1672,13 @@ async def handle_leaderboard(request: web.Request):
     if _public_rate_limit(request):
         return web.json_response({"error": "rate limit exceeded"}, status=429)
     cache_key = "leaderboard"
-    cached = _cache_get(cache_key)
+    cached = await cache_get(cache_key)
     if cached is not None:
         return web.json_response(cached)
     db: Database = request.app["db"]
     leaderboard = await db.get_leaderboard(limit=10)
     data = {"leaderboard": leaderboard}
-    _cache_set(cache_key, data)
+    await cache_set(cache_key, data, CACHE_TTL)
     return web.json_response(data)
 
 
@@ -1939,6 +1906,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app["settings"] = settings
     app["bot"] = bot
     app["session"] = ClientSession()
+
+    app.on_startup.append(lambda _app: init_redis())
+    app.on_cleanup.append(lambda _app: close_redis())
 
     app.router.add_get("/", handle_index)
     app.router.add_get("/health", handle_health)
