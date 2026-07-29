@@ -568,7 +568,7 @@ async def handle_search(request: web.Request):
     for p, score in matches:
         contact_unlocked = await db.has_unlocked_contact(user["id"], p["id"])
         mini_profile = await db.get_mini_app_profile(p["user_id"])
-        nick = mini_profile.get("nick") or p["nickname"]
+        nick = mini_profile.get("nick") or p["nickname"] or "Unknown"
         avatar = mini_profile.get("avatar") or f"/player-{((p['user_id'] % 4) + 1)}.png"
         contact = p["contact"] if premium or contact_unlocked else None
         players.append({
@@ -583,7 +583,7 @@ async def handle_search(request: web.Request):
             "playtime": p["playtime"],
             "region": p.get("region", ""),
             "vibe": score,
-            "hours": int(p.get("playtime", 0)) if p.get("playtime", "").isdigit() else 0,
+            "hours": int(p.get("playtime") or 0) if (p.get("playtime") or "").isdigit() else 0,
             "level": None,
             "online": False,
             "lastSeen": None,

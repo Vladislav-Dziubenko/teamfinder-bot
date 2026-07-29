@@ -84,7 +84,7 @@ export function MatchTab({
       (p) =>
         (game === "all" || p.game === game) &&
         (applied === "" ||
-          p.nick.toLowerCase().includes(applied.toLowerCase()) ||
+          (p.nick || "").toLowerCase().includes(applied.toLowerCase()) ||
           (p.role || "").toLowerCase().includes(applied.toLowerCase()) ||
           (p.rank || "").toLowerCase().includes(applied.toLowerCase())),
     )
