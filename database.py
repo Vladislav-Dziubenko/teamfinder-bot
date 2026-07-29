@@ -589,7 +589,7 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Index creation warning: {e}")
 
-    async def ensure_user(self, user_id: int, username: str | None, first_name: str | None) -> None:
+    async def ensure_user(self, user_id: int, username: str | None, first_name: str | None, avatar: str | None = None) -> None:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
             await conn.execute(
@@ -598,8 +598,15 @@ class Database:
             )
             # Создаём mini_app_profiles запись, если её нет (для ника/аватарки в чате и списке друзей)
             await conn.execute(
-                "INSERT INTO mini_app_profiles (user_id, nick, updated_at) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET nick = COALESCE(mini_app_profiles.nick, EXCLUDED.nick)",
-                user_id, first_name or username or f"User{user_id}", now,
+                """
+                INSERT INTO mini_app_profiles (user_id, nick, avatar, updated_at)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    nick = COALESCE(mini_app_profiles.nick, EXCLUDED.nick),
+                    avatar = COALESCE(mini_app_profiles.avatar, EXCLUDED.avatar),
+                    updated_at = $4
+                """,
+                user_id, first_name or username or f"User{user_id}", avatar, now,
             )
 
     async def get_user_language(self, user_id: int) -> str:
@@ -1602,7 +1609,7 @@ class Database:
             )
             return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": text, "created_at": now}
 
-    async def get_chat_messages(self, chat_id: str, limit: int = 50) -> list[dict]:
+    async def get_chat_messages(self, chat_id: str, limit: int = 500) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT id, chat_id, sender_id, text, created_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
@@ -1638,8 +1645,8 @@ class Database:
                     other_id_str = cid.replace("dm-", "")
                     other_id = int(other_id_str) if other_id_str.isdigit() else 0
                     profile = await conn.fetchrow(
-                        "SELECT nick, avatar FROM mini_app_profiles WHERE user_id = $1",
-                        other_id,
+                        "SELECT COALESCE(nick, $2) AS nick, avatar FROM mini_app_profiles WHERE user_id = $1",
+                        other_id, other_id_str,
                     ) if other_id else None
                     results.append({
                         "chat_id": cid,

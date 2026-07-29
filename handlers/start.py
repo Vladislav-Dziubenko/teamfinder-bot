@@ -12,7 +12,7 @@ router = Router()
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, db: Database, settings: Settings):
     user = message.from_user
-    await db.ensure_user(user.id, user.username, user.first_name)
+    await db.ensure_user(user.id, user.username, user.first_name, getattr(user, "photo_url", None))
 
     args = (command.args or "").strip()
 

@@ -44,11 +44,9 @@ export function useChats(): ChatPreview[] {
           // Defensive: never let a Promise/object leak into a rendered string.
           const rawNick = c.other_nick
           const nick =
-            typeof rawNick === "string"
-              ? rawNick
-              : rawNick && typeof rawNick === "object"
-                ? String(rawNick)
-                : "Unknown"
+            typeof rawNick === "string" && rawNick.trim()
+              ? rawNick.trim()
+              : "Unknown"
           const rawAvatar = c.other_avatar
           const avatar = typeof rawAvatar === "string" ? rawAvatar : null
           return {

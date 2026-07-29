@@ -367,7 +367,7 @@ async def handle_games(request: web.Request):
 async def handle_me(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    await db.ensure_user(user["id"], user.get("username"), user.get("first_name"))
+    await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"))
 
     # Все запросы на одном соединении — меньше round-trips
     async with db.pool.acquire() as conn:
@@ -416,7 +416,7 @@ async def handle_me(request: web.Request):
 async def handle_user_language(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    await db.ensure_user(user["id"], user.get("username"), user.get("first_name"))
+    await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"))
 
     if request.method == "POST":
         body = await request.json()
