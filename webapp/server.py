@@ -1470,9 +1470,8 @@ async def handle_profile_by_id(request: web.Request):
         target_id = int(request.match_info.get("user_id"))
     except (ValueError, TypeError):
         return web.json_response({"error": "invalid user_id"}, status=400)
+    await db.ensure_user(target_id, None, None, None)
     prof = await db.get_mini_app_profile(target_id)
-    if not prof or not prof.get("nick"):
-        return web.json_response({"error": "profile not found"}, status=404)
     # Статус дружбы (проверяем обе стороны)
     friend_status = None
     if current_id and current_id != target_id:
