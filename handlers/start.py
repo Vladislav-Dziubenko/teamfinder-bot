@@ -11,19 +11,24 @@ router = Router()
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, db: Database, settings: Settings):
-    await db.ensure_user(message.from_user.id, message.from_user.username, message.from_user.first_name)
+    user = message.from_user
+    await db.ensure_user(user.id, user.username, user.first_name)
 
     args = (command.args or "").strip()
 
     webapp_url = settings.webapp_url
-    if args and args.startswith("profile_") and webapp_url:
-        profile_id = args.replace("profile_", "")
-        try:
-            int(profile_id)
-            sep = "&" if "?" in webapp_url else "?"
-            webapp_url = webapp_url.rstrip("/") + f"{sep}show_profile={profile_id}"
-        except ValueError:
-            pass
+    if args and webapp_url:
+        if args.startswith("profile_"):
+            profile_id = args.replace("profile_", "")
+            try:
+                int(profile_id)
+                sep = "&" if "?" in webapp_url else "?"
+                webapp_url = webapp_url.rstrip("/") + f"{sep}show_profile={profile_id}"
+            except ValueError:
+                pass
+        else:
+            # referral code — передаём в Mini App через startattach
+            pass  # Telegram сам передаёт start_param в initDataUnsafe
 
     text = (
         "👋 <b>TeamFinder</b> — бот для поиска команд в играх!\n\n"

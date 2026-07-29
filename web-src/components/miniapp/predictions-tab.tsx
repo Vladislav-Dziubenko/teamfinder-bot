@@ -130,9 +130,9 @@ function MatchCard({
   const [side, setSide] = useState<"A" | "B" | null>(null)
   const [amount, setAmount] = useState("")
 
-  function confirm() {
+  async function confirm() {
     if (!side) return
-    const res = onPlace(match, side, Number(amount) || 0)
+    const res = await onPlace(match, side, Number(amount) || 0)
     if (!res.ok) {
       onToast?.(res.error ?? t("common.error"))
       return

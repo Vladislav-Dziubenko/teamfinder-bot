@@ -598,7 +598,7 @@ class Database:
             )
             # Создаём mini_app_profiles запись, если её нет (для ника/аватарки в чате и списке друзей)
             await conn.execute(
-                "INSERT INTO mini_app_profiles (user_id, nick, updated_at) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO NOTHING",
+                "INSERT INTO mini_app_profiles (user_id, nick, updated_at) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO UPDATE SET nick = COALESCE(mini_app_profiles.nick, EXCLUDED.nick)",
                 user_id, first_name or username or f"User{user_id}", now,
             )
 

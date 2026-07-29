@@ -45,7 +45,11 @@ export function ChatTab({
 
   if (activeId) {
     const found = chats.find((c) => c.id === activeId)
-    return <ChatConversation chatId={activeId} player={playerRef.current ?? found?.player} onBack={closeChat} />
+    // Prefer the server-provided chat data (authoritative nick/avatar); only
+    // fall back to the openPlayer passed by the parent when the chat isn't in
+    // the loaded list yet (e.g. just opened). This avoids showing stale data.
+    const player = found?.player ?? playerRef.current ?? undefined
+    return <ChatConversation chatId={activeId} player={player} onBack={closeChat} />
   }
 
   return (

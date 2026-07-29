@@ -406,7 +406,7 @@ async def handle_me(request: web.Request):
         "cases": list(CASES_CONFIG.values()),
         "case_cooldowns": case_cooldowns,
         "premium_active": results[7],
-        "star_packs": STAR_PACKS,
+        "star_packs": [{"id": k, "stars": v["stars"], "perk": v["desc"], "title": v["title"]} for k, v in STAR_PACKS.items()],
         "battlepass_tiers": BATTLE_PASS_TIERS,
         "referral_bot_url": referral_bot_url,
         "direct_app_url": direct_app_url,

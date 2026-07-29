@@ -40,19 +40,31 @@ export function useChats(): ChatPreview[] {
       try {
         const data: any = await api.get("/api/chat/list")
         if (cancelled) return
-        const list: ChatPreview[] = (data.chats ?? []).map((c: any) => ({
-          id: c.chat_id ?? c.id ?? "",
-          player: {
-            id: c.other_id ?? 0,
-            nick: c.other_nick ?? "Unknown",
-            avatar: c.other_avatar ?? null,
-            online: false,
-            lastSeen: null,
-          },
-          lastText: c.last_text ?? "",
-          lastTs: c.last_ts ? new Date(c.last_ts).getTime() : Date.now(),
-          unread: c.unread ?? 0,
-        }))
+        const list: ChatPreview[] = (data.chats ?? []).map((c: any) => {
+          // Defensive: never let a Promise/object leak into a rendered string.
+          const rawNick = c.other_nick
+          const nick =
+            typeof rawNick === "string"
+              ? rawNick
+              : rawNick && typeof rawNick === "object"
+                ? String(rawNick)
+                : "Unknown"
+          const rawAvatar = c.other_avatar
+          const avatar = typeof rawAvatar === "string" ? rawAvatar : null
+          return {
+            id: c.chat_id ?? c.id ?? "",
+            player: {
+              id: c.other_id ?? 0,
+              nick,
+              avatar,
+              online: false,
+              lastSeen: null,
+            },
+            lastText: c.last_text ?? "",
+            lastTs: c.last_ts ? new Date(c.last_ts).getTime() : Date.now(),
+            unread: c.unread ?? 0,
+          }
+        })
         setChats(list)
         _chats = list
       } catch (e: any) {
@@ -98,7 +110,12 @@ export function useChatMessages(chatId: string | null) {
   const pollingRef = useRef<ReturnType<typeof setInterval>>()
 
   useEffect(() => {
-    if (!chatId || chatId === "[object Promise]" || chatId === "[object Object]") {
+    if (
+      !chatId ||
+      typeof chatId !== "string" ||
+      chatId.includes("[object Promise]") ||
+      chatId.includes("[object Object]")
+    ) {
       setMessages([])
       return
     }
