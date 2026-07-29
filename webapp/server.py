@@ -192,7 +192,7 @@ def _get_user(request: web.Request) -> dict | None:
 
 _SENTINEL = object()
 
-_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error")
+_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error", "/api/discord/status", "/api/discord/auth", "/api/discord/unlink")
 
 @web.middleware
 async def timing_middleware(request: web.Request, handler):
@@ -514,9 +514,15 @@ async def handle_search(request: web.Request):
     results = []
     for p, score in matches:
         contact_unlocked = await db.has_unlocked_contact(user["id"], p["id"])
+        # Fetch mini_app_profile for avatar/nick
+        mini_profile = await db.get_mini_app_profile(p["user_id"])
+        nick = mini_profile.get("nick") or p["nickname"]
+        avatar = mini_profile.get("avatar") or f"/player-{((p['user_id'] % 4) + 1)}.png"
         result = {
             "id": p["id"],
             "user_id": p["user_id"],
+            "nick": nick,
+            "avatar": avatar,
             "nickname": p["nickname"] if premium else "🔒 Скрыто",
             "rank": p["rank"],
             "role": p["role"],

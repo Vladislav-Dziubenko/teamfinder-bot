@@ -591,6 +591,8 @@ class Database:
 
     async def ensure_user(self, user_id: int, username: str | None, first_name: str | None, avatar: str | None = None) -> None:
         now = datetime.utcnow().isoformat()
+        default_avatar = f"/player-{((user_id % 4) + 1)}.png"
+        effective_avatar = avatar or default_avatar
         async with self.pool.acquire() as conn:
             await conn.execute(
                 "INSERT INTO users (user_id, username, first_name, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET last_active_at = $4",
@@ -606,7 +608,7 @@ class Database:
                     avatar = COALESCE(mini_app_profiles.avatar, EXCLUDED.avatar),
                     updated_at = $4
                 """,
-                user_id, first_name or username or f"User{user_id}", avatar, now,
+                user_id, first_name or username or f"User{user_id}", effective_avatar, now,
             )
 
     async def get_user_language(self, user_id: int) -> str:
@@ -1036,15 +1038,18 @@ class Database:
     async def get_leaderboard(self, limit: int = 10) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch("""
-                SELECT 
+                SELECT
                     u.user_id,
                     u.username,
                     u.first_name,
-                    COALESCE(uc2.coins, 0) as coins,
-                    COALESCE(uc2.stars, 0) as stars,
-                    u.pro_until IS NOT NULL AND u.pro_until > $2 as is_premium
+                    COALESCE(mp.nick, u.first_name, u.username, ('User' || u.user_id)) AS nick,
+                    mp.avatar AS avatar,
+                    COALESCE(uc2.coins, 0) AS coins,
+                    COALESCE(uc2.stars, 0) AS stars,
+                    u.pro_until IS NOT NULL AND u.pro_until > $2 AS is_premium
                 FROM users u
                 LEFT JOIN user_currency uc2 ON u.user_id = uc2.user_id
+                LEFT JOIN mini_app_profiles mp ON u.user_id = mp.user_id
                 ORDER BY COALESCE(uc2.coins, 0) DESC, COALESCE(uc2.stars, 0) DESC
                 LIMIT $1
             """, limit, datetime.utcnow().isoformat())
@@ -1644,15 +1649,16 @@ class Database:
                     )
                     other_id_str = cid.replace("dm-", "")
                     other_id = int(other_id_str) if other_id_str.isdigit() else 0
-                    profile = await conn.fetchrow(
+                     profile = await conn.fetchrow(
                         "SELECT COALESCE(nick, $2) AS nick, avatar FROM mini_app_profiles WHERE user_id = $1",
                         other_id, other_id_str,
                     ) if other_id else None
+                    other_avatar = profile["avatar"] if profile else f"/player-{((other_id % 4) + 1)}.png" if other_id else None
                     results.append({
                         "chat_id": cid,
                         "other_id": other_id,
                         "other_nick": profile["nick"] if profile else other_id_str,
-                        "other_avatar": profile["avatar"] if profile else None,
+                        "other_avatar": other_avatar,
                         "last_text": row["text"],
                         "last_ts": row["created_at"],
                         "unread": unread or 0,

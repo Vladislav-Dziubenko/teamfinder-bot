@@ -25,7 +25,6 @@ export function useDiscord() {
   const unauthRef = useRef(false)
 
   const refresh = useCallback(async () => {
-    if (unauthRef.current) return
     const now = Date.now()
     if (now - lastFetchRef.current < DEBOUNCE_MS) return
     lastFetchRef.current = now
@@ -33,9 +32,14 @@ export function useDiscord() {
       setError(null)
       const data = await api.get<DiscordStatus>("/api/discord/status")
       setStatus(data)
+      // If we successfully got status, clear any auth block
+      unauthRef.current = false
     } catch (e: any) {
+      // On 401 (token expired/invalid), backend now returns linked: false
+      // So we don't need to permanently block refresh - just update status if we can
       if (e?.message?.includes("401") || e?.message?.includes("unauthorized")) {
-        unauthRef.current = true
+        // Don't block forever; let next refresh attempt try again
+        // (Backend already cleared invalid token and returns linked: false)
       }
       setError(e?.message ?? "Не удалось получить статус Discord")
     } finally {
