@@ -131,11 +131,6 @@ async def main():
             pass
         finally:
             logging.info("Shutting down...")
-            try:
-                await bot.delete_webhook(drop_pending_updates=True)
-                logging.info("Webhook удалён")
-            except Exception as e:
-                logging.warning(f"Не удалось удалить webhook: {e}")
             await runner.cleanup()
             await db.close()
             await bot.session.close()
