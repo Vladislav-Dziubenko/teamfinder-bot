@@ -98,13 +98,20 @@ async def main():
             except Exception:
                 logging.exception("delete_webhook перед set_webhook")
             webhook_url = f"{public_url.rstrip('/')}/webhook/{webhook_secret}"
-            await bot.set_webhook(
-                url=webhook_url,
-                allowed_updates=dp.resolve_used_update_types(),
-                drop_pending_updates=True,
-                secret_token=webhook_secret,
-            )
-            logging.info("Webhook установлен: %s", webhook_url)
+            for attempt in range(3):
+                try:
+                    await bot.set_webhook(
+                        url=webhook_url,
+                        allowed_updates=dp.resolve_used_update_types(),
+                        drop_pending_updates=True,
+                        secret_token=webhook_secret,
+                    )
+                    logging.info("Webhook установлен: %s", webhook_url)
+                    break
+                except Exception as e:
+                    logging.warning("set_webhook attempt %d/3 failed: %s", attempt + 1, e)
+                    if attempt < 2:
+                        await asyncio.sleep(3)
         else:
             logging.warning("WEBAPP_URL / RENDER_EXTERNAL_URL не задан — webhook не зарегистрирован")
 
