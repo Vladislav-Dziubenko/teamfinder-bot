@@ -443,6 +443,17 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     }
 
     const buyStarPack = async (packId: string): Promise<{ ok: boolean; error?: string }> => {
+      const pack = s.starPacks.find((p) => p.id === packId)
+      if (!pack) return { ok: false, error: "Пакет не найден" }
+      if (s.stars >= pack.stars) {
+        try {
+          await api.post("/api/nexus/buy-star-pack", { pack_id: packId })
+          await refresh()
+          return { ok: true }
+        } catch (e: any) {
+          return { ok: false, error: e.message || "Не удалось купить пакет" }
+        }
+      }
       try {
         const res = await api.post("/api/pay/invoice", { type: "star_pack", pack_id: packId })
         if (res?.invoice_link) {

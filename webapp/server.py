@@ -1232,6 +1232,49 @@ async def handle_nexus_spend_stars(request: web.Request):
     return web.json_response({"ok": True})
 
 
+async def handle_nexus_buy_star_pack(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    pack_id = body.get("pack_id")
+
+    pack = STAR_PACKS.get(pack_id)
+    if not pack:
+        return web.json_response({"error": "unknown pack"}, status=400)
+
+    cost = pack["stars"]
+    profile = await db.get_profile(user["id"])
+    game = profile["game"] if profile else "cs2"
+
+    async with db.pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT stars FROM user_currency WHERE user_id = $1 FOR UPDATE",
+                user["id"],
+            )
+            current = row["stars"] if row else 0
+            if current < cost:
+                return web.json_response({"error": "not enough stars"}, status=400)
+            await conn.execute(
+                "UPDATE user_currency SET stars = stars - $1, updated_at = $2 WHERE user_id = $3",
+                cost, datetime.utcnow().isoformat(), user["id"],
+            )
+
+    # Apply pack benefits
+    if pack_id == "p1":
+        await db.highlight_profile(user["id"], hours=24)
+    elif pack_id == "p2":
+        await db.set_pro_status(user["id"], days=7)
+        await db.add_search_boost(user["id"], game, uses=10)
+    elif pack_id == "p3":
+        await db.set_pro_status(user["id"], days=30)
+    elif pack_id == "p4":
+        await db.set_pro_status(user["id"], days=30)
+        await db.highlight_profile(user["id"], hours=72)
+
+    return web.json_response({"ok": True})
+
+
 async def handle_promo_list(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -1956,6 +1999,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/nexus/shop/buy", handle_nexus_buy)
     app.router.add_post("/api/nexus/exchange", handle_nexus_exchange)
     app.router.add_post("/api/nexus/spend-stars", handle_nexus_spend_stars)
+    app.router.add_post("/api/nexus/buy-star-pack", handle_nexus_buy_star_pack)
 
     # Battle Pass, Promo, Referral, Streak, Achievements
     app.router.add_get("/api/battlepass", handle_battlepass)
