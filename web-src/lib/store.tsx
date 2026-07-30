@@ -458,7 +458,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       try {
         const res = await api.post("/api/pay/invoice", { type: "star_pack", pack_id: packId })
         if (res?.invoice_link) {
-          openInvoice(res.invoice_link)
+          openInvoice(res.invoice_link, () => refresh())
           return { ok: true }
         }
         return { ok: false, error: "Не удалось получить ссылку на оплату" }
@@ -471,7 +471,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       try {
         const res = await api.post("/api/pay/invoice", { type: "buy_stars", amount })
         if (res?.invoice_link) {
-          openInvoice(res.invoice_link)
+          openInvoice(res.invoice_link, () => refresh())
           return { ok: true }
         }
         return { ok: false, error: "Не удалось получить ссылку на оплату" }

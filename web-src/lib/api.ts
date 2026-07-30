@@ -64,11 +64,11 @@ export function openTelegramLink(url: string): void {
   }
 }
 
-export function openInvoice(url: string): void {
+export function openInvoice(url: string, onClose?: () => void): void {
   if (typeof window !== "undefined" && url) {
     const wa = window.Telegram?.WebApp
     if (wa?.openInvoice) {
-      wa.openInvoice(url, () => {})
+      wa.openInvoice(url, () => onClose?.())
     } else {
       openLink(url)
     }

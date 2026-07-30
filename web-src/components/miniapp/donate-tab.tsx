@@ -81,7 +81,7 @@ export function DonateTab() {
     try {
       const res = await api.post("/api/pay/invoice", { type: "tip", amount })
       if (res?.invoice_link) {
-        openInvoice(res.invoice_link)
+        openInvoice(res.invoice_link, () => refresh())
       } else {
         setFlash(t("common.error"))
       }
