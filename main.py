@@ -98,10 +98,10 @@ async def main():
         except Exception as e:
             logging.warning(f"Не удалось удалить webhook: {e}")
 
-        # Небольшая пауза, чтобы старый Render-инстанс успел закрыть polling-сессию
-        await asyncio.sleep(3)
+        # Даём старому инстансу время умереть, чтобы избежать TelegramConflictError
+        await asyncio.sleep(5)
 
-        # Polling в фоне — сервер запущен, порт открыт, Render видит порт
+        # Polling в фоне
         async def polling_loop():
             retry_delay = 5.0
             while not shutdown_event.is_set():
@@ -111,6 +111,8 @@ async def main():
                         allowed_updates=dp.resolve_used_update_types(),
                     )
                     retry_delay = 5.0
+                except asyncio.CancelledError:
+                    break
                 except TelegramConflictError:
                     if shutdown_event.is_set():
                         break
