@@ -657,6 +657,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       spendStars,
       spendCoins,
       buyCoinPack,
+      buyStarPack,
       buyShopItem,
       activatePremium,
       addToInventory,
