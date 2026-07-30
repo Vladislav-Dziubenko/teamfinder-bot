@@ -408,6 +408,7 @@ async def handle_me(request: web.Request):
         "premium_active": results[7],
         "star_packs": [{"id": k, "stars": v["stars"], "perk": v["desc"], "title": v["title"]} for k, v in STAR_PACKS.items()],
         "battlepass_tiers": BATTLE_PASS_TIERS,
+        "referral_reward": REFERRAL_REWARD,
         "referral_bot_url": referral_bot_url,
         "direct_app_url": direct_app_url,
     })

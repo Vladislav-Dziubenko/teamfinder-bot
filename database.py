@@ -201,6 +201,7 @@ CREATE TABLE IF NOT EXISTS referrals (
     referral_code TEXT NOT NULL UNIQUE,
     invited_count INTEGER DEFAULT 0,
     referral_earned_coins INTEGER DEFAULT 0,
+    referred_by BIGINT,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
@@ -566,6 +567,12 @@ class Database:
             await conn.execute("ALTER TABLE mini_app_profiles ADD COLUMN IF NOT EXISTS games TEXT DEFAULT ''")
         except asyncpg.PostgresError as e:
             print(f"Migration warning adding mini_app_profiles.games: {e}")
+
+        # referred_by column for referrals — track who referred whom
+        try:
+            await conn.execute("ALTER TABLE referrals ADD COLUMN IF NOT EXISTS referred_by BIGINT")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning adding referrals.referred_by: {e}")
 
         if not already_applied:
             if await self._column_exists(conn, "promo_codes", "reward_json"):
@@ -1563,7 +1570,7 @@ class Database:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 already = await conn.fetchrow(
-                    "SELECT 1 FROM referrals WHERE user_id = $1 AND invited_count > 0",
+                    "SELECT 1 FROM referrals WHERE user_id = $1 AND referred_by IS NOT NULL",
                     referred_user_id,
                 )
                 if already:
@@ -1571,6 +1578,10 @@ class Database:
                 await conn.execute(
                     "UPDATE referrals SET invited_count = invited_count + 1, referral_earned_coins = referral_earned_coins + $1, updated_at = $2 WHERE user_id = $3",
                     referral_reward.get("coins", 0), now, referrer_user_id,
+                )
+                await conn.execute(
+                    "UPDATE referrals SET referred_by = $1, updated_at = $2 WHERE user_id = $3",
+                    referrer_user_id, now, referred_user_id,
                 )
                 await self._adjust_currency_conn(
                     conn,

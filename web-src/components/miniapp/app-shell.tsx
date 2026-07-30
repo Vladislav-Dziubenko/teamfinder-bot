@@ -21,6 +21,7 @@ import { FriendsTab } from "./friends-tab"
 import { ContactSheet } from "./contact-sheet"
 import { ProfileViewSheet } from "./profile-view-sheet"
 import { openChatWithPlayer } from "@/lib/chat"
+import { api } from "@/lib/api"
 import { useMe } from "@/lib/store"
 import type { Player, Team } from "@/lib/data"
 
@@ -42,10 +43,15 @@ function Shell() {
   useEffect(() => {
     try {
       let id: number | null = null
+      let refCode: string | null = null
       const wa = (window as any).Telegram?.WebApp
       const sp = wa?.initDataUnsafe?.start_param
-      if (sp && sp.startsWith("profile_")) {
-        id = parseInt(sp.replace("profile_", ""), 10)
+      if (sp) {
+        if (sp.startsWith("profile_")) {
+          id = parseInt(sp.replace("profile_", ""), 10)
+        } else {
+          refCode = sp
+        }
       }
       if (!id) {
         const params = new URLSearchParams(window.location.search)
@@ -58,6 +64,11 @@ function Shell() {
         }
       }
       if (id && !isNaN(id)) setSharedProfileId(id)
+      if (refCode) {
+        api.post("/api/referral/claim", { code: refCode }).then(() => {
+          setToast("🎉 Реферальная награда получена!")
+        }).catch(() => {})
+      }
     } catch {}
   }, [])
 

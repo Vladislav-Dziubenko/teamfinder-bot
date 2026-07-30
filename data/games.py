@@ -101,7 +101,7 @@ DAILY_STREAK_REWARDS = [
     {"day": 7, "coins": 200},
 ]
 
-REFERRAL_REWARD = {"coins": 25, "stars": 3}
+REFERRAL_REWARD = {"coins": 50, "stars": 5}
 
 # Пакеты монет за Telegram Stars (магазин Nexus)
 COIN_PACKS = [
