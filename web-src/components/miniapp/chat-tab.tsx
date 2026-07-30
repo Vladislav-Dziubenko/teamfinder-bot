@@ -18,24 +18,26 @@ export function ChatTab({
   openPlayer,
   onOpenConsumed,
 }: {
-  openChatId?: string | null
+  openChatId: string | null
   openPlayer?: Player
   onOpenConsumed?: () => void
 }) {
   const { t, lang } = useI18n()
   const [activeId, setActiveId] = useState<string | null>(openChatId ?? null)
   const playerRef = useRef<Player | undefined>(openPlayer)
+  const onConsumedRef = useRef(onOpenConsumed)
   const chats = useChats()
 
-  // Keep the latest openPlayer so it doesn't get lost when parent consumes it
+  // Keep the latest callbacks so the effect doesn't depend on unstable inline fns
+  onConsumedRef.current = onOpenConsumed
   if (openPlayer) playerRef.current = openPlayer
 
   useEffect(() => {
     if (openChatId) {
       setActiveId(openChatId)
-      onOpenConsumed?.()
+      onConsumedRef.current?.()
     }
-  }, [openChatId, onOpenConsumed])
+  }, [openChatId])
 
   function closeChat() {
     setActiveId(null)
