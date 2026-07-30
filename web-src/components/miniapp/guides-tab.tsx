@@ -31,7 +31,7 @@ function ytThumb(id: string) {
 }
 
 function ytEmbed(id: string) {
-  return `https://www.youtube.com/embed/${id}?autoplay=1&rel=0`
+  return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0`
 }
 
 function toDisplay(g: ApiGuide, t: (key: string) => string) {

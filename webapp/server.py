@@ -89,6 +89,7 @@ CSP = (
     "img-src 'self' data: https:;"
     "font-src 'self' data:;"
     "connect-src 'self' https://translate.googleapis.com;"
+    "frame-src https://www.youtube.com https://www.youtube-nocookie.com;"
     "frame-ancestors https://telegram.org;"
     "base-uri 'self';"
     "form-action 'self';"
