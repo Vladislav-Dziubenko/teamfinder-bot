@@ -83,7 +83,7 @@ SECURITY_HEADERS = {
 
 CSP = (
     "default-src 'self';"
-    "script-src 'self' 'unsafe-inline' 'strict-dynamic' https://telegram.org;"
+    "script-src 'self' 'unsafe-inline' https://telegram.org;"
     "style-src 'self' 'unsafe-inline';"
     "img-src 'self' data: https:;"
     "font-src 'self' data:;"
