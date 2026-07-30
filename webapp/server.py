@@ -543,9 +543,7 @@ async def handle_search(request: web.Request):
         asyncio.create_task(db.update_searching_since(user["id"]))
         return web.json_response({"players": players, "teams": []})
 
-    game_to_search = game_filter if game_filter and game_filter != "all" else (profile["game"] if profile else None)
-
-    # When searching by nickname with "all" games, search across every game
+    # When "all" games with nickname query, search across every game
     if game_filter == "all" and query:
         rows = await db.pool.fetch(
             """SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
@@ -580,12 +578,23 @@ async def handle_search(request: web.Request):
         ]
         asyncio.create_task(db.update_searching_since(user["id"]))
         return web.json_response({"players": players, "teams": []})
+    game_to_search = game_filter if game_filter and game_filter != "all" else (profile["game"] if profile else None)
     is_pro = await db.is_pro(user["id"])
     has_boost = await db.has_search_boost(user["id"], game_to_search) if not is_pro else False
     premium = is_pro or has_boost
     if has_boost:
         await db.consume_search_boost(user["id"], game_to_search)
-    candidates = await db.list_profiles_by_game(game_to_search, exclude_user_id=user["id"])
+    if game_filter == "all":
+        candidates = await db.pool.fetch(
+            """SELECT p.*, COALESCE(mp.games, '') AS fav_games
+               FROM profiles p
+               LEFT JOIN mini_app_profiles mp ON p.user_id = mp.user_id
+               WHERE p.is_active = 1 AND p.user_id != $1""",
+            user["id"],
+        )
+        candidates = [dict(r) for r in candidates]
+    else:
+        candidates = await db.list_profiles_by_game(game_to_search, exclude_user_id=user["id"])
 
     # Filter by nickname if q provided
     if query:
@@ -826,10 +835,16 @@ async def handle_team_applications(request: web.Request):
     if _public_rate_limit(request):
         return web.json_response({"error": "rate limit exceeded"}, status=429)
     db: Database = request.app["db"]
+    user = _get_user(request)
     try:
         team_id = int(request.match_info["team_id"])
     except ValueError:
         return web.json_response({"error": "invalid team_id"}, status=400)
+    team = await db.get_team(team_id)
+    if not team:
+        return web.json_response({"error": "team not found"}, status=404)
+    if team.get("captain_id") != user["id"]:
+        return web.json_response({"error": "forbidden"}, status=403)
     status = request.query.get("status")
     applications = await db.get_team_applications(team_id, status)
     return web.json_response({"applications": applications})

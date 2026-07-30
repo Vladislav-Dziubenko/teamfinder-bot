@@ -162,7 +162,9 @@ export function useChatMessages(chatId: string | null) {
     setMessages((prev) => [...prev, optimistic])
     try {
       await api.post("/api/chat/" + chatId + "/send", { text })
-    } catch {}
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== id))
+    }
   }, [chatId])
 
   return { messages, sendMessage, typing }

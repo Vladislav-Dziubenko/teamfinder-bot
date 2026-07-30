@@ -274,8 +274,8 @@ function PvpMode({
   const [stake, setStake] = useState("")
   const [open, setOpen] = useState(false)
 
-  function create() {
-    const res = p.createChallenge(condition, Number(stake) || 0)
+  async function create() {
+    const res = await p.createChallenge(condition, Number(stake) || 0)
     if (!res.ok) {
       onToast?.(res.error ?? t("common.error"))
       return
@@ -345,8 +345,8 @@ function PvpMode({
             <ChallengeCard
               key={c.id}
               challenge={c}
-              onAccept={() => {
-                const res = p.acceptChallenge(c.id)
+              onAccept={async () => {
+                const res = await p.acceptChallenge(c.id)
                 if (!res.ok) onToast?.(res.error ?? "Не удалось")
                 else onToast?.("Вызов принят!")
               }}

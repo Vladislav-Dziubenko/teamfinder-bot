@@ -1175,8 +1175,6 @@ class Database:
         games = data.get("games")
         if isinstance(games, list):
             games = ",".join(games)
-        elif games is None:
-            games = "__nochange__"
         sql = """
             INSERT INTO mini_app_profiles (user_id, avatar, nick, bio, deco, unlocked_decos, games, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
@@ -1186,7 +1184,7 @@ class Database:
                 bio = COALESCE(EXCLUDED.bio, mini_app_profiles.bio),
                 deco = COALESCE(EXCLUDED.deco, mini_app_profiles.deco),
                 unlocked_decos = COALESCE(EXCLUDED.unlocked_decos, mini_app_profiles.unlocked_decos),
-                games = CASE WHEN EXCLUDED.games = '__nochange__' THEN mini_app_profiles.games ELSE EXCLUDED.games END,
+                games = CASE WHEN $7::TEXT IS NULL THEN mini_app_profiles.games ELSE $7::TEXT END,
                 updated_at = EXCLUDED.updated_at
         """
         params = (
@@ -1196,7 +1194,7 @@ class Database:
             data.get("bio"),
             data.get("deco"),
             unlocked_decos,
-            games if games != "__nochange__" else None,
+            games,
             now,
         )
         if conn is None:
