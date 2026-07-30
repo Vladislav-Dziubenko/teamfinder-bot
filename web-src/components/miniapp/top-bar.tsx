@@ -1,19 +1,24 @@
 "use client"
 
 import { Star } from "lucide-react"
-import { useNexus } from "@/lib/store"
+import { useNexus, useMe } from "@/lib/store"
 import { useI18n } from "@/lib/i18n"
 
 export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () => void }) {
   const { t } = useI18n()
   const { stars, coins } = useNexus()
+  const { avatar } = useMe()
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
       <div className="flex items-center justify-between px-4 py-3">
         <div className="flex items-center gap-2.5">
-          <div className="relative grid size-9 place-items-center rounded-xl bg-primary font-display text-lg font-bold text-primary-foreground">
-            N
+          <div className="relative grid size-9 place-items-center overflow-hidden rounded-xl bg-primary font-display text-lg font-bold text-primary-foreground">
+            {avatar ? (
+              <img src={avatar} alt="" className="size-full object-cover" />
+            ) : (
+              "N"
+            )}
             <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-background" />
           </div>
           <div className="leading-tight">
