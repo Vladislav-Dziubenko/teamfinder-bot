@@ -1800,7 +1800,6 @@ async def handle_discord_auth(request: web.Request):
         "state": state,
         "prompt": "consent",
     }
-from urllib.parse import urlencode, quote
     url = f"https://discord.com/api/oauth2/authorize?{urlencode(params)}"
     logging.info(f"[discord.auth] user={telegram_user_id} state={state[:16]}...")
     return web.json_response({"url": f"https://discord.com/api/oauth2/authorize?{urlencode(params)}"})
