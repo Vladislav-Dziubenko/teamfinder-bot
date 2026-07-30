@@ -16,13 +16,13 @@ const coinPacks = [
 
 export function DonateTab() {
   const { t } = useI18n()
-<<<<<<< Updated upstream
   const { starPacks, stars, nick, avatar, coins, buyStarPack, buyCoinPack, buyStars, refresh } = useNexus()
   const [selected, setSelected] = useState<StarPack | null>(null)
   const [done, setDone] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [buying, setBuying] = useState(false)
   const [tipping, setTipping] = useState<number | null>(null)
+  const [buyingCoins, setBuyingCoins] = useState<string | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([])
   const [leaderLoading, setLeaderLoading] = useState(true)
 
@@ -66,12 +66,18 @@ export function DonateTab() {
     }
   }
 
-<<<<<<< Updated upstream
-  const [buyingCoins, setBuyingCoins] = useState<string | null>(null)
-
   async function buyCoins(pack: (typeof coinPacks)[number]) {
     if (buyingCoins) return
     setBuyingCoins(pack.id)
+    const res = await buyCoinPack(pack.id)
+    setBuyingCoins(null)
+    if (!res.ok) {
+      setFlash(res.error ?? t("match.error_not_enough_stars"))
+    } else {
+      setFlash(t("donate.coins_added", { count: pack.coins }))
+    }
+    setTimeout(() => setFlash(null), 2000)
+  }
 
   async function sendTip(amount: number) {
     if (tipping) return
@@ -277,7 +283,7 @@ export function DonateTab() {
         </p>
       </section>
 
-      {/* Support a player */}
+      {/* Send stars to teammate */}
       <div className="rounded-3xl border border-border bg-card p-4">
         <p className="font-display text-base font-bold">{t("donate.send_stars_title")}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{t("donate.send_stars_desc")}</p>
@@ -287,7 +293,6 @@ export function DonateTab() {
               key={n}
               type="button"
               onClick={() => sendTip(n)}
-<<<<<<< Updated upstream
               disabled={tipping !== null}
               className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-stars/30 bg-stars/10 py-2.5 text-sm font-semibold text-stars active:scale-95 disabled:opacity-50"
             >
