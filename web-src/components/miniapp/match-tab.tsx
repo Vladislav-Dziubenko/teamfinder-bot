@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, type ReactNode } from "react"
 import { Search, Sparkles, Star, Lock, Zap, Loader2 } from "lucide-react"
 import { games } from "@/lib/data"
 import type { Player, Team } from "@/lib/data"
@@ -277,7 +277,7 @@ function Chip({
 }: {
   active: boolean
   onClick: () => void
-  children: React.ReactNode
+  children: ReactNode
 }) {
   return (
     <button

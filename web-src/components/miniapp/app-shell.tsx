@@ -67,7 +67,7 @@ function Shell() {
       if (refCode) {
         api.post("/api/referral/claim", { code: refCode }).then(() => {
           setToast("🎉 Реферальная награда получена!")
-        }).catch(() => {})
+        }).catch(() => { setToast("❌ Реферальная награда не начислена") })
       }
     } catch {}
   }, [])

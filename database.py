@@ -362,6 +362,11 @@ class Database:
             pass
 
         try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_app_credits INTEGER DEFAULT 0")
+        except asyncpg.PostgresError:
+            pass
+
+        try:
             await conn.execute(
                 """
                 CREATE UNIQUE INDEX IF NOT EXISTS contact_unlocks_user_profile_idx
@@ -772,14 +777,15 @@ class Database:
 
     async def consume_search_boost(self, user_id: int, game: str) -> bool:
         async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "SELECT id, uses_left FROM search_boosts WHERE user_id = $1 AND game = $2 AND uses_left > 0 ORDER BY id DESC LIMIT 1",
-                user_id, game,
-            )
-            if not row:
-                return False
-            await conn.execute("UPDATE search_boosts SET uses_left = uses_left - 1 WHERE id = $1", row["id"])
-            return True
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT id, uses_left FROM search_boosts WHERE user_id = $1 AND game = $2 AND uses_left > 0 ORDER BY id DESC LIMIT 1 FOR UPDATE",
+                    user_id, game,
+                )
+                if not row:
+                    return False
+                await conn.execute("UPDATE search_boosts SET uses_left = uses_left - 1 WHERE id = $1", row["id"])
+                return True
 
     async def has_search_boost(self, user_id: int, game: str) -> bool:
         async with self.pool.acquire() as conn:
@@ -970,29 +976,24 @@ class Database:
     async def add_premium_application_credit(self, user_id: int, credits: int = 1) -> None:
         async with self.pool.acquire() as conn:
             await conn.execute(
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_app_credits INTEGER DEFAULT 0"
-            )
-            await conn.execute(
                 "UPDATE users SET premium_app_credits = COALESCE(premium_app_credits, 0) + $1 WHERE user_id = $2",
                 credits, user_id,
             )
 
     async def consume_premium_application_credit(self, user_id: int) -> bool:
         async with self.pool.acquire() as conn:
-            await conn.execute(
-                "ALTER TABLE users ADD COLUMN IF NOT EXISTS premium_app_credits INTEGER DEFAULT 0"
-            )
-            row = await conn.fetchrow(
-                "SELECT premium_app_credits FROM users WHERE user_id = $1",
-                user_id,
-            )
-            if not row or not row["premium_app_credits"]:
-                return False
-            await conn.execute(
-                "UPDATE users SET premium_app_credits = premium_app_credits - 1 WHERE user_id = $1",
-                user_id,
-            )
-            return True
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT premium_app_credits FROM users WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                if not row or not row["premium_app_credits"]:
+                    return False
+                await conn.execute(
+                    "UPDATE users SET premium_app_credits = premium_app_credits - 1 WHERE user_id = $1",
+                    user_id,
+                )
+                return True
 
     # Currency methods
     async def get_currency(self, user_id: int) -> dict:
@@ -1811,17 +1812,18 @@ class Database:
     async def accept_friend_request(self, user_id: int, friend_id: int) -> bool:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
-            result = await conn.execute(
-                "UPDATE user_friends SET status = 'accepted', updated_at = $1 WHERE user_id = $2 AND friend_id = $3 AND status = 'pending'",
-                now, friend_id, user_id,
-            )
-            if result != "UPDATE 1":
-                return False
-            await conn.execute(
-                "INSERT INTO user_friends (user_id, friend_id, status, created_at, updated_at) VALUES ($1, $2, 'accepted', $3, $3) ON CONFLICT (user_id, friend_id) DO UPDATE SET status = 'accepted', updated_at = $3",
-                user_id, friend_id, now,
-            )
-            return True
+            async with conn.transaction():
+                result = await conn.execute(
+                    "UPDATE user_friends SET status = 'accepted', updated_at = $1 WHERE user_id = $2 AND friend_id = $3 AND status = 'pending'",
+                    now, friend_id, user_id,
+                )
+                if result != "UPDATE 1":
+                    return False
+                await conn.execute(
+                    "INSERT INTO user_friends (user_id, friend_id, status, created_at, updated_at) VALUES ($1, $2, 'accepted', $3, $3) ON CONFLICT (user_id, friend_id) DO UPDATE SET status = 'accepted', updated_at = $3",
+                    user_id, friend_id, now,
+                )
+                return True
 
     async def decline_friend_request(self, user_id: int, friend_id: int) -> bool:
         async with self.pool.acquire() as conn:
@@ -1833,15 +1835,16 @@ class Database:
 
     async def remove_friend(self, user_id: int, friend_id: int) -> bool:
         async with self.pool.acquire() as conn:
-            r1 = await conn.execute(
-                "DELETE FROM user_friends WHERE user_id = $1 AND friend_id = $2 AND status = 'accepted'",
-                user_id, friend_id,
-            )
-            r2 = await conn.execute(
-                "DELETE FROM user_friends WHERE user_id = $1 AND friend_id = $2 AND status = 'accepted'",
-                friend_id, user_id,
-            )
-            return r1 != "DELETE 0" or r2 != "DELETE 0"
+            async with conn.transaction():
+                r1 = await conn.execute(
+                    "DELETE FROM user_friends WHERE user_id = $1 AND friend_id = $2 AND status = 'accepted'",
+                    user_id, friend_id,
+                )
+                r2 = await conn.execute(
+                    "DELETE FROM user_friends WHERE user_id = $1 AND friend_id = $2 AND status = 'accepted'",
+                    friend_id, user_id,
+                )
+                return r1 != "DELETE 0" or r2 != "DELETE 0"
 
     async def get_friends(self, user_id: int) -> list[dict]:
         async with self.pool.acquire() as conn:

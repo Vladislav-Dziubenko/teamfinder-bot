@@ -20,7 +20,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from time import time
 
-from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
 
 from aiohttp import web, ClientSession, ClientTimeout
 
@@ -369,20 +369,17 @@ async def handle_me(request: web.Request):
     user = _get_user(request)
     await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"))
 
-    # Все запросы на одном соединении — меньше round-trips
-    async with db.pool.acquire() as conn:
-        tasks = [
-            db.get_currency(user["id"]),
-            db.get_mini_app_profile(user["id"]),
-            db.get_inventory(user["id"]),
-            db.get_battlepass(user["id"]),
-            db.get_daily_streak(user["id"]),
-            db.get_or_create_referral(user["id"]),
-            db.get_user_achievements(user["id"]),
-            db.is_pro(user["id"]),
-        ]
-        import asyncio
-        results = await asyncio.gather(*tasks)
+    tasks = [
+        db.get_currency(user["id"]),
+        db.get_mini_app_profile(user["id"]),
+        db.get_inventory(user["id"]),
+        db.get_battlepass(user["id"]),
+        db.get_daily_streak(user["id"]),
+        db.get_or_create_referral(user["id"]),
+        db.get_user_achievements(user["id"]),
+        db.is_pro(user["id"]),
+    ]
+    results = await asyncio.gather(*tasks)
 
     case_cooldowns = {}
     for case_id in CASES_CONFIG:

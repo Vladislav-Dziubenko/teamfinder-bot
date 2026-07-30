@@ -69,8 +69,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     if (spin) return
     if (!c.free && stars < c.costStars) {
       const res = await buyStars(c.costStars)
-      if (!res.ok) onToast(res.error ?? t("common.error"))
-      return
+      if (!res.ok) { onToast(res.error ?? t("common.error")); return }
     }
     const res = await openCase(c.id)
     if (!res.ok) {

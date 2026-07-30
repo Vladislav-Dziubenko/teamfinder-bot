@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { UserPlus, UserCheck, UserX, MessageCircle, Clock, Users, Search, Loader2 } from "lucide-react"
 import { api } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
+import type { Player } from "@/lib/data"
 
 type Friend = {
   friend_id: number
@@ -37,9 +38,9 @@ export function FriendsTab({
   const [searchResults, setSearchResults] = useState<FoundUser[]>([])
   const [searching, setSearching] = useState(false)
 
-  function load() {
-    api.get("/api/friends/list").then((d: any) => setFriends(d.friends ?? []))
-    api.get("/api/friends/requests").then((d: any) => setRequests(d.requests ?? []))
+  async function load() {
+    try { api.get("/api/friends/list").then((d: any) => setFriends(d.friends ?? [])).catch(() => {}) } catch {}
+    try { api.get("/api/friends/requests").then((d: any) => setRequests(d.requests ?? [])).catch(() => {}) } catch {}
   }
 
   useEffect(load, [])
