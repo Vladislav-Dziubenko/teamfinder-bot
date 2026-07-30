@@ -180,7 +180,7 @@ def _calc_searching_minutes(searching_since: str | None) -> int:
 
 _SENTINEL = object()
 
-_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error", "/api/discord/status", "/api/discord/auth", "/api/discord/callback", "/api/discord/unlink")
+_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error", "/api/discord/status", "/api/discord/auth", "/api/discord/callback", "/api/discord/unlink", "/api/diag/env")
 
 @web.middleware
 async def timing_middleware(request: web.Request, handler):
@@ -322,6 +322,7 @@ PUBLIC_API_PREFIXES = (
     "/api/online",
     "/api/discord/callback",
     "/api/client-error",
+    "/api/diag/env",
 )
 
 @web.middleware
