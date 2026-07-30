@@ -282,6 +282,15 @@ CREATE TABLE IF NOT EXISTS user_friends (
     FOREIGN KEY (user_id) REFERENCES users(user_id),
     FOREIGN KEY (friend_id) REFERENCES users(user_id)
 );
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT,
+    action TEXT NOT NULL,
+    details TEXT,
+    ip TEXT,
+    created_at TEXT NOT NULL
+);
 """
 
 SCHEMA_STATEMENTS = [
@@ -2008,4 +2017,12 @@ class Database:
                     updated_at = EXCLUDED.updated_at
                 """,
                 user_id, amount, now,
+            )
+
+    async def audit_log(self, user_id: int | None, action: str, details: str | None = None, ip: str | None = None) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO audit_log (user_id, action, details, ip, created_at) VALUES ($1, $2, $3, $4, $5)",
+                user_id, action, details, ip, now,
             )

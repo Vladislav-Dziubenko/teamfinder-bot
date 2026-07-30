@@ -84,7 +84,7 @@ SECURITY_HEADERS = {
 
 CSP = (
     "default-src 'self';"
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://telegram.org;"
+    "script-src 'self' 'unsafe-inline' 'strict-dynamic' https://telegram.org;"
     "style-src 'self' 'unsafe-inline';"
     "img-src 'self' data: https:;"
     "font-src 'self' data:;"
@@ -1250,6 +1250,8 @@ async def handle_nexus_exchange(request: web.Request):
                 user["id"], pack["coins"], -pack["stars"], now,
             )
 
+    ip = _client_ip(request)
+    await db.audit_log(user["id"], "exchange", f"pack={pack_id} coins=+{pack['coins']} stars=-{pack['stars']}", ip)
     return web.json_response({"ok": True, "pack": pack})
 
 
@@ -1308,6 +1310,8 @@ async def handle_nexus_buy_star_pack(request: web.Request):
         await db.set_pro_status(user["id"], days=30)
         await db.highlight_profile(user["id"], hours=72)
 
+    ip = _client_ip(request)
+    await db.audit_log(user["id"], "buy_star_pack", f"pack={pack_id} cost={cost}", ip)
     return web.json_response({"ok": True})
 
 
@@ -1357,6 +1361,8 @@ async def handle_promo_create(request: web.Request):
     if not ok:
         return web.json_response({"error": "code already exists"}, status=400)
 
+    ip = _client_ip(request)
+    await db.audit_log(user["id"], "promo_create", f"code={code} reward={reward} max_uses={max_uses}", ip)
     return web.json_response({"ok": True, "code": code})
 
 

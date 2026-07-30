@@ -15,6 +15,8 @@ rate-limit/кэш для данного запроса.
 import json
 import logging
 import os
+from collections import defaultdict
+from time import time
 from typing import Any
 
 import redis.asyncio as aioredis
@@ -22,6 +24,9 @@ import redis.asyncio as aioredis
 logger = logging.getLogger(__name__)
 
 _redis: aioredis.Redis | None = None
+
+# In-memory fallback rate limiter (per user_id) when Redis is unavailable
+_fallback_rates: dict[str, list[float]] = defaultdict(list)
 
 
 def get_redis() -> aioredis.Redis | None:
@@ -68,7 +73,7 @@ async def rate_limit_check(user_id: int | str, limit: int, window: int) -> bool:
     Возвращает True если лимит превышен (запрос нужно заблокировать),
     False если запрос разрешён (и уже записан в sorted set).
 
-    При ошибке Redis возвращает False (пропускаем запрос).
+    Если Redis недоступен — использует in-memory fallback.
 
     Алгоритм:
       - Ключ: rate:{user_id}
@@ -78,28 +83,34 @@ async def rate_limit_check(user_id: int | str, limit: int, window: int) -> bool:
       - EXPIRE сбрасывает TTL ключа на window секунд (Redis удалит сам)
     """
     r = get_redis()
-    if r is None:
-        return False  # Redis недоступен — пропускаем rate-limit
+    if r is not None:
+        key = f"rate:{user_id}"
+        try:
+            now = time()
+            window_start = now - window
 
-    key = f"rate:{user_id}"
-    try:
-        from time import time
-        now = time()
-        window_start = now - window
+            pipe = r.pipeline()
+            pipe.zadd(key, {str(now): now})
+            pipe.zcount(key, window_start, "+inf")
+            pipe.expire(key, window)
+            results = await pipe.execute()
 
-        pipe = r.pipeline()
-        pipe.zadd(key, {str(now): now})
-        pipe.zcount(key, window_start, "+inf")
-        pipe.expire(key, window)
-        results = await pipe.execute()
+            count = results[1]
+            if count > limit:
+                return True
+            return False
+        except Exception as exc:
+            logger.warning("[redis] rate_limit_check error: %s", exc)
 
-        count = results[1]  # результат ZCOUNT
-        if count > limit:
-            return True  # лимит превышен
-        return False
-    except Exception as exc:
-        logger.warning("[redis] rate_limit_check error: %s", exc)
-        return False  # при ошибке — пропускаем
+    # In-memory fallback when Redis is unavailable
+    key = f"mem_rate:{user_id}"
+    now = time()
+    window_start = now - window
+    _fallback_rates[key] = [t for t in _fallback_rates[key] if t > window_start]
+    if len(_fallback_rates[key]) >= limit:
+        return True  # лимит превышен
+    _fallback_rates[key].append(now)
+    return False
 
 
 # ---------------------------------------------------------------------------

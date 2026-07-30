@@ -58,6 +58,8 @@ async def admin_donate(message: Message, db: Database, settings: Settings):
     if stars > 0:
         await db.adjust_currency(target_id, stars=stars)
 
+    await db.audit_log(message.from_user.id, "admin_donate", f"target={target_id} coins=+{coins} stars=+{stars}")
+
     await message.answer(
         "✅ <b>Выдача выполнена!</b>\n\n"
         f"👤 Пользователь: <code>{target_id}</code>\n"
@@ -120,6 +122,8 @@ async def admin_donate_delete(message: Message, db: Database, settings: Settings
                     "UPDATE user_currency SET stars = GREATEST(0, stars - $1), updated_at = $2 WHERE user_id = $3",
                     stars, datetime.utcnow().isoformat(), target_id,
                 )
+
+    await db.audit_log(message.from_user.id, "admin_donate_delete", f"target={target_id} coins=-{removed_coins} stars=-{removed_stars}")
 
     await message.answer(
         "✅ <b>Удаление выполнено!</b>\n\n"
