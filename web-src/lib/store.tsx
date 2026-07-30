@@ -496,10 +496,18 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       if (!c.free && s.stars < c.costStars) return { ok: false, error: "Недостаточно Telegram Stars" }
       try {
         const data = await api.post("/api/nexus/cases/open", { case_id: caseId })
+        if (c.free && data.last_open_at) {
+          const until = new Date(data.last_open_at).getTime() + DAY_MS
+          setS((p: PersistedState) => ({
+            ...p,
+            caseCooldown: { ...p.caseCooldown, [caseId]: until },
+          }))
+        }
         await refresh()
         return { ok: true, item: data.item as CaseItem }
       } catch (e: any) {
         await refresh()
+        console.error("Error opening case:", e)
         return { ok: false, error: e.message || "Не удалось открыть кейс" }
       }
     }

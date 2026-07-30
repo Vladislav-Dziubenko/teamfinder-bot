@@ -16,11 +16,12 @@ const coinPacks = [
 
 export function DonateTab() {
   const { t } = useI18n()
-  const { starPacks, stars, nick, avatar, coins, buyStarPack, refresh } = useNexus()
+  const { starPacks, stars, nick, avatar, coins, buyStarPack, buyCoinPack, refresh } = useNexus()
   const [selected, setSelected] = useState<StarPack | null>(null)
   const [done, setDone] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [buying, setBuying] = useState(false)
+  const [tipping, setTipping] = useState<number | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([])
   const [leaderLoading, setLeaderLoading] = useState(true)
 
@@ -72,6 +73,23 @@ export function DonateTab() {
       setFlash(t("donate.coins_added", { count: pack.coins }))
     }
     setTimeout(() => setFlash(null), 2000)
+  }
+
+  async function sendTip(amount: number) {
+    if (tipping) return
+    setTipping(amount)
+    try {
+      const res = await api.post("/api/pay/invoice", { type: "tip", amount })
+      if (res?.invoice_link) {
+        openInvoice(res.invoice_link)
+      } else {
+        setFlash(t("common.error"))
+      }
+    } catch {
+      setFlash(t("common.error"))
+    } finally {
+      setTipping(null)
+    }
   }
 
   return (
@@ -236,9 +254,15 @@ export function DonateTab() {
             <button
               key={n}
               type="button"
-              className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-stars/30 bg-stars/10 py-2.5 text-sm font-semibold text-stars active:scale-95"
+              onClick={() => sendTip(n)}
+              disabled={tipping !== null}
+              className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-stars/30 bg-stars/10 py-2.5 text-sm font-semibold text-stars active:scale-95 disabled:opacity-50"
             >
-              <Star className="size-3.5 fill-stars" /> {n}
+              {tipping === n ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Star className="size-3.5 fill-stars" />
+              )} {n}
             </button>
           ))}
         </div>

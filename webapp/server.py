@@ -743,6 +743,17 @@ async def handle_create_invoice(request: web.Request):
             currency="XTR",
             prices=[{"label": pack["title"], "amount": pack["stars"]}],
         )
+    elif kind == "tip":
+        amount = body.get("amount", 0)
+        if not isinstance(amount, int) or amount <= 0 or amount > 10000:
+            return web.json_response({"error": "invalid amount"}, status=400)
+        link = await bot.create_invoice_link(
+            title="Поддержать проект",
+            description=f"Отправка {amount} ⭐ в поддержку Nexus",
+            payload=f"tip:{amount}",
+            currency="XTR",
+            prices=[{"label": "Поддержка", "amount": amount}],
+        )
     else:
         return web.json_response({"error": "unknown invoice type"}, status=400)
 
