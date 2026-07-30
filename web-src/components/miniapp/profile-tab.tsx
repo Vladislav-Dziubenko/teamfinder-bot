@@ -81,11 +81,14 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
     level,
     wins,
     refresh,
+    setGames,
   } = useNexus()
+  const { games: userGames } = useMe()
 
   const [editing, setEditing] = useState(false)
   const [showLang, setShowLang] = useState(false)
   const [showShare, setShowShare] = useState(false)
+  const [showGamePicker, setShowGamePicker] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [achievements, setAchievements] = useState<AchievementItem[]>([])
@@ -94,8 +97,6 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
   useEffect(() => {
     api.get("/api/achievements/list").then((data) => setAchievements(data?.achievements ?? data ?? [])).catch(() => setAchievements([])).finally(() => setAchLoading(false))
   }, [])
-
-  const game = games.find((g) => g.id === "cs2") ?? games[0]
   const active = decorations.find((d) => d.id === deco) ?? decorations[0]
   const decoAvailable = (id: string) => id === "orange" || premiumActive || unlockedDecos.includes(id)
   const streakReady = !lastStreakAt || Date.now() - lastStreakAt >= 24 * 60 * 60 * 1000
@@ -193,9 +194,34 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
               <h1 className="font-display text-2xl font-bold leading-tight">{nick}</h1>
             )}
             <p className="text-sm text-muted-foreground">{t("profile.level", { level })}</p>
-            <span className="mt-1 inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium">
-              <Gamepad2 className="size-3 text-primary" /> {t("profile.ach_game_label", { game: game?.name })}
-            </span>
+            <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {userGames.length === 0 ? (
+                <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                  <Gamepad2 className="size-3" /> {t("profile.no_games")}
+                </span>
+              ) : (
+                userGames.map((gid) => {
+                  const gm = games.find((g) => g.id === gid)
+                  return (
+                    <span
+                      key={gid}
+                      className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium"
+                      style={{ color: gm?.color }}
+                    >
+                      {gm?.emoji && <span>{gm.emoji}</span>}
+                      <span>{gm?.short || gid}</span>
+                    </span>
+                  )
+                })
+              )}
+              <button
+                type="button"
+                onClick={() => setShowGamePicker(true)}
+                className="inline-flex size-6 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 text-muted-foreground transition-colors hover:border-muted-foreground active:scale-90"
+              >
+                <svg className="size-3.5" viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -577,6 +603,18 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
 
       {showLang && <LanguageSelector onClose={() => setShowLang(false)} />}
 
+      {/* Game picker modal */}
+      {showGamePicker && (
+        <GamePicker
+          selected={userGames}
+          onSave={(g) => {
+            setGames(g)
+            setShowGamePicker(false)
+          }}
+          onClose={() => setShowGamePicker(false)}
+        />
+      )}
+
       <p className="pb-2 text-center text-xs text-muted-foreground">NEXUS · Telegram Mini App · v1.1</p>
     </div>
   )
@@ -608,6 +646,56 @@ function PointStat({ value, label }: { value: number; label: string }) {
       <Coins className="mx-auto size-6 text-primary" />
       <p className="mt-1.5 font-display text-xl font-bold leading-none">{value}</p>
       <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
+    </div>
+  )
+}
+
+function GamePicker({ selected, onSave, onClose }: { selected: string[]; onSave: (g: string[]) => void; onClose: () => void }) {
+  const { t } = useI18n()
+  const [picked, setPicked] = useState<string[]>(selected)
+
+  function toggle(gid: string) {
+    setPicked((prev) => prev.includes(gid) ? prev.filter((x) => x !== gid) : [...prev, gid])
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-end bg-black/60 px-4 pb-8" onClick={onClose}>
+      <div
+        className="w-full max-w-md rounded-3xl border border-border bg-card p-5 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="mb-1 font-display text-lg font-bold">{t("profile.game_picker_title")}</h3>
+        <p className="mb-4 text-sm text-muted-foreground">{t("profile.game_picker_desc")}</p>
+        <div className="flex flex-wrap gap-2">
+          {games.map((g) => {
+            const on = picked.includes(g.id)
+            return (
+              <button
+                key={g.id}
+                type="button"
+                onClick={() => toggle(g.id)}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-xl border px-3 py-2 text-sm font-semibold transition-all active:scale-95",
+                  on
+                    ? "border-stars/40 bg-stars/12 text-stars"
+                    : "border-border bg-secondary/50 text-muted-foreground",
+                )}
+              >
+                <span>{g.emoji}</span>
+                <span>{g.short}</span>
+                {on && <Check className="size-3.5 fill-stars" />}
+              </button>
+            )
+          })}
+        </div>
+        <button
+          type="button"
+          onClick={() => onSave(picked)}
+          className="mt-5 w-full rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground active:scale-[0.98]"
+        >
+          {t("common.save")}
+        </button>
+      </div>
     </div>
   )
 }

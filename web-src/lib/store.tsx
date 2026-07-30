@@ -27,6 +27,7 @@ type MeResponse = {
     bio: string | null
     deco: string
     unlocked_decos: string[]
+    games: string[]
   }
   inventory: Array<{
     id: number
@@ -110,6 +111,7 @@ type PersistedState = {
   dailyStreakRewards: { day: number; coins: number }[]
   starPacks: StarPack[]
   referralReward: { coins: number; stars: number }
+  games: string[]
 }
 
 function makeReferralCode() {
@@ -206,6 +208,7 @@ function defaultState(): PersistedState {
     dailyStreakRewards: [],
     starPacks: [],
     referralReward: { coins: 0, stars: 0 },
+    games: [],
     userId: 0,
   }
 }
@@ -276,6 +279,7 @@ function mapMeToState(me: MeResponse): PersistedState {
     dailyStreakRewards: me.daily_streak_rewards || [],
     starPacks: me.star_packs || [],
     referralReward: me.referral_reward || { coins: 50, stars: 5 },
+    games: me.mini_profile?.games || [],
   }
 }
 
@@ -348,6 +352,7 @@ type Nexus = PersistedState & {
   claimDailyStreak: () => Promise<{ ok: boolean; coins?: number; day?: number; error?: string }>
   claimAchievement: (id: string, pts: number, cns: number) => Promise<void>
   hasUnlockedPlayer: (id: string) => boolean
+  setGames: (games: string[]) => Promise<void>
 }
 
 const NexusContext = createContext<Nexus | null>(null)
@@ -669,6 +674,15 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    const setGames = async (games: string[]) => {
+      setS((p: PersistedState) => ({ ...p, games }))
+      try {
+        await api.post("/api/profile/customize", { games })
+      } catch (e) {
+        console.error("setGames failed", e)
+      }
+    }
+
     return {
       ...s,
       bpLevel,
@@ -706,6 +720,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       claimDailyStreak,
       claimAchievement,
       hasUnlockedPlayer: (id: string) => s.unlockedPlayers.includes(id),
+      setGames,
     }
   }, [s, now, refresh])
 
@@ -749,6 +764,7 @@ export function useMe() {
       level: nexus.level,
       wins: nexus.wins,
       userId: nexus.userId,
+      games: nexus.games,
       refresh: nexus.refresh,
     }),
     [
@@ -768,6 +784,7 @@ export function useMe() {
       nexus.level,
       nexus.wins,
       nexus.userId,
+      nexus.games,
       nexus.refresh,
     ],
   )

@@ -33,13 +33,14 @@ export type Player = {
   tags: string[]
   bio: string
   tgUsername: string
-  vibe: number // % совместимости
+  vibe: number
   level?: number
-  lastSeen?: string // «5 мин назад» и т.п.
+  lastSeen?: string
   searching_minutes?: number
   locked?: boolean
   unlockStars?: number
   reason?: "donor" | "veteran"
+  fav_games?: string
 }
 
 export const players: Player[] = [
@@ -195,6 +196,7 @@ export type Team = {
   maxMembers: number
   region: string
   vibe: string[]
+  fav_games?: string
 }
 
 export const teams: Team[] = [

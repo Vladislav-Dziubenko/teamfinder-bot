@@ -65,6 +65,25 @@ export function TeamCard({
         </span>
       </div>
 
+      {/* favorite games */}
+      {team.fav_games && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {team.fav_games.split(",").map((gid) => {
+            const gm = games.find((g) => g.id === gid)
+            if (!gm) return null
+            return (
+              <span
+                key={gid}
+                className="inline-flex items-center gap-1 rounded-full border border-border bg-secondary/30 px-2 py-0.5 text-[10px] font-medium"
+                style={{ color: gm.color }}
+              >
+                {gm.emoji} {gm.short}
+              </span>
+            )
+          })}
+        </div>
+      )}
+
       <div className="mt-3 rounded-2xl bg-secondary/50 p-3">
         <p className="text-xs text-muted-foreground">{t("team.needs_player")}</p>
         <p className="font-display text-base font-semibold text-primary">{team.needRole}</p>

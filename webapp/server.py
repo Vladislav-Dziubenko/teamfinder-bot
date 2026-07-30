@@ -394,13 +394,10 @@ async def handle_me(request: web.Request):
     app_short_name = "nexus"
     direct_app_url = f"https://t.me/{bot_username}/{app_short_name}"
 
-    profiles = await db.get_user_profiles(user["id"])
-    active_game = results[1].get("active_game") if results[1] else None
-
     return web.json_response({
         "user": user,
         "currency": results[0],
-        "mini_profile": {**results[1], "active_game": active_game} if results[1] else {"active_game": None},
+        "mini_profile": results[1] if results[1] else {"games": []},
         "inventory": results[2],
         "battlepass": results[3],
         "streak": results[4],
@@ -409,7 +406,6 @@ async def handle_me(request: web.Request):
         "cases": list(CASES_CONFIG.values()),
         "case_cooldowns": case_cooldowns,
         "premium_active": results[7],
-        "profiles": profiles,
         "star_packs": [{"id": k, "stars": v["stars"], "perk": v["desc"], "title": v["title"]} for k, v in STAR_PACKS.items()],
         "battlepass_tiers": BATTLE_PASS_TIERS,
         "referral_bot_url": referral_bot_url,
@@ -463,20 +459,13 @@ async def handle_save_profile(request: web.Request):
         "description": sanitize(body.get("description", ""), 300),
     }
     await db.save_profile(data)
-    # Set as active in mini app
-    await db.set_active_game_profile(user["id"], data["game"])
-    return web.json_response({"profile": await db.get_profile(user["id"], data["game"])})
+    return web.json_response({"profile": await db.get_profile(user["id"])})
 
 
 async def handle_hide_profile(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    mini = await db.get_mini_app_profile(user["id"])
-    active_game = mini.get("active_game")
-    if active_game:
-        await db.deactivate_profile(user["id"], active_game)
-    else:
-        await db.deactivate_profile(user["id"])
+    await db.deactivate_profile(user["id"])
     return web.json_response({"ok": True})
 
 
@@ -484,28 +473,23 @@ async def handle_customize_profile(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     body = await request.json()
-    allowed = {"avatar", "nick", "bio", "deco"}
+    allowed = {"avatar", "nick", "bio", "deco", "games"}
     data = {}
     for k in allowed:
         if k in body:
             v = body.get(k)
             if k in ("nick", "bio"):
                 data[k] = sanitize(v, 64 if k == "nick" else 500)
+            elif k == "games":
+                if isinstance(v, list):
+                    data[k] = v
             else:
                 data[k] = v
     await db.save_mini_app_profile(user["id"], data)
     return web.json_response({"profile": await db.get_mini_app_profile(user["id"])})
 
 
-async def handle_set_active_game(request: web.Request):
-    db: Database = request.app["db"]
-    user = _get_user(request)
-    body = await request.json()
-    game = body.get("game")
-    if not game:
-        return web.json_response({"error": "game required"}, status=400)
-    await db.set_active_game_profile(user["id"], game)
-    return web.json_response({"ok": True})
+
 
 
 async def handle_search_count(request: web.Request):
@@ -593,7 +577,7 @@ async def handle_search(request: web.Request):
             }
             for r in rows
         ]
-        asyncio.create_task(db.update_searching_since(user["id"], profile["game"] if profile else None))
+        asyncio.create_task(db.update_searching_since(user["id"]))
         return web.json_response({"players": players, "teams": []})
     is_pro = await db.is_pro(user["id"])
     premium = is_pro or await db.has_search_boost(user["id"], game_to_search)
@@ -635,7 +619,7 @@ async def handle_search(request: web.Request):
     await db.increment_user_stat(user["id"], "search_count")
     asyncio.create_task(db.update_quest_progress(user["id"], "do-searches", 1))
     asyncio.create_task(db.update_quest_progress(user["id"], "do-searches-2", 1))
-    asyncio.create_task(db.update_searching_since(user["id"], game_to_search))
+    asyncio.create_task(db.update_searching_since(user["id"]))
 
     return web.json_response({"premium": premium, "is_pro": is_pro, "game": game_to_search, "players": players, "teams": []})
 
@@ -2007,7 +1991,6 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/profile", handle_save_profile)
     app.router.add_post("/api/profile/hide", handle_hide_profile)
     app.router.add_post("/api/profile/customize", handle_customize_profile)
-    app.router.add_post("/api/profile/set-active-game", handle_set_active_game)
     app.router.add_get("/api/search/count", handle_search_count)
     app.router.add_get("/api/online", handle_online)
     app.router.add_post("/api/client-error", handle_client_error)
