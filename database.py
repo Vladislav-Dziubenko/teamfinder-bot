@@ -694,6 +694,25 @@ class Database:
                 data.get("description", ""), now,
             )
 
+            existing = await conn.fetchrow(
+                "SELECT games FROM mini_app_profiles WHERE user_id = $1", data["user_id"]
+            )
+            current_games = set()
+            if existing and existing["games"]:
+                current_games = set(existing["games"].split(","))
+            current_games.add(data["game"])
+            await conn.execute(
+                """
+                INSERT INTO mini_app_profiles (user_id, nick, games, updated_at)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    nick = EXCLUDED.nick,
+                    games = EXCLUDED.games,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                data["user_id"], data["nickname"], ",".join(sorted(current_games)), now,
+            )
+
     async def get_profile(self, user_id: int) -> dict | None:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(

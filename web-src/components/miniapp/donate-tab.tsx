@@ -9,9 +9,9 @@ import { api, openInvoice } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 const coinPacks = [
-  { id: "c1", coins: 50, stars: 25 },
-  { id: "c2", coins: 120, stars: 50, bonus: "+20%", popular: true },
-  { id: "c3", coins: 300, stars: 100, bonus: "+50%" },
+  { id: "c1", coins: 50, stars: 13 },
+  { id: "c2", coins: 120, stars: 25, bonus: "+20%", popular: true },
+  { id: "c3", coins: 300, stars: 50, bonus: "+50%" },
 ]
 
 export function DonateTab() {
@@ -65,8 +65,13 @@ export function DonateTab() {
     }
   }
 
+  const [buyingCoins, setBuyingCoins] = useState<string | null>(null)
+
   async function buyCoins(pack: (typeof coinPacks)[number]) {
+    if (buyingCoins) return
+    setBuyingCoins(pack.id)
     const res = await buyCoinPack(pack.id)
+    setBuyingCoins(null)
     if (!res.ok) {
       setFlash(res.error ?? t("match.error_not_enough_stars"))
     } else {
@@ -117,28 +122,33 @@ export function DonateTab() {
           <img src="/nexus-coin.png" alt="" className="size-6 rounded-full object-cover" /> {t("donate.nexus_coins")}
         </h2>
         <div className="grid grid-cols-3 gap-3">
-          {coinPacks.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              onClick={() => buyCoins(p)}
-              className={cn(
-                "relative overflow-hidden rounded-2xl border p-3 text-center transition-all active:scale-95",
-                p.popular ? "border-primary bg-primary/10" : "border-border bg-card",
-              )}
-            >
-              {p.bonus && (
-                <span className="absolute right-0 top-0 rounded-bl-lg bg-accent px-1.5 py-0.5 text-[9px] font-bold text-accent-foreground">
-                  {p.bonus}
-                </span>
-              )}
-              <img src="/nexus-coin.png" alt="" className="mx-auto size-8 rounded-full object-cover" />
-              <p className="mt-1.5 font-display text-lg font-bold leading-none">{p.coins}</p>
-              <p className="mt-1 flex items-center justify-center gap-0.5 text-[11px] font-semibold text-stars">
-                <Star className="size-3 fill-stars" /> {p.stars}
-              </p>
-            </button>
-          ))}
+          {coinPacks.map((p) => {
+            const loading = buyingCoins === p.id
+            return (
+              <button
+                key={p.id}
+                type="button"
+                disabled={!!buyingCoins}
+                onClick={() => buyCoins(p)}
+                className={cn(
+                  "relative overflow-hidden rounded-2xl border p-3 text-center transition-all active:scale-95 disabled:opacity-50",
+                  p.popular ? "border-primary bg-primary/10" : "border-border bg-card",
+                )}
+              >
+                {p.bonus && (
+                  <span className="absolute right-0 top-0 rounded-bl-lg bg-accent px-1.5 py-0.5 text-[9px] font-bold text-accent-foreground">
+                    {p.bonus}
+                  </span>
+                )}
+                <img src="/nexus-coin.png" alt="" className="mx-auto size-8 rounded-full object-cover" />
+                <p className="mt-1.5 font-display text-lg font-bold leading-none">{loading ? "..." : p.coins}</p>
+                <p className="mt-1 flex items-center justify-center gap-0.5 text-[11px] font-semibold text-stars">
+                  {loading ? <Loader2 className="size-3 animate-spin" /> : <Star className="size-3 fill-stars" />}
+                  {" "}{p.stars}
+                </p>
+              </button>
+            )
+          })}
         </div>
         {flash && (
           <p className="mt-2 rounded-xl border border-accent/40 bg-accent/10 px-3 py-2 text-center text-xs font-medium text-accent">
