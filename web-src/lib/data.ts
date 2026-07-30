@@ -3,19 +3,20 @@ export type Game = {
   name: string
   short: string
   color: string
+  emoji: string
 }
 
 export const games: Game[] = [
-  { id: "cs2", name: "Counter-Strike 2", short: "CS2", color: "var(--primary)" },
-  { id: "roblox", name: "Roblox", short: "RBX", color: "var(--chart-1)" },
-  { id: "wot", name: "World of Tanks", short: "WoT", color: "var(--destructive)" },
-  { id: "wt", name: "War Thunder", short: "WT", color: "var(--chart-4)" },
-  { id: "dota2", name: "Dota 2", short: "Dota", color: "var(--accent)" },
-  { id: "valorant", name: "Valorant", short: "VAL", color: "var(--chart-5)" },
-  { id: "minecraft", name: "Minecraft", short: "MC", color: "var(--stars)" },
-  { id: "fortnite", name: "Fortnite", short: "FN", color: "var(--chart-3)" },
-  { id: "apex", name: "Apex Legends", short: "APEX", color: "var(--chart-2)" },
-  { id: "rust", name: "Rust", short: "Rust", color: "var(--chart-6)" },
+  { id: "cs2", name: "Counter-Strike 2", short: "CS2", color: "var(--primary)", emoji: "🔫" },
+  { id: "roblox", name: "Roblox", short: "RBX", color: "var(--chart-1)", emoji: "🧱" },
+  { id: "wot", name: "World of Tanks", short: "WoT", color: "var(--destructive)", emoji: "🪖" },
+  { id: "wt", name: "War Thunder", short: "WT", color: "var(--chart-4)", emoji: "✈️" },
+  { id: "dota2", name: "Dota 2", short: "Dota", color: "var(--accent)", emoji: "🏰" },
+  { id: "valorant", name: "Valorant", short: "VAL", color: "var(--chart-5)", emoji: "🔮" },
+  { id: "minecraft", name: "Minecraft", short: "MC", color: "var(--stars)", emoji: "⛏️" },
+  { id: "fortnite", name: "Fortnite", short: "FN", color: "var(--chart-3)", emoji: "🛡️" },
+  { id: "apex", name: "Apex Legends", short: "APEX", color: "var(--chart-2)", emoji: "⚡" },
+  { id: "rust", name: "Rust", short: "Rust", color: "var(--chart-6)", emoji: "🦀" },
 ]
 
 export type Player = {

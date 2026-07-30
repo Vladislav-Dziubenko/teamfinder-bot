@@ -501,8 +501,11 @@ async def handle_search_count(request: web.Request):
 
 async def handle_online(request: web.Request):
     db: Database = request.app["db"]
-    stats = await db.stats()
-    return web.json_response({"online": stats["profiles"]})
+    online_count = await db.pool.fetchval(
+        "SELECT COUNT(*) FROM profiles WHERE is_active = 1 AND searching_since IS NOT NULL AND searching_since > $1",
+        (datetime.utcnow() - timedelta(minutes=15)).isoformat(),
+    )
+    return web.json_response({"online": online_count or 0})
 
 
 async def handle_search(request: web.Request):
@@ -581,7 +584,10 @@ async def handle_search(request: web.Request):
         asyncio.create_task(db.update_searching_since(user["id"]))
         return web.json_response({"players": players, "teams": []})
     is_pro = await db.is_pro(user["id"])
-    premium = is_pro or await db.has_search_boost(user["id"], game_to_search)
+    has_boost = await db.has_search_boost(user["id"], game_to_search) if not is_pro else False
+    premium = is_pro or has_boost
+    if has_boost:
+        await db.consume_search_boost(user["id"], game_to_search)
     candidates = await db.list_profiles_by_game(game_to_search, exclude_user_id=user["id"])
 
     # Filter by nickname if q provided
@@ -1478,7 +1484,7 @@ async def handle_translate(request: web.Request):
         return web.json_response({"error": "empty text"}, status=400)
     try:
         url = ("https://translate.googleapis.com/translate_a/single"
-               "?client=gtx&sl=auto&tl=" + target + "&dt=t&q=" + urlencode(text))
+               "?client=gtx&sl=auto&tl=" + target + "&dt=t&q=" + quote(text))
         async with request.app["session"].get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=ClientTimeout(total=10)) as resp:
             result = await resp.json()
             translated = "".join(part[0] for part in result[0] if part[0])
@@ -1694,7 +1700,7 @@ async def handle_pvp_resolve(request: web.Request):
     if not winner_id:
         return web.json_response({"error": "winner_id required"}, status=400)
     try:
-        ok = await db.resolve_pvp_challenge(int(challenge_id), int(winner_id))
+        ok = await db.resolve_pvp_challenge(int(challenge_id), user["id"], int(winner_id))
     except ValueError:
         return web.json_response({"error": "invalid id"}, status=400)
     if not ok:
@@ -1794,7 +1800,7 @@ async def handle_discord_auth(request: web.Request):
         "state": state,
         "prompt": "consent",
     }
-    from urllib.parse import urlencode
+from urllib.parse import urlencode, quote
     url = f"https://discord.com/api/oauth2/authorize?{urlencode(params)}"
     logging.info(f"[discord.auth] user={telegram_user_id} state={state[:16]}...")
     return web.json_response({"url": f"https://discord.com/api/oauth2/authorize?{urlencode(params)}"})
@@ -1982,6 +1988,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
 
     app.on_startup.append(lambda _app: init_redis())
     app.on_cleanup.append(lambda _app: close_redis())
+    app.on_cleanup.append(lambda _app: _app["session"].close())
 
     app.router.add_get("/", handle_index)
     app.router.add_get("/health", handle_health)

@@ -476,7 +476,9 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       try {
         const res = await api.post("/api/pay/invoice", { type: "buy_stars", amount })
         if (res?.invoice_link) {
-          openInvoice(res.invoice_link, () => refresh())
+          await new Promise<void>((resolve) => {
+            openInvoice(res.invoice_link, () => refresh().then(resolve))
+          })
           return { ok: true }
         }
         return { ok: false, error: "Не удалось получить ссылку на оплату" }
@@ -507,9 +509,10 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     const sellItem = async (uid: string) => {
       const found = s.inventory.find((i: InventoryItem) => i.uid === uid)
       if (!found || found.id == null) return
+      const sellAmount = found.sell ?? 0
       setS((p) => ({
         ...p,
-        coins: p.coins + (found.sell ?? 0),
+        coins: p.coins + sellAmount,
         inventory: p.inventory.filter((i) => i.uid !== uid),
       }))
       try {
@@ -543,15 +546,9 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     }
 
     const useFreeSearch = () => {
-      let ok = false
-      setS((p: PersistedState) => {
-        if (p.freeSearchesLeft > 0) {
-          ok = true
-          return { ...p, freeSearchesLeft: p.freeSearchesLeft - 1 }
-        }
-        return p
-      })
-      return ok
+      if (s.freeSearchesLeft <= 0) return false
+      setS((p: PersistedState) => ({ ...p, freeSearchesLeft: p.freeSearchesLeft - 1 }))
+      return true
     }
 
     const unlockPlayer = async (id: string, cost: number) => {

@@ -1,3 +1,4 @@
+import logging
 from aiogram import Router, F, Bot
 from aiogram.types import CallbackQuery, Message, LabeledPrice, PreCheckoutQuery
 
@@ -216,27 +217,28 @@ async def successful_payment(message: Message, db: Database, bot: Bot):
             "p4": {"name": "Всё сразу + анимированная рамка", "stars": 1000, "action": "pro_deluxe"},
         }
         pack = packs.get(pack_id)
-        if pack:
-            perk_msg = ""
-            if pack["action"] == "highlight":
-                await db.highlight_profile(message.from_user.id, hours=24)
-                perk_msg = "🔥 Анкета поднята в топ на 24 часа"
-            elif pack["action"] in ("pro", "pro_month", "pro_deluxe"):
-                await db.set_pro_status(message.from_user.id, days=30)
-                await db.add_coins(message.from_user.id, pack["stars"])
-                perk_msg = "👑 PRO-статус на 30 дней активирован"
-                if pack["action"] == "pro_deluxe":
-                    await db.unlock_decoration(message.from_user.id, "gold")
-                    await db.unlock_decoration(message.from_user.id, "cyan")
-                    await db.unlock_decoration(message.from_user.id, "crimson")
-                    perk_msg += "\n💎 Все украшения разблокированы"
-            await message.answer(
-                f"✅ <b>{pack['name']} — оплачен!</b>\n\n"
-                f"{perk_msg}\n"
-                f"⭐ +{pack['stars']} Nexus Stars зачислено"
-            )
-        else:
-            await message.answer("✅ Оплата получена.")
+        if not pack:
+            logging.error(f"Unknown star_pack id: {pack_id}")
+            await message.answer("❌ Ошибка: неизвестный пакет. Обратитесь в поддержку.")
+            return
+        perk_msg = ""
+        if pack["action"] == "highlight":
+            await db.highlight_profile(message.from_user.id, hours=24)
+            perk_msg = "🔥 Анкета поднята в топ на 24 часа"
+        elif pack["action"] in ("pro", "pro_month", "pro_deluxe"):
+            await db.set_pro_status(message.from_user.id, days=30)
+            await db.add_stars(message.from_user.id, pack["stars"])
+            perk_msg = "👑 PRO-статус на 30 дней активирован"
+            if pack["action"] == "pro_deluxe":
+                await db.unlock_decoration(message.from_user.id, "gold")
+                await db.unlock_decoration(message.from_user.id, "cyan")
+                await db.unlock_decoration(message.from_user.id, "crimson")
+                perk_msg += "\n💎 Все украшения разблокированы"
+        await message.answer(
+            f"✅ <b>{pack['name']} — оплачен!</b>\n\n"
+            f"{perk_msg}\n"
+            f"⭐ +{pack['stars']} Nexus Stars зачислено"
+        )
         return
 
     if payload.startswith("buy_stars:"):

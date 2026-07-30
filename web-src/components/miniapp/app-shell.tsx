@@ -119,7 +119,7 @@ function Shell() {
           onChat={(id, nick, avatar) => {
             setChatOpen({
               chatId: openChatWithPlayer(me.userId, String(id)),
-              player: { id, nick, avatar, game: "", rank: "", role: "", kd: 0, winrate: 0, hours: 0, online: false, tags: [], bio: "", tgUsername: "", vibe: 0, locked: false },
+              player: { id: String(id), nick, avatar, game: "", rank: "", role: "", kd: 0, winrate: 0, hours: 0, online: false, tags: [], bio: "", tgUsername: "", vibe: 0 },
             })
             goTab("chat")
             setSharedProfileId(null)

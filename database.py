@@ -676,7 +676,7 @@ class Database:
                     user_id, game, nickname, rank, role, playtime, looking_for,
                     region, language, contact, has_mic, description, is_active, updated_at
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 1, $13)
-                ON CONFLICT (user_id) DO UPDATE SET
+                ON CONFLICT (user_id, game) DO UPDATE SET
                     game=EXCLUDED.game, nickname=EXCLUDED.nickname, rank=EXCLUDED.rank,
                     role=EXCLUDED.role, playtime=EXCLUDED.playtime, looking_for=EXCLUDED.looking_for,
                     region=EXCLUDED.region, language=EXCLUDED.language, contact=EXCLUDED.contact,
@@ -1013,6 +1013,19 @@ class Database:
                 VALUES ($1, $2, 0, 0, $3)
                 ON CONFLICT (user_id) DO UPDATE SET
                     coins = user_currency.coins + $2,
+                    updated_at = $3
+                """,
+                user_id, amount, datetime.utcnow().isoformat(),
+            )
+
+    async def add_stars(self, user_id: int, amount: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_currency (user_id, coins, stars, points, updated_at)
+                VALUES ($1, 0, $2, 0, $3)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    stars = user_currency.stars + $2,
                     updated_at = $3
                 """,
                 user_id, amount, datetime.utcnow().isoformat(),
@@ -1359,7 +1372,7 @@ class Database:
                     return False
                 claimed_tiers.append(tier_key)
                 await conn.execute(
-                    "UPDATE user_battlepass SET claimed_tiers = $1, updated_at = $2 WHERE user_id = $3",
+                    "UPDATE user_battlepass SET claimed_tiers = $1, claimed_count = claimed_count + 1, updated_at = $2 WHERE user_id = $3",
                     json.dumps(claimed_tiers), now, user_id,
                 )
                 await self._apply_reward_conn(conn, user_id, reward)
@@ -1371,17 +1384,19 @@ class Database:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
-                    "SELECT bp_premium, bp_xp, claimed_count, last_claim_at FROM user_battlepass WHERE user_id = $1 FOR UPDATE",
+                    "SELECT bp_premium, bp_xp, claimed_tiers, claimed_count, last_claim_at FROM user_battlepass WHERE user_id = $1 FOR UPDATE",
                     user_id,
                 )
                 if not row:
                     bp_premium = False
                     bp_xp = 0
+                    claimed_tiers = []
                     claimed_count = 0
                     last_claim_at = None
                 else:
                     bp_premium = bool(row["bp_premium"])
                     bp_xp = row["bp_xp"]
+                    claimed_tiers = json.loads(row["claimed_tiers"]) if row["claimed_tiers"] else []
                     claimed_count = row["claimed_count"]
                     last_claim_at = row["last_claim_at"]
 
@@ -1395,21 +1410,24 @@ class Database:
                         return {"ok": False, "error": "Следующая награда откроется позже"}
 
                 tier = BATTLE_PASS_TIERS[claimed_count]
+                tier_key = (tier["premium"] or tier["free"])["key"]
+                claimed_tiers.append(tier_key)
                 new_claimed_count = claimed_count + 1
                 new_bp_xp = bp_xp + BATTLE_PASS_XP_PER_LEVEL
 
                 await conn.execute(
                     """
                     INSERT INTO user_battlepass (user_id, bp_premium, bp_xp, claimed_tiers, claimed_count, last_claim_at, updated_at)
-                    VALUES ($1, $2, $3, '[]', $4, $5, $6)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7)
                     ON CONFLICT (user_id) DO UPDATE SET
                         bp_premium = EXCLUDED.bp_premium,
                         bp_xp = EXCLUDED.bp_xp,
+                        claimed_tiers = EXCLUDED.claimed_tiers,
                         claimed_count = EXCLUDED.claimed_count,
                         last_claim_at = EXCLUDED.last_claim_at,
                         updated_at = EXCLUDED.updated_at
                     """,
-                    user_id, int(bp_premium), new_bp_xp, new_claimed_count, now, now,
+                    user_id, int(bp_premium), new_bp_xp, json.dumps(claimed_tiers), new_claimed_count, now, now,
                 )
                 await self._apply_reward_conn(conn, user_id, tier["free"])
                 if bp_premium:
@@ -1910,22 +1928,23 @@ class Database:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
-                    "SELECT stake, status FROM pvp_challenges WHERE id = $1 FOR UPDATE",
+                    "SELECT creator_id, stake, status FROM pvp_challenges WHERE id = $1 FOR UPDATE",
                     challenge_id,
                 )
                 if not row or row["status"] != "open":
+                    return False
+                if row["creator_id"] == opponent_id:
                     return False
                 stake = row["stake"]
                 if not await self._adjust_currency_conn(conn, opponent_id, coins=-stake):
                     return False
                 await conn.execute(
-                    "UPDATE pvp_challenges SET status = 'active', opponent_id = $1, opponent_nick = $2, created_at = $3 WHERE id = $4",
-                    opponent_id, opponent_nick, now, challenge_id,
+                    "UPDATE pvp_challenges SET status = 'active', opponent_id = $1, opponent_nick = $2 WHERE id = $3",
+                    opponent_id, opponent_nick, challenge_id,
                 )
                 return True
 
-    async def resolve_pvp_challenge(self, challenge_id: int, winner_id: int) -> bool:
-        now = datetime.utcnow().isoformat()
+    async def resolve_pvp_challenge(self, challenge_id: int, caller_id: int, winner_id: int) -> bool:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
@@ -1934,14 +1953,16 @@ class Database:
                 )
                 if not row or row["status"] != "active":
                     return False
+                if row["creator_id"] != caller_id:
+                    return False
                 if winner_id not in (row["creator_id"], row["opponent_id"]):
                     return False
                 payout = row["stake"] * 2
                 if not await self._adjust_currency_conn(conn, winner_id, coins=payout):
                     return False
                 await conn.execute(
-                    "UPDATE pvp_challenges SET status = 'finished', winner_id = $1, created_at = $2 WHERE id = $3",
-                    winner_id, now, challenge_id,
+                    "UPDATE pvp_challenges SET status = 'finished', winner_id = $1 WHERE id = $2",
+                    winner_id, challenge_id,
                 )
                 return True
 

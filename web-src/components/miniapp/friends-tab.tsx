@@ -4,7 +4,6 @@ import { useEffect, useState } from "react"
 import { UserPlus, UserCheck, UserX, MessageCircle, Clock, Users, Search, Loader2 } from "lucide-react"
 import { api } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
-import type { Player } from "@/lib/data"
 
 type Friend = {
   friend_id: number
@@ -155,7 +154,7 @@ export function FriendsTab({
               <div className="flex gap-1.5">
                 <button
                   type="button"
-                  onClick={() => onChat?.({ id: u.id, nick: u.nick, avatar: u.avatar ?? "" } as Player)}
+                  onClick={() => onChat?.({ id: String(u.id), nick: u.nick, avatar: u.avatar ?? "", game: "", rank: "", role: "", kd: 0, winrate: 0, hours: 0, online: false, tags: [], bio: "", tgUsername: "", vibe: 0 })}
                   className="grid size-9 place-items-center rounded-xl bg-primary/15 text-primary active:scale-90"
                 >
                   <MessageCircle className="size-4" />
@@ -208,7 +207,7 @@ export function FriendsTab({
                 <div className="flex gap-1.5">
                   <button
                     type="button"
-                    onClick={() => onChat?.({ id: f.friend_id, nick: f.nick ?? "", avatar: f.avatar ?? "" } as Player)}
+                    onClick={() => onChat?.({ id: String(f.friend_id), nick: f.nick ?? "", avatar: f.avatar ?? "", game: "", rank: "", role: "", kd: 0, winrate: 0, hours: 0, online: f.online, tags: [], bio: "", tgUsername: "", vibe: 0 })}
                     className="grid size-9 place-items-center rounded-xl bg-primary/15 text-primary active:scale-90"
                   >
                     <MessageCircle className="size-4" />
