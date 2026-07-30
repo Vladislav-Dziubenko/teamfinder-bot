@@ -86,9 +86,13 @@ async def main():
 
         asyncio.create_task(_init_db())
 
-        # ---- Шаг 6: регистрируем webhook в Telegram API ----
+        # ---- Шаг 6: удаляем старый webhook (если был) и регистрируем новый ----
         public_url = os.environ.get("RENDER_EXTERNAL_URL") or settings.webapp_url or ""
         if public_url:
+            try:
+                await bot.delete_webhook(drop_pending_updates=True)
+            except Exception:
+                logging.exception("delete_webhook перед set_webhook")
             webhook_url = f"{public_url.rstrip('/')}/webhook/{webhook_secret}"
             await bot.set_webhook(
                 url=webhook_url,
