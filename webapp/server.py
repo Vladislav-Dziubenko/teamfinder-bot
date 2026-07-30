@@ -2099,7 +2099,6 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
 
     # Telegram Bot webhook — секретный путь, известный только боту
     # -----------------------------------------------------------------------
-    @app.router.add_post("/webhook/{secret}")
     async def handle_telegram_webhook(request: web.Request) -> web.Response:
         expected = request.app.get("webhook_secret", "")
         if request.match_info["secret"] != expected:
@@ -2116,6 +2115,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
         except Exception:
             logging.exception("Telegram webhook error")
         return web.Response(status=200)
+    app.router.add_post("/webhook/{secret}", handle_telegram_webhook)
 
     app.router.add_static("/", STATIC_DIR, show_index=False)
     return app
