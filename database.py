@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
 
 CREATE TABLE IF NOT EXISTS profiles (
     id SERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL UNIQUE,
+    user_id BIGINT NOT NULL,
     game TEXT NOT NULL,
     nickname TEXT NOT NULL,
     rank TEXT NOT NULL,
@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS profiles (
     is_active INTEGER DEFAULT 1,
     highlighted_until TEXT,
     updated_at TEXT NOT NULL,
+    UNIQUE (user_id, game),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
@@ -547,6 +548,24 @@ class Database:
             "SELECT 1 FROM applied_migrations WHERE name = $1",
             migration_name,
         )
+        # Multiple profiles per user: drop UNIQUE(user_id), add UNIQUE(user_id, game)
+        try:
+            await conn.execute("ALTER TABLE profiles DROP CONSTRAINT IF EXISTS profiles_user_id_key")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning dropping profiles_user_id_key: {e}")
+        try:
+            await conn.execute(
+                "ALTER TABLE profiles ADD CONSTRAINT profiles_user_id_game_key UNIQUE (user_id, game)"
+            )
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning adding profiles_user_id_game_key: {e}")
+
+        # active_game column for mini_app_profiles — which profile to use in mini app
+        try:
+            await conn.execute("ALTER TABLE mini_app_profiles ADD COLUMN IF NOT EXISTS active_game TEXT")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning adding mini_app_profiles.active_game: {e}")
+
         if not already_applied:
             if await self._column_exists(conn, "promo_codes", "reward_json"):
                 try:
@@ -649,8 +668,8 @@ class Database:
                     user_id, game, nickname, rank, role, playtime, looking_for,
                     region, language, contact, has_mic, description, is_active, updated_at
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 1, $13)
-                ON CONFLICT (user_id) DO UPDATE SET
-                    game=EXCLUDED.game, nickname=EXCLUDED.nickname, rank=EXCLUDED.rank,
+                ON CONFLICT (user_id, game) DO UPDATE SET
+                    nickname=EXCLUDED.nickname, rank=EXCLUDED.rank,
                     role=EXCLUDED.role, playtime=EXCLUDED.playtime, looking_for=EXCLUDED.looking_for,
                     region=EXCLUDED.region, language=EXCLUDED.language, contact=EXCLUDED.contact,
                     has_mic=EXCLUDED.has_mic, description=EXCLUDED.description, is_active=1,
@@ -662,14 +681,76 @@ class Database:
                 data.get("description", ""), now,
             )
 
-    async def get_profile(self, user_id: int) -> dict | None:
+    async def get_profile(self, user_id: int, game: str | None = None) -> dict | None:
         async with self.pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT * FROM profiles WHERE user_id = $1 AND is_active = 1", user_id)
+            if game:
+                row = await conn.fetchrow(
+                    "SELECT * FROM profiles WHERE user_id = $1 AND game = $2 AND is_active = 1",
+                    user_id, game,
+                )
+            else:
+                # Return active game profile from mini_app_profiles, or any active profile
+                active_game = await conn.fetchval(
+                    "SELECT active_game FROM mini_app_profiles WHERE user_id = $1",
+                    user_id,
+                )
+                if active_game:
+                    row = await conn.fetchrow(
+                        "SELECT * FROM profiles WHERE user_id = $1 AND game = $2 AND is_active = 1",
+                        user_id, active_game,
+                    )
+                else:
+                    row = await conn.fetchrow(
+                        "SELECT * FROM profiles WHERE user_id = $1 AND is_active = 1 ORDER BY updated_at DESC LIMIT 1",
+                        user_id,
+                    )
             return dict(row) if row else None
 
-    async def deactivate_profile(self, user_id: int) -> None:
+    async def get_user_profiles(self, user_id: int) -> list[dict]:
         async with self.pool.acquire() as conn:
-            await conn.execute("UPDATE profiles SET is_active = 0 WHERE user_id = $1", user_id)
+            rows = await conn.fetch(
+                "SELECT * FROM profiles WHERE user_id = $1 AND is_active = 1 ORDER BY updated_at DESC",
+                user_id,
+            )
+            return [dict(r) for r in rows]
+
+    async def delete_profile(self, user_id: int, game: str) -> bool:
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM profiles WHERE user_id = $1 AND game = $2",
+                user_id, game,
+            )
+            return result != "DELETE 0"
+
+    async def set_active_game_profile(self, user_id: int, game: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE mini_app_profiles SET active_game = $1, updated_at = $2 WHERE user_id = $3",
+                game, datetime.utcnow().isoformat(), user_id,
+            )
+
+    async def deactivate_profile(self, user_id: int, game: str | None = None) -> None:
+        async with self.pool.acquire() as conn:
+            if game:
+                await conn.execute(
+                    "UPDATE profiles SET is_active = 0 WHERE user_id = $1 AND game = $2",
+                    user_id, game,
+                )
+            else:
+                active_game = await conn.fetchval(
+                    "SELECT active_game FROM mini_app_profiles WHERE user_id = $1",
+                    user_id,
+                )
+                if active_game:
+                    await conn.execute(
+                        "UPDATE profiles SET is_active = 0 WHERE user_id = $1 AND game = $2",
+                        user_id, active_game,
+                    )
+                else:
+                    await conn.execute(
+                        "UPDATE profiles SET is_active = 0 WHERE user_id = $1",
+                        user_id,
+                    )
 
     async def list_profiles_by_game(self, game: str, exclude_user_id: int | None = None) -> list[dict]:
         async with self.pool.acquire() as conn:
@@ -1084,6 +1165,7 @@ class Database:
                     "bio": None,
                     "deco": "orange",
                     "unlocked_decos": ["orange"],
+                    "active_game": None,
                 }
             return {
                 "avatar": row["avatar"],
@@ -1091,6 +1173,7 @@ class Database:
                 "bio": row["bio"],
                 "deco": row["deco"],
                 "unlocked_decos": row["unlocked_decos"].split(",") if row["unlocked_decos"] else ["orange"],
+                "active_game": row["active_game"],
             }
 
     async def save_mini_app_profile(self, user_id: int, data: dict, conn: asyncpg.Connection | None = None) -> None:
@@ -1126,12 +1209,28 @@ class Database:
         else:
             await conn.execute(sql, *params)
 
-    async def update_searching_since(self, user_id: int) -> None:
+    async def update_searching_since(self, user_id: int, game: str | None = None) -> None:
         async with self.pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE profiles SET searching_since = $1 WHERE user_id = $2",
-                datetime.utcnow().isoformat(), user_id,
-            )
+            if game:
+                await conn.execute(
+                    "UPDATE profiles SET searching_since = $1 WHERE user_id = $2 AND game = $3",
+                    datetime.utcnow().isoformat(), user_id, game,
+                )
+            else:
+                active_game = await conn.fetchval(
+                    "SELECT active_game FROM mini_app_profiles WHERE user_id = $1",
+                    user_id,
+                )
+                if active_game:
+                    await conn.execute(
+                        "UPDATE profiles SET searching_since = $1 WHERE user_id = $2 AND game = $3",
+                        datetime.utcnow().isoformat(), user_id, active_game,
+                    )
+                else:
+                    await conn.execute(
+                        "UPDATE profiles SET searching_since = $1 WHERE user_id = $2",
+                        datetime.utcnow().isoformat(), user_id,
+                    )
 
     async def _unlock_decoration_conn(self, conn: asyncpg.Connection, user_id: int, deco_id: str) -> None:
         row = await conn.fetchrow("SELECT unlocked_decos FROM mini_app_profiles WHERE user_id = $1", user_id)
