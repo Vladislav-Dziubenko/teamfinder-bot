@@ -2098,9 +2098,17 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/discord/status", handle_discord_status)
     app.router.add_post("/api/discord/unlink", handle_discord_unlink)
 
-    # Диагностика — проверка env
+    # Диагностика — проверка env + статус webhook
     async def handle_diag_env(request: web.Request) -> web.Response:
         import os
+        bot = request.app.get("bot")
+        webhook_info = None
+        if bot:
+            try:
+                wh = await bot.get_webhook_info()
+                webhook_info = wh.model_dump() if hasattr(wh, 'model_dump') else wh.__dict__
+            except Exception as e:
+                webhook_info = {"error": str(e)}
         return web.json_response({
             "RENDER_EXTERNAL_URL": os.environ.get("RENDER_EXTERNAL_URL", ""),
             "WEBAPP_URL": os.environ.get("WEBAPP_URL", ""),
@@ -2108,6 +2116,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             "webhook_secret_set": bool(request.app.get("webhook_secret")),
             "dp_set": bool(request.app.get("dp")),
             "bot_set": bool(request.app.get("bot")),
+            "webhook_info": webhook_info,
         })
     app.router.add_get("/api/diag/env", handle_diag_env)
 
