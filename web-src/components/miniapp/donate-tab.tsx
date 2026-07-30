@@ -163,19 +163,26 @@ export function DonateTab() {
           <Star className="size-5 fill-stars text-stars" /> {t("donate.buy_stars")}
         </h2>
         <div className="grid grid-cols-2 gap-3">
-          {[75, 250, 500, 1000].map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={async () => {
-                const res = await buyStars(n)
-                if (!res.ok) setFlash(res.error ?? t("common.error"))
-              }}
-              className="flex items-center justify-center gap-2 rounded-2xl border border-stars/30 bg-stars/10 py-3 font-display text-base font-bold text-stars active:scale-[0.98]"
-            >
-              <Star className="size-4 fill-stars" /> +{n}
-            </button>
-          ))}
+          {[75, 250, 500, 1000].map((n) => {
+            const loading = buyingCoins === `stars-${n}`
+            return (
+              <button
+                key={n}
+                type="button"
+                disabled={!!buyingCoins}
+                onClick={async () => {
+                  if (buyingCoins) return
+                  setBuyingCoins(`stars-${n}`)
+                  const res = await buyStars(n)
+                  setBuyingCoins(null)
+                  if (!res.ok) setFlash(res.error ?? t("common.error"))
+                }}
+                className="flex items-center justify-center gap-2 rounded-2xl border border-stars/30 bg-stars/10 py-3 font-display text-base font-bold text-stars active:scale-[0.98] disabled:opacity-50"
+              >
+                {loading ? <Loader2 className="size-4 animate-spin" /> : <Star className="size-4 fill-stars" />} +{n}
+              </button>
+            )
+          })}
         </div>
       </section>
 

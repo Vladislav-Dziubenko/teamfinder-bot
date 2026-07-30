@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
-import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX } from "lucide-react"
+import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2 } from "lucide-react"
 import { rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
@@ -79,8 +79,13 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     if (res.item) setSpin({ box: c, winner: res.item })
   }
 
+  const [shopBuying, setShopBuying] = useState<string | null>(null)
+
   async function buyFromShop(key: string, name: string) {
+    if (shopBuying) return
+    setShopBuying(key)
     const res = await buyShopItem(key)
+    setShopBuying(null)
     if (!res.ok) {
       onToast(res.error ?? t("match.error_not_enough_stars"))
       return
@@ -293,10 +298,16 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
               </div>
               <button
                 type="button"
+                disabled={!!shopBuying}
                 onClick={() => buyFromShop(s.key, s.name)}
-                className="flex shrink-0 items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground active:scale-95"
+                className="flex shrink-0 items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground active:scale-95 disabled:opacity-50"
               >
-                <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {s.price}
+                {shopBuying === s.key ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" />
+                )}
+                {" "}{s.price}
               </button>
             </div>
           ))}
