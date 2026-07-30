@@ -87,7 +87,11 @@ async def main():
         asyncio.create_task(_init_db())
 
         # ---- Шаг 6: удаляем старый webhook (если был) и регистрируем новый ----
-        public_url = os.environ.get("RENDER_EXTERNAL_URL") or settings.webapp_url or ""
+        public_url = (os.environ.get("RENDER_EXTERNAL_URL") or "").strip()
+        if not public_url:
+            public_url = (settings.webapp_url or "").strip()
+        logging.info("WEBHOOK public_url resolved: '%s' (RENDER_EXTERNAL_URL='%s' webapp_url='%s')",
+                     public_url, os.environ.get("RENDER_EXTERNAL_URL", ""), settings.webapp_url)
         if public_url:
             try:
                 await bot.delete_webhook(drop_pending_updates=True)

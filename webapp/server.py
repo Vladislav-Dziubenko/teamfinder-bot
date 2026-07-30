@@ -2097,6 +2097,19 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/discord/status", handle_discord_status)
     app.router.add_post("/api/discord/unlink", handle_discord_unlink)
 
+    # Диагностика — проверка env
+    async def handle_diag_env(request: web.Request) -> web.Response:
+        import os
+        return web.json_response({
+            "RENDER_EXTERNAL_URL": os.environ.get("RENDER_EXTERNAL_URL", ""),
+            "WEBAPP_URL": os.environ.get("WEBAPP_URL", ""),
+            "PORT": os.environ.get("PORT", ""),
+            "webhook_secret_set": bool(request.app.get("webhook_secret")),
+            "dp_set": bool(request.app.get("dp")),
+            "bot_set": bool(request.app.get("bot")),
+        })
+    app.router.add_get("/api/diag/env", handle_diag_env)
+
     # Telegram Bot webhook — секретный путь, известный только боту
     # -----------------------------------------------------------------------
     async def handle_telegram_webhook(request: web.Request) -> web.Response:
