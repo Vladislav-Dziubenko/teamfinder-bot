@@ -239,4 +239,28 @@ async def successful_payment(message: Message, db: Database, bot: Bot):
             await message.answer("✅ Оплата получена.")
         return
 
+    if payload.startswith("buy_stars:"):
+        try:
+            amount = int(payload.split(":", 1)[1])
+            await db.adjust_currency(message.from_user.id, stars=amount)
+            await message.answer(
+                f"✅ <b>Баланс пополнен!</b>\n\n"
+                f"⭐ +{amount} звёзд зачислено на баланс.\n"
+                f"Используй их в Mini App Nexus."
+            )
+        except (ValueError, IndexError):
+            await message.answer("✅ Оплата получена.")
+        return
+
+    if payload.startswith("tip:"):
+        try:
+            amount = int(payload.split(":", 1)[1])
+            await message.answer(
+                f"❤️ <b>Спасибо за поддержку!</b>\n\n"
+                f"Ты отправил {amount} ⭐ в поддержку проекта."
+            )
+        except (ValueError, IndexError):
+            await message.answer("✅ Оплата получена.")
+        return
+
     await message.answer("✅ Оплата получена. Спасибо!")

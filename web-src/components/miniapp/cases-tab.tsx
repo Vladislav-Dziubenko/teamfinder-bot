@@ -50,7 +50,7 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem, lootCases, refresh } = useNexus()
+  const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem, buyStars, lootCases, refresh } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem } | null>(null)
   const [sound, setSound] = useState(true)
@@ -68,7 +68,8 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   async function handleOpen(c: LootCase) {
     if (spin) return
     if (!c.free && stars < c.costStars) {
-      onToast(t("match.error_not_enough_stars"))
+      const res = await buyStars(c.costStars)
+      if (!res.ok) onToast(res.error ?? t("common.error"))
       return
     }
     const res = await openCase(c.id)

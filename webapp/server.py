@@ -754,6 +754,17 @@ async def handle_create_invoice(request: web.Request):
             currency="XTR",
             prices=[{"label": "Поддержка", "amount": amount}],
         )
+    elif kind == "buy_stars":
+        amount = body.get("amount", 0)
+        if not isinstance(amount, int) or amount <= 0 or amount > 10000:
+            return web.json_response({"error": "invalid amount"}, status=400)
+        link = await bot.create_invoice_link(
+            title=f"{amount} ⭐",
+            description="Пополнение баланса Telegram Stars",
+            payload=f"buy_stars:{amount}",
+            currency="XTR",
+            prices=[{"label": f"{amount} ⭐", "amount": amount}],
+        )
     else:
         return web.json_response({"error": "unknown invoice type"}, status=400)
 

@@ -325,6 +325,7 @@ type Nexus = PersistedState & {
   spendCoins: (n: number) => Promise<boolean>
   buyCoinPack: (packId: string) => Promise<{ ok: boolean; error?: string }>
   buyStarPack: (packId: string) => Promise<{ ok: boolean; error?: string }>
+  buyStars: (amount: number) => Promise<{ ok: boolean; error?: string }>
   buyShopItem: (key: string) => Promise<{ ok: boolean; error?: string }>
   activatePremium: () => void
   addToInventory: (item: CaseItem) => void
@@ -456,6 +457,19 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       }
       try {
         const res = await api.post("/api/pay/invoice", { type: "star_pack", pack_id: packId })
+        if (res?.invoice_link) {
+          openInvoice(res.invoice_link)
+          return { ok: true }
+        }
+        return { ok: false, error: "Не удалось получить ссылку на оплату" }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Не удалось открыть оплату" }
+      }
+    }
+
+    const buyStars = async (amount: number): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        const res = await api.post("/api/pay/invoice", { type: "buy_stars", amount })
         if (res?.invoice_link) {
           openInvoice(res.invoice_link)
           return { ok: true }
@@ -669,6 +683,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       spendCoins,
       buyCoinPack,
       buyStarPack,
+      buyStars,
       buyShopItem,
       activatePremium,
       addToInventory,
