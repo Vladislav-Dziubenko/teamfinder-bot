@@ -145,7 +145,7 @@ export function HomeTab({
                     disabled={claiming === q.id}
                     className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-stars py-2.5 text-sm font-bold text-background active:scale-[0.98] disabled:opacity-60"
                   >
-                    {claiming === q.id ? "..." : "Забрать награду"}
+                    {claiming === q.id ? "..." : t("common.claim")}
                   </button>
                 ) : null}
               </div>

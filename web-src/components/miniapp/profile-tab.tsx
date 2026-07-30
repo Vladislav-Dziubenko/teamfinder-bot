@@ -493,14 +493,14 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
                   >
                     {isClaimed ? (
                       <>
-                        <Check className="size-3.5" /> Награда получена
+                        <Check className="size-3.5" /> {t("profile.achievement_claimed")}
                       </>
                     ) : done ? (
                       <>
-                        <Trophy className="size-3.5" /> Забрать награду
+                        <Trophy className="size-3.5" /> {t("profile.achievement_claim")}
                       </>
                     ) : (
-                      "В процессе…"
+                      t("profile.achievement_progress")
                     )}
                   </button>
                 </div>

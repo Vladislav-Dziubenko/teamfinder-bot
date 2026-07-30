@@ -47,7 +47,7 @@ export function useRecentAchievements(): UnlockedAchievement[] {
   const [items, setItems] = useState<UnlockedAchievement[]>([])
 
   useEffect(() => {
-    api.get("/api/achievements/recent").then(setItems)
+    api.get("/api/achievements/recent").then(setItems).catch(() => setItems([]))
   }, [])
 
   return items
@@ -57,7 +57,7 @@ export function useRankInfo(): RankInfo | null {
   const [info, setInfo] = useState<RankInfo | null>(null)
 
   useEffect(() => {
-    api.get("/api/stats/rank").then(setInfo)
+    api.get("/api/stats/rank").then(setInfo).catch(() => setInfo(null))
   }, [])
 
   return info

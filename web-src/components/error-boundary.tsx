@@ -26,6 +26,9 @@ function sendError(message: string, stack: string | undefined, componentStack: s
 
 interface Props {
   children: ReactNode
+  title?: string
+  description?: string
+  retry?: string
 }
 
 interface State {
@@ -36,6 +39,12 @@ export class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
     this.state = { hasError: false }
+  }
+
+  static defaultProps = {
+    title: "Something went wrong",
+    description: "An unexpected error occurred. Please refresh the page.",
+    retry: "Refresh",
   }
 
   static getDerivedStateFromError(): State {
@@ -50,14 +59,14 @@ export class ErrorBoundary extends Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6 text-center">
-          <h1 className="font-display text-2xl font-bold text-foreground">Что-то пошло не так</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Произошла непредвиденная ошибка. Попробуйте обновить страницу.</p>
+          <h1 className="font-display text-2xl font-bold text-foreground">{this.props.title}</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{this.props.description}</p>
           <button
             type="button"
             onClick={() => window.location.reload()}
             className="mt-6 rounded-2xl bg-primary px-8 py-3 text-sm font-semibold text-primary-foreground active:scale-95"
           >
-            Обновить
+            {this.props.retry}
           </button>
         </div>
       )

@@ -1,8 +1,10 @@
 "use client"
 
 import { useDiscord } from "@/lib/hooks/useDiscord"
+import { useI18n } from "@/lib/i18n"
 
 export function DiscordSection() {
+  const { t } = useI18n()
   const { status, loading, busy, error, connect, unlink } = useDiscord()
 
   return (
@@ -15,14 +17,14 @@ export function DiscordSection() {
           <div>
             <div className="text-sm font-semibold text-white">Discord</div>
             <div className="text-xs text-neutral-400">
-              Привяжи аккаунт, чтобы находить тиммейтов по голосу
+              {t("discord.section_desc")}
             </div>
           </div>
         </div>
       </div>
 
       {loading ? (
-        <div className="text-xs text-neutral-500">Загрузка статуса…</div>
+        <div className="text-xs text-neutral-500">{t("profile.discord_loading")}</div>
       ) : status?.linked ? (
         <div className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-2 min-w-0">
@@ -51,7 +53,7 @@ export function DiscordSection() {
             disabled={busy}
             className="text-xs px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white disabled:opacity-50"
           >
-            {busy ? "…" : "Отвязать"}
+            {busy ? "…" : t("profile.discord_unlink")}
           </button>
         </div>
       ) : (
@@ -60,7 +62,7 @@ export function DiscordSection() {
           disabled={busy}
           className="w-full py-2.5 rounded-xl bg-[#5865F2] hover:bg-[#4752C4] text-white text-sm font-semibold disabled:opacity-50"
         >
-          {busy ? "Открываем Discord…" : "Подключить Discord"}
+          {busy ? t("discord.opening") : t("profile.discord_connect")}
         </button>
       )}
 

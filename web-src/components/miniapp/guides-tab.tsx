@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Play, Eye, Clock, X, ExternalLink, Loader2 } from "lucide-react"
+import { Play, Clock, X, ExternalLink, Loader2 } from "lucide-react"
 import { games } from "@/lib/data"
 import { api } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
@@ -81,7 +81,7 @@ function toDisplay(g: ApiGuide): DisplayGuide {
 }
 
 const GAME_FILTERS = [
-  { id: "all", label: "Все" },
+  { id: "all", label: "guides.filter_all" },
   { id: "cs2", label: "CS2" },
   { id: "wot", label: "WoT" },
   { id: "wt", label: "War Thunder" },
@@ -203,7 +203,7 @@ export function GuidesTab() {
                 : "border-border bg-card text-muted-foreground"
             )}
           >
-            {f.label}
+            {f.id === "all" ? t(f.label) : f.label}
           </button>
         ))}
       </div>

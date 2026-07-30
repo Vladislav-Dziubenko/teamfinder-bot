@@ -294,10 +294,11 @@ function Chip({
 }
 
 function Empty() {
+  const { t } = useI18n()
   return (
     <div className="rounded-3xl border border-dashed border-border py-12 text-center">
-      <p className="font-display text-lg font-bold">Никого не найдено</p>
-      <p className="text-sm text-muted-foreground">Попробуй изменить игру или поискать по-другому</p>
+      <p className="font-display text-lg font-bold">{t("match.no_results_title")}</p>
+      <p className="text-sm text-muted-foreground">{t("match.no_results_hint")}</p>
     </div>
   )
 }

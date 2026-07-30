@@ -53,7 +53,7 @@ export function LanguageSelector({ onClose }: { onClose: () => void }) {
         </div>
 
         {filtered.length === 0 ? (
-          <p className="py-12 text-center text-sm text-muted-foreground">Nothing found</p>
+          <p className="py-12 text-center text-sm text-muted-foreground">{t("lang.nothing_found")}</p>
         ) : (
           <div className="px-2 pt-2">
             {filtered.map((l) => {

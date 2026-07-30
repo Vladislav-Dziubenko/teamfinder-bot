@@ -35,8 +35,7 @@ export function ChatTab({
       setActiveId(openChatId)
       onOpenConsumed?.()
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [openChatId])
+  }, [openChatId, onOpenConsumed])
 
   function closeChat() {
     setActiveId(null)
