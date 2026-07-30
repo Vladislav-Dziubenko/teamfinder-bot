@@ -36,7 +36,7 @@ async def main():
         settings = load_settings()
 
         # ---- Шаг 1: создаём db-объект (пул НЕ подключён) ----
-        db = Database(settings.database_url, bot_token=settings.bot_token)
+        db = Database(settings.database_url, bot_token=settings.bot_token, fernet_key=settings.fernet_key)
 
         # ---- Шаг 2: Telegram bot setup (быстро, без БД) ----
         bot = Bot(

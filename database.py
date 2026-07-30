@@ -301,9 +301,10 @@ SCHEMA_STATEMENTS = [
 
 
 class Database:
-    def __init__(self, database_url: str, bot_token: str = ""):
+    def __init__(self, database_url: str, bot_token: str = "", fernet_key: str = ""):
         self.database_url = database_url
         self._bot_token = bot_token
+        self._fernet_key = fernet_key or bot_token
         self._pool: asyncpg.Pool | None = None
 
     async def connect(self) -> None:
@@ -873,8 +874,8 @@ class Database:
         import importlib
         crypto = importlib.import_module("webapp.crypto")
         now = datetime.utcnow().isoformat()
-        access_enc = crypto.encrypt_token(data["access_token"], self._bot_token) if self._bot_token else ""
-        refresh_enc = crypto.encrypt_token(data["refresh_token"], self._bot_token) if self._bot_token else ""
+        access_enc = crypto.encrypt_token(data["access_token"], self._fernet_key) if self._fernet_key else ""
+        refresh_enc = crypto.encrypt_token(data["refresh_token"], self._fernet_key) if self._fernet_key else ""
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
@@ -901,16 +902,16 @@ class Database:
             if not row:
                 return None
             data = dict(row)
-            if self._bot_token:
+            if self._fernet_key:
                 import importlib
                 crypto = importlib.import_module("webapp.crypto")
                 try:
                     at = data.get("access_token_enc")
                     rt = data.get("refresh_token_enc")
                     if at:
-                        data["access_token"] = crypto.decrypt_token(at, self._bot_token)
+                        data["access_token"] = crypto.decrypt_token(at, self._fernet_key)
                     if rt:
-                        data["refresh_token"] = crypto.decrypt_token(rt, self._bot_token)
+                        data["refresh_token"] = crypto.decrypt_token(rt, self._fernet_key)
                 except Exception:
                     pass
             return data

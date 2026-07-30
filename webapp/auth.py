@@ -40,7 +40,7 @@ def validate_init_data(init_data: str, bot_token: str, max_age_seconds: int | No
         return None
 
     if max_age_seconds is None:
-        max_age_seconds = 86400
+        max_age_seconds = 1800
     if max_age_seconds > 0 and time.time() - auth_date > max_age_seconds:
         logging.warning("[HMAC] init_data expired: auth_date=%s max_age=%s age=%s", auth_date, max_age_seconds, time.time() - auth_date)
         return None

@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import os
 from dataclasses import dataclass
 from dotenv import load_dotenv
@@ -20,6 +22,7 @@ class Settings:
     public_app_url: str
     webapp_host: str
     webapp_port: int
+    fernet_key: str
     discord_client_id: str
     discord_client_secret: str
     discord_redirect_uri: str
@@ -63,8 +66,12 @@ def load_settings() -> Settings:
     if not database_url:
         raise RuntimeError("Укажи DATABASE_URL в .env (PostgreSQL connection string)")
 
+    fernet_key = os.getenv("FERNET_KEY", "").strip()
+    if not fernet_key:
+        fernet_key = base64.urlsafe_b64encode(hashlib.sha256(token.encode()).digest()).decode()
     return Settings(
         bot_token=token,
+        fernet_key=fernet_key,
         admin_ids=_parse_admin_ids(os.getenv("ADMIN_IDS", "")),
         price_best_team=int(os.getenv("PRICE_BEST_TEAM", "3")),
         price_highlight=int(os.getenv("PRICE_HIGHLIGHT", "4")),

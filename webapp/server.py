@@ -74,7 +74,6 @@ def sanitize(text: str, max_len: int = 0) -> str:
 # ---------------------------------------------------------------------------
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
-    "X-Frame-Options": "DENY",
     "Referrer-Policy": "no-referrer",
     "Permissions-Policy": "geolocation=(), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), accelerometer=(), gyroscope=()",
     "X-XSS-Protection": "0",
