@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import logging
 import os
 import signal
@@ -8,7 +9,6 @@ import time
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.exceptions import TelegramConflictError
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiohttp import web
 
@@ -60,6 +60,11 @@ async def main():
         web_app = create_app(db, settings, bot)
         web_app["db_ready"] = False
 
+        # Генерируем секретный путь для webhook (зависит только от токена бота)
+        webhook_secret = hashlib.sha256(settings.bot_token.encode()).hexdigest()
+        web_app["dp"] = dp
+        web_app["webhook_secret"] = webhook_secret
+
         # ---- Шаг 4: открываем порт МГНОВЕННО (без БД) ----
         port = int(os.getenv("PORT", settings.webapp_port))
         logging.info("PORT=%s  WEBAPP_PORT=%s → resolved port=%d", os.getenv("PORT"), settings.webapp_port, port)
@@ -81,6 +86,20 @@ async def main():
 
         asyncio.create_task(_init_db())
 
+        # ---- Шаг 6: регистрируем webhook в Telegram API ----
+        public_url = os.environ.get("RENDER_EXTERNAL_URL") or settings.webapp_url or ""
+        if public_url:
+            webhook_url = f"{public_url.rstrip('/')}/webhook/{webhook_secret}"
+            await bot.set_webhook(
+                url=webhook_url,
+                allowed_updates=dp.resolve_used_update_types(),
+                drop_pending_updates=True,
+                secret_token=webhook_secret,
+            )
+            logging.info("Webhook установлен: %s", webhook_url)
+        else:
+            logging.warning("WEBAPP_URL / RENDER_EXTERNAL_URL не задан — webhook не зарегистрирован")
+
         # ---- Graceful shutdown ----
         shutdown_event = asyncio.Event()
 
@@ -91,55 +110,17 @@ async def main():
         signal.signal(signal.SIGTERM, _signal_handler)
         signal.signal(signal.SIGINT, _signal_handler)
 
-        # Удаляем старый webhook + дропаем pending updates, чтобы чистый старт
-        try:
-            await bot.delete_webhook(drop_pending_updates=True)
-            logging.info("Старый webhook удалён, pending updates сброшены")
-        except Exception as e:
-            logging.warning(f"Не удалось удалить webhook: {e}")
-
-        # Даём старому инстансу время умереть, чтобы избежать TelegramConflictError
-        await asyncio.sleep(5)
-
-        # Polling в фоне
-        async def polling_loop():
-            retry_delay = 5.0
-            while not shutdown_event.is_set():
-                try:
-                    await dp.start_polling(
-                        bot,
-                        allowed_updates=dp.resolve_used_update_types(),
-                    )
-                    retry_delay = 5.0
-                except asyncio.CancelledError:
-                    break
-                except TelegramConflictError:
-                    if shutdown_event.is_set():
-                        break
-                    logging.warning("TelegramConflictError — другой инстанс поллит. Повтор через %.0fс...", retry_delay)
-                    await asyncio.sleep(retry_delay)
-                    retry_delay = min(retry_delay * 2, 60.0)
-                except Exception as e:
-                    if shutdown_event.is_set():
-                        break
-                    logging.error(f"Polling error: {e}")
-                    await asyncio.sleep(10)
-
-        polling_task = asyncio.create_task(polling_loop())
-        logging.info("Polling запущен в фоне")
-
         try:
             await shutdown_event.wait()
         except asyncio.CancelledError:
             pass
         finally:
             logging.info("Shutting down...")
-            if polling_task:
-                polling_task.cancel()
-                try:
-                    await polling_task
-                except (asyncio.CancelledError, Exception):
-                    pass
+            try:
+                await bot.delete_webhook(drop_pending_updates=True)
+                logging.info("Webhook удалён")
+            except Exception as e:
+                logging.warning(f"Не удалось удалить webhook: {e}")
             await runner.cleanup()
             await db.close()
             await bot.session.close()
