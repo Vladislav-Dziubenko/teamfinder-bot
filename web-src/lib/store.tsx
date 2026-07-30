@@ -385,8 +385,10 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       }
     }
     load()
+    const fallback = setTimeout(() => setReady(true), 20_000)
     return () => {
       cancelled = true
+      clearTimeout(fallback)
     }
   }, [])
 

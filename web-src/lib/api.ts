@@ -36,16 +36,24 @@ async function request(method: string, path: string, body?: unknown) {
     init.body = JSON.stringify(body)
   }
 
-  const res = await fetch(`${API_BASE}${path}`, init)
-  const data = await res.json().catch(() => ({}))
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 15_000)
+  init.signal = controller.signal
 
-  if (!res.ok) {
-    const err = new Error(data.error || `HTTP ${res.status}`) as any
-    err.status = res.status
-    throw err
+  try {
+    const res = await fetch(`${API_BASE}${path}`, init)
+    const data = await res.json().catch(() => ({}))
+
+    if (!res.ok) {
+      const err = new Error(data.error || `HTTP ${res.status}`) as any
+      err.status = res.status
+      throw err
+    }
+
+    return data
+  } finally {
+    clearTimeout(timeout)
   }
-
-  return data
 }
 
 export const api = {
