@@ -16,6 +16,7 @@ const coinPacks = [
 
 export function DonateTab() {
   const { t } = useI18n()
+<<<<<<< Updated upstream
   const { starPacks, stars, nick, avatar, coins, buyStarPack, buyCoinPack, buyStars, refresh } = useNexus()
   const [selected, setSelected] = useState<StarPack | null>(null)
   const [done, setDone] = useState(false)
@@ -65,20 +66,12 @@ export function DonateTab() {
     }
   }
 
+<<<<<<< Updated upstream
   const [buyingCoins, setBuyingCoins] = useState<string | null>(null)
 
   async function buyCoins(pack: (typeof coinPacks)[number]) {
     if (buyingCoins) return
     setBuyingCoins(pack.id)
-    const res = await buyCoinPack(pack.id)
-    setBuyingCoins(null)
-    if (!res.ok) {
-      setFlash(res.error ?? t("match.error_not_enough_stars"))
-    } else {
-      setFlash(t("donate.coins_added", { count: pack.coins }))
-    }
-    setTimeout(() => setFlash(null), 2000)
-  }
 
   async function sendTip(amount: number) {
     if (tipping) return
@@ -294,6 +287,7 @@ export function DonateTab() {
               key={n}
               type="button"
               onClick={() => sendTip(n)}
+<<<<<<< Updated upstream
               disabled={tipping !== null}
               className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-stars/30 bg-stars/10 py-2.5 text-sm font-semibold text-stars active:scale-95 disabled:opacity-50"
             >

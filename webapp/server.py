@@ -2134,7 +2134,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
 
         try:
             update_data = await request.json()
-            await dp.feed_update(bot, update_data)
+            from aiogram.types import Update
+            update = Update.model_validate(update_data)
+            await dp.feed_update(bot, update)
         except Exception:
             logging.exception("Telegram webhook error")
         return web.Response(status=200)

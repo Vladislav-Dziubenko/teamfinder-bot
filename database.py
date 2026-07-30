@@ -161,6 +161,18 @@ CREATE TABLE IF NOT EXISTS discord_connections (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
+CREATE TABLE IF NOT EXISTS voice_sessions (
+    id SERIAL PRIMARY KEY,
+    telegram_user_id BIGINT,
+    discord_user_id TEXT NOT NULL,
+    channel_id TEXT NOT NULL,
+    game_activity TEXT,
+    joined_at TEXT NOT NULL,
+    left_at TEXT,
+    session_start TEXT NOT NULL,
+    FOREIGN KEY (telegram_user_id) REFERENCES users(user_id)
+);
+
 CREATE TABLE IF NOT EXISTS oauth_states (
     state TEXT PRIMARY KEY,
     telegram_user_id BIGINT NOT NULL,
@@ -641,6 +653,9 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_match_predictions_user ON match_predictions (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_pvp_challenges_creator ON pvp_challenges (creator_id)",
             "CREATE INDEX IF NOT EXISTS idx_pvp_challenges_status ON pvp_challenges (status)",
+            "CREATE INDEX IF NOT EXISTS idx_voice_sessions_discord_user ON voice_sessions (discord_user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_voice_sessions_channel ON voice_sessions (channel_id)",
+            "CREATE INDEX IF NOT EXISTS idx_voice_sessions_telegram_user ON voice_sessions (telegram_user_id)",
         ]
         for idx_sql in perf_indexes:
             try:
