@@ -347,6 +347,7 @@ const CELL = 84
 const GAP = 12
 const STRIDE = CELL + GAP
 const REEL_LEN = 60
+const REEL_TOTAL = REEL_LEN * STRIDE
 const WIN_INDEX = 52
 const SPIN_MS = 1500
 
@@ -354,66 +355,92 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
   const { t } = useI18n()
   const viewportRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
-  const [tx, setTx] = useState(0)
-  const [go, setGo] = useState(false)
   const [landed, setLanded] = useState(false)
   const doneRef = useRef(false)
+  const landingRef = useRef(false)
+  const posRef = useRef(0)
   const meta = winner ? rarityMeta[winner.rarity] : null
   const winColor = meta?.color ?? "#888"
 
-  const reel = useMemo(() => {
+  const baseReel = useMemo(() => {
     const arr: CaseItem[] = []
-    for (let i = 0; i < REEL_LEN; i++) arr.push(i === WIN_INDEX && winner ? winner : pickWeighted(box.items))
+    for (let k = 0; k < 3; k++) {
+      for (let i = 0; i < REEL_LEN; i++) arr.push(pickWeighted(box.items))
+    }
     return arr
-  }, [box, winner])
+  }, [box])
 
+  const reel = useMemo<CaseItem[]>(() => {
+    const arr = baseReel.slice()
+    if (winner) arr[REEL_LEN + WIN_INDEX] = winner
+    return arr
+  }, [baseReel, winner])
+
+  // Плавный дрейф барабана сразу после открытия, пока сервер не вернул выигрыш.
+  useEffect(() => {
+    const track = trackRef.current
+    if (!track) return
+    let raf = 0
+    let last = performance.now()
+    const frame = (now: number) => {
+      const dt = Math.min(50, now - last)
+      last = now
+      if (!landingRef.current && !doneRef.current) {
+        posRef.current -= dt * 0.12
+        if (posRef.current < -REEL_TOTAL) posRef.current += REEL_TOTAL
+        track.style.transform = `translate3d(${posRef.current}px,0,0)`
+      }
+      raf = requestAnimationFrame(frame)
+    }
+    raf = requestAnimationFrame(frame)
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
+  // Плавное торможение в выигрышную ячейку, как только известен результат.
   useEffect(() => {
     if (!winner || doneRef.current) return
+    const track = trackRef.current
     const vp = viewportRef.current
-    if (!vp) return
+    if (!track || !vp) return
+    landingRef.current = true
     const width = vp.clientWidth
     const jitter = (Math.random() - 0.5) * (CELL * 0.5)
-    const target = WIN_INDEX * STRIDE + CELL / 2 - width / 2 + jitter
+    const end = -((REEL_LEN + WIN_INDEX) * STRIDE + CELL / 2 - width / 2 + jitter)
+    const start = posRef.current
+    const delta = end - start
+    const t0 = performance.now()
 
-    ;(async () => { await ensureAudio(); whoosh() })()
+    ;(async () => { try { await ensureAudio(); whoosh() } catch {} })()
 
-    const raf = requestAnimationFrame(() => {
-      requestAnimationFrame(() => {
-        setGo(true)
-        setTx(-target)
-      })
-    })
+    let lastCell = Math.round(-start / STRIDE)
+    let raf = 0
+    const easeOut = (p: number) => 1 - Math.pow(1 - p, 4)
 
-    let lastCell = 0
-    let rafTick = 0
-    const track = trackRef.current
-    const loop = () => {
-      if (track && !doneRef.current) {
-        try {
-          const m = new DOMMatrixReadOnly(getComputedStyle(track).transform)
-          const cell = Math.round(-m.m41 / STRIDE)
-          if (cell !== lastCell) {
-            lastCell = cell
-            tick(0.9 + Math.random() * 0.2)
-          }
-        } catch {}
+    const frame = (now: number) => {
+      const p = Math.min(1, (now - t0) / SPIN_MS)
+      const x = start + delta * easeOut(p)
+      posRef.current = x
+      track.style.transform = `translate3d(${x}px,0,0)`
+      const cell = Math.round(-x / STRIDE)
+      if (cell !== lastCell) {
+        lastCell = cell
+        tick(0.9 + Math.random() * 0.2)
       }
-      if (!doneRef.current) rafTick = requestAnimationFrame(loop)
+      if (p < 1) {
+        raf = requestAnimationFrame(frame)
+      } else {
+        finish()
+      }
     }
-    rafTick = requestAnimationFrame(loop)
-
-    const fallback = setTimeout(finish, SPIN_MS + 400)
-    return () => {
-      cancelAnimationFrame(raf)
-      cancelAnimationFrame(rafTick)
-      clearTimeout(fallback)
-    }
+    raf = requestAnimationFrame(frame)
+    return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [winner])
 
   function finish() {
     if (doneRef.current) return
     doneRef.current = true
+    landingRef.current = true
     setLanded(true)
     try {
       if (winner) winSfx(rarityRank[winner.rarity] ?? 0)
@@ -466,11 +493,8 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
             className="flex"
             style={{
               gap: `${GAP}px`,
-              transform: `translateX(${tx}px)`,
-              transition: go ? `transform ${SPIN_MS}ms cubic-bezier(0.08, 0.62, 0.14, 1)` : "none",
               willChange: "transform",
             }}
-            onTransitionEnd={finish}
           >
             {reel.map((it, i) => {
               const color = rarityMeta[it.rarity].color
