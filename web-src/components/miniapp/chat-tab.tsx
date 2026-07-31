@@ -885,6 +885,7 @@ function GlobalMsg({
             <RoleBadge role={msg.role} />
           </div>
         )}
+        {mine && <RoleBadge role={msg.role} className="mb-1 self-end" />}
         {sticker ? (
           <p className="select-none text-6xl leading-none">{msg.text.trim()}</p>
         ) : (

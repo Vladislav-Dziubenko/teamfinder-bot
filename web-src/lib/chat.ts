@@ -348,6 +348,7 @@ export function useGlobalChat() {
           ts: res.message.created_at ? parseIsoTs(res.message.created_at) : Date.now(),
           nick: "You",
           avatar: "",
+          role: meRole,
         }
         setMessages((prev) => [...prev, msg])
         _globalCache.push(msg)
@@ -359,7 +360,7 @@ export function useGlobalChat() {
       setSending(false)
     }
     return false
-  }, [sending])
+  }, [sending, meRole])
 
   const deleteMessage = useCallback(async (id: string) => {
     try {
