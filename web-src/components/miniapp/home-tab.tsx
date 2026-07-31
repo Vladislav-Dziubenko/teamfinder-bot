@@ -19,6 +19,8 @@ type Quest = {
   completed: boolean
 }
 
+let lastSearchCount: number | null = null
+
 export function HomeTab({
   onGo,
   onConnect,
@@ -30,7 +32,7 @@ export function HomeTab({
   const { wins, level } = useMe()
   const refresh = useNexus().refresh
   const [quests, setQuests] = useState<Quest[]>([])
-  const [searchCount, setSearchCount] = useState<number | null>(null)
+  const [searchCount, setSearchCount] = useState<number | null>(lastSearchCount)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [claiming, setClaiming] = useState<string | null>(null)
@@ -46,6 +48,7 @@ export function HomeTab({
         if (!cancelled) {
           setQuests(questData.quests ?? [])
           setSearchCount(countData.online ?? 0)
+          lastSearchCount = countData.online ?? 0
         }
       } catch (e: any) {
         if (!cancelled) setError(e.message || t("common.error"))
@@ -54,8 +57,17 @@ export function HomeTab({
       }
     }
     load()
-    return () => { cancelled = true }
-  }, [])
+    const poll = setInterval(async () => {
+      try {
+        const countData = await api.get("/api/online")
+        if (!cancelled) {
+          setSearchCount(countData.online ?? 0)
+          lastSearchCount = countData.online ?? 0
+        }
+      } catch {}
+    }, 10_000)
+    return () => { cancelled = true; clearInterval(poll) }
+  }, [t])
 
   async function claimQuest(q: Quest) {
     if (claiming) return
