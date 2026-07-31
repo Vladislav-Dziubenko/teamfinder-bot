@@ -10,7 +10,7 @@ import {
   type ChatPreview,
   type GlobalMessage,
 } from "@/lib/chat"
-import { useI18n } from "@/lib/i18n"
+import { useI18n, LANGUAGES } from "@/lib/i18n"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { RoleBadge, roleRank } from "@/components/miniapp/role-badge"
@@ -466,65 +466,20 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
             <p className="text-sm text-muted-foreground">{t("chat.empty_hint")}</p>
           </div>
         )}
-        {messages.map((m) => {
-          const mine = m.userId === "me"
-          const canDeleteThis = !mine && canModerate
-          const canBanThis = !mine && canBan && roleRank(m.role) < myRank
-          return (
-            <div key={m.id} className={cn("group flex", mine ? "justify-end" : "justify-start")}>
-              <div
-                className={cn(
-                  "max-w-[78%] rounded-2xl px-3 py-2 text-sm",
-                  mine
-                    ? "rounded-br-md bg-primary text-primary-foreground"
-                    : "rounded-bl-md border border-border bg-card text-card-foreground",
-                )}
-              >
-                {!mine && (
-                  <div className="mb-1 flex items-center gap-1.5">
-                    <img src={m.avatar || "/placeholder.svg"} alt={m.nick} className="size-4 rounded-full object-cover" />
-                    <span className="text-[11px] font-bold text-accent">{m.nick}</span>
-                    <RoleBadge role={m.role} />
-                  </div>
-                )}
-                <p className="text-pretty leading-relaxed">{m.text}</p>
-                <div className="mt-1 flex items-center justify-end gap-2">
-                  <span className={cn("text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
-                    {relativeTime(m.ts, lang)}
-                  </span>
-                </div>
-              </div>
-              {(canDeleteThis || canBanThis) && (
-                <div className="relative ml-1 flex items-start">
-                  <button
-                    type="button"
-                    onClick={() => setMenuFor(menuFor === m.id ? null : m.id)}
-                    aria-label={t("chat.menu")}
-                    className="grid size-7 place-items-center rounded-full text-muted-foreground/60 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100"
-                  >
-                    <MoreVertical className="size-4" />
-                  </button>
-                  {menuFor === m.id && (
-                    <div className="absolute left-1 top-8 z-50 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
-                      {canDeleteThis && (
-                        <button type="button" onClick={() => onDelete(m)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
-                          <Trash2 className="size-4 text-muted-foreground" />
-                          {t("chat.mod_delete")}
-                        </button>
-                      )}
-                      {canBanThis && (
-                        <button type="button" onClick={() => onBan(m)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-destructive hover:bg-muted">
-                          <Ban className="size-4" />
-                          {t("chat.mod_ban")}
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )
-        })}
+        {messages.map((m) => (
+          <GlobalMsg
+            key={m.id}
+            msg={m}
+            mine={m.userId === "me"}
+            lang={lang}
+            canModerate={m.userId !== "me" && canModerate}
+            canBanThis={m.userId !== "me" && canBan && roleRank(m.role) < myRank}
+            menuFor={menuFor === m.id}
+            onToggleMenu={() => setMenuFor(menuFor === m.id ? null : m.id)}
+            onDelete={() => onDelete(m)}
+            onBan={() => onBan(m)}
+          />
+        ))}
       </div>
 
       {/* Emoji strip */}
@@ -704,6 +659,176 @@ function AdminPanel({ userId }: { userId: number }) {
 
 function formatMsgTime(ts: number, lang: string): string {
   return relativeTime(ts, lang)
+}
+
+function GlobalMsg({
+  msg,
+  mine,
+  lang,
+  canModerate,
+  canBanThis,
+  menuFor,
+  onToggleMenu,
+  onDelete,
+  onBan,
+}: {
+  msg: GlobalMessage
+  mine: boolean
+  lang: string
+  canModerate: boolean
+  canBanThis: boolean
+  menuFor: boolean
+  onToggleMenu: () => void
+  onDelete: () => void
+  onBan: () => void
+}) {
+  const { t } = useI18n()
+  const [translated, setTranslated] = useState<string | null>(null)
+  const [translatedLang, setTranslatedLang] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+
+  async function doTranslate(target: string) {
+    setPickerOpen(false)
+    if (!msg.text.trim()) return
+    setLoading(true)
+    try {
+      const res = await api.post("/api/translate", { text: msg.text, target })
+      setTranslated(res.translated ?? null)
+      setTranslatedLang(target)
+    } catch {}
+    setLoading(false)
+  }
+
+  return (
+    <div className={cn("group flex", mine ? "justify-end" : "justify-start")}>
+      <div
+        className={cn(
+          "max-w-[78%] rounded-2xl px-3 py-2 text-sm",
+          mine
+            ? "rounded-br-md bg-primary text-primary-foreground"
+            : "rounded-bl-md border border-border bg-card text-card-foreground",
+        )}
+      >
+        {!mine && (
+          <div className="mb-1 flex items-center gap-1.5">
+            <img src={msg.avatar || "/placeholder.svg"} alt={msg.nick} className="size-4 rounded-full object-cover" />
+            <span className="text-[11px] font-bold text-accent">{msg.nick}</span>
+            <RoleBadge role={msg.role} />
+          </div>
+        )}
+        <p className="text-pretty leading-relaxed">{translated || msg.text}</p>
+        {translated && translated !== msg.text && (
+          <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground">
+            {msg.text}
+          </p>
+        )}
+        <div className="mt-1 flex items-center justify-end gap-2">
+          <span className={cn("text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
+            {translatedLang ? translatedLang.toUpperCase() + " · " : ""}
+            {relativeTime(msg.ts, lang)}
+          </span>
+          {!mine && (
+            <button
+              type="button"
+              onClick={() => setPickerOpen(true)}
+              disabled={loading}
+              aria-label={t("chat.translate")}
+              className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-foreground active:scale-90 disabled:opacity-40"
+            >
+              {loading ? <Loader2 className="size-3 animate-spin" /> : <Languages className="size-3" />}
+            </button>
+          )}
+        </div>
+      </div>
+      {(canModerate || canBanThis) && (
+        <div className="relative ml-1 flex items-start">
+          <button
+            type="button"
+            onClick={onToggleMenu}
+            aria-label={t("chat.menu")}
+            className="grid size-7 place-items-center rounded-full text-muted-foreground/60 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100"
+          >
+            <MoreVertical className="size-4" />
+          </button>
+          {menuFor && (
+            <div className="absolute left-1 top-8 z-50 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+              {canModerate && (
+                <button type="button" onClick={onDelete} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
+                  <Trash2 className="size-4 text-muted-foreground" />
+                  {t("chat.mod_delete")}
+                </button>
+              )}
+              {canBanThis && (
+                <button type="button" onClick={onBan} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-destructive hover:bg-muted">
+                  <Ban className="size-4" />
+                  {t("chat.mod_ban")}
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {pickerOpen && <TranslateLangPicker onPick={doTranslate} onClose={() => setPickerOpen(false)} />}
+    </div>
+  )
+}
+
+function TranslateLangPicker({ onPick, onClose }: { onPick: (code: string) => void; onClose: () => void }) {
+  const { t } = useI18n()
+  const [query, setQuery] = useState("")
+  const filtered = LANGUAGES.filter((l) => {
+    if (!query) return true
+    const q = query.toLowerCase()
+    return l.name.toLowerCase().includes(q) || l.nativeName.toLowerCase().includes(q) || l.code.toLowerCase().includes(q)
+  })
+  return (
+    <div className="fixed inset-0 z-[60] flex items-end justify-center">
+      <button type="button" aria-label={t("common.close")} onClick={onClose} className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
+      <div className="relative mx-auto max-h-[75dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border-t border-border bg-card pb-8">
+        <div className="sticky top-0 z-10 border-b border-border bg-card">
+          <div className="flex items-center justify-between px-5 pt-5 pb-3">
+            <h2 className="font-display text-xl font-bold">{t("chat.translate_to")}</h2>
+            <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-lg text-muted-foreground active:bg-secondary" aria-label={t("common.close")}>
+              <X className="size-4" />
+            </button>
+          </div>
+          <div className="relative px-4 pb-3">
+            <Search className="absolute left-7 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder={t("lang.search")}
+              autoFocus
+              className="w-full rounded-xl border border-input bg-secondary/60 py-2.5 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/60"
+            />
+          </div>
+        </div>
+        {filtered.length === 0 ? (
+          <p className="py-12 text-center text-sm text-muted-foreground">{t("lang.nothing_found")}</p>
+        ) : (
+          <div className="px-2 pt-2">
+            {filtered.map((l) => (
+              <button
+                key={l.code}
+                type="button"
+                onClick={() => onPick(l.code)}
+                className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left transition-colors active:bg-secondary"
+              >
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-secondary font-display text-sm font-bold uppercase text-muted-foreground">
+                  {l.code.slice(0, 2)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold">{l.nativeName}</p>
+                  <p className="text-xs text-muted-foreground">{l.name}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 function formatLastSeen(raw: string, lang: string): string {

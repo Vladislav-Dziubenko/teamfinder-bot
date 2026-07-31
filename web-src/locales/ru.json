@@ -251,6 +251,7 @@
   "chat.global_banned": "Вы заблокированы в общем чате",
   "chat.mod_delete": "Удалить сообщение",
   "chat.mod_ban": "Заблокировать",
+  "chat.translate_to": "Перевести на язык",
   "role.developer": "Разработчик",
   "role.admin": "Администратор",
   "role.moderator": "Модератор",

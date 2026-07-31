@@ -251,6 +251,7 @@
   "chat.global_banned": "You are banned from the global chat",
   "chat.mod_delete": "Delete message",
   "chat.mod_ban": "Ban user",
+  "chat.translate_to": "Translate to",
   "role.developer": "Developer",
   "role.admin": "Administrator",
   "role.moderator": "Moderator",
