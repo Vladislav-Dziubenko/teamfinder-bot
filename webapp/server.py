@@ -1536,6 +1536,7 @@ async def handle_chat_send(request: web.Request):
     text = sanitize(body.get("text", ""), 500)
     if not text:
         return web.json_response({"error": "empty message"}, status=400)
+    await db.mark_chat_read(chat_id, user["id"])
     msg = await db.send_message(chat_id, user["id"], text)
     return web.json_response({"message": msg})
 
