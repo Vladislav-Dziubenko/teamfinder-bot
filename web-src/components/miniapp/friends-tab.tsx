@@ -43,7 +43,9 @@ export function FriendsTab({
     try { api.get("/api/friends/requests").then((d: any) => setRequests(d.requests ?? [])).catch(() => {}) } catch {}
   }
 
-  useEffect(load, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   useEffect(() => {
     if (searchQuery.length < 2) {
