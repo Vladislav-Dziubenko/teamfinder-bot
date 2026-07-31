@@ -119,6 +119,7 @@ CREATE TABLE IF NOT EXISTS user_quests (
     quest_id TEXT NOT NULL,
     progress_minutes INTEGER DEFAULT 0,
     completed INTEGER DEFAULT 0,
+    quest_date TEXT NOT NULL DEFAULT '',
     updated_at TEXT NOT NULL,
     UNIQUE (user_id, quest_id),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
@@ -462,6 +463,7 @@ class Database:
             ("user_quests", "quest_id", "TEXT NOT NULL DEFAULT ''"),
             ("user_quests", "progress_minutes", "INTEGER NOT NULL DEFAULT 0"),
             ("user_quests", "completed", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_quests", "quest_date", "TEXT NOT NULL DEFAULT ''"),
             ("user_quests", "updated_at", "TEXT NOT NULL DEFAULT ''"),
 
             ("user_currency", "coins", "INTEGER NOT NULL DEFAULT 0"),
@@ -518,6 +520,17 @@ class Database:
                 await conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}")
             except asyncpg.PostgresError as e:
                 print(f"Migration warning for {table}.{column}: {e}")
+
+        # Ежедневные задания: строки без quest_date (созданные до этой версии)
+        # привязываем к сегодняшнему дню один раз, чтобы текущий прогресс не
+        # обнулился сразу, а сброс начался со следующего дня.
+        try:
+            await conn.execute(
+                "UPDATE user_quests SET quest_date = $1 WHERE quest_date = ''",
+                datetime.utcnow().strftime("%Y-%m-%d"),
+            )
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning while backfilling user_quests.quest_date: {e}")
 
         # Safety check: per-user tables that received a new user_id column may
         # contain pre-existing rows with NULL user_id. The rows are not deleted,
@@ -1180,8 +1193,20 @@ class Database:
             return result == "DELETE 1"
 
     # Quests methods
+    # Ежедневные задания: прогресс и флаг completed сбрасываются при смене
+    # календарного дня (quest_date хранит день в формате YYYY-MM-DD, UTC).
     async def get_all_quests_progress(self, user_id: int) -> list[dict]:
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        now_iso = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE user_quests
+                SET progress_minutes = 0, completed = 0, quest_date = $2, updated_at = $3
+                WHERE user_id = $1 AND quest_date <> $2
+                """,
+                user_id, today, now_iso,
+            )
             rows = await conn.fetch(
                 "SELECT * FROM user_quests WHERE user_id = $1",
                 user_id,
@@ -1189,16 +1214,23 @@ class Database:
             return [dict(r) for r in rows]
 
     async def update_quest_progress(self, user_id: int, quest_id: str, minutes: int) -> None:
+        today = datetime.utcnow().strftime("%Y-%m-%d")
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO user_quests (user_id, quest_id, progress_minutes, completed, updated_at)
-                VALUES ($1, $2, $3, 0, $4)
+                INSERT INTO user_quests (user_id, quest_id, progress_minutes, completed, quest_date, updated_at)
+                VALUES ($1, $2, $3, 0, $4, $5)
                 ON CONFLICT (user_id, quest_id) DO UPDATE SET
-                    progress_minutes = user_quests.progress_minutes + $3,
-                    updated_at = $4
+                    progress_minutes = CASE WHEN user_quests.quest_date = $4
+                        THEN user_quests.progress_minutes + $3
+                        ELSE $3 END,
+                    completed = CASE WHEN user_quests.quest_date = $4
+                        THEN user_quests.completed
+                        ELSE 0 END,
+                    quest_date = $4,
+                    updated_at = $5
                 """,
-                user_id, quest_id, minutes, datetime.utcnow().isoformat(),
+                user_id, quest_id, minutes, today, datetime.utcnow().isoformat(),
             )
 
     async def complete_quest(self, user_id: int, quest_id: int) -> bool:

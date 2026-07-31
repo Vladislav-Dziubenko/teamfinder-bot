@@ -148,7 +148,7 @@ export function HomeTab({
                       style={{ width: `${Math.min(100, (q.progress / q.target) * 100)}%` }}
                     />
                   </div>
-                  <span className="text-xs font-semibold text-primary">{q.progress}/{q.target}</span>
+                  <span className="text-xs font-semibold text-primary">{Math.min(q.progress, q.target)}/{q.target}</span>
                 </div>
                 {q.completed ? (
                   <span className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-secondary py-2.5 text-sm font-bold text-muted-foreground">
