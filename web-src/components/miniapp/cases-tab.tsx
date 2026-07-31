@@ -349,34 +349,41 @@ const STRIDE = CELL + GAP
 const REEL_LEN = 60
 const REEL_TOTAL = REEL_LEN * STRIDE
 const WIN_INDEX = 52
-const SPIN_MS = 1500
+const ACCEL = 0.008
+const CRUISE = 3.0
+const LAND_MS = 1500
 
 function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem | null; onDone: () => void }) {
   const { t } = useI18n()
   const viewportRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const [landed, setLanded] = useState(false)
+  const [landedIndex, setLandedIndex] = useState<number | null>(null)
   const doneRef = useRef(false)
   const landingRef = useRef(false)
   const posRef = useRef(0)
+  const velRef = useRef(0)
   const meta = winner ? rarityMeta[winner.rarity] : null
   const winColor = meta?.color ?? "#888"
 
   const baseReel = useMemo(() => {
     const arr: CaseItem[] = []
-    for (let k = 0; k < 3; k++) {
-      for (let i = 0; i < REEL_LEN; i++) arr.push(pickWeighted(box.items))
-    }
+    for (let i = 0; i < REEL_LEN; i++) arr.push(pickWeighted(box.items))
     return arr
   }, [box])
 
   const reel = useMemo<CaseItem[]>(() => {
-    const arr = baseReel.slice()
-    if (winner) arr[REEL_LEN + WIN_INDEX] = winner
+    const arr: CaseItem[] = []
+    for (let k = 0; k < 3; k++) {
+      for (let i = 0; i < REEL_LEN; i++) arr.push(baseReel[i])
+    }
+    if (winner) {
+      for (let k = 0; k < 3; k++) arr[k * REEL_LEN + WIN_INDEX] = winner
+    }
     return arr
   }, [baseReel, winner])
 
-  // Плавный дрейф барабана сразу после открытия, пока сервер не вернул выигрыш.
+  // Разгон: барабан сразу набирает скорость и крутится, пока сервер не вернул выигрыш.
   useEffect(() => {
     const track = trackRef.current
     if (!track) return
@@ -386,7 +393,8 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
       const dt = Math.min(50, now - last)
       last = now
       if (!landingRef.current && !doneRef.current) {
-        posRef.current -= dt * 0.12
+        velRef.current = Math.min(CRUISE, velRef.current + ACCEL * dt)
+        posRef.current -= velRef.current * dt
         if (posRef.current < -REEL_TOTAL) posRef.current += REEL_TOTAL
         track.style.transform = `translate3d(${posRef.current}px,0,0)`
       }
@@ -405,26 +413,33 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
     landingRef.current = true
     const width = vp.clientWidth
     const jitter = (Math.random() - 0.5) * (CELL * 0.5)
-    const end = -((REEL_LEN + WIN_INDEX) * STRIDE + CELL / 2 - width / 2 + jitter)
     const start = posRef.current
-    const delta = end - start
+    const base = WIN_INDEX * STRIDE + CELL / 2 - width / 2 + jitter
+    let end = -base
+    while (end >= start) end -= REEL_TOTAL
+    const d = start - end
+    setLandedIndex(Math.round((-end + width / 2 - CELL / 2) / STRIDE))
     const t0 = performance.now()
 
     ;(async () => { try { await ensureAudio(); whoosh() } catch {} })()
 
     let lastCell = Math.round(-start / STRIDE)
+    let lastTickAt = 0
     let raf = 0
     const easeOut = (p: number) => 1 - Math.pow(1 - p, 4)
 
     const frame = (now: number) => {
-      const p = Math.min(1, (now - t0) / SPIN_MS)
-      const x = start + delta * easeOut(p)
+      const p = Math.min(1, (now - t0) / LAND_MS)
+      const x = start - d * easeOut(p)
       posRef.current = x
       track.style.transform = `translate3d(${x}px,0,0)`
       const cell = Math.round(-x / STRIDE)
       if (cell !== lastCell) {
         lastCell = cell
-        tick(0.9 + Math.random() * 0.2)
+        if (now - lastTickAt > 55) {
+          lastTickAt = now
+          tick(0.9 + Math.random() * 0.2)
+        }
       }
       if (p < 1) {
         raf = requestAnimationFrame(frame)
@@ -498,7 +513,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
           >
             {reel.map((it, i) => {
               const color = rarityMeta[it.rarity].color
-              const isWinCell = landed && i === WIN_INDEX
+              const isWinCell = landed && i === landedIndex
               return (
                 <div
                   key={i}
