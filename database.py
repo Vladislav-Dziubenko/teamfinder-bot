@@ -2033,6 +2033,13 @@ class Database:
             )
             return result == "DELETE 1"
 
+    async def get_global_message_author(self, message_id: int) -> int | None:
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                "SELECT user_id FROM global_messages WHERE id = $1",
+                message_id,
+            )
+
     # ---------- Roles & moderation ----------
 
     ROLE_RANK = {"moderator": 1, "admin": 2, "developer": 3}

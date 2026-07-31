@@ -1511,6 +1511,11 @@ async def handle_chat_list(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     chats = await db.get_user_chats(user["id"])
+    settings = request.app.get("settings")
+    admin_ids = set(settings.admin_ids) if settings else set()
+    for c in chats:
+        if isinstance(c.get("other_id"), int) and c["other_id"] in admin_ids:
+            c["other_role"] = "developer"
     return web.json_response({"chats": chats})
 
 
@@ -1605,6 +1610,11 @@ async def handle_chat_unmute(request: web.Request):
 # Roles & moderation helpers
 # ---------------------------------------------------------------------------
 
+# Отдельный лимит на отправку в глобальный чат (против спама поверх общего 120/мин)
+GLOBAL_SEND_LIMIT = 10   # сообщений
+GLOBAL_SEND_WINDOW = 60  # секунд
+
+
 def _is_developer(request: web.Request, user_id: int) -> bool:
     settings = request.app.get("settings")
     return bool(settings and user_id in settings.admin_ids)
@@ -1621,9 +1631,14 @@ async def handle_global_messages(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     messages = await db.get_global_messages(50)
+    settings = request.app.get("settings")
+    admin_ids = set(settings.admin_ids) if settings else set()
     for msg in messages:
-        if msg.get("user_id") == user["id"]:
+        uid = msg.get("user_id")
+        if uid == user["id"]:
             msg["user_id"] = "me"
+        if isinstance(uid, int) and uid in admin_ids:
+            msg["role"] = "developer"
     role = await _effective_role(request, db, user["id"])
     banned = await db.is_globally_banned(user["id"])
     return web.json_response({"messages": messages, "me_role": role, "me_banned": banned})
@@ -1634,6 +1649,8 @@ async def handle_global_send(request: web.Request):
     user = _get_user(request)
     if await db.is_globally_banned(user["id"]):
         return web.json_response({"error": "banned"}, status=403)
+    if await rate_limit_check(f"gsend:{user['id']}", GLOBAL_SEND_LIMIT, GLOBAL_SEND_WINDOW):
+        return web.json_response({"error": "slow down"}, status=429)
     body = await request.json()
     text = sanitize(body.get("text", ""), 500)
     if not text:
@@ -1654,6 +1671,13 @@ async def handle_global_delete(request: web.Request):
         message_id = int(body.get("message_id"))
     except (ValueError, TypeError):
         return web.json_response({"error": "invalid message_id"}, status=400)
+    author_id = await db.get_global_message_author(message_id)
+    if author_id is None:
+        return web.json_response({"error": "not found"}, status=404)
+    if author_id != user["id"]:
+        author_role = await _effective_role(request, db, author_id)
+        if db.ROLE_RANK.get(author_role, 0) >= db.ROLE_RANK.get(role, 0):
+            return web.json_response({"error": "cannot delete same or higher role"}, status=403)
     await db.delete_global_message(message_id)
     return web.json_response({"ok": True})
 
