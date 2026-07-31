@@ -274,6 +274,32 @@ export type GlobalMessage = {
 }
 
 const _globalCache: GlobalMessage[] = []
+let _globalLoaded = false
+
+/** Тёплый кэш: предзагружает глобальный чат при монтировании таба, чтобы он открывался мгновенно. */
+export function preloadGlobalChat(): void {
+  if (_globalLoaded) return
+  _globalLoaded = true
+  api.get("/api/global").catch(() => {}).then((data: any) => {
+    if (!data) return
+    const list: GlobalMessage[] = (data.messages ?? []).map(mapGlobalMsg)
+    _globalCache.length = 0
+    _globalCache.push(...list)
+  })
+}
+
+function mapGlobalMsg(m: any): GlobalMessage {
+  return {
+    id: String(m.id ?? ""),
+    userId: m.user_id === "me" ? "me" : String(m.user_id ?? ""),
+    text: m.text ?? "",
+    ts: m.created_at ? parseIsoTs(m.created_at) : Date.now(),
+    nick: m.nick || (m.user_id === "me" ? "You" : "Player"),
+    avatar: m.avatar ?? null,
+    role: m.role ?? "",
+    deco: m.deco ?? "",
+  }
+}
 
 export function useGlobalChat() {
   const [messages, setMessages] = useState<GlobalMessage[]>(_globalCache)
@@ -290,16 +316,7 @@ export function useGlobalChat() {
         if (cancelled) return
         setMeRole(data.me_role ?? "")
         setMeBanned(Boolean(data.me_banned))
-        const list: GlobalMessage[] = (data.messages ?? []).map((m: any) => ({
-          id: String(m.id ?? ""),
-          userId: m.user_id === "me" ? "me" : String(m.user_id ?? ""),
-          text: m.text ?? "",
-          ts: m.created_at ? parseIsoTs(m.created_at) : Date.now(),
-          nick: m.nick || (m.user_id === "me" ? "You" : "Player"),
-          avatar: m.avatar ?? null,
-          role: m.role ?? "",
-          deco: m.deco ?? "",
-        }))
+        const list: GlobalMessage[] = (data.messages ?? []).map(mapGlobalMsg)
         setMessages(list)
         _globalCache.length = 0
         _globalCache.push(...list)

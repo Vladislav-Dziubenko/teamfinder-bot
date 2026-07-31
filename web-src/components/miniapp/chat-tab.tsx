@@ -6,6 +6,7 @@ import {
   useChatMessages,
   useChats,
   useGlobalChat,
+  preloadGlobalChat,
   parseIsoTs,
   type ChatPreview,
   type GlobalMessage,
@@ -33,6 +34,11 @@ export function ChatTab({
   const playerRef = useRef<Player | undefined>(openPlayer)
   const onConsumedRef = useRef(onOpenConsumed)
   const chats = useChats()
+
+  // Предзагрузка глобального чата — чтобы он открывался мгновенно
+  useEffect(() => {
+    preloadGlobalChat()
+  }, [])
 
   // Keep the latest callbacks so the effect doesn't depend on unstable inline fns
   onConsumedRef.current = onOpenConsumed
@@ -162,13 +168,30 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine }: { 
   const [translated, setTranslated] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
 
+  const isSticker = isStickerText(m.text)
+
   async function doTranslate() {
+    if (isSticker) return
     setLoading(true)
     try {
       const res = await api.post("/api/translate", { text: m.text, target: lang })
       setTranslated(res.translated ?? null)
     } catch {}
     setLoading(false)
+  }
+
+  if (isSticker) {
+    return (
+      <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
+        <div className="flex max-w-[78%] flex-col items-end gap-1">
+          <p className="text-[64px] leading-none drop-shadow-md">{m.text}</p>
+          <span className={cn("flex items-center gap-1 text-[10px]", mine ? "text-muted-foreground/70" : "text-muted-foreground")}>
+            {formatMsgTime(m.ts, lang)}
+            {mine && (m.status === "read" ? <CheckCheck className="size-3" /> : <Check className="size-3" />)}
+          </span>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -220,6 +243,7 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
   const { messages, status, sendMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat } = useChatMessages(chatId)
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
+  const [showStickers, setShowStickers] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -243,7 +267,17 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
   }
 
   function openStickerPanel() {
-    inputRef.current?.focus()
+    setShowStickers((v) => !v)
+    setShowEmoji(false)
+  }
+
+  function sendSticker(sticker: string) {
+    sendMessage(sticker)
+  }
+
+  function toggleEmoji() {
+    setShowEmoji((v) => !v)
+    setShowStickers(false)
   }
 
   function submit() {
@@ -356,11 +390,16 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
         </div>
       )}
 
+      {/* Sticker panel */}
+      {showStickers && canSend && (
+        <StickerPanel onPick={sendSticker} onClose={() => setShowStickers(false)} />
+      )}
+
       {/* Input */}
       <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2.5 backdrop-blur-xl">
         {canSend ? (
           <>
-            <button type="button" onClick={() => setShowEmoji((v) => !v)} aria-label={t("chat.emoji")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
+            <button type="button" onClick={toggleEmoji} aria-label={t("chat.emoji")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
               <Smile className="size-5" />
             </button>
             <button type="button" onClick={openStickerPanel} aria-label={t("chat.sticker")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
@@ -385,6 +424,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
   const { messages, meRole, meBanned, sendGlobal, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
+  const [showStickers, setShowStickers] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
@@ -405,6 +445,21 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
 
   function insertEmoji(emoji: string) {
     setDraft((d) => d + emoji)
+  }
+
+  function toggleEmoji() {
+    setShowEmoji((v) => !v)
+    setShowStickers(false)
+  }
+
+  function openStickerPanel() {
+    setShowStickers((v) => !v)
+    setShowEmoji(false)
+  }
+
+  async function sendSticker(sticker: string) {
+    const ok = await sendGlobal(sticker)
+    if (ok) setShowStickers(false)
   }
 
   async function submit() {
@@ -493,14 +548,22 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
+      {/* Sticker panel */}
+      {showStickers && !meBanned && (
+        <StickerPanel onPick={sendSticker} onClose={() => setShowStickers(false)} />
+      )}
+
       {/* Input */}
       <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2.5 backdrop-blur-xl">
         {meBanned ? (
           <div className="flex-1 py-3 text-center text-sm text-muted-foreground">{t("chat.global_banned")}</div>
         ) : (
           <>
-            <button type="button" onClick={() => setShowEmoji((v) => !v)} aria-label={t("chat.emoji")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
+            <button type="button" onClick={toggleEmoji} aria-label={t("chat.emoji")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
               <Smile className="size-5" />
+            </button>
+            <button type="button" onClick={openStickerPanel} aria-label={t("chat.sticker")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
+              <Sticker className="size-5" />
             </button>
             <input
               value={draft}
@@ -542,6 +605,7 @@ function AdminPanel({ userId }: { userId: number }) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [confirm, setConfirm] = useState<{ u: AdminUser; action: "role" | "ban"; role?: string } | null>(null)
 
   async function search(q: string) {
     setQuery(q)
@@ -560,7 +624,7 @@ function AdminPanel({ userId }: { userId: number }) {
     search("")
   }, [])
 
-  async function setRole(u: AdminUser, role: string) {
+  async function applyRole(u: AdminUser, role: string) {
     if (busyId) return
     setBusyId(u.id)
     try {
@@ -579,6 +643,14 @@ function AdminPanel({ userId }: { userId: number }) {
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, banned: !x.banned } : x)))
     } catch {}
     setBusyId(null)
+  }
+
+  function confirmAction() {
+    if (!confirm) return
+    const { u, action, role } = confirm
+    setConfirm(null)
+    if (action === "role") applyRole(u, role ?? "")
+    else toggleBan(u)
   }
 
   return (
@@ -611,7 +683,7 @@ function AdminPanel({ userId }: { userId: number }) {
               <div className="flex shrink-0 items-center gap-1">
                 <button
                   type="button"
-                  onClick={() => setRole(u, u.role === "moderator" ? "" : "moderator")}
+                  onClick={() => setConfirm({ u, action: "role", role: u.role === "moderator" ? "" : "moderator" })}
                   className={cn(
                     "rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors",
                     u.role === "moderator"
@@ -623,7 +695,7 @@ function AdminPanel({ userId }: { userId: number }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => setRole(u, u.role === "admin" ? "" : "admin")}
+                  onClick={() => setConfirm({ u, action: "role", role: u.role === "admin" ? "" : "admin" })}
                   className={cn(
                     "rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors",
                     u.role === "admin"
@@ -635,7 +707,7 @@ function AdminPanel({ userId }: { userId: number }) {
                 </button>
                 <button
                   type="button"
-                  onClick={() => toggleBan(u)}
+                  onClick={() => setConfirm({ u, action: "ban" })}
                   className={cn(
                     "rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors",
                     u.banned
@@ -653,12 +725,107 @@ function AdminPanel({ userId }: { userId: number }) {
           <p className="py-3 text-center text-xs text-muted-foreground">{t("role.empty")}</p>
         )}
       </div>
+      {confirm && <ConfirmDialog confirm={confirm} onConfirm={confirmAction} onCancel={() => setConfirm(null)} />}
+    </div>
+  )
+}
+
+function ConfirmDialog({
+  confirm,
+  onConfirm,
+  onCancel,
+}: {
+  confirm: { u: AdminUser; action: "role" | "ban"; role?: string }
+  onConfirm: () => void
+  onCancel: () => void
+}) {
+  const { t } = useI18n()
+  const isRemove = confirm.action === "role" && !confirm.role
+  const isBan = confirm.action === "ban" && !confirm.u.banned
+  const title = isBan
+    ? t("role.confirm_ban_title")
+    : confirm.action === "ban"
+      ? t("role.confirm_unban_title")
+      : isRemove
+        ? t("role.confirm_remove_title")
+        : t("role.confirm_grant_title")
+  const body = isBan
+    ? t("role.confirm_ban_body", { name: confirm.u.nick })
+    : confirm.action === "ban"
+      ? t("role.confirm_unban_body", { name: confirm.u.nick })
+      : isRemove
+        ? t("role.confirm_remove_body", { name: confirm.u.nick })
+        : t("role.confirm_grant_body", { name: confirm.u.nick, role: confirm.role === "admin" ? t("role.admin") : t("role.moderator") })
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/70 p-6 backdrop-blur-sm">
+      <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-5 shadow-2xl">
+        <p className="font-display text-lg font-bold">{title}</p>
+        <p className="mt-1.5 text-sm text-muted-foreground">{body}</p>
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={onCancel}
+            className="flex-1 rounded-2xl border border-border bg-secondary/60 py-3 text-sm font-semibold active:scale-[0.98]"
+          >
+            {t("common.cancel")}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            className="flex-1 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98]"
+          >
+            {t("role.confirm")}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
 
 function formatMsgTime(ts: number, lang: string): string {
   return relativeTime(ts, lang)
+}
+
+const EMOJI_ONLY_RE = /^[\p{Extended_Pictographic}\u200d\ufe0f\s]{1,4}$/u
+
+/** Считает сообщение стикером, если это чистая короткая эмодзи-строка. */
+function isStickerText(text: string): boolean {
+  const t = (text ?? "").trim()
+  if (!t || t.length > 8) return false
+  return EMOJI_ONLY_RE.test(t)
+}
+
+const STICKERS = [
+  "🔥", "⚡", "💯", "😎", "😂", "🥳", "🎉", "😭", "😡", "😱",
+  "❤️", "💔", "👍", "👎", "🙏", "🤝", "💪", "🫡", "🤯", "🥶",
+  "👑", "🏆", "🚀", "💀", "🤝", "👊", "✌️", "🤞", "🎮", "🕹️",
+  "🐱", "🐶", "🦊", "🐼", "🍀", "💎", "⭐", "🌚", "🌝", "💤",
+]
+
+function StickerPanel({ onPick, onClose }: { onPick: (sticker: string) => void; onClose: () => void }) {
+  const { t } = useI18n()
+  return (
+    <div className="border-t border-border bg-card/85 px-3 py-2 backdrop-blur-xl">
+      <div className="mb-2 flex items-center justify-between">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("chat.stickers_title")}</p>
+        <button type="button" onClick={onClose} className="grid size-6 place-items-center rounded-lg text-muted-foreground active:bg-secondary" aria-label={t("common.close")}>
+          <X className="size-4" />
+        </button>
+      </div>
+      <div className="grid grid-cols-8 gap-1">
+        {STICKERS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => onPick(s)}
+            className="grid aspect-square place-items-center rounded-xl text-2xl transition-transform active:scale-90 hover:bg-muted"
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 function GlobalMsg({
@@ -687,10 +854,11 @@ function GlobalMsg({
   const [translatedLang, setTranslatedLang] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const sticker = isStickerText(msg.text)
 
   async function doTranslate(target: string) {
     setPickerOpen(false)
-    if (!msg.text.trim()) return
+    if (!msg.text.trim() || sticker) return
     setLoading(true)
     try {
       const res = await api.post("/api/translate", { text: msg.text, target })
@@ -704,7 +872,7 @@ function GlobalMsg({
     <div className={cn("group flex", mine ? "justify-end" : "justify-start")}>
       <div
         className={cn(
-          "max-w-[78%] rounded-2xl px-3 py-2 text-sm",
+          sticker ? "max-w-[78%]" : "max-w-[78%] rounded-2xl px-3 py-2 text-sm",
           mine
             ? "rounded-br-md bg-primary text-primary-foreground"
             : "rounded-bl-md border border-border bg-card text-card-foreground",
@@ -717,29 +885,35 @@ function GlobalMsg({
             <RoleBadge role={msg.role} />
           </div>
         )}
-        <p className="text-pretty leading-relaxed">{translated || msg.text}</p>
-        {translated && translated !== msg.text && (
+        {sticker ? (
+          <p className="select-none text-6xl leading-none">{msg.text.trim()}</p>
+        ) : (
+          <p className="text-pretty leading-relaxed">{translated || msg.text}</p>
+        )}
+        {!sticker && translated && translated !== msg.text && (
           <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground">
             {msg.text}
           </p>
         )}
-        <div className="mt-1 flex items-center justify-end gap-2">
-          <span className={cn("text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
-            {translatedLang ? translatedLang.toUpperCase() + " · " : ""}
-            {relativeTime(msg.ts, lang)}
-          </span>
-          {!mine && (
-            <button
-              type="button"
-              onClick={() => setPickerOpen(true)}
-              disabled={loading}
-              aria-label={t("chat.translate")}
-              className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-foreground active:scale-90 disabled:opacity-40"
-            >
-              {loading ? <Loader2 className="size-3 animate-spin" /> : <Languages className="size-3" />}
-            </button>
-          )}
-        </div>
+        {!sticker && (
+          <div className="mt-1 flex items-center justify-end gap-2">
+            <span className={cn("text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
+              {translatedLang ? translatedLang.toUpperCase() + " · " : ""}
+              {relativeTime(msg.ts, lang)}
+            </span>
+            {!mine && (
+              <button
+                type="button"
+                onClick={() => setPickerOpen(true)}
+                disabled={loading}
+                aria-label={t("chat.translate")}
+                className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground/60 hover:text-foreground active:scale-90 disabled:opacity-40"
+              >
+                {loading ? <Loader2 className="size-3 animate-spin" /> : <Languages className="size-3" />}
+              </button>
+            )}
+          </div>
+        )}
       </div>
       {(canModerate || canBanThis) && (
         <div className="relative ml-1 flex items-start">
