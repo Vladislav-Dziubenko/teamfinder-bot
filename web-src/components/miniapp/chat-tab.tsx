@@ -675,57 +675,59 @@ function AdminPanel({ userId }: { userId: number }) {
       {loading && <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />}
       <div className="space-y-1.5">
         {users.map((u) => (
-          <div key={u.id} className="flex items-center gap-2 rounded-xl border border-border bg-background px-2.5 py-2">
-            <img src={u.avatar || "/placeholder.svg"} alt={u.nick} className="size-7 rounded-full object-cover" />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1.5">
-                <p className="truncate text-sm font-bold">{u.nick}</p>
-                <RoleBadge role={u.role} />
+          <div key={u.id} className="rounded-xl border border-border bg-background px-3 py-2">
+            <div className="flex items-center gap-2">
+              <img src={u.avatar || "/placeholder.svg"} alt={u.nick} className="size-8 shrink-0 rounded-full object-cover" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  <p className="truncate text-sm font-bold">{u.nick}</p>
+                  <RoleBadge role={u.role} />
+                </div>
+                <p className="text-[10px] text-muted-foreground">
+                  ID {u.id}
+                  {u.banned && <span className="text-destructive"> · {t("role.banned")}</span>}
+                </p>
               </div>
-              {u.banned && <p className="text-[10px] text-destructive">{t("role.banned")}</p>}
+              {busyId === u.id && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
             </div>
-            {busyId === u.id ? (
-              <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
-            ) : (
-              <div className="flex shrink-0 items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setConfirm({ u, action: "role", role: u.role === "moderator" ? "" : "moderator" })}
-                  className={cn(
-                    "rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors",
-                    u.role === "moderator"
-                      ? "border-sky-500/50 bg-sky-500/15 text-sky-400"
-                      : "border-border text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  {u.role === "moderator" ? t("role.remove") : t("role.moderator")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirm({ u, action: "role", role: u.role === "admin" ? "" : "admin" })}
-                  className={cn(
-                    "rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors",
-                    u.role === "admin"
-                      ? "border-red-500/50 bg-red-500/15 text-red-400"
-                      : "border-border text-muted-foreground hover:bg-muted",
-                  )}
-                >
-                  {u.role === "admin" ? t("role.remove") : t("role.admin")}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirm({ u, action: "ban" })}
-                  className={cn(
-                    "rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors",
-                    u.banned
-                      ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-500"
-                      : "border-destructive/40 text-destructive hover:bg-destructive/10",
-                  )}
-                >
-                  {u.banned ? t("role.unban") : t("role.ban")}
-                </button>
-              </div>
-            )}
+            <div className="mt-2 grid grid-cols-3 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setConfirm({ u, action: "role", role: u.role === "moderator" ? "" : "moderator" })}
+                className={cn(
+                  "rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-colors",
+                  u.role === "moderator"
+                    ? "border-sky-500/50 bg-sky-500/15 text-sky-400"
+                    : "border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {u.role === "moderator" ? t("role.remove") : t("role.moderator")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirm({ u, action: "role", role: u.role === "admin" ? "" : "admin" })}
+                className={cn(
+                  "rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-colors",
+                  u.role === "admin"
+                    ? "border-red-500/50 bg-red-500/15 text-red-400"
+                    : "border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {u.role === "admin" ? t("role.remove") : t("role.admin")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirm({ u, action: "ban" })}
+                className={cn(
+                  "rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-colors",
+                  u.banned
+                    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-500"
+                    : "border-destructive/40 text-destructive hover:bg-destructive/10",
+                )}
+              >
+                {u.banned ? t("role.unban") : t("role.ban")}
+              </button>
+            </div>
           </div>
         ))}
         {!loading && users.length === 0 && (
@@ -768,6 +770,7 @@ function ConfirmDialog({
       <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-5 shadow-2xl">
         <p className="font-display text-lg font-bold">{title}</p>
         <p className="mt-1.5 text-sm text-muted-foreground">{body}</p>
+        <p className="mt-1 text-[11px] font-semibold text-muted-foreground">ID {confirm.u.id}</p>
         <div className="mt-5 flex gap-2">
           <button
             type="button"
