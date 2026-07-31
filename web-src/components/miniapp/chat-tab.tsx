@@ -612,7 +612,14 @@ function AdminPanel({ userId }: { userId: number }) {
     setLoading(true)
     try {
       const data: any = await api.get("/api/admin/users?q=" + encodeURIComponent(q))
-      setUsers((data.users ?? []).filter((u: AdminUser) => u.id !== userId))
+      const list: AdminUser[] = (data.users ?? []).map((u: any) => ({
+        id: u.user_id ?? u.id,
+        nick: u.nick ?? "",
+        avatar: u.avatar ?? null,
+        role: u.role ?? "",
+        banned: Boolean(u.banned),
+      }))
+      setUsers(list.filter((u) => u.id !== userId))
     } catch {
       setUsers([])
     } finally {
