@@ -12,8 +12,8 @@ export type EsportsMatch = {
   startsAt: number
   oddsA: number
   oddsB: number
-  status: "upcoming" | "finished"
-  winner?: "A" | "B"
+  status: "upcoming" | "live" | "finished"
+  winner?: "A" | "B" | null
 }
 
 export type MatchPrediction = {
@@ -43,10 +43,25 @@ export type PvpChallenge = {
 
 export const ME_ID = "me"
 
-export function usePredictions(storeCoins: number, _nick: string) {
+export function usePredictions(storeCoins: number, _nick: string, onBalanceRefresh?: () => void) {
   const [matches, setMatches] = useState<EsportsMatch[]>([])
   const [predictions, setPredictions] = useState<MatchPrediction[]>([])
   const [challenges, setChallenges] = useState<PvpChallenge[]>([])
+
+  const reload = useCallback(async () => {
+    try {
+      const [matchData, historyData, pvpData] = await Promise.all([
+        api.get("/api/predictions/matches"),
+        api.get("/api/predictions/history"),
+        api.get("/api/predictions/pvp/list"),
+      ])
+      setMatches(matchData.matches ?? [])
+      setPredictions(historyData.predictions ?? [])
+      setChallenges(pvpData.challenges ?? [])
+    } catch (e) {
+      console.error("Failed to reload predictions", e)
+    }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -67,20 +82,27 @@ export function usePredictions(storeCoins: number, _nick: string) {
       }
     }
     load()
-    return () => { cancelled = true }
-  }, [])
+    const poll = setInterval(() => {
+      if (!cancelled) reload()
+    }, 20_000)
+    return () => { cancelled = true; clearInterval(poll) }
+  }, [reload])
 
   const placePrediction = useCallback(
     async (match: EsportsMatch, side: "A" | "B", amount: number): Promise<{ ok: boolean; error?: string }> => {
       try {
         const res = await api.post("/api/predictions/place", { match_id: match.id, side, amount })
-        if (res.ok) return { ok: true }
+        if (res.ok) {
+          onBalanceRefresh?.()
+          reload()
+          return { ok: true }
+        }
         return { ok: false, error: res.error }
       } catch (e: any) {
         return { ok: false, error: e.message }
       }
     },
-    [],
+    [onBalanceRefresh, reload],
   )
 
   const createChallenge = useCallback(

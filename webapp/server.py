@@ -1875,16 +1875,119 @@ async def handle_friend_requests(request: web.Request):
 # Predictions API
 # ---------------------------------------------------------------------------
 
-ESPORTS_MATCHES = [
-    {"id": "m1", "tournament": "IEM Katowice 2026", "discipline": "CS2", "teamA": "NAVI", "teamB": "FaZe", "startsAt": int((datetime.utcnow() + timedelta(hours=2)).timestamp() * 1000), "oddsA": 1.85, "oddsB": 1.95, "status": "upcoming"},
-    {"id": "m2", "tournament": "The International", "discipline": "Dota 2", "teamA": "Team Spirit", "teamB": "Gaimin Gladiators", "startsAt": int((datetime.utcnow() + timedelta(hours=6)).timestamp() * 1000), "oddsA": 1.6, "oddsB": 2.35, "status": "upcoming"},
-    {"id": "m3", "tournament": "VCT Champions", "discipline": "Valorant", "teamA": "Sentinels", "teamB": "Fnatic", "startsAt": int((datetime.utcnow() + timedelta(hours=26)).timestamp() * 1000), "oddsA": 2.1, "oddsB": 1.72, "status": "upcoming"},
-    {"id": "m4", "tournament": "DreamLeague S24", "discipline": "Dota 2", "teamA": "Team Liquid", "teamB": "OG", "startsAt": int((datetime.utcnow() + timedelta(hours=48)).timestamp() * 1000), "oddsA": 2.2, "oddsB": 1.65, "status": "upcoming"},
+_PRED_TEMPLATES = [
+    ("IEM Katowice 2026", "CS2", "NAVI", "FaZe", 1.85, 1.95),
+    ("The International", "Dota 2", "Team Spirit", "Gaimin Gladiators", 1.6, 2.35),
+    ("VCT Champions", "Valorant", "Sentinels", "Fnatic", 2.1, 1.72),
+    ("DreamLeague S24", "Dota 2", "Team Liquid", "OG", 2.2, 1.65),
+    ("ESL Pro League", "CS2", "Vitality", "G2", 1.9, 1.9),
+    ("LPL Spring", "LoL", "JDG", "BLG", 1.75, 2.05),
+    ("BLAST Premier", "CS2", "MOUZ", "Astralis", 2.3, 1.6),
+    ("Kings Trophy", "Valorant", "Team Heretics", "KC", 1.55, 2.4),
 ]
+
+# Матч идёт PRED_MATCH_DURATION_MS после старта, затем автоматически рассчитывается.
+PRED_MATCH_DURATION_MS = 15 * 60 * 1000
+PRED_TICK_SECONDS = 15
+
+_pred_matches: list[dict] = []
+_pred_seq = 0
+
+
+def _pred_new_match(offset_minutes: int) -> dict:
+    global _pred_seq
+    tpl = _PRED_TEMPLATES[_pred_seq % len(_PRED_TEMPLATES)]
+    _pred_seq += 1
+    tournament, discipline, teamA, teamB, oddsA, oddsB = tpl
+    return {
+        "id": f"m{_pred_seq}",
+        "tournament": tournament,
+        "discipline": discipline,
+        "teamA": teamA,
+        "teamB": teamB,
+        "startsAt": int((datetime.utcnow() + timedelta(minutes=offset_minutes)).timestamp() * 1000),
+        "oddsA": oddsA,
+        "oddsB": oddsB,
+        "status": "upcoming",
+        "winner": None,
+    }
+
+
+def _pred_ensure_matches(min_upcoming: int = 4) -> None:
+    """Пополняет список, пока в нём есть хотя бы min_upcoming предстоящих матчей."""
+    while sum(1 for m in _pred_matches if m["status"] == "upcoming") < min_upcoming:
+        offset = 3 + 25 * len(_pred_matches)
+        _pred_matches.append(_pred_new_match(offset))
+    # Не копим завершённые матчи бесконечно: держим не больше 30, выкидывая старые finished.
+    if len(_pred_matches) > 30:
+        drop = len(_pred_matches) - 30
+        i = 0
+        while drop > 0 and i < len(_pred_matches):
+            if _pred_matches[i]["status"] == "finished":
+                _pred_matches.pop(i)
+                drop -= 1
+            else:
+                i += 1
+
+
+def _pred_pick_winner(match: dict) -> str:
+    """Случайный исход как у 1xBet: вероятность победы обратно пропорциональна коэффициенту."""
+    pa = 1.0 / match["oddsA"]
+    pb = 1.0 / match["oddsB"]
+    return "A" if random.random() < pa / (pa + pb) else "B"
+
+
+async def _prediction_tick(app: web.Application) -> None:
+    db = app.get("db")
+    if not db or not app.get("db_ready"):
+        return
+    now_ms = int(time() * 1000)
+    for match in list(_pred_matches):
+        status = match["status"]
+        if status == "upcoming" and now_ms >= match["startsAt"]:
+            match["status"] = "live"
+        elif status == "live" and now_ms >= match["startsAt"] + PRED_MATCH_DURATION_MS:
+            winner = _pred_pick_winner(match)
+            try:
+                result = await db.settle_match_predictions(match["id"], winner)
+                logging.info("[PRED] match %s finished winner=%s %s", match["id"], winner, result)
+            except Exception:
+                logging.exception("[PRED] settle failed match=%s — retry next tick", match["id"])
+                continue
+            match["status"] = "finished"
+            match["winner"] = winner
+            _pred_ensure_matches()
+
+
+async def _prediction_settler(app: web.Application) -> None:
+    _pred_ensure_matches()
+    while True:
+        try:
+            await _prediction_tick(app)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.exception("[PRED] prediction tick failed")
+        await asyncio.sleep(PRED_TICK_SECONDS)
+
+
+async def _start_prediction_settler(app: web.Application) -> None:
+    app["prediction_task"] = asyncio.create_task(_prediction_settler(app))
+
+
+async def _stop_prediction_settler(app: web.Application) -> None:
+    task = app.get("prediction_task")
+    if task:
+        task.cancel()
+        try:
+            await task
+        except Exception:
+            pass
 
 
 async def handle_predictions_matches(request: web.Request):
-    return web.json_response({"matches": ESPORTS_MATCHES})
+    _pred_ensure_matches()
+    return web.json_response({"matches": _pred_matches})
 
 
 async def handle_predictions_place(request: web.Request):
@@ -1895,9 +1998,12 @@ async def handle_predictions_place(request: web.Request):
     side = body.get("side")
     amount = body.get("amount", 0)
 
-    match = next((m for m in ESPORTS_MATCHES if m["id"] == match_id), None)
+    match = next((m for m in _pred_matches if m["id"] == match_id), None)
     if not match:
         return web.json_response({"error": "match not found"}, status=400)
+
+    if match["status"] != "upcoming" or time() * 1000 >= match["startsAt"]:
+        return web.json_response({"error": "match already started"}, status=400)
 
     if not isinstance(amount, int) or amount <= 0:
         return web.json_response({"error": "invalid amount"}, status=400)
@@ -2263,7 +2369,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app["session"] = ClientSession()
 
     app.on_startup.append(lambda _app: init_redis())
+    app.on_startup.append(_start_prediction_settler)
     app.on_cleanup.append(lambda _app: close_redis())
+    app.on_cleanup.append(_stop_prediction_settler)
     app.on_cleanup.append(lambda _app: _app["session"].close())
 
     app.router.add_get("/", handle_index)

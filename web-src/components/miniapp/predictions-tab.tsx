@@ -28,9 +28,9 @@ import { cn } from "@/lib/utils"
 type Mode = "esports" | "pvp"
 
 export function PredictionsTab({ onToast }: { onToast?: (m: string) => void }) {
-  const { coins: storeCoins, nick } = useNexus()
+  const { coins: storeCoins, nick, refresh } = useNexus()
   const { t } = useI18n()
-  const p = usePredictions(storeCoins, nick)
+  const p = usePredictions(storeCoins, nick, refresh)
   const [mode, setMode] = useState<Mode>("esports")
 
   return (
@@ -100,6 +100,7 @@ function EsportsMode({
     <div className="space-y-5">
       <section className="space-y-3">
         <h2 className="font-display text-base font-bold">{t("predictions.matches_title")}</h2>
+        <p className="text-[11px] leading-relaxed text-muted-foreground">{t("predictions.auto_settle")}</p>
         {p.matches.map((m) => (
           <MatchCard key={m.id} match={m} onPlace={p.placePrediction} onToast={onToast} />
         ))}
@@ -130,6 +131,9 @@ function MatchCard({
   const [side, setSide] = useState<"A" | "B" | null>(null)
   const [amount, setAmount] = useState("")
 
+  const bettingOpen = match.status === "upcoming" && match.startsAt > Date.now()
+  const winnerTeam = match.winner ? (match.winner === "A" ? match.teamA : match.teamB) : null
+
   async function confirm() {
     if (!side) return
     const res = await onPlace(match, side, Number(amount) || 0)
@@ -151,10 +155,22 @@ function MatchCard({
           <Gamepad2 className="size-3.5" />
           {match.discipline}
         </span>
-        <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-          <Clock className="size-3" />
-          {startLabel(match.startsAt)}
-        </span>
+        {match.status === "finished" ? (
+          <span className="flex items-center gap-1 text-[11px] font-bold text-primary">
+            <Trophy className="size-3" />
+            {winnerTeam ? t("predictions.won", { team: winnerTeam }) : t("predictions.finished")}
+          </span>
+        ) : match.status === "live" ? (
+          <span className="flex items-center gap-1 text-[11px] font-bold text-destructive">
+            <CircleDot className="size-3" />
+            {t("predictions.live")}
+          </span>
+        ) : (
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <Clock className="size-3" />
+            {startLabel(match.startsAt)}
+          </span>
+        )}
       </div>
 
       <div className="px-4 py-3">
@@ -164,17 +180,25 @@ function MatchCard({
             team={match.teamA}
             odds={match.oddsA}
             active={side === "A"}
+            disabled={!bettingOpen}
             onClick={() => setSide(side === "A" ? null : "A")}
           />
           <OddButton
             team={match.teamB}
             odds={match.oddsB}
             active={side === "B"}
+            disabled={!bettingOpen}
             onClick={() => setSide(side === "B" ? null : "B")}
           />
         </div>
 
-        {side && (
+        {match.status === "live" && (
+          <p className="mt-3 rounded-2xl bg-destructive/10 px-3 py-2 text-center text-[11px] font-semibold text-destructive">
+            {t("predictions.live_hint")}
+          </p>
+        )}
+
+        {side && bettingOpen && (
           <div className="mt-3 space-y-2 rounded-2xl bg-secondary/40 p-3">
             <div className="flex items-center gap-2">
               <Coins className="size-4 shrink-0 text-primary" />
@@ -208,20 +232,24 @@ function OddButton({
   team,
   odds,
   active,
+  disabled,
   onClick,
 }: {
   team: string
   odds: number
   active: boolean
+  disabled?: boolean
   onClick: () => void
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "flex flex-col items-center gap-1 rounded-2xl border px-3 py-3 transition-colors",
         active ? "border-primary bg-primary/15" : "border-border bg-secondary/40",
+        disabled && "cursor-not-allowed opacity-60",
       )}
     >
       <span className="line-clamp-1 text-sm font-semibold">{team}</span>

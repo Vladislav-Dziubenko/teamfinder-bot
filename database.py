@@ -2231,6 +2231,33 @@ class Database:
             )
             return [dict(r) for r in rows]
 
+    async def settle_match_predictions(self, match_id: str, winner: str) -> dict:
+        """Расчёт киберспортивных ставок: победители получают amount*odds, проигравшие теряют ставку."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                rows = await conn.fetch(
+                    "SELECT id, user_id, side, amount, odds, status FROM match_predictions WHERE match_id = $1 AND status = 'pending' FOR UPDATE",
+                    match_id,
+                )
+                winners = 0
+                total_payout = 0
+                for r in rows:
+                    if r["side"] == winner:
+                        payout = int(round(r["amount"] * r["odds"]))
+                        await self._adjust_currency_conn(conn, r["user_id"], coins=payout)
+                        await conn.execute(
+                            "UPDATE match_predictions SET status = 'won', payout = $1 WHERE id = $2",
+                            payout, r["id"],
+                        )
+                        winners += 1
+                        total_payout += payout
+                    else:
+                        await conn.execute(
+                            "UPDATE match_predictions SET status = 'lost', payout = 0 WHERE id = $1",
+                            r["id"],
+                        )
+                return {"settled": len(rows), "winners": winners, "total_payout": total_payout}
+
     async def create_pvp_challenge(self, creator_id: int, creator_nick: str, condition: str, stake: int) -> dict | None:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
