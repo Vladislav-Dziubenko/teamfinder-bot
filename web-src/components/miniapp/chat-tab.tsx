@@ -179,7 +179,7 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine }: { 
 })
 
 function ChatConversation({ chatId, player, onBack }: { chatId: string; player?: ChatPreview["player"]; onBack: () => void }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { messages, sendMessage, typing } = useChatMessages(chatId)
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
@@ -221,7 +221,7 @@ function ChatConversation({ chatId, player, onBack }: { chatId: string; player?:
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-sm font-bold">{player?.nick ?? t("common.unknown")}</p>
           <p className="text-[11px] text-accent">
-            {typing ? t("common.typing") : player?.online ? t("common.online") : player?.lastSeen ?? t("common.offline")}
+            {typing ? t("common.typing") : player?.online ? t("common.online") : player?.lastSeen ? formatLastSeen(player.lastSeen, lang) : t("common.offline")}
           </p>
         </div>
       </header>
@@ -279,6 +279,12 @@ function Dot({ delay = "0ms" }: { delay?: string }) {
 }
 
 function formatMsgTime(ts: number, lang: string): string {
+  return relativeTime(ts, lang)
+}
+
+function formatLastSeen(raw: string, lang: string): string {
+  const ts = new Date(raw).getTime()
+  if (!Number.isFinite(ts)) return raw
   return relativeTime(ts, lang)
 }
 

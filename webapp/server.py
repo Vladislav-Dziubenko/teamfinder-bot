@@ -28,11 +28,11 @@ from config import Settings
 from data.games import (
     GAMES, LOOKING_FOR, PLAYTIME,
     BATTLE_PASS_TIERS, BATTLE_PASS_XP_PER_LEVEL, BATTLE_PASS_PRICE_STARS,
-    DAILY_STREAK_REWARDS, REFERRAL_REWARD, COIN_PACKS,
+    DAILY_STREAK_REWARDS, REFERRAL_REWARD, COIN_PACKS, DEFAULT_PROMO_CODES,
 )
 from data.guides import GUIDES
 from database import Database
-from services.matching import find_matches
+from services.matching import find_matches, score_match
 from webapp.auth import validate_init_data
 from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
                             fetch_discord_connections, revoke_token, _make_state, _verify_state)
@@ -391,6 +391,8 @@ async def handle_me(request: web.Request):
     app_short_name = "nexus"
     direct_app_url = f"https://t.me/{bot_username}/{app_short_name}"
 
+    promo_data = await db.get_promo_codes_with_redemption(user["id"])
+
     return web.json_response({
         "user": user,
         "currency": results[0],
@@ -408,6 +410,12 @@ async def handle_me(request: web.Request):
         "referral_reward": REFERRAL_REWARD,
         "referral_bot_url": referral_bot_url,
         "direct_app_url": direct_app_url,
+        "promos": promo_data["codes"],
+        "redeemed_codes": promo_data["redeemed"],
+        "default_promo_codes": [
+            {"code": p["code"], "reward": p["reward"], "maxUses": p["max_uses"], "uses": 0, "createdByUser": False}
+            for p in DEFAULT_PROMO_CODES
+        ],
     })
 
 
@@ -513,33 +521,53 @@ async def handle_search(request: web.Request):
 
     profile = await db.get_profile(user["id"])
     if not profile:
-        players = []
+        where = "WHERE p.is_active = 1 AND p.user_id != $1"
+        params: list = [user["id"]]
         if query:
-            rows = await db.pool.fetch(
-                """SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
-                   FROM users u
-                   LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
-                   LEFT JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
-                   WHERE LOWER(COALESCE(mp.nick, '')) LIKE $1 OR LOWER(COALESCE(p.nickname, '')) LIKE $1
-                   LIMIT 20""",
-                f"%{query}%",
+            where += (
+                " AND (LOWER(COALESCE(mp.nick, '')) LIKE $2"
+                " OR LOWER(COALESCE(p.nickname, '')) LIKE $2"
+                " OR LOWER(COALESCE(p.role, '')) LIKE $2"
+                " OR LOWER(COALESCE(p.rank, '')) LIKE $2)"
             )
-            for r in rows:
-                players.append({
-                    "id": str(r["user_id"]),
-                    "user_id": r["user_id"],
-                    "nick": r["nick"] or f"User{r['user_id']}",
-                    "avatar": r["avatar"] or f"/player-{((r['user_id'] % 4) + 1)}.png",
-                    "game": r["game"] or "unknown",
-                    "rank": r["rank"] or "",
-                    "role": r["role"] or "",
-                    "vibe": 0,
-                    "hours": 0,
-                    "level": None,
-                    "online": False,
-                    "lastSeen": None,
-                    "searching_minutes": _calc_searching_minutes(r["searching_since"]),
-                })
+            params.append(f"%{query}%")
+        elif game_filter and game_filter != "all":
+            where += " AND p.game = $2"
+            params.append(game_filter)
+        rows = await db.pool.fetch(
+            f"""SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
+                FROM users u
+                JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
+                LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
+                {where}
+                ORDER BY p.searching_since DESC NULLS LAST, p.updated_at DESC
+                LIMIT 20""",
+            *params,
+        )
+        players = [
+            {
+                "id": str(r["user_id"]),
+                "user_id": r["user_id"],
+                "nick": r["nick"] or f"User{r['user_id']}",
+                "avatar": r["avatar"] or f"/player-{((r['user_id'] % 4) + 1)}.png",
+                "game": r["game"] or "unknown",
+                "rank": r["rank"] or "",
+                "role": r["role"] or "",
+                "realName": r["nick"] or "",
+                "winrate": 0,
+                "kd": 0,
+                "tags": [],
+                "bio": "",
+                "tgUsername": "",
+                "vibe": 0,
+                "hours": 0,
+                "level": None,
+                "online": False,
+                "lastSeen": None,
+                "searching_minutes": _calc_searching_minutes(r["searching_since"]),
+            }
+            for r in rows
+        ]
         asyncio.create_task(db.update_searching_since(user["id"]))
         return web.json_response({"players": players, "teams": []})
 
@@ -551,7 +579,10 @@ async def handle_search(request: web.Request):
                LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
                JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
                WHERE p.game IN ('cs2','roblox','wot','wt','dota2','valorant','minecraft','fortnite','apex','rust')
-                 AND (LOWER(COALESCE(mp.nick, '')) LIKE $1 OR LOWER(COALESCE(p.nickname, '')) LIKE $1)
+                 AND (LOWER(COALESCE(mp.nick, '')) LIKE $1
+                   OR LOWER(COALESCE(p.nickname, '')) LIKE $1
+                   OR LOWER(COALESCE(p.role, '')) LIKE $1
+                   OR LOWER(COALESCE(p.rank, '')) LIKE $1)
                LIMIT 20""",
             f"%{query}%",
         )
@@ -567,6 +598,12 @@ async def handle_search(request: web.Request):
                 "game": r["game"] or "unknown",
                 "rank": r["rank"] or "",
                 "role": r["role"] or "",
+                "realName": r["nick"] or "",
+                "winrate": 0,
+                "kd": 0,
+                "tags": [],
+                "bio": "",
+                "tgUsername": "",
                 "vibe": 0,
                 "hours": 0,
                 "level": None,
@@ -596,11 +633,20 @@ async def handle_search(request: web.Request):
     else:
         candidates = await db.list_profiles_by_game(game_to_search, exclude_user_id=user["id"])
 
-    # Filter by nickname if q provided
+    # Filter by nickname/role/rank if q provided
     if query:
-        candidates = [c for c in candidates if query in c.get("nickname", "").lower()]
+        candidates = [
+            c for c in candidates
+            if query in c.get("nickname", "").lower()
+            or query in c.get("role", "").lower()
+            or query in c.get("rank", "").lower()
+        ]
 
     matches = find_matches(profile, candidates, limit=50 if premium else 20)
+    if not matches and candidates:
+        scored = [(c, score_match(profile, c)) for c in candidates]
+        scored.sort(key=lambda x: (-x[1], -int(x[0].get("_highlighted", False))))
+        matches = scored[: 50 if premium else 20]
 
     players = []
     for p, score in matches:
@@ -620,6 +666,12 @@ async def handle_search(request: web.Request):
             "role": p["role"],
             "playtime": p["playtime"],
             "region": p.get("region", ""),
+            "realName": nick,
+            "winrate": 0,
+            "kd": 0,
+            "tags": [],
+            "bio": p.get("description") or "",
+            "tgUsername": "",
             "vibe": score,
             "hours": int(p.get("playtime") or 0) if (p.get("playtime") or "").isdigit() else 0,
             "level": None,
@@ -1466,6 +1518,7 @@ async def handle_chat_messages(request: web.Request):
     chat_id = request.match_info["chat_id"]
     if not await db.can_access_chat(chat_id, user["id"]):
         return web.json_response({"error": "forbidden"}, status=403)
+    await db.mark_chat_read(chat_id, user["id"])
     messages = await db.get_chat_messages(chat_id)
     for msg in messages:
         if msg.get("sender_id") == user["id"]:

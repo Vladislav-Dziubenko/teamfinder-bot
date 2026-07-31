@@ -473,6 +473,7 @@ class Database:
             ("user_achievements", "claimed_at", "TEXT"),
 
             ("users", "last_active_at", "TEXT"),
+            ("chat_messages", "read_at", "TEXT"),
         ]
 
         for table, column, col_type in column_migrations:
@@ -672,14 +673,21 @@ class Database:
                 "INSERT INTO users (user_id, username, first_name, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET last_active_at = $4",
                 user_id, username or "", first_name or "", now,
             )
-            # Создаём mini_app_profiles запись, если её нет (для ника/аватарки в чате и списке друзей)
+            # Создаём mini_app_profiles запись, если её нет (для ника/аватарки в чате и списке друзей).
+            # Реальный photo_url из Telegram должен заменять плейсхолдер /player-N.png,
+            # но не перетирать аватар, загруженный пользователем вручную.
             await conn.execute(
                 """
                 INSERT INTO mini_app_profiles (user_id, nick, avatar, updated_at)
                 VALUES ($1, $2, $3, $4)
                 ON CONFLICT (user_id) DO UPDATE SET
                     nick = COALESCE(mini_app_profiles.nick, EXCLUDED.nick),
-                    avatar = COALESCE(mini_app_profiles.avatar, EXCLUDED.avatar),
+                    avatar = CASE
+                        WHEN mini_app_profiles.avatar IS NULL
+                          OR mini_app_profiles.avatar LIKE '/player-%'
+                          THEN EXCLUDED.avatar
+                        ELSE mini_app_profiles.avatar
+                    END,
                     updated_at = $4
                 """,
                 user_id, first_name or username or f"User{user_id}", effective_avatar, now,
@@ -1151,7 +1159,6 @@ class Database:
                 VALUES ($1, $2, $3, 0, $4)
                 ON CONFLICT (user_id, quest_id) DO UPDATE SET
                     progress_minutes = user_quests.progress_minutes + $3,
-                    completed = 0,
                     updated_at = $4
                 """,
                 user_id, quest_id, minutes, datetime.utcnow().isoformat(),
@@ -1763,12 +1770,21 @@ class Database:
                 "INSERT INTO chat_messages (chat_id, sender_id, text, created_at) VALUES ($1, $2, $3, $4) RETURNING id",
                 chat_id, sender_id, text, now,
             )
-            return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": text, "created_at": now}
+            return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": text, "created_at": now, "read_at": None}
+
+    async def mark_chat_read(self, chat_id: str, user_id: int) -> None:
+        """Mark all incoming messages (from the other party) as read."""
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE chat_messages SET read_at = $1 WHERE chat_id = $2 AND sender_id != $3 AND read_at IS NULL",
+                now, chat_id, user_id,
+            )
 
     async def get_chat_messages(self, chat_id: str, limit: int = 5000) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT id, chat_id, sender_id, text, created_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
+                "SELECT id, chat_id, sender_id, text, created_at, read_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
                 chat_id, limit,
             )
             return [dict(r) for r in reversed(rows)]

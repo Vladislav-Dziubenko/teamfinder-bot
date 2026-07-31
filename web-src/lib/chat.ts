@@ -99,7 +99,7 @@ function mapMsg(m: any): ChatMessage {
     senderId: m.sender_id === "me" ? "me" : String(m.sender_id ?? ""),
     text: m.text ?? "",
     ts: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
-    status: "sent",
+    status: m.read_at ? "read" : "sent",
   }
 }
 

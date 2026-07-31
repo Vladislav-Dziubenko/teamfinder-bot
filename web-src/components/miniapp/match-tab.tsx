@@ -42,10 +42,6 @@ export function MatchTab({
 
   async function runSearch() {
     const q = query.trim()
-    if (!q) {
-      setNotice(t("match.hint_search"))
-      return
-    }
     if (!extended) {
       const ok = useFreeSearch()
       if (!ok) {
