@@ -11,6 +11,7 @@ import {
   type StarPack,
 } from "@/lib/data"
 import { api, telegramReady, openInvoice } from "@/lib/api"
+import { parseIsoTs } from "@/lib/chat"
 
 export type InventoryItem = CaseItem & { uid: string; id?: number }
 
@@ -235,7 +236,7 @@ function mapMeToState(me: MeResponse): PersistedState {
   const caseCooldown: Record<string, number> = {}
   for (const [caseId, iso] of Object.entries(me.case_cooldowns || {})) {
     if (iso) {
-      caseCooldown[caseId] = new Date(iso).getTime() + DAY_MS
+      caseCooldown[caseId] = parseIsoTs(iso) + DAY_MS
     }
   }
 
@@ -257,14 +258,14 @@ function mapMeToState(me: MeResponse): PersistedState {
     bpXp: bp.bp_xp || 0,
     claimedTiers: bp.claimed_tiers || [],
     bpClaimedCount: bp.claimed_count || 0,
-    bpLastClaimAt: bp.last_claim_at ? new Date(bp.last_claim_at).getTime() : 0,
+    bpLastClaimAt: bp.last_claim_at ? parseIsoTs(bp.last_claim_at) : 0,
     promoCodes,
     redeemedCodes,
     referralCode: ref.referral_code || makeReferralCode(),
     invitedCount: ref.invited_count || 0,
     referralEarned: ref.referral_earned_coins || 0,
     streakDay: streak.streak_day || 0,
-    lastStreakAt: streak.last_streak_at ? new Date(streak.last_streak_at).getTime() : 0,
+    lastStreakAt: streak.last_streak_at ? parseIsoTs(streak.last_streak_at) : 0,
     claimedAchievements: achievements.filter((a) => a.claimed).map((a) => a.achievement_id),
     lastQuestAt: 0,
     userId: user.id ?? 0,
@@ -534,7 +535,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       try {
         const data = await api.post("/api/nexus/cases/open", { case_id: caseId })
         if (c.free && data.last_open_at) {
-          const until = new Date(data.last_open_at).getTime() + DAY_MS
+          const until = parseIsoTs(data.last_open_at) + DAY_MS
           setS((p: PersistedState) => ({
             ...p,
             caseCooldown: { ...p.caseCooldown, [caseId]: until },
@@ -658,7 +659,8 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     const claimDailyStreak = async (): Promise<{ ok: boolean; coins?: number; day?: number; error?: string }> => {
       try {
         const data = await api.post("/api/streak/claim")
-        await refresh()
+        setS((p: PersistedState) => ({ ...p, streakDay: data.day ?? p.streakDay, lastStreakAt: Date.now() }))
+        refresh()
         return { ok: true, coins: data.coins, day: data.day }
       } catch (e: any) {
         return { ok: false, error: e.message || "Уже забрано" }
