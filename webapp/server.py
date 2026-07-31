@@ -392,9 +392,11 @@ async def handle_me(request: web.Request):
     direct_app_url = f"https://t.me/{bot_username}/{app_short_name}"
 
     promo_data = await db.get_promo_codes_with_redemption(user["id"])
+    role = await _effective_role(request, db, user["id"])
 
     return web.json_response({
         "user": user,
+        "role": role,
         "currency": results[0],
         "mini_profile": results[1] if results[1] else {"games": []},
         "inventory": results[2],
@@ -1599,6 +1601,22 @@ async def handle_chat_unmute(request: web.Request):
     return web.json_response({"ok": True})
 
 
+# ---------------------------------------------------------------------------
+# Roles & moderation helpers
+# ---------------------------------------------------------------------------
+
+def _is_developer(request: web.Request, user_id: int) -> bool:
+    settings = request.app.get("settings")
+    return bool(settings and user_id in settings.admin_ids)
+
+
+async def _effective_role(request: web.Request, db: Database, user_id: int) -> str:
+    """developer (from bot ADMIN_IDS) > admin > moderator."""
+    if _is_developer(request, user_id):
+        return "developer"
+    return await db.get_role(user_id)
+
+
 async def handle_global_messages(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -1606,12 +1624,16 @@ async def handle_global_messages(request: web.Request):
     for msg in messages:
         if msg.get("user_id") == user["id"]:
             msg["user_id"] = "me"
-    return web.json_response({"messages": messages})
+    role = await _effective_role(request, db, user["id"])
+    banned = await db.is_globally_banned(user["id"])
+    return web.json_response({"messages": messages, "me_role": role, "me_banned": banned})
 
 
 async def handle_global_send(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
+    if await db.is_globally_banned(user["id"]):
+        return web.json_response({"error": "banned"}, status=403)
     body = await request.json()
     text = sanitize(body.get("text", ""), 500)
     if not text:
@@ -1619,6 +1641,84 @@ async def handle_global_send(request: web.Request):
     msg = await db.send_global_message(user["id"], text)
     msg["user_id"] = "me"
     return web.json_response({"message": msg})
+
+
+async def handle_global_delete(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    role = await _effective_role(request, db, user["id"])
+    if db.ROLE_RANK.get(role, 0) < 1:
+        return web.json_response({"error": "forbidden"}, status=403)
+    body = await request.json()
+    try:
+        message_id = int(body.get("message_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid message_id"}, status=400)
+    await db.delete_global_message(message_id)
+    return web.json_response({"ok": True})
+
+
+async def handle_global_ban(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    role = await _effective_role(request, db, user["id"])
+    if db.ROLE_RANK.get(role, 0) < 2:
+        return web.json_response({"error": "forbidden"}, status=403)
+    body = await request.json()
+    try:
+        target_id = int(body.get("user_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    if _is_developer(request, target_id):
+        return web.json_response({"error": "cannot ban developer"}, status=403)
+    target_role = await db.get_role(target_id)
+    if db.ROLE_RANK.get(target_role, 0) >= db.ROLE_RANK.get(role, 0):
+        return web.json_response({"error": "cannot ban same or higher role"}, status=403)
+    await db.ban_global(target_id, user["id"], sanitize(body.get("reason", ""), 200))
+    return web.json_response({"ok": True})
+
+
+async def handle_global_unban(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    role = await _effective_role(request, db, user["id"])
+    if db.ROLE_RANK.get(role, 0) < 2:
+        return web.json_response({"error": "forbidden"}, status=403)
+    body = await request.json()
+    try:
+        target_id = int(body.get("user_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    await db.unban_global(target_id)
+    return web.json_response({"ok": True})
+
+
+async def handle_admin_role(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not _is_developer(request, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    body = await request.json()
+    try:
+        target_id = int(body.get("user_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    role = (body.get("role") or "").strip()
+    allowed = {"admin", "moderator"}
+    if role and role not in allowed:
+        return web.json_response({"error": "invalid role"}, status=400)
+    await db.set_role(target_id, role or None, user["id"])
+    return web.json_response({"ok": True})
+
+
+async def handle_admin_users(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not _is_developer(request, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    query = request.query.get("q", "").strip().lower()
+    users = await db.search_users_with_roles(query or "%", 30)
+    return web.json_response({"users": users})
 
 
 # ---------------------------------------------------------------------------
@@ -1687,6 +1787,7 @@ async def handle_profile_by_id(request: web.Request):
         "avatar": prof.get("avatar"),
         "bio": prof.get("bio"),
         "friend_status": friend_status,
+        "role": await _effective_role(request, db, target_id),
     })
 
 async def handle_friend_add(request: web.Request):
@@ -2204,6 +2305,11 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/chat/{chat_id}/unmute", handle_chat_unmute)
     app.router.add_get("/api/global", handle_global_messages)
     app.router.add_post("/api/global/send", handle_global_send)
+    app.router.add_post("/api/global/delete", handle_global_delete)
+    app.router.add_post("/api/global/ban", handle_global_ban)
+    app.router.add_post("/api/global/unban", handle_global_unban)
+    app.router.add_post("/api/admin/role", handle_admin_role)
+    app.router.add_get("/api/admin/users", handle_admin_users)
 
     # Profile
     app.router.add_get("/api/profile/by-id/{user_id}", handle_profile_by_id)

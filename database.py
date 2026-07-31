@@ -264,6 +264,22 @@ CREATE TABLE IF NOT EXISTS global_messages (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS user_roles (
+    user_id BIGINT PRIMARY KEY,
+    role TEXT NOT NULL,
+    granted_by BIGINT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS global_bans (
+    user_id BIGINT PRIMARY KEY,
+    banned_by BIGINT,
+    reason TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
 CREATE TABLE IF NOT EXISTS match_predictions (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -1898,6 +1914,15 @@ class Database:
                 for pr in profile_rows:
                     profiles[pr["user_id"]] = pr
 
+            role_rows = {}
+            if other_ids:
+                role_rows = await conn.fetch(
+                    "SELECT user_id, role FROM user_roles WHERE user_id = ANY($1::BIGINT[])",
+                    list(other_ids),
+                )
+
+            role_by_user = {rr["user_id"]: rr["role"] for rr in role_rows}
+
             results = []
             for cid, (other_id, last_text, last_ts, unread) in chat_meta.items():
                 profile = profiles.get(other_id)
@@ -1910,6 +1935,7 @@ class Database:
                     "other_avatar": other_avatar,
                     "other_online": bool(other_online),
                     "other_last_seen": profile["last_active_at"] if profile else None,
+                    "other_role": role_by_user.get(other_id, ""),
                     "last_text": last_text,
                     "last_ts": last_ts,
                     "unread": unread,
@@ -1980,9 +2006,11 @@ class Database:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """SELECT gm.id, gm.user_id, gm.text, gm.created_at,
-                          COALESCE(mp.nick, '') AS nick, mp.avatar
+                          COALESCE(mp.nick, '') AS nick, mp.avatar,
+                          COALESCE(ur.role, '') AS role, mp.deco
                    FROM global_messages gm
                    LEFT JOIN mini_app_profiles mp ON mp.user_id = gm.user_id
+                   LEFT JOIN user_roles ur ON ur.user_id = gm.user_id
                    ORDER BY gm.id DESC LIMIT $1""",
                 limit,
             )
@@ -1996,6 +2024,91 @@ class Database:
                 user_id, text, now,
             )
             return {"id": str(row["id"]), "user_id": user_id, "text": text, "created_at": now}
+
+    async def delete_global_message(self, message_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                "DELETE FROM global_messages WHERE id = $1",
+                message_id,
+            )
+            return result == "DELETE 1"
+
+    # ---------- Roles & moderation ----------
+
+    ROLE_RANK = {"moderator": 1, "admin": 2, "developer": 3}
+
+    async def get_role(self, user_id: int) -> str:
+        async with self.pool.acquire() as conn:
+            role = await conn.fetchval(
+                "SELECT role FROM user_roles WHERE user_id = $1",
+                user_id,
+            )
+            return role or ""
+
+    async def set_role(self, user_id: int, role: str | None, granted_by: int) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            if not role:
+                await conn.execute("DELETE FROM user_roles WHERE user_id = $1", user_id)
+            else:
+                await conn.execute(
+                    """INSERT INTO user_roles (user_id, role, granted_by, created_at)
+                       VALUES ($1, $2, $3, $4)
+                       ON CONFLICT (user_id) DO UPDATE SET role = $2, granted_by = $3, created_at = $4""",
+                    user_id, role, granted_by, now,
+                )
+
+    async def get_roles_batch(self, user_ids: list[int]) -> dict[int, str]:
+        if not user_ids:
+            return {}
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT user_id, role FROM user_roles WHERE user_id = ANY($1::BIGINT[])",
+                user_ids,
+            )
+            return {r["user_id"]: r["role"] for r in rows}
+
+    async def ban_global(self, user_id: int, banned_by: int, reason: str = "") -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO global_bans (user_id, banned_by, reason, created_at)
+                   VALUES ($1, $2, $3, $4)
+                   ON CONFLICT (user_id) DO UPDATE SET banned_by = $2, reason = $3, created_at = $4""",
+                user_id, banned_by, reason, now,
+            )
+
+    async def unban_global(self, user_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM global_bans WHERE user_id = $1",
+                user_id,
+            )
+
+    async def is_globally_banned(self, user_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchval(
+                "SELECT 1 FROM global_bans WHERE user_id = $1 LIMIT 1",
+                user_id,
+            )
+            return row == 1
+
+    async def search_users_with_roles(self, query: str, limit: int = 20) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT u.user_id, COALESCE(mp.nick, '') AS nick, mp.avatar,
+                          COALESCE(ur.role, '') AS role,
+                          (gb.user_id IS NOT NULL) AS banned
+                   FROM users u
+                   LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
+                   LEFT JOIN user_roles ur ON ur.user_id = u.user_id
+                   LEFT JOIN global_bans gb ON gb.user_id = u.user_id
+                   WHERE (LOWER(u.username) LIKE $1 OR LOWER(mp.nick) LIKE $1)
+                   ORDER BY (ur.role IS NOT NULL) DESC, u.user_id
+                   LIMIT $2""",
+                f"%{query}%", limit,
+            )
+            return [dict(r) for r in rows]
 
     # ---------- Friends ----------
 

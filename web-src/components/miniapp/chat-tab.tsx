@@ -1,17 +1,20 @@
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing } from "lucide-react"
+import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X } from "lucide-react"
 import {
   useChatMessages,
   useChats,
   useGlobalChat,
   parseIsoTs,
   type ChatPreview,
+  type GlobalMessage,
 } from "@/lib/chat"
 import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { RoleBadge, roleRank } from "@/components/miniapp/role-badge"
+import { useMe } from "@/lib/store"
 
 import type { Player } from "@/lib/data"
 
@@ -54,7 +57,7 @@ export function ChatTab({
     // fall back to the openPlayer passed by the parent when the chat isn't in
     // the loaded list yet (e.g. just opened). This avoids showing stale data.
     const player = found?.player ?? playerRef.current ?? undefined
-    return <ChatConversation chatId={activeId} player={player} onBack={closeChat} />
+    return <ChatConversation chatId={activeId} player={player} role={found?.role} onBack={closeChat} />
   }
 
   if (showGlobal) {
@@ -127,7 +130,10 @@ function ChatRow({ chat, onClick, lang }: { chat: ChatPreview; onClick: () => vo
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className="truncate font-display text-sm font-bold">{chat.player.nick}</p>
+          <div className="flex min-w-0 items-center gap-1.5">
+            <p className="truncate font-display text-sm font-bold">{chat.player.nick}</p>
+            <RoleBadge role={chat.role} className="shrink-0" />
+          </div>
           <span className="shrink-0 text-[11px] text-muted-foreground">{relativeTime(chat.lastTs, lang)}</span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2">
@@ -209,7 +215,7 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine }: { 
   )
 })
 
-function ChatConversation({ chatId, player, onBack }: { chatId: string; player?: ChatPreview["player"]; onBack: () => void }) {
+function ChatConversation({ chatId, player, role, onBack }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void }) {
   const { t, lang } = useI18n()
   const { messages, status, sendMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat } = useChatMessages(chatId)
   const [draft, setDraft] = useState("")
@@ -274,7 +280,10 @@ function ChatConversation({ chatId, player, onBack }: { chatId: string; player?:
         </button>
         <img src={player?.avatar || "/placeholder.svg"} alt={player?.nick ?? t("common.unknown")} className="size-9 rounded-full object-cover" />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-display text-sm font-bold">{player?.nick ?? t("common.unknown")}</p>
+          <div className="flex items-center gap-1.5">
+            <p className="truncate font-display text-sm font-bold">{player?.nick ?? t("common.unknown")}</p>
+            <RoleBadge role={role} className="shrink-0" />
+          </div>
           <p className="text-[11px] text-accent">
             {blockedByOther
               ? t("chat.blocked_hint")
@@ -372,10 +381,18 @@ function ChatConversation({ chatId, player, onBack }: { chatId: string; player?:
 
 function GlobalChat({ onBack }: { onBack: () => void }) {
   const { t, lang } = useI18n()
-  const { messages, sendGlobal, sending } = useGlobalChat()
+  const me = useMe()
+  const { messages, meRole, meBanned, sendGlobal, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
+  const [adminOpen, setAdminOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [menuFor, setMenuFor] = useState<string | null>(null)
+
+  const myRank = roleRank(meRole)
+  const canModerate = myRank >= 1
+  const canBan = myRank >= 2
+  const isDev = myRank >= 3
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
@@ -391,9 +408,19 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
   }
 
   async function submit() {
-    if (!draft.trim()) return
+    if (!draft.trim() || meBanned) return
     const ok = await sendGlobal(draft)
     if (ok) setDraft("")
+  }
+
+  async function onDelete(m: GlobalMessage) {
+    setMenuFor(null)
+    await deleteMessage(m.id)
+  }
+
+  async function onBan(m: GlobalMessage) {
+    setMenuFor(null)
+    await banUser(m.userId)
   }
 
   return (
@@ -407,7 +434,28 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
           <p className="truncate font-display text-sm font-bold">{t("chat.global_title")}</p>
           <p className="text-[11px] text-muted-foreground">{t("chat.global_subtitle")}</p>
         </div>
+        {isDev && (
+          <button
+            type="button"
+            onClick={() => setAdminOpen((v) => !v)}
+            aria-label={t("role.admin_panel")}
+            className={cn(
+              "grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90",
+              adminOpen && "bg-primary text-primary-foreground",
+            )}
+          >
+            <Shield className="size-5" />
+          </button>
+        )}
       </header>
+
+      {meBanned && (
+        <div className="border-b border-border bg-destructive/15 px-4 py-2 text-center text-xs font-semibold text-destructive">
+          {t("chat.global_banned")}
+        </div>
+      )}
+
+      {adminOpen && isDev && <AdminPanel userId={me.userId} />}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
@@ -420,8 +468,10 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
         )}
         {messages.map((m) => {
           const mine = m.userId === "me"
+          const canDeleteThis = !mine && canModerate
+          const canBanThis = !mine && canBan && roleRank(m.role) < myRank
           return (
-            <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
+            <div key={m.id} className={cn("group flex", mine ? "justify-end" : "justify-start")}>
               <div
                 className={cn(
                   "max-w-[78%] rounded-2xl px-3 py-2 text-sm",
@@ -434,6 +484,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
                   <div className="mb-1 flex items-center gap-1.5">
                     <img src={m.avatar || "/placeholder.svg"} alt={m.nick} className="size-4 rounded-full object-cover" />
                     <span className="text-[11px] font-bold text-accent">{m.nick}</span>
+                    <RoleBadge role={m.role} />
                   </div>
                 )}
                 <p className="text-pretty leading-relaxed">{m.text}</p>
@@ -443,13 +494,41 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
                   </span>
                 </div>
               </div>
+              {(canDeleteThis || canBanThis) && (
+                <div className="relative ml-1 flex items-start">
+                  <button
+                    type="button"
+                    onClick={() => setMenuFor(menuFor === m.id ? null : m.id)}
+                    aria-label={t("chat.menu")}
+                    className="grid size-7 place-items-center rounded-full text-muted-foreground/60 opacity-100 md:opacity-0 md:transition-opacity md:group-hover:opacity-100"
+                  >
+                    <MoreVertical className="size-4" />
+                  </button>
+                  {menuFor === m.id && (
+                    <div className="absolute left-1 top-8 z-50 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+                      {canDeleteThis && (
+                        <button type="button" onClick={() => onDelete(m)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
+                          <Trash2 className="size-4 text-muted-foreground" />
+                          {t("chat.mod_delete")}
+                        </button>
+                      )}
+                      {canBanThis && (
+                        <button type="button" onClick={() => onBan(m)} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-destructive hover:bg-muted">
+                          <Ban className="size-4" />
+                          {t("chat.mod_ban")}
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )
         })}
       </div>
 
       {/* Emoji strip */}
-      {showEmoji && (
+      {showEmoji && !meBanned && (
         <div className="flex flex-wrap gap-1.5 border-t border-border bg-card/85 px-3 py-2 backdrop-blur-xl">
           {emojis.map((e) => (
             <button key={e} type="button" onClick={() => insertEmoji(e)} className="grid size-9 place-items-center rounded-lg text-lg active:scale-90">
@@ -461,19 +540,25 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
 
       {/* Input */}
       <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2.5 backdrop-blur-xl">
-        <button type="button" onClick={() => setShowEmoji((v) => !v)} aria-label={t("chat.emoji")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
-          <Smile className="size-5" />
-        </button>
-        <input
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }}
-          placeholder={t("chat.input_placeholder")}
-          className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
-        />
-        <button type="button" onClick={submit} disabled={!draft.trim() || sending} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
-          {sending ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
-        </button>
+        {meBanned ? (
+          <div className="flex-1 py-3 text-center text-sm text-muted-foreground">{t("chat.global_banned")}</div>
+        ) : (
+          <>
+            <button type="button" onClick={() => setShowEmoji((v) => !v)} aria-label={t("chat.emoji")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
+              <Smile className="size-5" />
+            </button>
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }}
+              placeholder={t("chat.input_placeholder")}
+              className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
+            />
+            <button type="button" onClick={submit} disabled={!draft.trim() || sending} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
+              {sending ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
+            </button>
+          </>
+        )}
       </div>
     </div>
   )
@@ -485,6 +570,135 @@ function Dot({ delay = "0ms" }: { delay?: string }) {
       className="size-1.5 animate-bounce rounded-full bg-muted-foreground"
       style={{ animationDelay: delay }}
     />
+  )
+}
+
+type AdminUser = {
+  id: number
+  nick: string
+  avatar: string | null
+  role: string
+  banned: boolean
+}
+
+function AdminPanel({ userId }: { userId: number }) {
+  const { t } = useI18n()
+  const [query, setQuery] = useState("")
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [loading, setLoading] = useState(false)
+  const [busyId, setBusyId] = useState<number | null>(null)
+
+  async function search(q: string) {
+    setQuery(q)
+    setLoading(true)
+    try {
+      const data: any = await api.get("/api/admin/users?q=" + encodeURIComponent(q))
+      setUsers((data.users ?? []).filter((u: AdminUser) => u.id !== userId))
+    } catch {
+      setUsers([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    search("")
+  }, [])
+
+  async function setRole(u: AdminUser, role: string) {
+    if (busyId) return
+    setBusyId(u.id)
+    try {
+      await api.post("/api/admin/role", { user_id: u.id, role })
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role } : x)))
+    } catch {}
+    setBusyId(null)
+  }
+
+  async function toggleBan(u: AdminUser) {
+    if (busyId) return
+    setBusyId(u.id)
+    try {
+      if (u.banned) await api.post("/api/global/unban", { user_id: u.id })
+      else await api.post("/api/global/ban", { user_id: u.id })
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, banned: !x.banned } : x)))
+    } catch {}
+    setBusyId(null)
+  }
+
+  return (
+    <div className="max-h-[45vh] overflow-y-auto border-b border-border bg-card/85 px-3 py-3 backdrop-blur-xl">
+      <div className="mb-2 flex items-center gap-2">
+        <Search className="size-4 shrink-0 text-muted-foreground" />
+        <input
+          value={query}
+          onChange={(e) => search(e.target.value)}
+          placeholder={t("role.search_placeholder")}
+          className="min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
+        />
+      </div>
+      <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("role.title")}</p>
+      {loading && <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />}
+      <div className="space-y-1.5">
+        {users.map((u) => (
+          <div key={u.id} className="flex items-center gap-2 rounded-xl border border-border bg-background px-2.5 py-2">
+            <img src={u.avatar || "/placeholder.svg"} alt={u.nick} className="size-7 rounded-full object-cover" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <p className="truncate text-sm font-bold">{u.nick}</p>
+                <RoleBadge role={u.role} />
+              </div>
+              {u.banned && <p className="text-[10px] text-destructive">{t("role.banned")}</p>}
+            </div>
+            {busyId === u.id ? (
+              <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />
+            ) : (
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setRole(u, u.role === "moderator" ? "" : "moderator")}
+                  className={cn(
+                    "rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors",
+                    u.role === "moderator"
+                      ? "border-sky-500/50 bg-sky-500/15 text-sky-400"
+                      : "border-border text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {u.role === "moderator" ? t("role.remove") : t("role.moderator")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole(u, u.role === "admin" ? "" : "admin")}
+                  className={cn(
+                    "rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors",
+                    u.role === "admin"
+                      ? "border-red-500/50 bg-red-500/15 text-red-400"
+                      : "border-border text-muted-foreground hover:bg-muted",
+                  )}
+                >
+                  {u.role === "admin" ? t("role.remove") : t("role.admin")}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggleBan(u)}
+                  className={cn(
+                    "rounded-lg border px-2 py-1 text-[11px] font-bold transition-colors",
+                    u.banned
+                      ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-500"
+                      : "border-destructive/40 text-destructive hover:bg-destructive/10",
+                  )}
+                >
+                  {u.banned ? t("role.unban") : t("role.ban")}
+                </button>
+              </div>
+            )}
+          </div>
+        ))}
+        {!loading && users.length === 0 && (
+          <p className="py-3 text-center text-xs text-muted-foreground">{t("role.empty")}</p>
+        )}
+      </div>
+    </div>
   )
 }
 

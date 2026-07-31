@@ -4,12 +4,14 @@ import { useState, useEffect } from "react"
 import { X, UserPlus, UserCheck, MessageCircle, Clock, Loader2 } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
+import { RoleBadge } from "@/components/miniapp/role-badge"
 
 export interface SharedProfile {
   id: number
   nick: string
   avatar: string | null
   bio: string | null
+  role?: string
 }
 
 export function ProfileViewSheet({
@@ -82,7 +84,10 @@ export function ProfileViewSheet({
                 className="size-14 rounded-2xl object-cover ring-1 ring-border"
               />
               <div>
-                <p className="font-display text-xl font-bold leading-tight">{profile.nick}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-display text-xl font-bold leading-tight">{profile.nick}</p>
+                  <RoleBadge role={profile.role} />
+                </div>
               </div>
             </div>
 

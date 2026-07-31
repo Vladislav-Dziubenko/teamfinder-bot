@@ -101,6 +101,7 @@ type PersistedState = {
   level: number
   wins: number
   userId: number
+  role: string
   lootCases: LootCase[]
   battlePassTiers: BattlePassTier[]
   battlePassPriceStars: number
@@ -267,6 +268,7 @@ function mapMeToState(me: MeResponse): PersistedState {
     claimedAchievements: achievements.filter((a) => a.claimed).map((a) => a.achievement_id),
     lastQuestAt: 0,
     userId: user.id ?? 0,
+    role: me.role ?? "",
     level: user.level ?? 0,
     wins: user.wins ?? 0,
     lootCases,
@@ -763,6 +765,7 @@ export function useMe() {
       level: nexus.level,
       wins: nexus.wins,
       userId: nexus.userId,
+      role: nexus.role,
       games: nexus.games,
       refresh: nexus.refresh,
     }),
@@ -783,6 +786,7 @@ export function useMe() {
       nexus.level,
       nexus.wins,
       nexus.userId,
+      nexus.role,
       nexus.games,
       nexus.refresh,
     ],

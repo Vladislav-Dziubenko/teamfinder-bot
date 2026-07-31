@@ -19,6 +19,7 @@ export type ChatPreview = {
   lastText: string
   lastTs: number
   unread: number
+  role?: string
 }
 
 /** Парсит ISO-строку из БД (без timezone) как UTC, чтобы даты были корректными. */
@@ -67,6 +68,7 @@ export function useChats(): ChatPreview[] {
             lastText: c.last_text ?? "",
             lastTs: c.last_ts ? parseIsoTs(c.last_ts) : Date.now(),
             unread: c.unread ?? 0,
+            role: c.other_role ?? "",
           }
         })
         setChats(list)
@@ -267,12 +269,16 @@ export type GlobalMessage = {
   ts: number
   nick: string
   avatar: string
+  role?: string
+  deco?: string
 }
 
 const _globalCache: GlobalMessage[] = []
 
 export function useGlobalChat() {
   const [messages, setMessages] = useState<GlobalMessage[]>(_globalCache)
+  const [meRole, setMeRole] = useState<string>("")
+  const [meBanned, setMeBanned] = useState(false)
   const [sending, setSending] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval>>()
 
@@ -282,6 +288,8 @@ export function useGlobalChat() {
       try {
         const data: any = await api.get("/api/global")
         if (cancelled) return
+        setMeRole(data.me_role ?? "")
+        setMeBanned(Boolean(data.me_banned))
         const list: GlobalMessage[] = (data.messages ?? []).map((m: any) => ({
           id: String(m.id ?? ""),
           userId: m.user_id === "me" ? "me" : String(m.user_id ?? ""),
@@ -289,6 +297,8 @@ export function useGlobalChat() {
           ts: m.created_at ? parseIsoTs(m.created_at) : Date.now(),
           nick: m.nick || (m.user_id === "me" ? "You" : "Player"),
           avatar: m.avatar ?? null,
+          role: m.role ?? "",
+          deco: m.deco ?? "",
         }))
         setMessages(list)
         _globalCache.length = 0
@@ -334,7 +344,34 @@ export function useGlobalChat() {
     return false
   }, [sending])
 
-  return { messages, sendGlobal, sending }
+  const deleteMessage = useCallback(async (id: string) => {
+    try {
+      await api.post("/api/global/delete", { message_id: id })
+    } catch {}
+    setMessages((prev) => prev.filter((m) => m.id !== id))
+    const i = _globalCache.findIndex((m) => m.id === id)
+    if (i >= 0) _globalCache.splice(i, 1)
+  }, [])
+
+  const banUser = useCallback(async (userId: string, reason = "") => {
+    try {
+      await api.post("/api/global/ban", { user_id: userId, reason })
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
+  const unbanUser = useCallback(async (userId: string) => {
+    try {
+      await api.post("/api/global/unban", { user_id: userId })
+      return true
+    } catch {
+      return false
+    }
+  }, [])
+
+  return { messages, meRole, meBanned, sendGlobal, sending, deleteMessage, banUser, unbanUser }
 }
 
 export function openChatWithPlayer(myId: number | string, otherId: number | string): string {
