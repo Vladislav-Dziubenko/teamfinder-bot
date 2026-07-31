@@ -52,7 +52,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
   const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem, buyStars, lootCases, refresh } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
-  const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem } | null>(null)
+  const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
 
   useEffect(() => {
@@ -71,12 +71,14 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       const res = await buyStars(c.costStars)
       if (!res.ok) { onToast(res.error ?? t("common.error")); return }
     }
+    setSpin({ box: c, winner: null })
     const res = await openCase(c.id)
     if (!res.ok) {
+      setSpin(null)
       onToast(res.error ?? t("common.error"))
       return
     }
-    if (res.item) setSpin({ box: c, winner: res.item })
+    if (res.item) setSpin((p) => (p ? { box: p.box, winner: res.item! } : p))
   }
 
   const [shopBuying, setShopBuying] = useState<string | null>(null)
@@ -140,14 +142,14 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 <div className="relative shrink-0">
                   <div
                     className={cn(
-                      "grid size-24 place-items-center rounded-2xl border",
-                      c.gold ? "border-stars/40 bg-background/40" : "border-accent/30 bg-background/40",
+                      "size-24 overflow-hidden rounded-2xl border",
+                      c.gold ? "border-stars/40" : "border-accent/30",
                     )}
                   >
                     <img
                       src={c.image || "/placeholder.svg"}
                       alt={c.name}
-                      className={cn("size-20 object-contain transition-transform", isSpin && "animate-float")}
+                      className={cn("size-full object-cover transition-transform", isSpin && "animate-float")}
                     />
                   </div>
                   {c.gold && (
@@ -320,7 +322,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
           box={spin.box}
           winner={spin.winner}
           onDone={() => {
-            setReveal({ item: spin.winner, box: spin.box })
+            setReveal({ item: spin.winner!, box: spin.box })
             setSpin(null)
           }}
         />
@@ -348,7 +350,7 @@ const REEL_LEN = 60
 const WIN_INDEX = 52
 const SPIN_MS = 1500
 
-function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem; onDone: () => void }) {
+function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem | null; onDone: () => void }) {
   const { t } = useI18n()
   const viewportRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
@@ -356,16 +358,17 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
   const [go, setGo] = useState(false)
   const [landed, setLanded] = useState(false)
   const doneRef = useRef(false)
-  const meta = rarityMeta[winner.rarity]
+  const meta = winner ? rarityMeta[winner.rarity] : null
   const winColor = meta?.color ?? "#888"
 
   const reel = useMemo(() => {
     const arr: CaseItem[] = []
-    for (let i = 0; i < REEL_LEN; i++) arr.push(i === WIN_INDEX ? winner : pickWeighted(box.items))
+    for (let i = 0; i < REEL_LEN; i++) arr.push(i === WIN_INDEX && winner ? winner : pickWeighted(box.items))
     return arr
   }, [box, winner])
 
   useEffect(() => {
+    if (!winner || doneRef.current) return
     const vp = viewportRef.current
     if (!vp) return
     const width = vp.clientWidth
@@ -406,19 +409,19 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
       clearTimeout(fallback)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [winner])
 
   function finish() {
     if (doneRef.current) return
     doneRef.current = true
     setLanded(true)
     try {
-      winSfx(rarityRank[winner.rarity] ?? 0)
+      if (winner) winSfx(rarityRank[winner.rarity] ?? 0)
     } catch {}
     setTimeout(onDone, 620)
   }
 
-  const winPct = itemPct(box, winner)
+  const winPct = winner ? itemPct(box, winner) : 0
 
   return (
     <div className="fixed inset-0 z-[65] flex flex-col items-center justify-center bg-background/90 px-4 backdrop-blur-md">
@@ -499,9 +502,11 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem;
           </div>
         </div>
 
-        <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Percent className="size-3.5" /> {t("cases.drop_chance_item", { pct: `${winPct.toFixed(1)}%` })}
-        </p>
+        {winner && (
+          <p className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <Percent className="size-3.5" /> {t("cases.drop_chance_item", { pct: `${winPct.toFixed(1)}%` })}
+          </p>
+        )}
       </div>
     </div>
   )
@@ -526,13 +531,13 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
           {meta.label}
         </p>
         <div
-          className="mx-auto mt-3 grid size-40 place-items-center rounded-3xl border"
+          className="mx-auto mt-3 size-40 overflow-hidden rounded-3xl border"
           style={{ borderColor: meta.color, boxShadow: `0 0 40px -10px ${meta.color}` }}
         >
           {item.image ? (
-            <img src={item.image || "/placeholder.svg"} alt={item.name} className="size-36 object-contain animate-float" />
+            <img src={item.image || "/placeholder.svg"} alt={item.name} className="size-full object-cover animate-float" />
           ) : (
-            <span className="text-6xl">{item.icon}</span>
+            <span className="grid size-full place-items-center text-6xl">{item.icon}</span>
           )}
         </div>
         <h3 className="mt-4 font-display text-xl font-bold text-balance">{item.name}</h3>

@@ -538,7 +538,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
             caseCooldown: { ...p.caseCooldown, [caseId]: until },
           }))
         }
-        await refresh()
+        refresh()
         return { ok: true, item: data.item as CaseItem }
       } catch (e: any) {
         await refresh()
