@@ -243,6 +243,27 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS chat_blocks (
+    blocker_id BIGINT NOT NULL,
+    blocked_id BIGINT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (blocker_id, blocked_id)
+);
+
+CREATE TABLE IF NOT EXISTS chat_mutes (
+    user_id BIGINT NOT NULL,
+    chat_id TEXT NOT NULL,
+    muted_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, chat_id)
+);
+
+CREATE TABLE IF NOT EXISTS global_messages (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    text TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS match_predictions (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -1789,6 +1810,36 @@ class Database:
             )
             return [dict(r) for r in reversed(rows)]
 
+    async def get_chat_status(self, chat_id: str, user_id: int) -> dict:
+        """Возвращает состояние чата для пользователя: muted, blocked (я/собеседник)."""
+        other_ids = [i for i in self._chat_participants(chat_id) if i != user_id]
+        other_id = other_ids[0] if other_ids else None
+        async with self.pool.acquire() as conn:
+            muted_row = await conn.fetchval(
+                "SELECT 1 FROM chat_mutes WHERE user_id = $1 AND chat_id = $2 LIMIT 1",
+                user_id, chat_id,
+            )
+            blocked_row = None
+            if other_id is not None:
+                blocked_row = await conn.fetchval(
+                    "SELECT 1 FROM chat_blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1) LIMIT 1",
+                    user_id, other_id,
+                )
+            blocked_by_other = False
+            if other_id is not None and blocked_row:
+                by_me = await conn.fetchval(
+                    "SELECT 1 FROM chat_blocks WHERE blocker_id = $1 AND blocked_id = $2 LIMIT 1",
+                    user_id, other_id,
+                )
+                if not by_me:
+                    blocked_by_other = True
+            return {
+                "other_id": other_id,
+                "muted": bool(muted_row),
+                "blocked": bool(blocked_row),
+                "blocked_by_other": blocked_by_other,
+            }
+
     async def get_user_chats(self, user_id: int) -> list[dict]:
         async with self.pool.acquire() as conn:
             # Один запрос: последнее сообщение + unread по каждому диалогу.
@@ -1864,6 +1915,87 @@ class Database:
                     "unread": unread,
                 })
             return sorted(results, key=lambda x: x["last_ts"], reverse=True)
+
+    # ---------- Chat: moderation & global ----------
+
+    def _chat_participants(self, chat_id: str) -> list[int]:
+        parts = chat_id.replace("dm-", "").split("-")
+        return [int(p) for p in parts if p.isdigit()]
+
+    async def block_user(self, user_id: int, other_id: int) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO chat_blocks (blocker_id, blocked_id, created_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+                user_id, other_id, now,
+            )
+
+    async def unblock_user(self, user_id: int, other_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM chat_blocks WHERE blocker_id = $1 AND blocked_id = $2",
+                user_id, other_id,
+            )
+
+    async def is_blocked(self, user_id: int, other_id: int) -> bool:
+        """True если хоть одна из сторон заблокировала другую."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchval(
+                "SELECT 1 FROM chat_blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1) LIMIT 1",
+                user_id, other_id,
+            )
+            return row == 1
+
+    async def mute_chat(self, user_id: int, chat_id: str) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO chat_mutes (user_id, chat_id, muted_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+                user_id, chat_id, now,
+            )
+
+    async def unmute_chat(self, user_id: int, chat_id: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM chat_mutes WHERE user_id = $1 AND chat_id = $2",
+                user_id, chat_id,
+            )
+
+    async def is_chat_muted(self, user_id: int, chat_id: str) -> bool:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchval(
+                "SELECT 1 FROM chat_mutes WHERE user_id = $1 AND chat_id = $2 LIMIT 1",
+                user_id, chat_id,
+            )
+            return row == 1
+
+    async def clear_chat(self, chat_id: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM chat_messages WHERE chat_id = $1",
+                chat_id,
+            )
+
+    async def get_global_messages(self, limit: int = 50) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT gm.id, gm.user_id, gm.text, gm.created_at,
+                          COALESCE(mp.nick, '') AS nick, mp.avatar
+                   FROM global_messages gm
+                   LEFT JOIN mini_app_profiles mp ON mp.user_id = gm.user_id
+                   ORDER BY gm.id DESC LIMIT $1""",
+                limit,
+            )
+            return [dict(r) for r in reversed(rows)]
+
+    async def send_global_message(self, user_id: int, text: str) -> dict:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "INSERT INTO global_messages (user_id, text, created_at) VALUES ($1, $2, $3) RETURNING id",
+                user_id, text, now,
+            )
+            return {"id": str(row["id"]), "user_id": user_id, "text": text, "created_at": now}
 
     # ---------- Friends ----------
 

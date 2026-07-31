@@ -112,8 +112,15 @@ function mapMsg(m: any): ChatMessage {
 
 const _msgCache = new Map<string, ChatMessage[]>()
 
+export type ChatStatus = {
+  muted: boolean
+  blocked: boolean
+  blockedByOther: boolean
+}
+
 export function useChatMessages(chatId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>(chatId ? _msgCache.get(chatId) ?? [] : [])
+  const [status, setStatus] = useState<ChatStatus>({ muted: false, blocked: false, blockedByOther: false })
   const [typing, setTyping] = useState(false)
   const optimisticIds = useRef<Set<string>>(new Set())
   const pollingRef = useRef<ReturnType<typeof setInterval>>()
@@ -130,11 +137,19 @@ export function useChatMessages(chatId: string | null) {
       return
     }
     setMessages(_msgCache.get(chatId) ?? [])
+    setStatus({ muted: false, blocked: false, blockedByOther: false })
     let cancelled = false
     async function fetchMsgs(attempt = 0) {
       try {
         const data: any = await api.get("/api/chat/" + chatId)
         if (!cancelled) {
+          if (data.status) {
+            setStatus({
+              muted: Boolean(data.status.muted),
+              blocked: Boolean(data.status.blocked),
+              blockedByOther: Boolean(data.status.blocked_by_other),
+            })
+          }
           const serverMsgs = (data.messages ?? []).map(mapMsg)
           const serverIds = new Set(serverMsgs.map((m: ChatMessage) => m.id))
           setMessages((prev) => {
@@ -173,17 +188,153 @@ export function useChatMessages(chatId: string | null) {
     }
     setMessages((prev) => [...prev, optimistic])
     try {
-      await api.post("/api/chat/" + chatId + "/send", { text })
+      const res: any = await api.post("/api/chat/" + chatId + "/send", { text })
+      if (res?.message?.id != null) {
+        const real: ChatMessage = {
+          id: String(res.message.id),
+          chatId,
+          senderId: "me",
+          text: res.message.text ?? text,
+          ts: res.message.created_at ? parseIsoTs(res.message.created_at) : Date.now(),
+          status: "sent",
+        }
+        setMessages((prev) => {
+          const merged = prev.map((m) => (m.id === id ? real : m))
+          _msgCache.set(chatId, merged)
+          return merged
+        })
+      } else {
+        setMessages((prev) => prev.filter((m) => m.id !== id))
+      }
     } catch {
       setMessages((prev) => prev.filter((m) => m.id !== id))
     }
   }, [chatId])
 
-  return { messages, sendMessage, typing }
+  const clearChat = useCallback(async () => {
+    if (!chatId) return
+    try {
+      await api.post("/api/chat/" + chatId + "/clear")
+    } catch {}
+    setMessages([])
+    optimisticIds.current.clear()
+    _msgCache.set(chatId, [])
+  }, [chatId])
+
+  const blockUser = useCallback(async () => {
+    if (!chatId) return
+    try {
+      await api.post("/api/chat/" + chatId + "/block")
+      setStatus((s) => ({ ...s, blocked: true, blockedByOther: false }))
+    } catch {}
+  }, [chatId])
+
+  const unblockUser = useCallback(async () => {
+    if (!chatId) return
+    try {
+      await api.post("/api/chat/" + chatId + "/unblock")
+      setStatus((s) => ({ ...s, blocked: false, blockedByOther: false }))
+    } catch {}
+  }, [chatId])
+
+  const muteChat = useCallback(async () => {
+    if (!chatId) return
+    try {
+      await api.post("/api/chat/" + chatId + "/mute")
+      setStatus((s) => ({ ...s, muted: true }))
+    } catch {}
+  }, [chatId])
+
+  const unmuteChat = useCallback(async () => {
+    if (!chatId) return
+    try {
+      await api.post("/api/chat/" + chatId + "/unmute")
+      setStatus((s) => ({ ...s, muted: false }))
+    } catch {}
+  }, [chatId])
+
+  return { messages, status, sendMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat }
 }
 
 export async function sendMessageRaw(chatId: string, text: string): Promise<void> {
   await api.post("/api/chat/" + chatId + "/send", { text })
+}
+
+export type GlobalMessage = {
+  id: string
+  userId: string
+  text: string
+  ts: number
+  nick: string
+  avatar: string
+}
+
+const _globalCache: GlobalMessage[] = []
+
+export function useGlobalChat() {
+  const [messages, setMessages] = useState<GlobalMessage[]>(_globalCache)
+  const [sending, setSending] = useState(false)
+  const pollRef = useRef<ReturnType<typeof setInterval>>()
+
+  useEffect(() => {
+    let cancelled = false
+    async function load(attempt = 0) {
+      try {
+        const data: any = await api.get("/api/global")
+        if (cancelled) return
+        const list: GlobalMessage[] = (data.messages ?? []).map((m: any) => ({
+          id: String(m.id ?? ""),
+          userId: m.user_id === "me" ? "me" : String(m.user_id ?? ""),
+          text: m.text ?? "",
+          ts: m.created_at ? parseIsoTs(m.created_at) : Date.now(),
+          nick: m.nick || (m.user_id === "me" ? "You" : "Player"),
+          avatar: m.avatar ?? null,
+        }))
+        setMessages(list)
+        _globalCache.length = 0
+        _globalCache.push(...list)
+      } catch (e: any) {
+        if (e?.status === 503 && attempt < 10 && !cancelled) {
+          await new Promise((r) => setTimeout(r, 1000 + attempt * 500))
+          return load(attempt + 1)
+        }
+      }
+    }
+    load()
+    pollRef.current = setInterval(load, 5000)
+    return () => {
+      cancelled = true
+      clearInterval(pollRef.current)
+    }
+  }, [])
+
+  const sendGlobal = useCallback(async (text: string): Promise<boolean> => {
+    if (!text.trim() || sending) return false
+    setSending(true)
+    try {
+      const res: any = await api.post("/api/global/send", { text })
+      if (res?.message?.id != null) {
+        const msg: GlobalMessage = {
+          id: String(res.message.id),
+          userId: "me",
+          text: res.message.text ?? text,
+          ts: res.message.created_at ? parseIsoTs(res.message.created_at) : Date.now(),
+          nick: "You",
+          avatar: "",
+        }
+        setMessages((prev) => [...prev, msg])
+        _globalCache.push(msg)
+        return true
+      }
+    } catch {
+      return false
+    } finally {
+      setSending(false)
+    }
+    return false
+  }, [sending])
+
+  return { messages, sendGlobal, sending }
 }
 
 export function openChatWithPlayer(myId: number | string, otherId: number | string): string {

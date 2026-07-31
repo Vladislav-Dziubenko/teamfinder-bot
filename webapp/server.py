@@ -1523,7 +1523,8 @@ async def handle_chat_messages(request: web.Request):
     for msg in messages:
         if msg.get("sender_id") == user["id"]:
             msg["sender_id"] = "me"
-    return web.json_response({"messages": messages})
+    status = await db.get_chat_status(chat_id, user["id"])
+    return web.json_response({"messages": messages, "status": status})
 
 
 async def handle_chat_send(request: web.Request):
@@ -1532,12 +1533,91 @@ async def handle_chat_send(request: web.Request):
     chat_id = request.match_info["chat_id"]
     if not await db.can_access_chat(chat_id, user["id"]):
         return web.json_response({"error": "forbidden"}, status=403)
+    status = await db.get_chat_status(chat_id, user["id"])
+    if status["blocked"]:
+        return web.json_response({"error": "blocked"}, status=403)
     body = await request.json()
     text = sanitize(body.get("text", ""), 500)
     if not text:
         return web.json_response({"error": "empty message"}, status=400)
     await db.mark_chat_read(chat_id, user["id"])
     msg = await db.send_message(chat_id, user["id"], text)
+    return web.json_response({"message": msg})
+
+
+async def handle_chat_clear(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    await db.clear_chat(chat_id)
+    return web.json_response({"ok": True})
+
+
+async def handle_chat_block(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    status = await db.get_chat_status(chat_id, user["id"])
+    if status["other_id"] is not None:
+        await db.block_user(user["id"], status["other_id"])
+    return web.json_response({"ok": True})
+
+
+async def handle_chat_unblock(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    status = await db.get_chat_status(chat_id, user["id"])
+    if status["other_id"] is not None:
+        await db.unblock_user(user["id"], status["other_id"])
+    return web.json_response({"ok": True})
+
+
+async def handle_chat_mute(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    await db.mute_chat(user["id"], chat_id)
+    return web.json_response({"ok": True})
+
+
+async def handle_chat_unmute(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    await db.unmute_chat(user["id"], chat_id)
+    return web.json_response({"ok": True})
+
+
+async def handle_global_messages(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    messages = await db.get_global_messages(50)
+    for msg in messages:
+        if msg.get("user_id") == user["id"]:
+            msg["user_id"] = "me"
+    return web.json_response({"messages": messages})
+
+
+async def handle_global_send(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    text = sanitize(body.get("text", ""), 500)
+    if not text:
+        return web.json_response({"error": "empty message"}, status=400)
+    msg = await db.send_global_message(user["id"], text)
+    msg["user_id"] = "me"
     return web.json_response({"message": msg})
 
 
@@ -2117,6 +2197,13 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/chat/list", handle_chat_list)
     app.router.add_get("/api/chat/{chat_id}", handle_chat_messages)
     app.router.add_post("/api/chat/{chat_id}/send", handle_chat_send)
+    app.router.add_post("/api/chat/{chat_id}/clear", handle_chat_clear)
+    app.router.add_post("/api/chat/{chat_id}/block", handle_chat_block)
+    app.router.add_post("/api/chat/{chat_id}/unblock", handle_chat_unblock)
+    app.router.add_post("/api/chat/{chat_id}/mute", handle_chat_mute)
+    app.router.add_post("/api/chat/{chat_id}/unmute", handle_chat_unmute)
+    app.router.add_get("/api/global", handle_global_messages)
+    app.router.add_post("/api/global/send", handle_global_send)
 
     # Profile
     app.router.add_get("/api/profile/by-id/{user_id}", handle_profile_by_id)

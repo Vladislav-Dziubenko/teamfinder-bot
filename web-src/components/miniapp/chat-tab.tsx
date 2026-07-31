@@ -1,10 +1,11 @@
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2 } from "lucide-react"
+import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing } from "lucide-react"
 import {
   useChatMessages,
   useChats,
+  useGlobalChat,
   parseIsoTs,
   type ChatPreview,
 } from "@/lib/chat"
@@ -25,6 +26,7 @@ export function ChatTab({
 }) {
   const { t, lang } = useI18n()
   const [activeId, setActiveId] = useState<string | null>(openChatId ?? null)
+  const [showGlobal, setShowGlobal] = useState(false)
   const playerRef = useRef<Player | undefined>(openPlayer)
   const onConsumedRef = useRef(onOpenConsumed)
   const chats = useChats()
@@ -36,6 +38,7 @@ export function ChatTab({
   useEffect(() => {
     if (openChatId) {
       setActiveId(openChatId)
+      setShowGlobal(false)
       onConsumedRef.current?.()
     }
   }, [openChatId])
@@ -54,11 +57,38 @@ export function ChatTab({
     return <ChatConversation chatId={activeId} player={player} onBack={closeChat} />
   }
 
+  if (showGlobal) {
+    return <GlobalChat onBack={() => setShowGlobal(false)} />
+  }
+
   return (
     <div className="space-y-4 px-4 py-5">
       <div>
         <h1 className="font-display text-2xl font-bold">{t("chat.title")}</h1>
         <p className="text-sm text-muted-foreground text-pretty">{t("chat.subtitle")}</p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card p-1">
+        <button
+          type="button"
+          onClick={() => setShowGlobal(false)}
+          className={cn(
+            "rounded-xl px-3 py-2 text-sm font-bold transition-colors",
+            !showGlobal ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+          )}
+        >
+          {t("chat.dm_tab")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowGlobal(true)}
+          className={cn(
+            "rounded-xl px-3 py-2 text-sm font-bold transition-colors",
+            showGlobal ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+          )}
+        >
+          {t("chat.global_tab")}
+        </button>
       </div>
 
       {chats.length === 0 ? (
@@ -181,15 +211,20 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine }: { 
 
 function ChatConversation({ chatId, player, onBack }: { chatId: string; player?: ChatPreview["player"]; onBack: () => void }) {
   const { t, lang } = useI18n()
-  const { messages, sendMessage, typing } = useChatMessages(chatId)
+  const { messages, status, sendMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat } = useChatMessages(chatId)
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
   }, [messages.length, typing])
+
+  const blocked = status?.blocked ?? false
+  const muted = status?.muted ?? false
+  const blockedByOther = status?.blockedByOther ?? false
 
   const emojis = useMemo(
     () => ["😀","😂","🥰","😎","🤔","😢","😡","🔥","⭐","💯","❤️","👍","🎉","✨","💪","🙏","😢","🤗","🤩","💀"],
@@ -211,6 +246,25 @@ function ChatConversation({ chatId, player, onBack }: { chatId: string; player?:
     setDraft("")
   }
 
+  function actionClear() {
+    setMenuOpen(false)
+    clearChat()
+  }
+
+  function actionBlock() {
+    setMenuOpen(false)
+    if (blocked) unblockUser()
+    else blockUser()
+  }
+
+  function actionMute() {
+    setMenuOpen(false)
+    if (muted) unmuteChat()
+    else muteChat()
+  }
+
+  const canSend = !blockedByOther
+
   return (
     <div className="fixed inset-x-0 top-0 bottom-[60px] z-50 mx-auto flex max-w-md flex-col bg-background pb-[env(safe-area-inset-bottom)]">
       {/* Header */}
@@ -222,10 +276,50 @@ function ChatConversation({ chatId, player, onBack }: { chatId: string; player?:
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-sm font-bold">{player?.nick ?? t("common.unknown")}</p>
           <p className="text-[11px] text-accent">
-            {typing ? t("common.typing") : player?.online ? t("common.online") : player?.lastSeen ? formatLastSeen(player.lastSeen, lang) : t("common.offline")}
+            {blockedByOther
+              ? t("chat.blocked_hint")
+              : typing
+                ? t("common.typing")
+                : player?.online
+                  ? t("common.online")
+                  : player?.lastSeen
+                    ? formatLastSeen(player.lastSeen, lang)
+                    : t("common.offline")}
           </p>
         </div>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={t("chat.menu")}
+            className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90"
+          >
+            <MoreVertical className="size-5" />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-11 z-50 w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+              <button type="button" onClick={actionMute} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
+                {muted ? <BellRing className="size-4 text-muted-foreground" /> : <BellOff className="size-4 text-muted-foreground" />}
+                {muted ? t("chat.unmute") : t("chat.mute")}
+              </button>
+              <button type="button" onClick={actionBlock} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
+                {blocked ? <Unlock className="size-4 text-muted-foreground" /> : <Ban className="size-4 text-muted-foreground" />}
+                {blocked ? t("chat.unblock") : t("chat.block")}
+              </button>
+              <button type="button" onClick={actionClear} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-destructive hover:bg-muted active:bg-muted">
+                <Trash2 className="size-4" />
+                {t("chat.clear")}
+              </button>
+            </div>
+          )}
+        </div>
       </header>
+
+      {blockedByOther && (
+        <div className="border-b border-border bg-muted/50 px-4 py-2 text-center text-xs text-muted-foreground">
+          {t("chat.blocked_by_other")}
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
@@ -233,13 +327,125 @@ function ChatConversation({ chatId, player, onBack }: { chatId: string; player?:
           const mine = m.senderId === "me"
           return <MessageBubble key={m.id} message={m} mine={mine} />
         })}
-        {typing && (
+        {typing && !blockedByOther && (
           <div className="flex justify-start">
             <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-border bg-card px-3 py-3">
               <Dot /> <Dot delay="150ms" /> <Dot delay="300ms" />
             </div>
           </div>
         )}
+      </div>
+
+      {/* Emoji strip */}
+      {showEmoji && canSend && (
+        <div className="flex flex-wrap gap-1.5 border-t border-border bg-card/85 px-3 py-2 backdrop-blur-xl">
+          {emojis.map((e) => (
+            <button key={e} type="button" onClick={() => insertEmoji(e)} className="grid size-9 place-items-center rounded-lg text-lg active:scale-90">
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2.5 backdrop-blur-xl">
+        {canSend ? (
+          <>
+            <button type="button" onClick={() => setShowEmoji((v) => !v)} aria-label={t("chat.emoji")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
+              <Smile className="size-5" />
+            </button>
+            <button type="button" onClick={openStickerPanel} aria-label={t("chat.sticker")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
+              <Sticker className="size-5" />
+            </button>
+            <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }} placeholder={t("chat.input_placeholder")} className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50" />
+            <button type="button" onClick={submit} disabled={!draft.trim()} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
+              <Send className="size-5" />
+            </button>
+          </>
+        ) : (
+          <div className="flex-1 py-3 text-center text-sm text-muted-foreground">{t("chat.blocked_hint")}</div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function GlobalChat({ onBack }: { onBack: () => void }) {
+  const { t, lang } = useI18n()
+  const { messages, sendGlobal, sending } = useGlobalChat()
+  const [draft, setDraft] = useState("")
+  const [showEmoji, setShowEmoji] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
+  }, [messages.length])
+
+  const emojis = useMemo(
+    () => ["😀","😂","🥰","😎","🤔","😢","😡","🔥","⭐","💯","❤️","👍","🎉","✨","💪","🙏","😢","🤗","🤩","💀"],
+    [],
+  )
+
+  function insertEmoji(emoji: string) {
+    setDraft((d) => d + emoji)
+  }
+
+  async function submit() {
+    if (!draft.trim()) return
+    const ok = await sendGlobal(draft)
+    if (ok) setDraft("")
+  }
+
+  return (
+    <div className="fixed inset-x-0 top-0 bottom-[60px] z-50 mx-auto flex max-w-md flex-col bg-background pb-[env(safe-area-inset-bottom)]">
+      {/* Header */}
+      <header className="flex items-center gap-3 border-b border-border bg-card/85 px-3 py-3 backdrop-blur-xl">
+        <button type="button" onClick={onBack} aria-label={t("chat.back")} className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90">
+          <ChevronLeft className="size-5" />
+        </button>
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-display text-sm font-bold">{t("chat.global_title")}</p>
+          <p className="text-[11px] text-muted-foreground">{t("chat.global_subtitle")}</p>
+        </div>
+      </header>
+
+      {/* Messages */}
+      <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+        {messages.length === 0 && (
+          <div className="rounded-3xl border border-dashed border-border py-12 text-center">
+            <MessagesSquare className="mx-auto size-8 text-muted-foreground" />
+            <p className="mt-2 font-display text-lg font-bold">{t("chat.empty_title")}</p>
+            <p className="text-sm text-muted-foreground">{t("chat.empty_hint")}</p>
+          </div>
+        )}
+        {messages.map((m) => {
+          const mine = m.userId === "me"
+          return (
+            <div key={m.id} className={cn("flex", mine ? "justify-end" : "justify-start")}>
+              <div
+                className={cn(
+                  "max-w-[78%] rounded-2xl px-3 py-2 text-sm",
+                  mine
+                    ? "rounded-br-md bg-primary text-primary-foreground"
+                    : "rounded-bl-md border border-border bg-card text-card-foreground",
+                )}
+              >
+                {!mine && (
+                  <div className="mb-1 flex items-center gap-1.5">
+                    <img src={m.avatar || "/placeholder.svg"} alt={m.nick} className="size-4 rounded-full object-cover" />
+                    <span className="text-[11px] font-bold text-accent">{m.nick}</span>
+                  </div>
+                )}
+                <p className="text-pretty leading-relaxed">{m.text}</p>
+                <div className="mt-1 flex items-center justify-end gap-2">
+                  <span className={cn("text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
+                    {relativeTime(m.ts, lang)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       {/* Emoji strip */}
@@ -258,12 +464,15 @@ function ChatConversation({ chatId, player, onBack }: { chatId: string; player?:
         <button type="button" onClick={() => setShowEmoji((v) => !v)} aria-label={t("chat.emoji")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
           <Smile className="size-5" />
         </button>
-        <button type="button" onClick={openStickerPanel} aria-label={t("chat.sticker")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
-          <Sticker className="size-5" />
-        </button>
-        <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }} placeholder={t("chat.input_placeholder")} className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50" />
-        <button type="button" onClick={submit} disabled={!draft.trim()} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
-          <Send className="size-5" />
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }}
+          placeholder={t("chat.input_placeholder")}
+          className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
+        />
+        <button type="button" onClick={submit} disabled={!draft.trim() || sending} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
+          {sending ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
         </button>
       </div>
     </div>
