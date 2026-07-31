@@ -1791,18 +1791,34 @@ class Database:
 
     async def get_user_chats(self, user_id: int) -> list[dict]:
         async with self.pool.acquire() as conn:
+            # Один запрос: последнее сообщение + unread по каждому диалогу.
             rows = await conn.fetch(
-                """SELECT DISTINCT chat_id FROM chat_messages
-                   WHERE sender_id = $1
-                      OR chat_id LIKE $2
-                      OR chat_id LIKE $3""",
+                """WITH my_chats AS (
+                       SELECT DISTINCT chat_id FROM chat_messages
+                       WHERE chat_id LIKE 'dm-%'
+                         AND (sender_id = $1 OR chat_id LIKE $2 OR chat_id LIKE $3)
+                   ),
+                   last_msg AS (
+                       SELECT DISTINCT ON (chat_id) chat_id, text, created_at
+                       FROM chat_messages
+                       WHERE chat_id IN (SELECT chat_id FROM my_chats)
+                       ORDER BY chat_id, id DESC
+                   )
+                   SELECT lm.chat_id, lm.text, lm.created_at,
+                          (SELECT COUNT(*) FROM chat_messages c
+                            WHERE c.chat_id = lm.chat_id AND c.sender_id != $1
+                              AND c.id > COALESCE((SELECT MAX(id) FROM chat_messages c2
+                                                   WHERE c2.chat_id = lm.chat_id AND c2.sender_id = $1), 0)) AS unread
+                   FROM last_msg lm
+                   ORDER BY lm.created_at DESC""",
                 user_id,
                 f"dm-{user_id}-%",
                 f"dm-%-{user_id}",
             )
-            all_ids = set(r["chat_id"] for r in rows)
-            results = []
-            for cid in all_ids:
+            other_ids = set()
+            chat_meta = {}
+            for r in rows:
+                cid = r["chat_id"]
                 if not cid or not isinstance(cid, str) or not cid.startswith("dm-"):
                     continue
                 parts = cid.replace("dm-", "").split("-")
@@ -1816,33 +1832,37 @@ class Database:
                     continue
                 if other_id == user_id:
                     continue
-                row = await conn.fetchrow(
-                    "SELECT id, chat_id, sender_id, text, created_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT 1",
-                    cid,
+                other_ids.add(other_id)
+                chat_meta[cid] = (other_id, r["text"], r["created_at"], r["unread"] or 0)
+
+            profiles = {}
+            if other_ids:
+                profile_rows = await conn.fetch(
+                    """SELECT mp.user_id, COALESCE(mp.nick, '') AS nick, mp.avatar, u.last_active_at
+                       FROM mini_app_profiles mp
+                       LEFT JOIN users u ON u.user_id = mp.user_id
+                       WHERE mp.user_id = ANY($1::BIGINT[])""",
+                    list(other_ids),
                 )
-                if row:
-                    unread = await conn.fetchval(
-                        "SELECT COUNT(*) FROM chat_messages WHERE chat_id = $1 AND sender_id != $2 AND id > COALESCE((SELECT MAX(id) FROM chat_messages WHERE chat_id = $1 AND sender_id = $2), 0)",
-                        cid, user_id,
-                    )
-                    profile = await conn.fetchrow(
-                        "SELECT COALESCE(mp.nick, $2) AS nick, mp.avatar, u.last_active_at FROM mini_app_profiles mp LEFT JOIN users u ON u.user_id = mp.user_id WHERE mp.user_id = $1",
-                        other_id, str(other_id),
-                    )
-                    other_avatar = profile["avatar"] if profile else f"/player-{((other_id % 4) + 1)}.png"
-                    other_online = profile and profile["last_active_at"] and (datetime.utcnow() - datetime.fromisoformat(profile["last_active_at"])).total_seconds() < 300
-                    other_last_seen = profile["last_active_at"] if profile else None
-                    results.append({
-                        "chat_id": cid,
-                        "other_id": other_id,
-                        "other_nick": profile["nick"] if profile else str(other_id),
-                        "other_avatar": other_avatar,
-                        "other_online": bool(other_online),
-                        "other_last_seen": other_last_seen,
-                        "last_text": row["text"],
-                        "last_ts": row["created_at"],
-                        "unread": unread or 0,
-                    })
+                for pr in profile_rows:
+                    profiles[pr["user_id"]] = pr
+
+            results = []
+            for cid, (other_id, last_text, last_ts, unread) in chat_meta.items():
+                profile = profiles.get(other_id)
+                other_avatar = profile["avatar"] if profile else f"/player-{((other_id % 4) + 1)}.png"
+                other_online = profile and profile["last_active_at"] and (datetime.utcnow() - datetime.fromisoformat(profile["last_active_at"])).total_seconds() < 300
+                results.append({
+                    "chat_id": cid,
+                    "other_id": other_id,
+                    "other_nick": (profile["nick"] if profile else "") or str(other_id),
+                    "other_avatar": other_avatar,
+                    "other_online": bool(other_online),
+                    "other_last_seen": profile["last_active_at"] if profile else None,
+                    "last_text": last_text,
+                    "last_ts": last_ts,
+                    "unread": unread,
+                })
             return sorted(results, key=lambda x: x["last_ts"], reverse=True)
 
     # ---------- Friends ----------

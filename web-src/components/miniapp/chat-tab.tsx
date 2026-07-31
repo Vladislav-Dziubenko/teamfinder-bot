@@ -5,6 +5,7 @@ import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, L
 import {
   useChatMessages,
   useChats,
+  parseIsoTs,
   type ChatPreview,
 } from "@/lib/chat"
 import { useI18n } from "@/lib/i18n"
@@ -283,7 +284,7 @@ function formatMsgTime(ts: number, lang: string): string {
 }
 
 function formatLastSeen(raw: string, lang: string): string {
-  const ts = new Date(raw).getTime()
+  const ts = parseIsoTs(raw)
   if (!Number.isFinite(ts)) return raw
   return relativeTime(ts, lang)
 }

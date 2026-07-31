@@ -21,6 +21,13 @@ export type ChatPreview = {
   unread: number
 }
 
+/** Парсит ISO-строку из БД (без timezone) как UTC, чтобы даты были корректными. */
+export function parseIsoTs(raw: string): number {
+  if (!raw) return NaN
+  const normalized = /[zZ]|[+-]\d\d:\d\d$/.test(raw) ? raw : raw + "Z"
+  return new Date(normalized).getTime()
+}
+
 export function chatIdForPair(id1: number | string, id2: number | string): string {
   const [a, b] = [String(id1), String(id2)].sort()
   return `dm-${a}-${b}`
@@ -29,7 +36,7 @@ export function chatIdForPair(id1: number | string, id2: number | string): strin
 let _chats: ChatPreview[] = []
 
 export function useChats(): ChatPreview[] {
-  const [chats, setChats] = useState<ChatPreview[]>([])
+  const [chats, setChats] = useState<ChatPreview[]>(_chats)
   const pollingRef = useRef<ReturnType<typeof setInterval>>()
 
   useEffect(() => {
@@ -58,7 +65,7 @@ export function useChats(): ChatPreview[] {
               lastSeen,
             },
             lastText: c.last_text ?? "",
-            lastTs: c.last_ts ? new Date(c.last_ts).getTime() : Date.now(),
+            lastTs: c.last_ts ? parseIsoTs(c.last_ts) : Date.now(),
             unread: c.unread ?? 0,
           }
         })
@@ -98,13 +105,15 @@ function mapMsg(m: any): ChatMessage {
     chatId: m.chat_id ?? "",
     senderId: m.sender_id === "me" ? "me" : String(m.sender_id ?? ""),
     text: m.text ?? "",
-    ts: m.created_at ? new Date(m.created_at).getTime() : Date.now(),
+    ts: m.created_at ? parseIsoTs(m.created_at) : Date.now(),
     status: m.read_at ? "read" : "sent",
   }
 }
 
+const _msgCache = new Map<string, ChatMessage[]>()
+
 export function useChatMessages(chatId: string | null) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const [messages, setMessages] = useState<ChatMessage[]>(chatId ? _msgCache.get(chatId) ?? [] : [])
   const [typing, setTyping] = useState(false)
   const optimisticIds = useRef<Set<string>>(new Set())
   const pollingRef = useRef<ReturnType<typeof setInterval>>()
@@ -120,6 +129,7 @@ export function useChatMessages(chatId: string | null) {
       optimisticIds.current.clear()
       return
     }
+    setMessages(_msgCache.get(chatId) ?? [])
     let cancelled = false
     async function fetchMsgs(attempt = 0) {
       try {
@@ -129,7 +139,9 @@ export function useChatMessages(chatId: string | null) {
           const serverIds = new Set(serverMsgs.map((m: ChatMessage) => m.id))
           setMessages((prev) => {
             const kept = prev.filter((m) => m.id.startsWith("opt-") && !serverIds.has(m.id))
-            return [...serverMsgs, ...kept]
+            const merged = [...serverMsgs, ...kept]
+            _msgCache.set(chatId, merged)
+            return merged
           })
         }
       } catch (e: any) {
