@@ -1906,8 +1906,7 @@ class Database:
                    SELECT lm.chat_id, lm.text, lm.created_at,
                           (SELECT COUNT(*) FROM chat_messages c
                             WHERE c.chat_id = lm.chat_id AND c.sender_id != $1
-                              AND c.id > COALESCE((SELECT MAX(id) FROM chat_messages c2
-                                                   WHERE c2.chat_id = lm.chat_id AND c2.sender_id = $1), 0)) AS unread
+                              AND c.read_at IS NULL) AS unread
                    FROM last_msg lm
                    ORDER BY lm.created_at DESC""",
                 user_id,
