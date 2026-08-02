@@ -27,7 +27,6 @@
   "common.error": "Feil",
   "common.retry": "Prøv igjen",
   "common.unknown": "Ukjent",
-
   "nav.home": "Hjem",
   "nav.match": "Lagkamerater",
   "nav.predictions": "Spådommer",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Pass",
   "nav.promo": "Promo",
   "nav.profile": "Profil",
-
   "topbar.tagline": "finn lagkamerater",
   "topbar.language": "Språk",
-
   "lang.title": "App-språk",
   "lang.search": "Søk språk…",
-
   "home.hero_title": "Finn ditt drømmelag",
   "home.hero_cta": "Start søk",
   "home.stat_coins": "Mynter",
   "home.stat_stars": "Stjerner",
-
   "match.title": "Søk etter lagkamerater",
   "match.cta_search": "Finn lagkamerater",
-
   "cases.title": "Nexus Kasser",
   "cases.inventory_title": "Ditt inventar",
   "cases.coin_shop_title": "Myntbutikk",
-
   "donate.title": "Støtt og oppgrader",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Promokoder",
@@ -63,10 +56,12 @@
   "stats.title": "Statistikk",
   "chat.title": "Meldinger",
   "predictions.title": "Spådommer",
-
   "profile.edit_profile": "Rediger profil",
   "profile.streak_title": "Daglig rekke",
   "profile.referral_title": "Inviter venner",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Prestasjoner"
+  "profile.achievements_title": "Prestasjoner",
+  "nav.model": "Modell",
+  "cases.stars_added": "Stjerner lagt til",
+  "cases.jackpot_collect": "Hent jackpot"
 }

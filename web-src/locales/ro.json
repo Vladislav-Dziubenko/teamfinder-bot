@@ -27,7 +27,6 @@
   "common.error": "Eroare",
   "common.retry": "Încercați din nou",
   "common.unknown": "Necunoscut",
-
   "nav.home": "Acasă",
   "nav.match": "Colegi",
   "nav.predictions": "Predicții",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Pas",
   "nav.promo": "Promo",
   "nav.profile": "Profil",
-
   "topbar.tagline": "găsește colegi",
   "topbar.language": "Limbă",
-
   "lang.title": "Limba aplicației",
   "lang.search": "Căutați limba…",
-
   "home.hero_title": "Găsește-ți echipa de vis",
   "home.hero_cta": "Începe căutarea",
   "home.stat_coins": "Monede",
   "home.stat_stars": "Stele",
-
   "match.title": "Caută colegi",
   "match.cta_search": "Găsește colegi",
-
   "cases.title": "Cufere Nexus",
   "cases.inventory_title": "Inventarul tău",
   "cases.coin_shop_title": "Magazin de monede",
-
   "donate.title": "Susține și îmbunătățește",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Coduri promoționale",
@@ -63,10 +56,12 @@
   "stats.title": "Statistici",
   "chat.title": "Mesaje",
   "predictions.title": "Predicții",
-
   "profile.edit_profile": "Editează profilul",
   "profile.streak_title": "Serie zilnică",
   "profile.referral_title": "Invită prieteni",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Realizări"
+  "profile.achievements_title": "Realizări",
+  "nav.model": "Model",
+  "cases.stars_added": "Stele adăugate",
+  "cases.jackpot_collect": "Ridică jackpotul"
 }

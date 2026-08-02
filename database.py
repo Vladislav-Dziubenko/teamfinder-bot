@@ -1,3 +1,5 @@
+import random
+
 import asyncpg
 from datetime import datetime, timedelta
 from urllib.parse import urlparse
@@ -340,6 +342,17 @@ CREATE TABLE IF NOT EXISTS audit_log (
     details TEXT,
     ip TEXT,
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS limited_models (
+    model_id TEXT NOT NULL DEFAULT 'nexus-model',
+    token_id INTEGER NOT NULL,
+    owner_id BIGINT NOT NULL,
+    acquired_at TEXT NOT NULL DEFAULT '',
+    sale_price_stars INTEGER NOT NULL DEFAULT 0,
+    listed_at TEXT,
+    last_income_at TEXT,
+    PRIMARY KEY (model_id, token_id)
 );
 """
 
@@ -701,6 +714,7 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages (chat_id)",
             "CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages (chat_id, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_limited_models_owner ON limited_models (owner_id)",
             "CREATE INDEX IF NOT EXISTS idx_match_predictions_user ON match_predictions (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_pvp_challenges_creator ON pvp_challenges (creator_id)",
             "CREATE INDEX IF NOT EXISTS idx_pvp_challenges_status ON pvp_challenges (status)",
@@ -1136,6 +1150,187 @@ class Database:
 
     async def spend_stars(self, user_id: int, amount: int) -> bool:
         return await self.adjust_currency(user_id, stars=-amount)
+
+    # ---------- Limited 3D model (Nexus Premium jackpot) ----------
+    # Лимитированная 3D-модель из золотого кейса. Тираж ограничен
+    # LIMITED_MODEL_SUPPLY экземплярами, владение/продажа/передача — внутренняя
+    # система (реальный ончейн-TON подключается отдельным этапом).
+    LIMITED_MODEL_ID = "nexus-model"
+    LIMITED_MODEL_SUPPLY = 20
+    LIMITED_MODEL_WIN_STARS = 50000
+    # Комиссия с продажи, уходящая разработчику (комиссия платформы + роялти 1-5%).
+    LIMITED_MODEL_SALE_CUT = 0.05
+    # Фиксированная плата (в звёздах) за передачу модели другому пользователю.
+    LIMITED_MODEL_TRANSFER_FEE = 5
+
+    async def next_limited_token(self, conn: asyncpg.Connection) -> int | None:
+        """Выдаёт следующий свободный номер экземпляра (1..SUPPLY) или None, если тираж распродан.
+        Требует активной транзакции на conn (advisory lock исключает гонки)."""
+        await conn.execute("SELECT pg_advisory_xact_lock(hashtext('nexus-limited-model-claim'))")
+        count = await conn.fetchval(
+            "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
+            self.LIMITED_MODEL_ID,
+        )
+        if count >= self.LIMITED_MODEL_SUPPLY:
+            return None
+        mx = await conn.fetchval(
+            "SELECT COALESCE(MAX(token_id), 0) FROM limited_models WHERE model_id = $1",
+            self.LIMITED_MODEL_ID,
+        )
+        return mx + 1
+
+    async def grant_limited_model(self, conn: asyncpg.Connection, user_id: int, token_id: int, dev_id: int | None) -> str:
+        """Внутри текущей транзакции: владение моделью + 50 000 ⭐ + роль модератор/админ + пожизненный премиум.
+        Возвращает выданную роль."""
+        now = datetime.utcnow().isoformat()
+        await conn.execute(
+            "INSERT INTO limited_models (model_id, token_id, owner_id, acquired_at) VALUES ($1, $2, $3, $4)",
+            self.LIMITED_MODEL_ID, token_id, user_id, now,
+        )
+        await self._adjust_currency_conn(conn, user_id, stars=self.LIMITED_MODEL_WIN_STARS)
+        role = random.choice(["moderator", "admin"])
+        await conn.execute(
+            """INSERT INTO user_roles (user_id, role, granted_by, created_at)
+               VALUES ($1, $2, $3, $4)
+               ON CONFLICT (user_id) DO UPDATE SET role = $2, granted_by = $3, created_at = $4""",
+            user_id, role, dev_id, now,
+        )
+        await conn.execute(
+            "UPDATE users SET pro_until = $1 WHERE user_id = $2",
+            "2100-01-01T00:00:00", user_id,
+        )
+        return role
+
+    async def get_limited_models_state(self, user_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            mine_rows = await conn.fetch(
+                "SELECT token_id, acquired_at, sale_price_stars, last_income_at FROM limited_models "
+                "WHERE model_id = $1 AND owner_id = $2 ORDER BY token_id",
+                self.LIMITED_MODEL_ID, user_id,
+            )
+            market_rows = await conn.fetch(
+                """SELECT lm.token_id, lm.sale_price_stars, lm.listed_at,
+                          COALESCE(mp.nick, '') AS seller_nick, mp.avatar
+                   FROM limited_models lm
+                   LEFT JOIN mini_app_profiles mp ON mp.user_id = lm.owner_id
+                   WHERE lm.model_id = $1 AND lm.sale_price_stars > 0
+                   ORDER BY lm.sale_price_stars ASC""",
+                self.LIMITED_MODEL_ID,
+            )
+            claimed = await conn.fetchval(
+                "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
+                self.LIMITED_MODEL_ID,
+            )
+            return {
+                "mine": [dict(r) for r in mine_rows],
+                "market": [dict(r) for r in market_rows],
+                "claimed": claimed,
+                "remaining": max(0, self.LIMITED_MODEL_SUPPLY - claimed),
+                "supply": self.LIMITED_MODEL_SUPPLY,
+            }
+
+    async def list_limited_model(self, owner_id: int, token_id: int, price: int) -> bool:
+        if price <= 0:
+            return False
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT 1 FROM limited_models WHERE model_id = $1 AND token_id = $2 AND owner_id = $3",
+                    self.LIMITED_MODEL_ID, token_id, owner_id,
+                )
+                if not row:
+                    return False
+                await conn.execute(
+                    "UPDATE limited_models SET sale_price_stars = $1, listed_at = $2 WHERE model_id = $3 AND token_id = $4",
+                    price, now, self.LIMITED_MODEL_ID, token_id,
+                )
+                return True
+
+    async def unlist_limited_model(self, owner_id: int, token_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            result = await conn.execute(
+                "UPDATE limited_models SET sale_price_stars = 0, listed_at = NULL "
+                "WHERE model_id = $1 AND token_id = $2 AND owner_id = $3",
+                self.LIMITED_MODEL_ID, token_id, owner_id,
+            )
+            return result == "UPDATE 1"
+
+    async def buy_limited_model(self, buyer_id: int, token_id: int, dev_id: int | None) -> tuple[bool, str, int]:
+        """Покупка выставленной модели. Покупатель платит цену, продавец получает цену-комиссию,
+        разработчику уходит LIMITED_MODEL_SALE_CUT (комиссия + роялти)."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT owner_id, sale_price_stars FROM limited_models "
+                    "WHERE model_id = $1 AND token_id = $2 FOR UPDATE",
+                    self.LIMITED_MODEL_ID, token_id,
+                )
+                if not row or row["sale_price_stars"] <= 0:
+                    return False, "not listed", 0
+                if row["owner_id"] == buyer_id:
+                    return False, "own model", 0
+                price = row["sale_price_stars"]
+                if not await self._adjust_currency_conn(conn, buyer_id, stars=-price):
+                    return False, "not enough stars", price
+                seller_cut = int(price * (1 - self.LIMITED_MODEL_SALE_CUT))
+                dev_cut = price - seller_cut
+                await self._adjust_currency_conn(conn, row["owner_id"], stars=seller_cut)
+                if dev_id:
+                    await self._adjust_currency_conn(conn, dev_id, stars=dev_cut)
+                now = datetime.utcnow().isoformat()
+                await conn.execute(
+                    "UPDATE limited_models SET owner_id = $1, sale_price_stars = 0, listed_at = NULL, acquired_at = $2 "
+                    "WHERE model_id = $3 AND token_id = $4",
+                    buyer_id, now, self.LIMITED_MODEL_ID, token_id,
+                )
+                return True, "ok", price
+
+    async def transfer_limited_model(self, from_id: int, to_id: int, token_id: int, dev_id: int | None) -> tuple[bool, str]:
+        """Прямая передача модели другому пользователю. Отправитель платит небольшую комиссию в звёздах."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT owner_id FROM limited_models WHERE model_id = $1 AND token_id = $2 FOR UPDATE",
+                    self.LIMITED_MODEL_ID, token_id,
+                )
+                if not row or row["owner_id"] != from_id:
+                    return False, "not owner"
+                if from_id == to_id:
+                    return False, "same user"
+                if not await self._adjust_currency_conn(conn, from_id, stars=-self.LIMITED_MODEL_TRANSFER_FEE):
+                    return False, "not enough stars"
+                if dev_id:
+                    await self._adjust_currency_conn(conn, dev_id, stars=self.LIMITED_MODEL_TRANSFER_FEE)
+                now = datetime.utcnow().isoformat()
+                await conn.execute(
+                    "UPDATE limited_models SET owner_id = $1, sale_price_stars = 0, listed_at = NULL, acquired_at = $2 "
+                    "WHERE model_id = $3 AND token_id = $4",
+                    to_id, now, self.LIMITED_MODEL_ID, token_id,
+                )
+                return True, "ok"
+
+    async def pay_limited_model_income(self) -> int:
+        """Ежедневный доход владельцу модели: 50-100 ⭐ за каждый экземпляр, раз в сутки (UTC)."""
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        now = datetime.utcnow().isoformat()
+        paid = 0
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                rows = await conn.fetch(
+                    "SELECT owner_id, token_id FROM limited_models "
+                    "WHERE model_id = $1 AND (last_income_at IS NULL OR SUBSTRING(last_income_at, 1, 10) <> $2) FOR UPDATE",
+                    self.LIMITED_MODEL_ID, today,
+                )
+                for r in rows:
+                    amount = random.randint(50, 100)
+                    await self._adjust_currency_conn(conn, r["owner_id"], stars=amount)
+                    await conn.execute(
+                        "UPDATE limited_models SET last_income_at = $1 WHERE model_id = $2 AND token_id = $3",
+                        now, self.LIMITED_MODEL_ID, r["token_id"],
+                    )
+                    paid += 1
+        return paid
 
     # Case methods
     async def get_case_opens_today(self, user_id: int, case_id: str) -> int:

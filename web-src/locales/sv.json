@@ -27,7 +27,6 @@
   "common.error": "Fel",
   "common.retry": "Försök igen",
   "common.unknown": "Okänd",
-
   "nav.home": "Hem",
   "nav.match": "Lagkamrater",
   "nav.predictions": "Förutsägelser",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Pass",
   "nav.promo": "Promo",
   "nav.profile": "Profil",
-
   "topbar.tagline": "hitta lagkamrater",
   "topbar.language": "Språk",
-
   "lang.title": "App-språk",
   "lang.search": "Sök språk…",
-
   "home.hero_title": "Hitta ditt drömlag",
   "home.hero_cta": "Starta sökning",
   "home.stat_coins": "Mynt",
   "home.stat_stars": "Stjärnor",
-
   "match.title": "Sök lagkamrater",
   "match.cta_search": "Hitta lagkamrater",
-
   "cases.title": "Nexus Lådor",
   "cases.inventory_title": "Ditt lager",
   "cases.coin_shop_title": "Myntbutik",
-
   "donate.title": "Stöd och uppgradera",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Rabattkoder",
@@ -63,10 +56,12 @@
   "stats.title": "Statistik",
   "chat.title": "Meddelanden",
   "predictions.title": "Förutsägelser",
-
   "profile.edit_profile": "Redigera profil",
   "profile.streak_title": "Daglig svit",
   "profile.referral_title": "Bjud in vänner",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Prestationer"
+  "profile.achievements_title": "Prestationer",
+  "nav.model": "Modell",
+  "cases.stars_added": "Stjärnor tillagda",
+  "cases.jackpot_collect": "Hämta jackpot"
 }

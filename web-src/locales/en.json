@@ -422,5 +422,8 @@
   "profile.share_telegram_hint": "Choose chats to send",
   "team.member_count": "{members}/{max} members",
   "team.needs_player": "Need a player",
-  "team.apply": "Apply"
+  "team.apply": "Apply",
+  "nav.model": "Model",
+  "cases.stars_added": "Stars added",
+  "cases.jackpot_collect": "Collect jackpot"
 }

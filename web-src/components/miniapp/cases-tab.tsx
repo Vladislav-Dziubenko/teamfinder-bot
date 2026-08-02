@@ -8,7 +8,7 @@ import { useNexus } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { tick, win as winSfx, whoosh, setMuted, isMuted, ensureAudio } from "@/lib/sfx"
 
-const rarityRank: Record<Rarity, number> = { common: 0, rare: 2, epic: 3, premium: 4 }
+const rarityRank: Record<Rarity, number> = { common: 0, rare: 2, epic: 3, premium: 4, legendary: 6 }
 
 const coinShop: { key: string; name: string; desc: string; image: string; price: number }[] = [
   { key: "buy-premium-card", name: "Премиум-анкета", desc: "Кастом фото, текст и украшения на 1 день", image: "/premium-reveal.png", price: 200 },
@@ -547,6 +547,8 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
           </p>
         )}
       </div>
+
+      {landed && winner?.kind === "model" && <JackpotBurst onDone={() => {}} />}
     </div>
   )
 }
@@ -555,9 +557,17 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
   const { t } = useI18n()
   const meta = rarityMeta[item.rarity]
   const pct = itemPct(box, item)
+  const isJackpot = item.kind === "model"
+  const isStars = item.kind === "stars"
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-6 backdrop-blur-sm">
-      <div className="animate-star-pop relative w-full max-w-xs overflow-hidden rounded-3xl border border-border bg-card p-6 text-center">
+      {isJackpot && <JackpotBurst onDone={() => {}} />}
+      <div
+        className={cn(
+          "animate-star-pop relative w-full max-w-xs overflow-hidden rounded-3xl border bg-card p-6 text-center",
+          isJackpot && "border-[#ffd700]/60 shadow-[0_0_60px_-10px_rgba(255,215,0,0.7)]",
+        )}
+      >
         <button
           type="button"
           onClick={onClose}
@@ -576,11 +586,43 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
           {item.image ? (
             <img src={item.image || "/placeholder.svg"} alt={item.name} className="size-full object-cover animate-float" />
           ) : (
-            <span className="grid size-full place-items-center text-6xl">{item.icon}</span>
+            <span className="grid size-full place-items-center text-6xl animate-float">{item.icon}</span>
           )}
         </div>
         <h3 className="mt-4 font-display text-xl font-bold text-balance">{item.name}</h3>
         <p className="mt-1 text-sm text-muted-foreground text-pretty">{item.desc}</p>
+
+        {isJackpot && (
+          <div className="mt-3 space-y-1.5 rounded-2xl border border-[#ffd700]/40 bg-[#ffd700]/5 p-3 text-left">
+            <p className="flex items-center justify-between gap-2 text-sm font-bold text-[#ffd700]">
+              <span>💎 Экземпляр</span>
+              <span>#{item.token ?? "?"} / 20</span>
+            </p>
+            <p className="flex items-center justify-between gap-2 text-xs">
+              <span>50 000 ⭐</span>
+              <span className="font-semibold text-stars">Получено</span>
+            </p>
+            <p className="flex items-center justify-between gap-2 text-xs">
+              <span>Роль</span>
+              <span className="font-semibold capitalize">{item.role ?? "модератор"}</span>
+            </p>
+            <p className="flex items-center justify-between gap-2 text-xs">
+              <span>Премиум</span>
+              <span className="font-semibold text-accent">Пожизненно</span>
+            </p>
+            <p className="flex items-center justify-between gap-2 text-xs">
+              <span>Доход</span>
+              <span className="font-semibold">50-100 ⭐ в день</span>
+            </p>
+          </div>
+        )}
+
+        {isStars && (
+          <p className="mt-2 flex items-center justify-center gap-1 text-sm font-bold text-stars">
+            <Star className="size-4 fill-stars" /> +{item.stars} {t("cases.stars_added")}
+          </p>
+        )}
+
         <p className="mt-2 flex items-center justify-center gap-1 text-xs font-semibold" style={{ color: meta.color }}>
           <Percent className="size-3.5" /> {t("cases.drop_chance_item", { pct: `${pct.toFixed(1)}%` })}
         </p>
@@ -589,17 +631,73 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
             <Sparkles className="size-3.5" /> {t("cases.premium_activated")}
           </p>
         )}
-        <div className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground">
-          <Coins className="size-3.5" /> {t("cases.sell_hint", { cost: item.sell })}
-        </div>
+        {!isStars && !isJackpot && (
+          <div className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground">
+            <Coins className="size-3.5" /> {t("cases.sell_hint", { cost: item.sell })}
+          </div>
+        )}
         <button
           type="button"
           onClick={onClose}
-          className="mt-4 w-full rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground active:scale-[0.98]"
+          className={cn(
+            "mt-4 w-full rounded-2xl py-3 text-sm font-bold active:scale-[0.98]",
+            isJackpot ? "bg-[#ffd700] text-black shadow-[0_10px_30px_-8px_rgba(255,215,0,0.8)]" : "bg-primary text-primary-foreground",
+          )}
         >
-          {t("cases.collect")}
+          {isJackpot ? t("cases.jackpot_collect") : t("cases.collect")}
         </button>
       </div>
     </div>
   )
+}
+
+function JackpotBurst({ onDone }: { onDone: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const emojis = ["💎", "💰", "⭐", "🤑", "💸", "✨", "🔥", "👑"]
+    const spans: HTMLSpanElement[] = []
+    for (let i = 0; i < 60; i++) {
+      const s = document.createElement("span")
+      s.textContent = emojis[Math.floor(Math.random() * emojis.length)]
+      s.style.position = "absolute"
+      s.style.fontSize = `${18 + Math.random() * 26}px`
+      s.style.left = `${Math.random() * 100}%`
+      s.style.top = "55%"
+      s.style.willChange = "transform, opacity"
+      s.style.filter = "drop-shadow(0 0 6px rgba(255,215,0,0.8))"
+      el.appendChild(s)
+      spans.push(s)
+      s.animate(
+        [
+          { transform: "translate(0,0) scale(0.4)", opacity: 0 },
+          {
+            transform: `translate(${(Math.random() - 0.5) * 260}px, ${-(60 + Math.random() * 180)}px) scale(1.3)`,
+            opacity: 1,
+            offset: 0.4,
+          },
+          {
+            transform: `translate(${(Math.random() - 0.5) * 360}px, ${-720 - Math.random() * 220}px) scale(0.8)`,
+            opacity: 0,
+          },
+        ],
+        { duration: 1400 + Math.random() * 700, easing: "cubic-bezier(.2,.6,.3,1)", fill: "forwards" },
+      )
+    }
+    const flash = document.createElement("div")
+    flash.style.cssText =
+      "position:absolute;inset:0;background:radial-gradient(circle,#fff7cc 0%,#ffd700 25%,rgba(255,180,0,0.5) 50%,transparent 72%);opacity:0"
+    el.appendChild(flash)
+    flash.animate([{ opacity: 0 }, { opacity: 0.95 }, { opacity: 0 }], { duration: 1000, easing: "ease-out" })
+    const t = setTimeout(onDone, 2100)
+    return () => {
+      clearTimeout(t)
+      spans.forEach((x) => x.remove())
+      flash.remove()
+    }
+  }, [onDone])
+
+  return <div ref={ref} className="pointer-events-none fixed inset-0 z-[80] overflow-hidden" />
 }

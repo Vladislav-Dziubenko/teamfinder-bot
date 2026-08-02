@@ -27,7 +27,6 @@
   "common.error": "오류",
   "common.retry": "재시도",
   "common.unknown": "알 수 없음",
-
   "nav.home": "홈",
   "nav.match": "팀원",
   "nav.predictions": "예측",
@@ -37,25 +36,19 @@
   "nav.battlepass": "패스",
   "nav.promo": "프로모",
   "nav.profile": "프로필",
-
   "topbar.tagline": "팀원 찾기",
   "topbar.language": "언어",
-
   "lang.title": "앱 언어",
   "lang.search": "언어 검색…",
-
   "home.hero_title": "꿈의 팀을 찾으세요",
   "home.hero_cta": "검색 시작",
   "home.stat_coins": "코인",
   "home.stat_stars": "스타",
-
   "match.title": "팀원 검색",
   "match.cta_search": "팀원 찾기",
-
   "cases.title": "Nexus 케이스",
   "cases.inventory_title": "내 인벤토리",
   "cases.coin_shop_title": "코인 상점",
-
   "donate.title": "후원하고 성장",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "프로모 코드",
@@ -63,10 +56,12 @@
   "stats.title": "통계",
   "chat.title": "메시지",
   "predictions.title": "예측",
-
   "profile.edit_profile": "프로필 편집",
   "profile.streak_title": "일일 연속",
   "profile.referral_title": "친구 초대",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "업적"
+  "profile.achievements_title": "업적",
+  "nav.model": "모델",
+  "cases.stars_added": "별 추가됨",
+  "cases.jackpot_collect": "잭팟 받기"
 }

@@ -28,7 +28,6 @@
   "common.error": "שגיאה",
   "common.retry": "נסה שוב",
   "common.unknown": "לא ידוע",
-
   "nav.home": "בית",
   "nav.match": "חברים לקבוצה",
   "nav.predictions": "תחזיות",
@@ -38,25 +37,19 @@
   "nav.battlepass": "פאס",
   "nav.promo": "פרומו",
   "nav.profile": "פרופיל",
-
   "topbar.tagline": "מצא חברים לקבוצה",
   "topbar.language": "שפה",
-
   "lang.title": "שפת האפליקציה",
   "lang.search": "חפש שפה…",
-
   "home.hero_title": "מצא את קבוצת החלומות שלך",
   "home.hero_cta": "התחל חיפוש",
   "home.stat_coins": "מטבעות",
   "home.stat_stars": "כוכבים",
-
   "match.title": "חפש חברים לקבוצה",
   "match.cta_search": "מצא חברים לקבוצה",
-
   "cases.title": "קייסים של Nexus",
   "cases.inventory_title": "המלאי שלך",
   "cases.coin_shop_title": "חנות מטבעות",
-
   "donate.title": "תמוך ושדרג",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "קודי פרומו",
@@ -64,10 +57,12 @@
   "stats.title": "סטטיסטיקות",
   "chat.title": "הודעות",
   "predictions.title": "תחזיות",
-
   "profile.edit_profile": "ערוך פרופיל",
   "profile.streak_title": "רצף יומי",
   "profile.referral_title": "הזמן חברים",
   "profile.discord_title": "דיסקורד",
-  "profile.achievements_title": "הישגים"
+  "profile.achievements_title": "הישגים",
+  "nav.model": "דגם",
+  "cases.stars_added": "כוכבים נוספו",
+  "cases.jackpot_collect": "קבל קופה"
 }

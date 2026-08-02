@@ -15,6 +15,24 @@ import { parseIsoTs } from "@/lib/chat"
 
 export type InventoryItem = CaseItem & { uid: string; id?: number }
 
+export type LimitedModel = {
+  token_id: number
+  acquired_at: string
+  sale_price_stars: number
+  listed_at: string | null
+  last_income_at: string | null
+  seller_nick?: string
+  avatar?: string | null
+}
+
+export type ModelState = {
+  mine: LimitedModel[]
+  market: LimitedModel[]
+  claimed: number
+  remaining: number
+  supply: number
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000
 const BP_CLAIM_INTERVAL = 2 * DAY_MS
 const FREE_SEARCHES = 5
@@ -114,6 +132,7 @@ type PersistedState = {
   starPacks: StarPack[]
   referralReward: { coins: number; stars: number }
   games: string[]
+  modelState: ModelState
 }
 
 function makeReferralCode() {
@@ -212,10 +231,11 @@ function defaultState(): PersistedState {
     referralReward: { coins: 0, stars: 0 },
     games: [],
     userId: 0,
+    modelState: { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
   }
 }
 
-function mapMeToState(me: MeResponse): PersistedState {
+function mapMeToState(me: MeResponse, modelState?: ModelState): PersistedState {
   const user = me.user || {}
   const currency = me.currency || {}
   const mini = me.mini_profile || {}
@@ -283,6 +303,7 @@ function mapMeToState(me: MeResponse): PersistedState {
     starPacks: me.star_packs || [],
     referralReward: me.referral_reward || { coins: 50, stars: 5 },
     games: me.mini_profile?.games || [],
+    modelState: modelState || { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
   }
 }
 
@@ -338,6 +359,11 @@ type Nexus = PersistedState & {
   addToInventory: (item: CaseItem) => void
   sellItem: (uid: string) => Promise<void>
   openCase: (caseId: string) => Promise<{ ok: boolean; item?: CaseItem; error?: string }>
+  refreshModels: () => Promise<void>
+  listModel: (tokenId: number, price: number) => Promise<{ ok: boolean; error?: string }>
+  unlistModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
+  buyModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
+  transferModel: (tokenId: number, toUserId: number) => Promise<{ ok: boolean; error?: string }>
   useFreeSearch: () => boolean
   unlockPlayer: (id: string, cost: number) => Promise<boolean>
   caseReadyIn: (caseId: string) => number
@@ -402,10 +428,22 @@ export function NexusProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const me = (await api.get("/api/me")) as MeResponse
-      setS(mapMeToState(me))
+      const [me, modelState] = await Promise.all([
+        api.get("/api/me"),
+        api.get("/api/nexus/model/state"),
+      ])
+      setS(mapMeToState(me as MeResponse, modelState as ModelState))
     } catch (e) {
       console.error("Failed to refresh Nexus state", e)
+    }
+  }, [])
+
+  const refreshModels = useCallback(async () => {
+    try {
+      const state = (await api.get("/api/nexus/model/state")) as ModelState
+      setS((p: PersistedState) => ({ ...p, modelState: state }))
+    } catch (e) {
+      console.error("Failed to refresh model state", e)
     }
   }, [])
 
@@ -547,6 +585,46 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         await refresh()
         console.error("Error opening case:", e)
         return { ok: false, error: e.message || "Не удалось открыть кейс" }
+      }
+    }
+
+    const listModel = async (tokenId: number, price: number): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        await api.post("/api/nexus/model/list", { token_id: tokenId, price })
+        await refreshModels()
+        return { ok: true }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Не удалось выставить модель" }
+      }
+    }
+
+    const unlistModel = async (tokenId: number): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        await api.post("/api/nexus/model/unlist", { token_id: tokenId })
+        await refreshModels()
+        return { ok: true }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Не удалось снять с продажи" }
+      }
+    }
+
+    const buyModel = async (tokenId: number): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        await api.post("/api/nexus/model/buy", { token_id: tokenId })
+        await refresh()
+        return { ok: true }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Не удалось купить модель" }
+      }
+    }
+
+    const transferModel = async (tokenId: number, toUserId: number): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        await api.post("/api/nexus/model/transfer", { token_id: tokenId, to_user_id: toUserId })
+        await refreshModels()
+        return { ok: true }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Не удалось передать модель" }
       }
     }
 
@@ -706,6 +784,11 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       addToInventory,
       sellItem,
       openCase,
+      refreshModels,
+      listModel,
+      unlistModel,
+      buyModel,
+      transferModel,
       useFreeSearch,
       unlockPlayer,
       caseReadyIn,
@@ -725,7 +808,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       hasUnlockedPlayer: (id: string) => s.unlockedPlayers.includes(id),
       setGames,
     }
-  }, [s, now, refresh])
+  }, [s, now, refresh, refreshModels])
 
   if (!ready) {
     return (

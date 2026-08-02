@@ -28,7 +28,6 @@
   "common.error": "خرابی",
   "common.retry": "دوبارہ کوشش کریں",
   "common.unknown": "نامعلوم",
-
   "nav.home": "ہوم",
   "nav.match": "ٹیم کے ساتھی",
   "nav.predictions": "پیش گوئیاں",
@@ -38,25 +37,19 @@
   "nav.battlepass": "پاس",
   "nav.promo": "پرومو",
   "nav.profile": "پروفائل",
-
   "topbar.tagline": "ٹیم کے ساتھی تلاش کریں",
   "topbar.language": "زبان",
-
   "lang.title": "ایپ کی زبان",
   "lang.search": "زبان تلاش کریں…",
-
   "home.hero_title": "اپنی خوابوں کی ٹیم تلاش کریں",
   "home.hero_cta": "تلاش شروع کریں",
   "home.stat_coins": "سکے",
   "home.stat_stars": "ستارے",
-
   "match.title": "ٹیم کے ساتھی تلاش کریں",
   "match.cta_search": "ٹیم کے ساتھی ڈھونڈیں",
-
   "cases.title": "Nexus کیسز",
   "cases.inventory_title": "آپ کی انوینٹری",
   "cases.coin_shop_title": "سکے کی دکان",
-
   "donate.title": "سپورٹ کریں اور اپ گریڈ کریں",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "پرومو کوڈز",
@@ -64,10 +57,12 @@
   "stats.title": "اعداد و شمار",
   "chat.title": "پیغامات",
   "predictions.title": "پیش گوئیاں",
-
   "profile.edit_profile": "پروفائل میں ترمیم کریں",
   "profile.streak_title": "یومیہ سلسلہ",
   "profile.referral_title": "دوستوں کو مدعو کریں",
   "profile.discord_title": "ڈسکارڈ",
-  "profile.achievements_title": "کامیابیاں"
+  "profile.achievements_title": "کامیابیاں",
+  "nav.model": "ماڈل",
+  "cases.stars_added": "ستارے شامل ہو گئے",
+  "cases.jackpot_collect": "جیک پاٹ لیں"
 }

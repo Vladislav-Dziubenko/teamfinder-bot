@@ -27,7 +27,6 @@
   "common.error": "Chyba",
   "common.retry": "Zkusit znovu",
   "common.unknown": "Neznámé",
-
   "nav.home": "Domů",
   "nav.match": "Spoluhráči",
   "nav.predictions": "Předpovědi",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Pas",
   "nav.promo": "Promo",
   "nav.profile": "Profil",
-
   "topbar.tagline": "najít spoluhráče",
   "topbar.language": "Jazyk",
-
   "lang.title": "Jazyk aplikace",
   "lang.search": "Hledat jazyk…",
-
   "home.hero_title": "Najdi svůj vysněný tým",
   "home.hero_cta": "Zahájit hledání",
   "home.stat_coins": "Mince",
   "home.stat_stars": "Hvězdy",
-
   "match.title": "Hledat spoluhráče",
   "match.cta_search": "Najít spoluhráče",
-
   "cases.title": "Nexus Pouzdra",
   "cases.inventory_title": "Tvůj inventář",
   "cases.coin_shop_title": "Obchod s mincemi",
-
   "donate.title": "Podpoř a vylepši se",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Promokódy",
@@ -63,10 +56,12 @@
   "stats.title": "Statistiky",
   "chat.title": "Zprávy",
   "predictions.title": "Předpovědi",
-
   "profile.edit_profile": "Upravit profil",
   "profile.streak_title": "Denní série",
   "profile.referral_title": "Pozvat přátele",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Úspěchy"
+  "profile.achievements_title": "Úspěchy",
+  "nav.model": "Model",
+  "cases.stars_added": "Hvězdy přidány",
+  "cases.jackpot_collect": "Vybrat jackpot"
 }

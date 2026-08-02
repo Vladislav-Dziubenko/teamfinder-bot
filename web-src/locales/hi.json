@@ -27,7 +27,6 @@
   "common.error": "त्रुटि",
   "common.retry": "पुनः प्रयास करें",
   "common.unknown": "अज्ञात",
-
   "nav.home": "होम",
   "nav.match": "टीम के साथी",
   "nav.predictions": "भविष्यवाणियाँ",
@@ -37,25 +36,19 @@
   "nav.battlepass": "पास",
   "nav.promo": "प्रोमो",
   "nav.profile": "प्रोफ़ाइल",
-
   "topbar.tagline": "टीम के साथी खोजें",
   "topbar.language": "भाषा",
-
   "lang.title": "ऐप भाषा",
   "lang.search": "भाषा खोजें…",
-
   "home.hero_title": "अपनी सपनों की टीम खोजें",
   "home.hero_cta": "खोज शुरू करें",
   "home.stat_coins": "सिक्के",
   "home.stat_stars": "सितारे",
-
   "match.title": "टीम के साथी खोजें",
   "match.cta_search": "टीम के साथी ढूँढें",
-
   "cases.title": "Nexus केस",
   "cases.inventory_title": "आपकी सूची",
   "cases.coin_shop_title": "सिक्का दुकान",
-
   "donate.title": "समर्थन करें और उन्नत हों",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "प्रोमो कोड",
@@ -63,10 +56,12 @@
   "stats.title": "आँकड़े",
   "chat.title": "संदेश",
   "predictions.title": "भविष्यवाणियाँ",
-
   "profile.edit_profile": "प्रोफ़ाइल संपादित करें",
   "profile.streak_title": "दैनिक क्रम",
   "profile.referral_title": "मित्रों को आमंत्रित करें",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "उपलब्धियाँ"
+  "profile.achievements_title": "उपलब्धियाँ",
+  "nav.model": "मॉडल",
+  "cases.stars_added": "स्टार जोड़े गए",
+  "cases.jackpot_collect": "जैकपॉट लें"
 }

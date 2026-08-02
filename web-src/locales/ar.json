@@ -28,7 +28,6 @@
   "common.error": "خطأ",
   "common.retry": "إعادة المحاولة",
   "common.unknown": "غير معروف",
-
   "nav.home": "الرئيسية",
   "nav.match": "زملاء الفريق",
   "nav.predictions": "التوقعات",
@@ -38,25 +37,19 @@
   "nav.battlepass": "البطاقة",
   "nav.promo": "العروض",
   "nav.profile": "الملف الشخصي",
-
   "topbar.tagline": "ابحث عن زملاء فريق",
   "topbar.language": "اللغة",
-
   "lang.title": "لغة التطبيق",
   "lang.search": "ابحث عن لغة…",
-
   "home.hero_title": "اعثر على فريق أحلامك",
   "home.hero_cta": "ابدأ البحث",
   "home.stat_coins": "عملات",
   "home.stat_stars": "نجوم",
-
   "match.title": "ابحث عن زملاء فريق",
   "match.cta_search": "اعثر على زملاء فريق",
-
   "cases.title": "صناديق Nexus",
   "cases.inventory_title": "مخزونك",
   "cases.coin_shop_title": "متجر العملات",
-
   "donate.title": "ادعم وتطور",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "رموز العروض",
@@ -64,10 +57,12 @@
   "stats.title": "الإحصائيات",
   "chat.title": "الرسائل",
   "predictions.title": "التوقعات",
-
   "profile.edit_profile": "تعديل الملف الشخصي",
   "profile.streak_title": "التسلسل اليومي",
   "profile.referral_title": "دعوة الأصدقاء",
   "profile.discord_title": "ديسكورد",
-  "profile.achievements_title": "الإنجازات"
+  "profile.achievements_title": "الإنجازات",
+  "nav.model": "النموذج",
+  "cases.stars_added": "تمت إضافة النجوم",
+  "cases.jackpot_collect": "استلام الجائزة الكبرى"
 }

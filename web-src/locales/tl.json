@@ -27,7 +27,6 @@
   "common.error": "Error",
   "common.retry": "Subukan muli",
   "common.unknown": "Hindi alam",
-
   "nav.home": "Home",
   "nav.match": "Kakampi",
   "nav.predictions": "Hula",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Pass",
   "nav.promo": "Promo",
   "nav.profile": "Profile",
-
   "topbar.tagline": "maghanap ng kakampi",
   "topbar.language": "Wika",
-
   "lang.title": "Wika ng app",
   "lang.search": "Maghanap ng wika…",
-
   "home.hero_title": "Hanapin ang iyong pangarap na koponan",
   "home.hero_cta": "Simulan ang paghahanap",
   "home.stat_coins": "Barya",
   "home.stat_stars": "Bituin",
-
   "match.title": "Maghanap ng kakampi",
   "match.cta_search": "Maghanap ng kakampi",
-
   "cases.title": "Nexus Cases",
   "cases.inventory_title": "Iyong imbentaryo",
   "cases.coin_shop_title": "Tindahan ng barya",
-
   "donate.title": "Suportahan at mag-upgrade",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Promo codes",
@@ -63,10 +56,12 @@
   "stats.title": "Stats",
   "chat.title": "Mensahe",
   "predictions.title": "Hula",
-
   "profile.edit_profile": "I-edit ang profile",
   "profile.streak_title": "Araw-araw na streak",
   "profile.referral_title": "Mag-imbita ng kaibigan",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Mga Nakamit"
+  "profile.achievements_title": "Mga Nakamit",
+  "nav.model": "Model",
+  "cases.stars_added": "Idinagdag ang mga bituin",
+  "cases.jackpot_collect": "Kunin ang jackpot"
 }

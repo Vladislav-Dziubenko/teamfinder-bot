@@ -9,6 +9,7 @@ import { BottomNav, type TabId } from "./bottom-nav"
 import { HomeTab } from "./home-tab"
 import { MatchTab } from "./match-tab"
 import { CasesTab } from "./cases-tab"
+import { ModelTab } from "./model-tab"
 import { GuidesTab } from "./guides-tab"
 import { DonateTab } from "./donate-tab"
 import { ProfileTab } from "./profile-tab"
@@ -100,6 +101,7 @@ function Shell() {
         )}
         {tab === "stats" && <StatsTab onOpenLeaderboard={() => setToast(t("stats.leaderboard_placeholder"))} />}
         {tab === "cases" && <CasesTab onToast={setToast} />}
+        {tab === "model" && <ModelTab onToast={setToast} />}
         {tab === "battlepass" && <BattlePassTab onToast={setToast} />}
         {tab === "promo" && <PromoTab onToast={setToast} />}
         {tab === "guides" && <GuidesTab />}

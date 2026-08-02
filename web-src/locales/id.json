@@ -27,7 +27,6 @@
   "common.error": "Kesalahan",
   "common.retry": "Coba lagi",
   "common.unknown": "Tidak dikenal",
-
   "nav.home": "Beranda",
   "nav.match": "Rekan setim",
   "nav.predictions": "Prediksi",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Pas",
   "nav.promo": "Promo",
   "nav.profile": "Profil",
-
   "topbar.tagline": "cari rekan setim",
   "topbar.language": "Bahasa",
-
   "lang.title": "Bahasa aplikasi",
   "lang.search": "Cari bahasa…",
-
   "home.hero_title": "Temukan tim impianmu",
   "home.hero_cta": "Mulai pencarian",
   "home.stat_coins": "Koin",
   "home.stat_stars": "Bintang",
-
   "match.title": "Cari rekan setim",
   "match.cta_search": "Temukan rekan setim",
-
   "cases.title": "Kotak Nexus",
   "cases.inventory_title": "Inventarismu",
   "cases.coin_shop_title": "Toko koin",
-
   "donate.title": "Dukung dan tingkatkan",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Kode promo",
@@ -63,10 +56,12 @@
   "stats.title": "Statistik",
   "chat.title": "Pesan",
   "predictions.title": "Prediksi",
-
   "profile.edit_profile": "Edit profil",
   "profile.streak_title": "Runtunan harian",
   "profile.referral_title": "Undang teman",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Pencapaian"
+  "profile.achievements_title": "Pencapaian",
+  "nav.model": "Model",
+  "cases.stars_added": "Bintang ditambahkan",
+  "cases.jackpot_collect": "Ambil jackpot"
 }

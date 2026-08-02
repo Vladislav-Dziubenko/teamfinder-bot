@@ -27,7 +27,6 @@
   "common.error": "Hata",
   "common.retry": "Tekrar dene",
   "common.unknown": "Bilinmiyor",
-
   "nav.home": "Ana Sayfa",
   "nav.match": "Takım Arkadaşları",
   "nav.predictions": "Tahminler",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Pass",
   "nav.promo": "Promosyon",
   "nav.profile": "Profil",
-
   "topbar.tagline": "takım arkadaşı bul",
   "topbar.language": "Dil",
-
   "lang.title": "Uygulama dili",
   "lang.search": "Dil ara…",
-
   "home.hero_title": "Hayalindeki takımı bul",
   "home.hero_cta": "Aramayı başlat",
   "home.stat_coins": "Para",
   "home.stat_stars": "Yıldız",
-
   "match.title": "Takım arkadaşı ara",
   "match.cta_search": "Takım arkadaşı bul",
-
   "cases.title": "Nexus Kutuları",
   "cases.inventory_title": "Envanterin",
   "cases.coin_shop_title": "Para dükkanı",
-
   "donate.title": "Destek ol ve yüksel",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Promosyon kodları",
@@ -63,10 +56,12 @@
   "stats.title": "İstatistikler",
   "chat.title": "Mesajlar",
   "predictions.title": "Tahminler",
-
   "profile.edit_profile": "Profili düzenle",
   "profile.streak_title": "Günlük seri",
   "profile.referral_title": "Arkadaşlarını davet et",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Başarımlar"
+  "profile.achievements_title": "Başarımlar",
+  "nav.model": "Model",
+  "cases.stars_added": "Yıldızlar eklendi",
+  "cases.jackpot_collect": "Jackpotu topla"
 }

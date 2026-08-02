@@ -27,7 +27,6 @@
   "common.error": "Xəta",
   "common.retry": "Yenidən cəhd et",
   "common.unknown": "Bilinmir",
-
   "nav.home": "Ana səhifə",
   "nav.match": "Komanda yoldaşları",
   "nav.predictions": "Proqnozlar",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Pas",
   "nav.promo": "Promo",
   "nav.profile": "Profil",
-
   "topbar.tagline": "komanda yoldaşlarını tap",
   "topbar.language": "Dil",
-
   "lang.title": "Tətbiqin dili",
   "lang.search": "Dil axtar…",
-
   "home.hero_title": "Arzu etdiyin komandanı tap",
   "home.hero_cta": "Axtarışa başla",
   "home.stat_coins": "Sikkələr",
   "home.stat_stars": "Ulduzlar",
-
   "match.title": "Komanda yoldaşlarını axtar",
   "match.cta_search": "Komanda yoldaşlarını tap",
-
   "cases.title": "Nexus Keysləri",
   "cases.inventory_title": "Sənin inventarın",
   "cases.coin_shop_title": "Sikkə mağazası",
-
   "donate.title": "Dəstək ol və yüksəl",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Promo kodlar",
@@ -63,10 +56,12 @@
   "stats.title": "Statistika",
   "chat.title": "Mesajlar",
   "predictions.title": "Proqnozlar",
-
   "profile.edit_profile": "Profili redaktə et",
   "profile.streak_title": "Gündəlik seriya",
   "profile.referral_title": "Dostlarını dəvət et",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Nailiyyətlər"
+  "profile.achievements_title": "Nailiyyətlər",
+  "nav.model": "Model",
+  "cases.stars_added": "Ulduzlar əlavə edildi",
+  "cases.jackpot_collect": "Cekpotu götür"
 }

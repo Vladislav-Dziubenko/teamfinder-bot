@@ -27,7 +27,6 @@
   "common.error": "Hiba",
   "common.retry": "Újra",
   "common.unknown": "Ismeretlen",
-
   "nav.home": "Főoldal",
   "nav.match": "Csapattársak",
   "nav.predictions": "Jóslatok",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Bérlet",
   "nav.promo": "Promó",
   "nav.profile": "Profil",
-
   "topbar.tagline": "csapattársak keresése",
   "topbar.language": "Nyelv",
-
   "lang.title": "Alkalmazás nyelve",
   "lang.search": "Nyelv keresése…",
-
   "home.hero_title": "Találd meg álmaid csapatát",
   "home.hero_cta": "Keresés indítása",
   "home.stat_coins": "Érmék",
   "home.stat_stars": "Csillagok",
-
   "match.title": "Csapattársak keresése",
   "match.cta_search": "Csapattársak találása",
-
   "cases.title": "Nexus Ládák",
   "cases.inventory_title": "Te raktárad",
   "cases.coin_shop_title": "Érmebolt",
-
   "donate.title": "Támogatás és fejlődés",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Promó kódok",
@@ -63,10 +56,12 @@
   "stats.title": "Statisztikák",
   "chat.title": "Üzenetek",
   "predictions.title": "Jóslatok",
-
   "profile.edit_profile": "Profil szerkesztése",
   "profile.streak_title": "Napi sorozat",
   "profile.referral_title": "Barátok meghívása",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Eredmények"
+  "profile.achievements_title": "Eredmények",
+  "nav.model": "Modell",
+  "cases.stars_added": "Csillagok hozzáadva",
+  "cases.jackpot_collect": "Fogadd el a főnyereményt"
 }

@@ -318,13 +318,14 @@ export const currentUser = {
 
 /* ---------- Nexus-валюта, кейсы, инвентарь ---------- */
 
-export type Rarity = "common" | "rare" | "epic" | "premium"
+export type Rarity = "common" | "rare" | "epic" | "premium" | "legendary"
 
 export const rarityMeta: Record<Rarity, { label: string; color: string }> = {
   common: { label: "Обычный", color: "var(--muted-foreground)" },
   rare: { label: "Редкий", color: "var(--accent)" },
   epic: { label: "Эпический", color: "var(--stars)" },
   premium: { label: "Премиум", color: "var(--primary)" },
+  legendary: { label: "Легендарный", color: "#ffd700" },
 }
 
 export type CaseItem = {
@@ -337,6 +338,11 @@ export type CaseItem = {
   sell: number // цена продажи в монетках Nexus
   weight: number // шанс выпадения
   grantsPremium?: boolean // выдаёт премиум-статус
+  kind?: "inventory" | "stars" | "model" // тип награды кейса
+  stars?: number // количество звёзд для kind === "stars"
+  jackpot?: boolean // лимитированный джекпот-предмет
+  token?: number // номер экземпляра лимитированной модели
+  role?: string // роль, выданная за джекпот
 }
 
 export type LootCase = {
@@ -411,7 +417,7 @@ export const lootCases: LootCase[] = [
         image: "/premium-reveal.png",
         rarity: "premium",
         sell: 200,
-        weight: 60,
+        weight: 40,
         grantsPremium: true,
       },
       {
@@ -421,8 +427,51 @@ export const lootCases: LootCase[] = [
         image: "/premium-card.png",
         rarity: "epic",
         sell: 90,
-        weight: 40,
+        weight: 20,
         grantsPremium: true,
+      },
+      {
+        key: "premium-medium",
+        name: "Премиум средний",
+        desc: "4 открытия в день",
+        image: "/premium-x4.png",
+        rarity: "epic",
+        sell: 75,
+        weight: 25,
+        grantsPremium: true,
+      },
+      {
+        key: "stars-1000",
+        name: "1000 ⭐",
+        desc: "1000 звёзд на баланс",
+        icon: "⭐",
+        rarity: "epic",
+        sell: 0,
+        weight: 10,
+        kind: "stars",
+        stars: 1000,
+      },
+      {
+        key: "stars-10000",
+        name: "10000 ⭐",
+        desc: "10000 звёзд на баланс",
+        icon: "⭐",
+        rarity: "premium",
+        sell: 0,
+        weight: 5,
+        kind: "stars",
+        stars: 10000,
+      },
+      {
+        key: "nexus-model",
+        name: "Лимитированная 3D-модель NEXUS",
+        desc: "Тираж 20 шт. Джекпот: 50 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день",
+        icon: "💎",
+        rarity: "legendary",
+        sell: 0,
+        weight: 0.1,
+        jackpot: true,
+        kind: "model",
       },
     ],
   },

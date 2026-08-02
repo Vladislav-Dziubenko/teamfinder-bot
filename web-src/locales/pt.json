@@ -27,7 +27,6 @@
   "common.error": "Erro",
   "common.retry": "Tentar novamente",
   "common.unknown": "Desconhecido",
-
   "nav.home": "Início",
   "nav.match": "Colegas",
   "nav.predictions": "Previsões",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Passe",
   "nav.promo": "Promo",
   "nav.profile": "Perfil",
-
   "topbar.tagline": "encontrar colegas",
   "topbar.language": "Idioma",
-
   "lang.title": "Idioma do app",
   "lang.search": "Pesquisar idioma…",
-
   "home.hero_title": "Encontre seu time dos sonhos",
   "home.hero_cta": "Iniciar busca",
   "home.stat_coins": "Moedas",
   "home.stat_stars": "Estrelas",
-
   "match.title": "Buscar colegas",
   "match.cta_search": "Encontrar colegas",
-
   "cases.title": "Caixas Nexus",
   "cases.inventory_title": "Seu inventário",
   "cases.coin_shop_title": "Loja de moedas",
-
   "donate.title": "Apoie e evolua",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Promocodes",
@@ -63,10 +56,12 @@
   "stats.title": "Estatísticas",
   "chat.title": "Mensagens",
   "predictions.title": "Previsões",
-
   "profile.edit_profile": "Editar perfil",
   "profile.streak_title": "Sequência diária",
   "profile.referral_title": "Convidar amigos",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Conquistas"
+  "profile.achievements_title": "Conquistas",
+  "nav.model": "Modelo",
+  "cases.stars_added": "Estrelas adicionadas",
+  "cases.jackpot_collect": "Coletar jackpot"
 }

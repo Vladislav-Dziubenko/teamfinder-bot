@@ -1,0 +1,362 @@
+"use client"
+
+import { useEffect, useRef, useState } from "react"
+import { Gem, Send, Star, Loader2, Wallet, Crown, RefreshCw } from "lucide-react"
+import { useNexus } from "@/lib/store"
+import { cn } from "@/lib/utils"
+
+function ModelViewer() {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [ready, setReady] = useState(false)
+
+  useEffect(() => {
+    let disposed = false
+    let scene: any
+    let renderer: any
+    let camera: any
+    let controls: any
+    let model: any
+    let frame = 0
+
+    async function init() {
+      const container = containerRef.current
+      if (!container) return
+      const THREE = await import("three")
+      const { GLTFLoader } = await import("three/examples/jsm/loaders/GLTFLoader.js")
+      const { OrbitControls } = await import("three/examples/jsm/controls/OrbitControls.js")
+
+      scene = new THREE.Scene()
+      camera = new THREE.PerspectiveCamera(50, container.clientWidth / container.clientHeight, 0.1, 1000)
+      camera.position.set(0, 1.4, 4.2)
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true })
+      renderer.setSize(container.clientWidth, container.clientHeight)
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+      container.appendChild(renderer.domElement)
+
+      scene.add(new THREE.AmbientLight(0xffffff, 1.1))
+      const dir = new THREE.DirectionalLight(0xffffff, 2.4)
+      dir.position.set(3, 5, 4)
+      scene.add(dir)
+      const rim = new THREE.DirectionalLight(0xffd700, 1.6)
+      rim.position.set(-4, 2, -3)
+      scene.add(rim)
+
+      controls = new OrbitControls(camera, renderer.domElement)
+      controls.enableDamping = true
+      controls.autoRotate = true
+      controls.autoRotateSpeed = 2.5
+      controls.enableZoom = false
+
+      const loader = new GLTFLoader()
+      loader.load(
+        "/nexus-model.glb",
+        (gltf: any) => {
+          if (disposed) return
+          model = gltf.scene
+          const box = new THREE.Box3().setFromObject(model)
+          const size = box.getSize(new THREE.Vector3())
+          const center = box.getCenter(new THREE.Vector3())
+          const maxDim = Math.max(size.x, size.y, size.z)
+          model.position.sub(center)
+          if (maxDim > 2.6) model.scale.multiplyScalar(2.6 / maxDim)
+          scene.add(model)
+          setReady(true)
+        },
+        undefined,
+        (err: unknown) => console.error("GLB load error", err),
+      )
+
+      const animate = () => {
+        if (disposed) return
+        frame = requestAnimationFrame(animate)
+        if (model) model.rotation.y += 0.003
+        controls.update()
+        renderer.render(scene, camera)
+      }
+      animate()
+    }
+
+    init()
+
+    const onResize = () => {
+      if (!containerRef.current || !renderer) return
+      renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight)
+      camera.aspect = containerRef.current.clientWidth / containerRef.current.clientHeight
+      camera.updateProjectionMatrix()
+    }
+    window.addEventListener("resize", onResize)
+
+    return () => {
+      disposed = true
+      window.removeEventListener("resize", onResize)
+      cancelAnimationFrame(frame)
+      controls?.dispose()
+      renderer?.dispose()
+      containerRef.current?.querySelectorAll("canvas").forEach((c) => c.remove())
+    }
+  }, [])
+
+  return (
+    <div className="relative h-64 w-full overflow-hidden rounded-3xl border border-[#ffd700]/30 bg-gradient-to-b from-[#ffd700]/10 to-transparent">
+      <div ref={containerRef} className="absolute inset-0" />
+      {!ready && (
+        <div className="absolute inset-0 grid place-items-center">
+          <Loader2 className="size-6 animate-spin text-[#ffd700]" />
+        </div>
+      )}
+    </div>
+  )
+}
+
+export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
+  const { modelState, stars, listModel, unlistModel, buyModel, transferModel, refreshModels } = useNexus()
+  const [listing, setListing] = useState<number | null>(null)
+  const [price, setPrice] = useState("")
+  const [transfer, setTransfer] = useState<number | null>(null)
+  const [transferId, setTransferId] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [tonBusy, setTonBusy] = useState(false)
+
+  async function submitList(token: number) {
+    const p = parseInt(price, 10)
+    if (!p || p <= 0) {
+      onToast("Введи цену в звёздах")
+      return
+    }
+    setBusy(true)
+    const res = await listModel(token, p)
+    setBusy(false)
+    onToast(res.ok ? "Модель выставлена на продажу" : res.error ?? "Ошибка")
+    setListing(null)
+    setPrice("")
+  }
+
+  async function submitTransfer(token: number) {
+    const id = parseInt(transferId, 10)
+    if (!id || id <= 0) {
+      onToast("Введи ID пользователя")
+      return
+    }
+    setBusy(true)
+    const res = await transferModel(token, id)
+    setBusy(false)
+    onToast(res.ok ? "Модель передана (комиссия 5 ⭐)" : res.error ?? "Ошибка")
+    setTransfer(null)
+    setTransferId("")
+  }
+
+  const mine = modelState.mine ?? []
+  const market = modelState.market ?? []
+
+  return (
+    <div className="space-y-5 px-4 py-5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold">Лимитированная 3D-модель</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">NEXUS — тираж всего 20 экземпляров</p>
+        </div>
+        <button
+          type="button"
+          onClick={() => refreshModels()}
+          aria-label="Обновить"
+          className="grid size-10 place-items-center rounded-2xl border border-border bg-secondary text-muted-foreground active:scale-90"
+        >
+          <RefreshCw className="size-5" />
+        </button>
+      </div>
+
+      <ModelViewer />
+
+      <div className="flex items-center justify-between rounded-2xl border border-[#ffd700]/30 bg-[#ffd700]/5 px-4 py-3">
+        <div className="flex items-center gap-2 text-sm font-semibold">
+          <Crown className="size-4 text-[#ffd700]" />
+          Выбито: {modelState.claimed} / {modelState.supply}
+        </div>
+        <div className="text-sm font-bold text-[#ffd700]">Осталось: {modelState.remaining}</div>
+      </div>
+
+      {mine.length === 0 && (
+        <div className="rounded-3xl border border-dashed border-border py-8 text-center">
+          <Gem className="mx-auto size-8 text-muted-foreground" />
+          <p className="mt-2 text-sm text-muted-foreground">
+            У тебя пока нет модели. Выбить её можно из кейса NEXUS Premium (шанс 0.1%).
+          </p>
+        </div>
+      )}
+
+      {mine.length > 0 && (
+        <section>
+          <h2 className="mb-2 font-display text-lg font-bold">Мои модели</h2>
+          <div className="space-y-3">
+            {mine.map((m) => (
+              <div key={m.token_id} className="rounded-2xl border border-[#ffd700]/30 bg-card p-3">
+                <div className="flex items-center justify-between">
+                  <p className="font-bold">
+                    💎 Экземпляр #{m.token_id} <span className="text-xs font-medium text-muted-foreground">/ 20</span>
+                  </p>
+                  {m.sale_price_stars > 0 && (
+                    <span className="rounded-lg bg-[#ffd700]/15 px-2 py-0.5 text-xs font-bold text-[#ffd700]">
+                      В продаже · {m.sale_price_stars} ⭐
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Доход: 50-100 ⭐ в день · {m.last_income_at ? "доход начисляется" : "доход ещё не начислен"}
+                </p>
+
+                {listing === m.token_id ? (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      value={price}
+                      onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))}
+                      inputMode="numeric"
+                      placeholder="Цена в ⭐"
+                      className="w-full min-w-0 rounded-xl border border-border bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
+                    />
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => submitList(m.token_id)}
+                      className="shrink-0 rounded-xl bg-[#ffd700] px-3 py-2 text-xs font-bold text-black active:scale-95 disabled:opacity-50"
+                    >
+                      {busy ? <Loader2 className="size-4 animate-spin" /> : "OK"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setListing(null)}
+                      className="shrink-0 rounded-xl bg-secondary px-3 py-2 text-xs text-muted-foreground active:scale-95"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    {m.sale_price_stars > 0 ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={async () => {
+                          setBusy(true)
+                          const r = await unlistModel(m.token_id)
+                          setBusy(false)
+                          onToast(r.ok ? "Снято с продажи" : r.error ?? "Ошибка")
+                        }}
+                        className="rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-semibold active:scale-95"
+                      >
+                        Снять с продажи
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setListing(m.token_id)
+                          setPrice("")
+                        }}
+                        className="rounded-xl bg-[#ffd700] px-3 py-2 text-xs font-bold text-black active:scale-95"
+                      >
+                        Выставить на продажу
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTransfer(m.token_id)
+                        setTransferId("")
+                      }}
+                      className="flex items-center gap-1 rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-semibold active:scale-95"
+                    >
+                      <Send className="size-3.5" /> Передать
+                    </button>
+                    {transfer === m.token_id && (
+                      <div className="flex w-full gap-2">
+                        <input
+                          value={transferId}
+                          onChange={(e) => setTransferId(e.target.value.replace(/\D/g, ""))}
+                          inputMode="numeric"
+                          placeholder="ID пользователя"
+                          className="w-full min-w-0 rounded-xl border border-border bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
+                        />
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => submitTransfer(m.token_id)}
+                          className="shrink-0 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground active:scale-95 disabled:opacity-50"
+                        >
+                          {busy ? <Loader2 className="size-4 animate-spin" /> : "Передать"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {market.length > 0 && (
+        <section>
+          <h2 className="mb-2 font-display text-lg font-bold">Маркетплейс</h2>
+          <div className="space-y-3">
+            {market.map((m) => (
+              <div key={m.token_id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
+                <span className="grid size-11 place-items-center rounded-xl bg-[#ffd700]/10 text-xl">💎</span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold">Экземпляр #{m.token_id}</p>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {m.seller_nick || "Продавец"} · комиссия 5%
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={async () => {
+                    if (stars < m.sale_price_stars) {
+                      onToast("Недостаточно звёзд")
+                      return
+                    }
+                    setBusy(true)
+                    const r = await buyModel(m.token_id)
+                    setBusy(false)
+                    onToast(r.ok ? "Модель куплена!" : r.error ?? "Ошибка")
+                  }}
+                  className="flex shrink-0 items-center gap-1 rounded-xl bg-[#ffd700] px-3 py-2 text-xs font-bold text-black active:scale-95 disabled:opacity-50"
+                >
+                  <Star className="size-3.5 fill-black" /> {m.sale_price_stars}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <section className="rounded-2xl border border-dashed border-border p-4">
+        <div className="flex items-center gap-2">
+          <Wallet className="size-5 text-muted-foreground" />
+          <div>
+            <p className="text-sm font-bold">TON-подключение</p>
+            <p className="text-[11px] text-muted-foreground">
+              Скоро: кошелёк TON, выпуск NFT модели, продажа и роялти 1-5% за продажу.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          disabled={tonBusy}
+          onClick={() => {
+            setTonBusy(true)
+            setTimeout(() => {
+              setTonBusy(false)
+              onToast("TON-интеграция появится в следующем обновлении")
+            }, 600)
+          }}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#ffd700]/40 bg-[#ffd700]/10 py-2.5 text-sm font-semibold text-[#ffd700] active:scale-[0.98] disabled:opacity-50"
+        >
+          {tonBusy ? <Loader2 className="size-4 animate-spin" /> : <Wallet className="size-4" />}
+          Подключить TON
+        </button>
+      </section>
+    </div>
+  )
+}

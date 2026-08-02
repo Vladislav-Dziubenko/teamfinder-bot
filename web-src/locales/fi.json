@@ -27,7 +27,6 @@
   "common.error": "Virhe",
   "common.retry": "Yritä uudelleen",
   "common.unknown": "Tuntematon",
-
   "nav.home": "Koti",
   "nav.match": "Joukkuekaverit",
   "nav.predictions": "Ennusteet",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Passi",
   "nav.promo": "Promo",
   "nav.profile": "Profiili",
-
   "topbar.tagline": "etsi joukkuekavereita",
   "topbar.language": "Kieli",
-
   "lang.title": "Sovelluksen kieli",
   "lang.search": "Etsi kieltä…",
-
   "home.hero_title": "Löydä unelmien joukkueesi",
   "home.hero_cta": "Aloita haku",
   "home.stat_coins": "Kolikot",
   "home.stat_stars": "Tähdet",
-
   "match.title": "Etsi joukkuekavereita",
   "match.cta_search": "Löydä joukkuekavereita",
-
   "cases.title": "Nexus Laatikot",
   "cases.inventory_title": "Oma inventaarisi",
   "cases.coin_shop_title": "Kolikkokauppa",
-
   "donate.title": "Tue ja tehosta",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Promokoodit",
@@ -63,10 +56,12 @@
   "stats.title": "Tilastot",
   "chat.title": "Viestit",
   "predictions.title": "Ennusteet",
-
   "profile.edit_profile": "Muokkaa profiilia",
   "profile.streak_title": "Päivittäinen putki",
   "profile.referral_title": "Kutsu ystäviä",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Saavutukset"
+  "profile.achievements_title": "Saavutukset",
+  "nav.model": "Malli",
+  "cases.stars_added": "Tähtiä lisätty",
+  "cases.jackpot_collect": "Nosta jättipotti"
 }

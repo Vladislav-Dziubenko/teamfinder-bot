@@ -27,7 +27,6 @@
   "common.error": "ข้อผิดพลาด",
   "common.retry": "ลองอีกครั้ง",
   "common.unknown": "ไม่ทราบ",
-
   "nav.home": "หน้าแรก",
   "nav.match": "เพื่อนร่วมทีม",
   "nav.predictions": "การทำนาย",
@@ -37,25 +36,19 @@
   "nav.battlepass": "พาส",
   "nav.promo": "โปรโม",
   "nav.profile": "โปรไฟล์",
-
   "topbar.tagline": "ค้นหาเพื่อนร่วมทีม",
   "topbar.language": "ภาษา",
-
   "lang.title": "ภาษาแอป",
   "lang.search": "ค้นหาภาษา…",
-
   "home.hero_title": "ค้นหาทีมในฝันของคุณ",
   "home.hero_cta": "เริ่มค้นหา",
   "home.stat_coins": "เหรียญ",
   "home.stat_stars": "ดาว",
-
   "match.title": "ค้นหาเพื่อนร่วมทีม",
   "match.cta_search": "หาเพื่อนร่วมทีม",
-
   "cases.title": "เคส Nexus",
   "cases.inventory_title": "คลังของคุณ",
   "cases.coin_shop_title": "ร้านเหรียญ",
-
   "donate.title": "สนับสนุนและอัปเกรด",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "รหัสโปรโม",
@@ -63,10 +56,12 @@
   "stats.title": "สถิติ",
   "chat.title": "ข้อความ",
   "predictions.title": "การทำนาย",
-
   "profile.edit_profile": "แก้ไขโปรไฟล์",
   "profile.streak_title": "สตรีครายวัน",
   "profile.referral_title": "เชิญเพื่อน",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "ความสำเร็จ"
+  "profile.achievements_title": "ความสำเร็จ",
+  "nav.model": "โมเดล",
+  "cases.stars_added": "เพิ่มดาวแล้ว",
+  "cases.jackpot_collect": "รับแจ็คพอต"
 }

@@ -422,5 +422,8 @@
   "profile.share_telegram_hint": "Выбрать чаты для отправки",
   "team.member_count": "{members}/{max} в составе",
   "team.needs_player": "Нужен игрок",
-  "team.apply": "Подать заявку"
+  "team.apply": "Подать заявку",
+  "nav.model": "Модель",
+  "cases.stars_added": "Звёзды начислены",
+  "cases.jackpot_collect": "Забрать джекпот"
 }

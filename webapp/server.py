@@ -959,8 +959,12 @@ CASES_CONFIG = {
         "free": False,
         "dailyLimit": 99,
         "items": [
-            {"key": "premium-card", "name": "Премиум-анкета", "desc": "Кастомные фото, свой текст и украшения карточки — без ограничений 1 день", "image": "/premium-reveal.png", "rarity": "premium", "sell": 100, "weight": 60, "grantsPremium": True},
-            {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "rarity": "epic", "sell": 45, "weight": 40, "grantsPremium": True},
+            {"key": "premium-card", "name": "Премиум-анкета", "desc": "Кастомные фото, свой текст и украшения карточки — без ограничений 1 день", "image": "/premium-reveal.png", "rarity": "premium", "sell": 100, "weight": 40, "grantsPremium": True},
+            {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "rarity": "epic", "sell": 45, "weight": 20, "grantsPremium": True},
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "4 открытия в день", "image": "/premium-x4.png", "rarity": "epic", "sell": 75, "weight": 25, "grantsPremium": True},
+            {"key": "stars-1000", "name": "1000 ⭐", "desc": "1000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 10, "kind": "stars", "stars": 1000},
+            {"key": "stars-10000", "name": "10000 ⭐", "desc": "10000 звёзд на баланс", "icon": "⭐", "rarity": "premium", "sell": 0, "weight": 5, "kind": "stars", "stars": 10000},
+            {"key": "nexus-model", "name": "Лимитированная 3D-модель NEXUS", "desc": "Тираж 20 шт. Джекпот: 50 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 0, "weight": 0.1, "jackpot": True},
         ]
     }
 }
@@ -1014,19 +1018,16 @@ async def handle_nexus_open_case(request: web.Request):
 
     case_config = CASES_CONFIG[case_id]
 
-    # Roll item server-side (outcome is independent of the transaction)
-    items = case_config["items"]
-    total_weight = sum(item["weight"] for item in items)
-    rand = random.uniform(0, total_weight)
-    current = 0
-    rolled_item = None
-    for item in items:
-        current += item["weight"]
-        if rand <= current:
-            rolled_item = item
-            break
-    if not rolled_item:
-        rolled_item = items[0]
+    def _roll_normal_item(items: list[dict]) -> dict:
+        normal = [i for i in items if not i.get("jackpot")]
+        total_weight = sum(i["weight"] for i in normal)
+        rand = random.uniform(0, total_weight)
+        current = 0
+        for item in normal:
+            current += item["weight"]
+            if rand <= current:
+                return item
+        return normal[0]
 
     # Everything below runs inside one DB transaction to keep currency/items consistent
     async with db.pool.acquire() as conn:
@@ -1041,26 +1042,51 @@ async def handle_nexus_open_case(request: web.Request):
                 if not await db._adjust_currency_conn(conn, user["id"], stars=-case_config["costStars"]):
                     return web.json_response({"error": "not enough stars"}, status=400)
 
+            # Джекпот-ролл (0.1%) — лимитированная 3D-модель, если тираж не распродан.
+            rolled_item = _roll_normal_item(case_config["items"])
+            model_token = None
+            granted_role = None
+            jackpot_item = next((i for i in case_config["items"] if i.get("jackpot")), None)
+            if jackpot_item and random.random() < 0.001:
+                token = await db.next_limited_token(conn)
+                if token is not None:
+                    rolled_item = jackpot_item
+                    model_token = token
+
             await db.record_case_open(user["id"], case_id, rolled_item["key"], conn)
-            await db.add_to_inventory(
-                user["id"],
-                rolled_item["key"],
-                rolled_item["name"],
-                rolled_item["rarity"],
-                rolled_item["sell"],
-                rolled_item.get("grantsPremium", False),
-                conn,
-            )
-            if rolled_item.get("grantsPremium"):
-                await db.set_pro_status(user["id"], days=1, conn=conn)
+
+            kind = rolled_item.get("kind", "inventory")
+            if kind == "stars":
+                await db._adjust_currency_conn(conn, user["id"], stars=rolled_item["stars"])
+            elif kind == "model":
+                settings = request.app.get("settings")
+                dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
+                granted_role = await db.grant_limited_model(conn, user["id"], model_token, dev_id)
+            else:
+                await db.add_to_inventory(
+                    user["id"],
+                    rolled_item["key"],
+                    rolled_item["name"],
+                    rolled_item["rarity"],
+                    rolled_item["sell"],
+                    rolled_item.get("grantsPremium", False),
+                    conn,
+                )
+                if rolled_item.get("grantsPremium"):
+                    await db.set_pro_status(user["id"], days=1, conn=conn)
             await db.add_battlepass_xp(user["id"], 20, conn)
 
     # Track quest progress: case opened
     asyncio.create_task(db.update_quest_progress(user["id"], "open-cases", 1))
     asyncio.create_task(db.update_quest_progress(user["id"], "open-cases-2", 1))
 
+    result_item = dict(rolled_item)
+    if model_token is not None:
+        result_item["token"] = model_token
+        result_item["role"] = granted_role
+
     return web.json_response({
-        "item": rolled_item,
+        "item": result_item,
         "last_open_at": datetime.utcnow().isoformat(),
     })
 
@@ -1367,6 +1393,100 @@ async def handle_nexus_buy_star_pack(request: web.Request):
     ip = _client_ip(request)
     await db.audit_log(user["id"], "buy_star_pack", f"pack={pack_id} cost={cost}", ip)
     return web.json_response({"ok": True})
+
+
+async def handle_nexus_model_state(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    return web.json_response(await db.get_limited_models_state(user["id"]))
+
+
+async def handle_nexus_model_list(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    token_id = body.get("token_id")
+    price = body.get("price", 0)
+    if not isinstance(token_id, int) or not isinstance(price, int) or price <= 0:
+        return web.json_response({"error": "invalid price"}, status=400)
+    if not await db.list_limited_model(user["id"], token_id, price):
+        return web.json_response({"error": "not owner"}, status=400)
+    return web.json_response({"ok": True})
+
+
+async def handle_nexus_model_unlist(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    token_id = body.get("token_id")
+    if not isinstance(token_id, int):
+        return web.json_response({"error": "invalid token_id"}, status=400)
+    if not await db.unlist_limited_model(user["id"], token_id):
+        return web.json_response({"error": "not owner"}, status=400)
+    return web.json_response({"ok": True})
+
+
+async def handle_nexus_model_buy(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    token_id = body.get("token_id")
+    if not isinstance(token_id, int):
+        return web.json_response({"error": "invalid token_id"}, status=400)
+    settings = request.app.get("settings")
+    dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
+    ok, err, price = await db.buy_limited_model(user["id"], token_id, dev_id)
+    if not ok:
+        return web.json_response({"error": err}, status=400)
+    return web.json_response({"ok": True, "price": price})
+
+
+async def handle_nexus_model_transfer(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    token_id = body.get("token_id")
+    to_user_id = body.get("to_user_id")
+    if not isinstance(token_id, int) or not isinstance(to_user_id, int) or to_user_id <= 0:
+        return web.json_response({"error": "invalid recipient"}, status=400)
+    settings = request.app.get("settings")
+    dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
+    ok, err = await db.transfer_limited_model(user["id"], to_user_id, token_id, dev_id)
+    if not ok:
+        return web.json_response({"error": err}, status=400)
+    return web.json_response({"ok": True})
+
+
+# Ежедневный доход владельцам лимитированной 3D-модели (50-100 ⭐ в сутки).
+MODEL_INCOME_TICK = 3600
+
+
+async def _model_income_loop(app: web.Application) -> None:
+    while True:
+        try:
+            paid = await app["db"].pay_limited_model_income()
+            if paid:
+                logging.info("[MODEL] daily income paid to %d limited model(s)", paid)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logging.exception("[MODEL] income tick failed")
+        await asyncio.sleep(MODEL_INCOME_TICK)
+
+
+async def _start_model_income(app: web.Application) -> None:
+    app["model_income_task"] = asyncio.create_task(_model_income_loop(app))
+
+
+async def _stop_model_income(app: web.Application) -> None:
+    task = app.get("model_income_task")
+    if task:
+        task.cancel()
+        try:
+            await task
+        except Exception:
+            pass
+
 
 
 async def handle_promo_list(request: web.Request):
@@ -2370,8 +2490,10 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
 
     app.on_startup.append(lambda _app: init_redis())
     app.on_startup.append(_start_prediction_settler)
+    app.on_startup.append(_start_model_income)
     app.on_cleanup.append(lambda _app: close_redis())
     app.on_cleanup.append(_stop_prediction_settler)
+    app.on_cleanup.append(_stop_model_income)
     app.on_cleanup.append(lambda _app: _app["session"].close())
 
     app.router.add_get("/", handle_index)
@@ -2409,6 +2531,11 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/nexus/exchange", handle_nexus_exchange)
     app.router.add_post("/api/nexus/spend-stars", handle_nexus_spend_stars)
     app.router.add_post("/api/nexus/buy-star-pack", handle_nexus_buy_star_pack)
+    app.router.add_get("/api/nexus/model/state", handle_nexus_model_state)
+    app.router.add_post("/api/nexus/model/list", handle_nexus_model_list)
+    app.router.add_post("/api/nexus/model/unlist", handle_nexus_model_unlist)
+    app.router.add_post("/api/nexus/model/buy", handle_nexus_model_buy)
+    app.router.add_post("/api/nexus/model/transfer", handle_nexus_model_transfer)
 
     # Battle Pass, Promo, Referral, Streak, Achievements
     app.router.add_get("/api/battlepass", handle_battlepass)

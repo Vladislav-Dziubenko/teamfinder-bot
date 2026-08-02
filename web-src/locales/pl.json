@@ -27,7 +27,6 @@
   "common.error": "Błąd",
   "common.retry": "Spróbuj ponownie",
   "common.unknown": "Nieznane",
-
   "nav.home": "Strona główna",
   "nav.match": "Partnerzy",
   "nav.predictions": "Prognozy",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Przepustka",
   "nav.promo": "Promo",
   "nav.profile": "Profil",
-
   "topbar.tagline": "znajdź partnerów",
   "topbar.language": "Język",
-
   "lang.title": "Język aplikacji",
   "lang.search": "Szukaj języka…",
-
   "home.hero_title": "Znajdź swoją wymarzoną drużynę",
   "home.hero_cta": "Rozpocznij szukanie",
   "home.stat_coins": "Monety",
   "home.stat_stars": "Gwiazdy",
-
   "match.title": "Szukaj partnerów",
   "match.cta_search": "Znajdź partnerów",
-
   "cases.title": "Skrzynki Nexus",
   "cases.inventory_title": "Twój ekwipunek",
   "cases.coin_shop_title": "Sklep z monetami",
-
   "donate.title": "Wspieraj i rozwijaj się",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Kody promocyjne",
@@ -63,10 +56,12 @@
   "stats.title": "Statystyki",
   "chat.title": "Wiadomości",
   "predictions.title": "Prognozy",
-
   "profile.edit_profile": "Edytuj profil",
   "profile.streak_title": "Codzienna seria",
   "profile.referral_title": "Zaproś znajomych",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Osiągnięcia"
+  "profile.achievements_title": "Osiągnięcia",
+  "nav.model": "Model",
+  "cases.stars_added": "Dodano gwiazdki",
+  "cases.jackpot_collect": "Odbierz jackpot"
 }

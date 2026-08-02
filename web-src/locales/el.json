@@ -27,7 +27,6 @@
   "common.error": "Σφάλμα",
   "common.retry": "Δοκιμή ξανά",
   "common.unknown": "Άγνωστο",
-
   "nav.home": "Αρχική",
   "nav.match": "Συμπαίκτες",
   "nav.predictions": "Προβλέψεις",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Πάσο",
   "nav.promo": "Προσφορά",
   "nav.profile": "Προφίλ",
-
   "topbar.tagline": "βρες συμπαίκτες",
   "topbar.language": "Γλώσσα",
-
   "lang.title": "Γλώσσα εφαρμογής",
   "lang.search": "Αναζήτηση γλώσσας…",
-
   "home.hero_title": "Βρες την ομάδα των ονείρων σου",
   "home.hero_cta": "Έναρξη αναζήτησης",
   "home.stat_coins": "Νομίσματα",
   "home.stat_stars": "Αστέρια",
-
   "match.title": "Αναζήτηση συμπαικτών",
   "match.cta_search": "Βρες συμπαίκτες",
-
   "cases.title": "Θήκες Nexus",
   "cases.inventory_title": "Το απόθεμά σου",
   "cases.coin_shop_title": "Κατάστημα νομισμάτων",
-
   "donate.title": "Υποστήριξη και αναβάθμιση",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Promo κωδικοί",
@@ -63,10 +56,12 @@
   "stats.title": "Στατιστικά",
   "chat.title": "Μηνύματα",
   "predictions.title": "Προβλέψεις",
-
   "profile.edit_profile": "Επεξεργασία προφίλ",
   "profile.streak_title": "Ημερήσια σερί",
   "profile.referral_title": "Πρόσκληση φίλων",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Επιτεύγματα"
+  "profile.achievements_title": "Επιτεύγματα",
+  "nav.model": "Μοντέλο",
+  "cases.stars_added": "Προστέθηκαν αστέρια",
+  "cases.jackpot_collect": "Πάρε το τζάκποτ"
 }

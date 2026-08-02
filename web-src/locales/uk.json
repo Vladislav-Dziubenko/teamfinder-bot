@@ -27,7 +27,6 @@
   "common.error": "Помилка",
   "common.retry": "Спробувати знову",
   "common.unknown": "Невідомо",
-
   "nav.home": "Головна",
   "nav.match": "Тімейти",
   "nav.predictions": "Прогнози",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Пасс",
   "nav.promo": "Промо",
   "nav.profile": "Профіль",
-
   "topbar.tagline": "пошук тімейтів",
   "topbar.language": "Мова",
-
   "lang.title": "Мова застосунку",
   "lang.search": "Пошук мови…",
-
   "home.hero_title": "Знайди свою команду мрії",
   "home.hero_cta": "Почати пошук",
   "home.stat_coins": "Монети",
   "home.stat_stars": "Зірки",
-
   "match.title": "Пошук тімейтів",
   "match.cta_search": "Знайти тімейтів",
-
   "cases.title": "Кейси Nexus",
   "cases.inventory_title": "Твій інвентар",
   "cases.coin_shop_title": "Магазин монет",
-
   "donate.title": "Підтримай та прокачайся",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Промокоди",
@@ -63,10 +56,12 @@
   "stats.title": "Статистика",
   "chat.title": "Повідомлення",
   "predictions.title": "Прогнози",
-
   "profile.edit_profile": "Налаштувати анкету",
   "profile.streak_title": "Щоденний стрік",
   "profile.referral_title": "Запрошуй друзів",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Досягнення"
+  "profile.achievements_title": "Досягнення",
+  "nav.model": "Модель",
+  "cases.stars_added": "Зірки нараховано",
+  "cases.jackpot_collect": "Забрати джекпот"
 }

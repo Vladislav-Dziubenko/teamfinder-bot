@@ -27,7 +27,6 @@
   "common.error": "ত্রুটি",
   "common.retry": "পুনরায় চেষ্টা",
   "common.unknown": "অজানা",
-
   "nav.home": "হোম",
   "nav.match": "সতীর্থ",
   "nav.predictions": "ভবিষ্যদ্বাণী",
@@ -37,25 +36,19 @@
   "nav.battlepass": "পাস",
   "nav.promo": "প্রোমো",
   "nav.profile": "প্রোফাইল",
-
   "topbar.tagline": "সতীর্থ খুঁজুন",
   "topbar.language": "ভাষা",
-
   "lang.title": "অ্যাপের ভাষা",
   "lang.search": "ভাষা অনুসন্ধান…",
-
   "home.hero_title": "আপনার স্বপ্নের দল খুঁজুন",
   "home.hero_cta": "অনুসন্ধান শুরু করুন",
   "home.stat_coins": "মুদ্রা",
   "home.stat_stars": "তারা",
-
   "match.title": "সতীর্থ খুঁজুন",
   "match.cta_search": "সতীর্থ খুঁজুন",
-
   "cases.title": "Nexus কেস",
   "cases.inventory_title": "আপনার তালিকা",
   "cases.coin_shop_title": "মুদ্রার দোকান",
-
   "donate.title": "সমর্থন ও উন্নতি",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "প্রোমো কোড",
@@ -63,10 +56,12 @@
   "stats.title": "পরিসংখ্যান",
   "chat.title": "বার্তা",
   "predictions.title": "ভবিষ্যদ্বাণী",
-
   "profile.edit_profile": "প্রোফাইল সম্পাদনা",
   "profile.streak_title": "দৈনিক ধারা",
   "profile.referral_title": "বন্ধুদের আমন্ত্রণ",
   "profile.discord_title": "ডিসকর্ড",
-  "profile.achievements_title": "সাফল্য"
+  "profile.achievements_title": "সাফল্য",
+  "nav.model": "মডেল",
+  "cases.stars_added": "স্টার যোগ হয়েছে",
+  "cases.jackpot_collect": "জ্যাকপট নিন"
 }

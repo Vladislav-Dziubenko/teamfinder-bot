@@ -27,7 +27,6 @@
   "common.error": "Fehler",
   "common.retry": "Erneut versuchen",
   "common.unknown": "Unbekannt",
-
   "nav.home": "Start",
   "nav.match": "Teammitglieder",
   "nav.predictions": "Prognosen",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Pass",
   "nav.promo": "Promo",
   "nav.profile": "Profil",
-
   "topbar.tagline": "Teammitglieder finden",
   "topbar.language": "Sprache",
-
   "lang.title": "App-Sprache",
   "lang.search": "Sprache suchen…",
-
   "home.hero_title": "Finde dein Traumteam",
   "home.hero_cta": "Suche starten",
   "home.stat_coins": "Münzen",
   "home.stat_stars": "Sterne",
-
   "match.title": "Teammitglieder suchen",
   "match.cta_search": "Teammitglieder finden",
-
   "cases.title": "Nexus Kisten",
   "cases.inventory_title": "Dein Inventar",
   "cases.coin_shop_title": "Münzshop",
-
   "donate.title": "Unterstützen & aufleveln",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Promocodes",
@@ -63,10 +56,12 @@
   "stats.title": "Statistiken",
   "chat.title": "Nachrichten",
   "predictions.title": "Prognosen",
-
   "profile.edit_profile": "Profil bearbeiten",
   "profile.streak_title": "Tägliche Serie",
   "profile.referral_title": "Freunde einladen",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Errungenschaften"
+  "profile.achievements_title": "Errungenschaften",
+  "nav.model": "Modell",
+  "cases.stars_added": "Sterne hinzugefügt",
+  "cases.jackpot_collect": "Jackpot abholen"
 }

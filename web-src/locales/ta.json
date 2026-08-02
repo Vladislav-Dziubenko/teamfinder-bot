@@ -27,7 +27,6 @@
   "common.error": "பிழை",
   "common.retry": "மீண்டும் முயற்சி",
   "common.unknown": "தெரியாதது",
-
   "nav.home": "முகப்பு",
   "nav.match": "அணி தோழர்கள்",
   "nav.predictions": "கணிப்புகள்",
@@ -37,25 +36,19 @@
   "nav.battlepass": "பாஸ்",
   "nav.promo": "புரோமோ",
   "nav.profile": "சுயவிவரம்",
-
   "topbar.tagline": "அணி தோழர்களைத் தேடு",
   "topbar.language": "மொழி",
-
   "lang.title": "பயன்பாட்டு மொழி",
   "lang.search": "மொழியைத் தேடு…",
-
   "home.hero_title": "உங்கள் கனவு அணியைக் கண்டறியவும்",
   "home.hero_cta": "தேடலைத் தொடங்கு",
   "home.stat_coins": "நாணயங்கள்",
   "home.stat_stars": "நட்சத்திரங்கள்",
-
   "match.title": "அணி தோழர்களைத் தேடு",
   "match.cta_search": "அணி தோழர்களைக் கண்டுபிடி",
-
   "cases.title": "Nexus கேஸ்கள்",
   "cases.inventory_title": "உங்கள் சரக்கு",
   "cases.coin_shop_title": "நாணயக் கடை",
-
   "donate.title": "ஆதரவு மற்றும் மேம்படுத்தல்",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "புரோமோ குறியீடுகள்",
@@ -63,10 +56,12 @@
   "stats.title": "புள்ளிவிவரங்கள்",
   "chat.title": "செய்திகள்",
   "predictions.title": "கணிப்புகள்",
-
   "profile.edit_profile": "சுயவிவரத்தைத் திருத்து",
   "profile.streak_title": "தினசரி தொடர்",
   "profile.referral_title": "நண்பர்களை அழை",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "சாதனைகள்"
+  "profile.achievements_title": "சாதனைகள்",
+  "nav.model": "மாதிரி",
+  "cases.stars_added": "நட்சத்திரங்கள் சேர்க்கப்பட்டன",
+  "cases.jackpot_collect": "ஜாக்பாட் பெறுக"
 }

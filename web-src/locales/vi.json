@@ -27,7 +27,6 @@
   "common.error": "Lỗi",
   "common.retry": "Thử lại",
   "common.unknown": "Không rõ",
-
   "nav.home": "Trang chủ",
   "nav.match": "Đồng đội",
   "nav.predictions": "Dự đoán",
@@ -37,25 +36,19 @@
   "nav.battlepass": "Vé",
   "nav.promo": "Khuyến mãi",
   "nav.profile": "Hồ sơ",
-
   "topbar.tagline": "tìm đồng đội",
   "topbar.language": "Ngôn ngữ",
-
   "lang.title": "Ngôn ngữ ứng dụng",
   "lang.search": "Tìm ngôn ngữ…",
-
   "home.hero_title": "Tìm đội trong mơ của bạn",
   "home.hero_cta": "Bắt đầu tìm kiếm",
   "home.stat_coins": "Xu",
   "home.stat_stars": "Sao",
-
   "match.title": "Tìm đồng đội",
   "match.cta_search": "Tìm đồng đội",
-
   "cases.title": "Hộp Nexus",
   "cases.inventory_title": "Kho đồ của bạn",
   "cases.coin_shop_title": "Cửa hàng xu",
-
   "donate.title": "Ủng hộ và nâng cấp",
   "battlepass.title": "Nexus Battle Pass",
   "promo.title": "Mã khuyến mãi",
@@ -63,10 +56,12 @@
   "stats.title": "Thống kê",
   "chat.title": "Tin nhắn",
   "predictions.title": "Dự đoán",
-
   "profile.edit_profile": "Chỉnh sửa hồ sơ",
   "profile.streak_title": "Chuỗi ngày",
   "profile.referral_title": "Mời bạn bè",
   "profile.discord_title": "Discord",
-  "profile.achievements_title": "Thành tựu"
+  "profile.achievements_title": "Thành tựu",
+  "nav.model": "Mô hình",
+  "cases.stars_added": "Đã thêm sao",
+  "cases.jackpot_collect": "Nhận jackpot"
 }
