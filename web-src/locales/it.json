@@ -72,5 +72,6 @@
   "donate.your_balance": "Your balance: {count} stars",
   "donate.insufficient_stars": "Not enough stars",
   "donate.no_teammates": "No teammates yet — find players and chat",
-  "chat.send_stars": "Send stars"
+  "chat.send_stars": "Send stars",
+  "cases.multi_title": "Opened {count} cases"
 }

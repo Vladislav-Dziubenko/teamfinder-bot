@@ -75,7 +75,7 @@ export function StarSendSheet({
 
         <div className="px-5 pt-4">
           <div className="flex items-center justify-between rounded-2xl border border-stars/25 bg-stars/5 px-4 py-3">
-            <p className="text-sm text-muted-foreground">{t("donate.your_balance")}</p>
+            <p className="text-sm text-muted-foreground">{t("donate.your_balance", { count: stars })}</p>
             <p className="flex items-center gap-1 font-display text-base font-bold text-stars">
               <Star className="size-4 fill-stars" /> {stars.toLocaleString("ru")}
             </p>

@@ -81,6 +81,23 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     if (res.item) setSpin((p) => (p ? { box: p.box, winner: res.item! } : p))
   }
 
+  const [multi, setMulti] = useState<{ box: LootCase; items: CaseItem[] } | null>(null)
+
+  async function handleOpenMulti(c: LootCase, count: number) {
+    if (multi || spin) return
+    const totalCost = c.costStars * count
+    if (stars < totalCost) {
+      const res = await buyStars(totalCost)
+      if (!res.ok) { onToast(res.error ?? t("common.error")); return }
+    }
+    const res = await openCase(c.id, count)
+    if (!res.ok) {
+      onToast(res.error ?? t("common.error"))
+      return
+    }
+    if (res.items) setMulti({ box: c, items: res.items })
+  }
+
   const [shopBuying, setShopBuying] = useState<string | null>(null)
 
   async function buyFromShop(key: string, name: string) {
@@ -211,6 +228,22 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                   </>
                 )}
               </button>
+
+              {!c.free && c.gold && (
+                <div className="mt-2 grid grid-cols-5 gap-1.5">
+                  {[3, 5, 10, 50, 100].map((n) => (
+                    <button
+                      key={n}
+                      type="button"
+                      disabled={spin || multi !== null}
+                      onClick={() => handleOpenMulti(c, n)}
+                      className="rounded-xl border border-stars/25 bg-stars/5 py-2 text-xs font-bold text-stars active:scale-95 disabled:opacity-50"
+                    >
+                      ×{n}
+                    </button>
+                  ))}
+                </div>
+              )}
 
               {/* Шансы выпадения */}
               <div className="mt-4 space-y-2 rounded-2xl border border-border bg-background/40 p-3">
@@ -353,6 +386,9 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
           }}
         />
       )}
+
+      {/* Multi reveal modal */}
+      {multi && <MultiRevealModal box={multi.box} items={multi.items} onClose={() => { setMulti(null); refresh() }} />}
     </div>
   )
 }
@@ -660,6 +696,90 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
         >
           {isJackpot ? t("cases.jackpot_collect") : t("cases.collect")}
         </button>
+      </div>
+    </div>
+  )
+}
+
+function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseItem[]; onClose: () => void }) {
+  const { t } = useI18n()
+  const totalStars = items.filter((i) => i.kind === "stars").reduce((s, i) => s + (i.stars ?? 0), 0)
+  const jackpots = items.filter((i) => i.kind === "model")
+
+  const grouped = useMemo(() => {
+    const map = new Map<string, { item: CaseItem; count: number }>()
+    for (const it of items) {
+      const g = map.get(it.key) ?? { item: it, count: 0 }
+      g.count++
+      map.set(it.key, g)
+    }
+    return [...map.values()].sort((a, b) => rarityRank[b.item.rarity] - rarityRank[a.item.rarity])
+  }, [items])
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-6 backdrop-blur-sm">
+      {jackpots.length > 0 && <JackpotBurst onDone={() => {}} />}
+      <div className="animate-star-pop relative flex max-h-[85dvh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-stars/40 bg-card">
+        <div className="flex items-center justify-between border-b border-border bg-stars/5 px-5 py-4">
+          <div>
+            <h3 className="font-display text-lg font-bold">{t("cases.multi_title", { count: items.length })}</h3>
+            <p className="text-xs text-muted-foreground">{box.name}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid size-8 place-items-center rounded-full bg-secondary text-muted-foreground active:scale-90"
+            aria-label={t("common.close")}
+          >
+            <X className="size-4" />
+          </button>
+        </div>
+
+        <div className="flex gap-2 px-5 py-3">
+          <div className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-stars/25 bg-stars/10 py-2.5 text-sm font-bold text-stars">
+            <Star className="size-4 fill-stars" /> +{totalStars}
+          </div>
+          <div className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-accent/25 bg-accent/10 py-2.5 text-sm font-bold text-accent">
+            <Package className="size-4" /> {items.length - jackpots.length - items.filter((i) => i.kind === "stars").length}
+          </div>
+        </div>
+
+        {jackpots.length > 0 && (
+          <div className="mx-5 mb-1 rounded-2xl border border-[#ffd700]/50 bg-[#ffd700]/10 p-3 text-center">
+            <p className="text-sm font-bold text-[#ffd700]">💎 Mini Boss bro #{jackpots[0].token ?? "?"}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">50 000 ⭐ · роль · пожизненный премиум · доход 50-100 ⭐/день</p>
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 space-y-1 overflow-y-auto px-5 pb-5">
+          {grouped.map(({ item, count }) => {
+            const color = rarityMeta[item.rarity].color
+            return (
+              <div key={item.key} className="flex items-center gap-3 rounded-2xl border border-border bg-background/40 px-3 py-2">
+                {item.image ? (
+                  <img src={item.image || "/placeholder.svg"} alt="" className="size-9 rounded-lg object-cover" />
+                ) : (
+                  <span className="grid size-9 place-items-center rounded-lg bg-secondary text-lg">{item.icon}</span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold">{item.name}</p>
+                  <p className="text-[10px]" style={{ color }}>{rarityMeta[item.rarity].label}</p>
+                </div>
+                <span className="shrink-0 text-sm font-bold tabular-nums" style={{ color }}>×{count}</span>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="border-t border-border p-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground active:scale-[0.98]"
+          >
+            {t("cases.collect")}
+          </button>
+        </div>
       </div>
     </div>
   )

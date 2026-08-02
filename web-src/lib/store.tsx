@@ -359,7 +359,7 @@ type Nexus = PersistedState & {
   activatePremium: () => void
   addToInventory: (item: CaseItem) => void
   sellItem: (uid: string) => Promise<void>
-  openCase: (caseId: string) => Promise<{ ok: boolean; item?: CaseItem; error?: string }>
+  openCase: (caseId: string, count?: number) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }>
   refreshModels: () => Promise<void>
   listModel: (tokenId: number, price: number) => Promise<{ ok: boolean; error?: string }>
   unlistModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
@@ -577,12 +577,12 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const openCase = async (caseId: string): Promise<{ ok: boolean; item?: CaseItem; error?: string }> => {
+    const openCase = async (caseId: string, count = 1): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }> => {
       const c = s.lootCases.find((x) => x.id === caseId)
       if (!c) return { ok: false, error: "Кейс не найден" }
-      if (!c.free && s.stars < c.costStars) return { ok: false, error: "Недостаточно Telegram Stars" }
+      if (!c.free && s.stars < c.costStars * count) return { ok: false, error: "Недостаточно Telegram Stars" }
       try {
-        const data = await api.post("/api/nexus/cases/open", { case_id: caseId })
+        const data = await api.post("/api/nexus/cases/open", { case_id: caseId, count })
         if (c.free && data.last_open_at) {
           const until = parseIsoTs(data.last_open_at) + DAY_MS
           setS((p: PersistedState) => ({
@@ -591,6 +591,9 @@ export function NexusProvider({ children }: { children: ReactNode }) {
           }))
         }
         refresh()
+        if (Array.isArray(data.items) && data.items.length > 0) {
+          return { ok: true, items: data.items as CaseItem[], item: data.items[0] as CaseItem }
+        }
         return { ok: true, item: data.item as CaseItem }
       } catch (e: any) {
         await refresh()

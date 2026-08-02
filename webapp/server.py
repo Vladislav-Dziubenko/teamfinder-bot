@@ -1009,6 +1009,7 @@ async def handle_nexus_open_case(request: web.Request):
     logging.info(f"[AUTH] POST {request.path} user_parsed={user is not None} user_id={user.get('id') if user else None}")
     body = await request.json()
     case_id = body.get("case_id")
+    count = body.get("count", 1)
 
     if not case_id or not isinstance(case_id, str):
         return web.json_response({"error": "invalid case_id"}, status=400)
@@ -1016,7 +1017,14 @@ async def handle_nexus_open_case(request: web.Request):
     if case_id not in CASES_CONFIG:
         return web.json_response({"error": "unknown case"}, status=400)
 
+    if not isinstance(count, int) or count <= 0:
+        return web.json_response({"error": "invalid count"}, status=400)
+
     case_config = CASES_CONFIG[case_id]
+
+    # Мульти-открытие доступно только для платных кейсов (у бесплатного дневной кулдаун)
+    if count > 1 and case_config["free"]:
+        return web.json_response({"error": "multi open not allowed for free case"}, status=400)
 
     def _roll_normal_item(items: list[dict]) -> dict:
         normal = [i for i in items if not i.get("jackpot")]
@@ -1039,70 +1047,74 @@ async def handle_nexus_open_case(request: web.Request):
                     if (datetime.utcnow() - last_dt).total_seconds() < 24 * 3600:
                         return web.json_response({"error": "cooldown"}, status=400)
             else:
-                if not await db._adjust_currency_conn(conn, user["id"], stars=-case_config["costStars"]):
+                total_cost = case_config["costStars"] * count
+                if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
                     return web.json_response({"error": "not enough stars"}, status=400)
 
-            # Джекпот-ролл (0.1%) — лимитированная 3D-модель, если тираж не распродан.
-            rolled_item = _roll_normal_item(case_config["items"])
-            model_token = None
-            granted_role = None
             jackpot_item = next((i for i in case_config["items"] if i.get("jackpot")), None)
-            if jackpot_item and random.random() < 0.001:
-                token = await db.next_limited_token(conn)
-                if token is not None:
-                    rolled_item = jackpot_item
-                    model_token = token
+            rolled_items: list[dict] = []
+            for _ in range(count):
+                # Джекпот-ролл (0.1%) — лимитированная 3D-модель, если тираж не распродан.
+                rolled_item = _roll_normal_item(case_config["items"])
+                model_token = None
+                granted_role = None
+                if jackpot_item and random.random() < 0.001:
+                    token = await db.next_limited_token(conn)
+                    if token is not None:
+                        rolled_item = jackpot_item
+                        model_token = token
 
-            await db.record_case_open(user["id"], case_id, rolled_item["key"], conn)
+                await db.record_case_open(user["id"], case_id, rolled_item["key"], conn)
 
-            kind = rolled_item.get("kind", "inventory")
-            if kind == "stars":
-                await db._adjust_currency_conn(conn, user["id"], stars=rolled_item["stars"])
-            elif kind == "model":
-                settings = request.app.get("settings")
-                dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
-                granted_role = await db.grant_limited_model(conn, user["id"], model_token, dev_id)
-            else:
-                await db.add_to_inventory(
-                    user["id"],
-                    rolled_item["key"],
-                    rolled_item["name"],
-                    rolled_item["rarity"],
-                    rolled_item["sell"],
-                    rolled_item.get("grantsPremium", False),
-                    conn,
-                )
-                if rolled_item.get("grantsPremium"):
-                    await db.set_pro_status(user["id"], days=1, conn=conn)
-            await db.add_battlepass_xp(user["id"], 20, conn)
+                kind = rolled_item.get("kind", "inventory")
+                if kind == "stars":
+                    await db._adjust_currency_conn(conn, user["id"], stars=rolled_item["stars"])
+                elif kind == "model":
+                    settings = request.app.get("settings")
+                    dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
+                    granted_role = await db.grant_limited_model(conn, user["id"], model_token, dev_id)
+                else:
+                    await db.add_to_inventory(
+                        user["id"],
+                        rolled_item["key"],
+                        rolled_item["name"],
+                        rolled_item["rarity"],
+                        rolled_item["sell"],
+                        rolled_item.get("grantsPremium", False),
+                        conn,
+                    )
+                    if rolled_item.get("grantsPremium"):
+                        await db.set_pro_status(user["id"], days=1, conn=conn)
 
-            if model_token is not None:
-                nick = await conn.fetchval(
-                    "SELECT nick FROM mini_app_profiles WHERE user_id = $1",
-                    user["id"],
-                )
-                claimed_now = await conn.fetchval(
-                    "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
-                    "nexus-model",
-                )
-                await db.send_global_message(
-                    user["id"],
-                    f"выбил Mini Boss bro #{model_token} из кейса NEXUS Premium! Тираж: {claimed_now}/20",
-                    kind="system",
-                    conn=conn,
-                )
+                result_item = dict(rolled_item)
+                if model_token is not None:
+                    result_item["token"] = model_token
+                    result_item["role"] = granted_role
+                    nick = await conn.fetchval(
+                        "SELECT nick FROM mini_app_profiles WHERE user_id = $1",
+                        user["id"],
+                    )
+                    claimed_now = await conn.fetchval(
+                        "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
+                        "nexus-model",
+                    )
+                    await db.send_global_message(
+                        user["id"],
+                        f"выбил Mini Boss bro #{model_token} из кейса NEXUS Premium! Тираж: {claimed_now}/20",
+                        kind="system",
+                        conn=conn,
+                    )
+                rolled_items.append(result_item)
+
+            await db.add_battlepass_xp(user["id"], 20 * count, conn)
 
     # Track quest progress: case opened
-    asyncio.create_task(db.update_quest_progress(user["id"], "open-cases", 1))
-    asyncio.create_task(db.update_quest_progress(user["id"], "open-cases-2", 1))
-
-    result_item = dict(rolled_item)
-    if model_token is not None:
-        result_item["token"] = model_token
-        result_item["role"] = granted_role
+    asyncio.create_task(db.update_quest_progress(user["id"], "open-cases", count))
+    asyncio.create_task(db.update_quest_progress(user["id"], "open-cases-2", count))
 
     return web.json_response({
-        "item": result_item,
+        "item": rolled_items[0],
+        "items": rolled_items if count > 1 else None,
         "last_open_at": datetime.utcnow().isoformat(),
     })
 

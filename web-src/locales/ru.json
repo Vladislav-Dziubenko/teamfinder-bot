@@ -434,5 +434,6 @@
   "donate.your_balance": "Твой баланс: {count} звезд",
   "donate.insufficient_stars": "Недостаточно звезд",
   "donate.no_teammates": "Пока нет тиммейтов — найди игроков и пообщайся",
-  "chat.send_stars": "Отправить звёзды"
+  "chat.send_stars": "Отправить звёзды",
+  "cases.multi_title": "Открыто кейсов: {count}"
 }
