@@ -393,7 +393,7 @@ class Database:
             self.database_url,
             ssl=ssl_arg,
             min_size=2,
-            max_size=20,
+            max_size=40,
         )
         async with self._pool.acquire() as conn:
             await self._init_schema(conn)
@@ -1168,7 +1168,7 @@ class Database:
     # система (реальный ончейн-TON подключается отдельным этапом).
     LIMITED_MODEL_ID = "nexus-model"
     LIMITED_MODEL_SUPPLY = 20
-    LIMITED_MODEL_WIN_STARS = 50000
+    LIMITED_MODEL_WIN_STARS = 10000
     # Комиссия с продажи, уходящая разработчику (комиссия платформы + роялти 1-5%).
     LIMITED_MODEL_SALE_CUT = 0.05
     # Фиксированная плата (в звёздах) за передачу модели другому пользователю.
@@ -1191,7 +1191,7 @@ class Database:
         return mx + 1
 
     async def grant_limited_model(self, conn: asyncpg.Connection, user_id: int, token_id: int, dev_id: int | None) -> str:
-        """Внутри текущей транзакции: владение моделью + 50 000 ⭐ + роль модератор/админ + пожизненный премиум.
+        """Внутри текущей транзакции: владение моделью + 10 000 ⭐ + роль модератор/админ + пожизненный премиум.
         Возвращает выданную роль."""
         now = datetime.utcnow().isoformat()
         await conn.execute(

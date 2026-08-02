@@ -370,17 +370,19 @@ async def handle_me(request: web.Request):
     user = _get_user(request)
     await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"))
 
-    tasks = [
-        db.get_currency(user["id"]),
-        db.get_mini_app_profile(user["id"]),
-        db.get_inventory(user["id"]),
-        db.get_battlepass(user["id"]),
-        db.get_daily_streak(user["id"]),
-        db.get_or_create_referral(user["id"]),
-        db.get_user_achievements(user["id"]),
-        db.is_pro(user["id"]),
-    ]
-    results = await asyncio.gather(*tasks)
+    # Все запросы выполняются последовательно: каждый берёт/освобождает свой
+    # коннекшн из пула, но не более одного одновременно. Это исключает пиковую
+    # нагрузку на пул (asyncio.gather выше открывал до 8 коннектов сразу, что
+    # при частых /api/me (refresh после каждого открытия кейса) исчерпывало пул
+    # и вызывало периодические 500 "internal server error").
+    currency = await db.get_currency(user["id"])
+    mini_profile = await db.get_mini_app_profile(user["id"])
+    inventory = await db.get_inventory(user["id"])
+    battlepass = await db.get_battlepass(user["id"])
+    streak = await db.get_daily_streak(user["id"])
+    referral = await db.get_or_create_referral(user["id"])
+    achievements = await db.get_user_achievements(user["id"])
+    premium_active = await db.is_pro(user["id"])
 
     case_cooldowns = {}
     for case_id in CASES_CONFIG:
@@ -398,16 +400,16 @@ async def handle_me(request: web.Request):
     return web.json_response({
         "user": user,
         "role": role,
-        "currency": results[0],
-        "mini_profile": results[1] if results[1] else {"games": []},
-        "inventory": results[2],
-        "battlepass": results[3],
-        "streak": results[4],
-        "referral": results[5],
-        "achievements": results[6],
+        "currency": currency,
+        "mini_profile": mini_profile if mini_profile else {"games": []},
+        "inventory": inventory,
+        "battlepass": battlepass,
+        "streak": streak,
+        "referral": referral,
+        "achievements": achievements,
         "cases": list(CASES_CONFIG.values()),
         "case_cooldowns": case_cooldowns,
-        "premium_active": results[7],
+        "premium_active": premium_active,
         "star_packs": [{"id": k, "stars": v["stars"], "perk": v["desc"], "title": v["title"]} for k, v in STAR_PACKS.items()],
         "battlepass_tiers": BATTLE_PASS_TIERS,
         "referral_reward": REFERRAL_REWARD,
@@ -961,11 +963,12 @@ CASES_CONFIG = {
         "dailyLimit": 99,
         "items": [
             {"key": "premium-card", "name": "Премиум-анкета", "desc": "Кастомные фото, свой текст и украшения карточки — без ограничений 1 день", "image": "/premium-reveal.png", "rarity": "premium", "sell": 100, "weight": 40, "grantsPremium": True},
-            {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "rarity": "epic", "sell": 45, "weight": 20, "grantsPremium": True},
-            {"key": "premium-medium", "name": "Премиум средний", "desc": "4 открытия в день", "image": "/premium-x4.png", "rarity": "epic", "sell": 75, "weight": 25, "grantsPremium": True},
-            {"key": "stars-1000", "name": "1000 ⭐", "desc": "1000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 10, "kind": "stars", "stars": 1000},
-            {"key": "stars-10000", "name": "10000 ⭐", "desc": "10000 звёзд на баланс", "icon": "⭐", "rarity": "premium", "sell": 0, "weight": 5, "kind": "stars", "stars": 10000},
-            {"key": "nexus-model", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 50 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 0, "weight": 0.1, "jackpot": True},
+            {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "rarity": "epic", "sell": 45, "weight": 22, "grantsPremium": True},
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "4 открытия в день", "image": "/premium-x4.png", "rarity": "epic", "sell": 75, "weight": 20, "grantsPremium": True},
+            {"key": "stars-150", "name": "150 ⭐", "desc": "150 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 10, "kind": "stars", "stars": 150},
+            {"key": "stars-400", "name": "400 ⭐", "desc": "400 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 5, "kind": "stars", "stars": 400},
+            {"key": "stars-1200", "name": "1200 ⭐", "desc": "1200 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 2, "kind": "stars", "stars": 1200},
+            {"key": "nexus-model", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 0, "weight": 0.1, "jackpot": True},
         ]
     }
 }

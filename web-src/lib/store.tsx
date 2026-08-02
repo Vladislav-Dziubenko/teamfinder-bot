@@ -1,6 +1,6 @@
 "use client"
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react"
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   type CaseItem,
   type BattlePassReward,
@@ -188,11 +188,41 @@ function mergePromos(
   return { codes: Array.from(map.values()), redeemedCodes: redeemed || [] }
 }
 
+const CURRENCY_PERSIST_KEY = "nexus.currency.v1"
+
+function loadSavedCurrency(): { stars: number; coins: number; points: number } | null {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem(CURRENCY_PERSIST_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed.stars === "number" && typeof parsed.coins === "number") {
+      return parsed
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+function saveCurrency(state: PersistedState): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(
+      CURRENCY_PERSIST_KEY,
+      JSON.stringify({ stars: state.stars, coins: state.coins, points: state.points }),
+    )
+  } catch {
+    // ignore quota / privacy errors
+  }
+}
+
 function defaultState(): PersistedState {
+  const saved = loadSavedCurrency()
   return {
-    stars: 0,
-    coins: 0,
-    points: 0,
+    stars: saved?.stars ?? 0,
+    coins: saved?.coins ?? 0,
+    points: saved?.points ?? 0,
     premiumActive: false,
     inventory: [],
     freeSearchesLeft: FREE_SEARCHES,
@@ -391,6 +421,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
   const [s, setS] = useState<PersistedState>(defaultState)
   const [ready, setReady] = useState(false)
   const [now, setNow] = useState(() => Date.now())
+  const refreshing = useRef(false)
 
   useEffect(() => {
     telegramReady()
@@ -402,11 +433,16 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       try {
         const me = (await api.get("/api/me")) as MeResponse
         if (!cancelled) {
-          setS(mapMeToState(me))
+          const next = mapMeToState(me)
+          setS(next)
+          saveCurrency(next)
           setReady(true)
         }
       } catch (e: any) {
-        if (e?.status === 503 && attempt < 10) {
+        // Ретраим на любые 5xx, 429 и сетевые таймауты — чтобы при временном
+        // перегрузе сервера баланс не «залипал» на нуле (стартовое значение).
+        const retriable = e?.status === 429 || (e?.status && e.status >= 500) || e?.timeout
+        if (retriable && attempt < 10) {
           await new Promise((r) => setTimeout(r, 1000 + attempt * 500))
           if (!cancelled) return load(attempt + 1)
         }
@@ -428,14 +464,23 @@ export function NexusProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const refresh = useCallback(async () => {
+    // Коалесценция: если refresh уже выполняется (например, серия fire-and-forget
+    // вызовов после мульти-открытия кейсов), пропускаем новые — сервер и так
+    // отдаст свежий баланс по завершении текущего запроса.
+    if (refreshing.current) return
+    refreshing.current = true
     try {
       const [me, modelState] = await Promise.all([
         api.get("/api/me"),
         api.get("/api/nexus/model/state"),
       ])
-      setS(mapMeToState(me as MeResponse, modelState as ModelState))
+      const next = mapMeToState(me as MeResponse, modelState as ModelState)
+      setS(next)
+      saveCurrency(next)
     } catch (e) {
       console.error("Failed to refresh Nexus state", e)
+    } finally {
+      refreshing.current = false
     }
   }, [])
 

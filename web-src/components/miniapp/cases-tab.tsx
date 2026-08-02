@@ -669,7 +669,7 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
               <span>#{item.token ?? "?"} / 20</span>
             </p>
             <p className="flex items-center justify-between gap-2 text-xs">
-              <span>50 000 ⭐</span>
+              <span>10 000 ⭐</span>
               <span className="font-semibold text-stars">Получено</span>
             </p>
             <p className="flex items-center justify-between gap-2 text-xs">
@@ -767,7 +767,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
         {jackpots.length > 0 && (
           <div className="mx-5 mb-1 rounded-2xl border border-[#ffd700]/50 bg-[#ffd700]/10 p-3 text-center">
             <p className="text-sm font-bold text-[#ffd700]">💎 Mini Boss bro #{jackpots[0].token ?? "?"}</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">50 000 ⭐ · роль · пожизненный премиум · доход 50-100 ⭐/день</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">10 000 ⭐ · роль · пожизненный премиум · доход 50-100 ⭐/день</p>
           </div>
         )}
 
