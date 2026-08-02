@@ -12,6 +12,7 @@ webapp/static/ (index.html/style.css) своими, сохранив вызов�
 
 import gzip
 import html
+import json
 import logging
 import random
 import re
@@ -1010,6 +1011,7 @@ async def handle_nexus_open_case(request: web.Request):
     body = await request.json()
     case_id = body.get("case_id")
     count = body.get("count", 1)
+    request_id = body.get("request_id")
 
     if not case_id or not isinstance(case_id, str):
         return web.json_response({"error": "invalid case_id"}, status=400)
@@ -1019,6 +1021,9 @@ async def handle_nexus_open_case(request: web.Request):
 
     if not isinstance(count, int) or count <= 0:
         return web.json_response({"error": "invalid count"}, status=400)
+
+    if request_id is not None and not isinstance(request_id, str):
+        return web.json_response({"error": "invalid request_id"}, status=400)
 
     case_config = CASES_CONFIG[case_id]
 
@@ -1040,6 +1045,17 @@ async def handle_nexus_open_case(request: web.Request):
     # Everything below runs inside one DB transaction to keep currency/items consistent
     async with db.pool.acquire() as conn:
         async with conn.transaction():
+            # Идемпотентность: если этот request_id уже обработан (клиент мог
+            # повторить запрос после обрыва сети), возвращаем сохранённый результат
+            # и ничего не списываем повторно.
+            if request_id:
+                existing = await conn.fetchval(
+                    "SELECT result FROM case_open_requests WHERE request_id = $1 AND user_id = $2",
+                    request_id, user["id"],
+                )
+                if existing is not None:
+                    return web.json_response(json.loads(existing))
+
             if case_config["free"]:
                 last_open = await db.get_last_case_open(user["id"], case_id, conn)
                 if last_open:
@@ -1142,6 +1158,18 @@ async def handle_nexus_open_case(request: web.Request):
                 )
 
             await db.add_battlepass_xp(user["id"], 20 * count, conn)
+
+            if request_id:
+                await conn.execute(
+                    "INSERT INTO case_open_requests (request_id, user_id, case_id, count, result, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
+                    request_id, user["id"], case_id, count,
+                    json.dumps({
+                        "item": rolled_items[0],
+                        "items": rolled_items if count > 1 else None,
+                        "last_open_at": datetime.utcnow().isoformat(),
+                    }),
+                    now,
+                )
 
     # Track quest progress: case opened
     asyncio.create_task(db.update_quest_progress(user["id"], "open-cases", count))

@@ -91,8 +91,15 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       const res = await buyStars(totalCost)
       if (!res.ok) { onToast(res.error ?? t("common.error")); return }
     }
+    const rid =
+      typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `rid-${Date.now()}-${Math.random().toString(36).slice(2)}`
     setMultiBusy(count)
-    const res = await openCase(c.id, count)
+    let res = await openCase(c.id, count, rid)
+    // Обрыв сети/таймаут: один безопасный повтор с тем же ключом — сервер
+    // не спишет повторно, если первая попытка уже была обработана.
+    if (!res.ok && res.error === "timeout") {
+      res = await openCase(c.id, count, rid)
+    }
     setMultiBusy(null)
     if (!res.ok) {
       onToast(res.error ?? t("common.error"))

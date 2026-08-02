@@ -359,7 +359,7 @@ type Nexus = PersistedState & {
   activatePremium: () => void
   addToInventory: (item: CaseItem) => void
   sellItem: (uid: string) => Promise<void>
-  openCase: (caseId: string, count?: number) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }>
+  openCase: (caseId: string, count?: number, requestId?: string) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }>
   refreshModels: () => Promise<void>
   listModel: (tokenId: number, price: number) => Promise<{ ok: boolean; error?: string }>
   unlistModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
@@ -577,12 +577,15 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const openCase = async (caseId: string, count = 1): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }> => {
+    const openCase = async (caseId: string, count = 1, requestId?: string): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }> => {
       const c = s.lootCases.find((x) => x.id === caseId)
       if (!c) return { ok: false, error: "Кейс не найден" }
       if (!c.free && s.stars < c.costStars * count) return { ok: false, error: "Недостаточно Telegram Stars" }
+      const rid =
+        requestId ||
+        (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `rid-${Date.now()}-${Math.random().toString(36).slice(2)}`)
       try {
-        const data = await api.post("/api/nexus/cases/open", { case_id: caseId, count })
+        const data = await api.post("/api/nexus/cases/open", { case_id: caseId, count, request_id: rid })
         if (c.free && data.last_open_at) {
           const until = parseIsoTs(data.last_open_at) + DAY_MS
           setS((p: PersistedState) => ({

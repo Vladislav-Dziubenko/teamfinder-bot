@@ -37,7 +37,7 @@ async function request(method: string, path: string, body?: unknown) {
   }
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 15_000)
+  const timeout = setTimeout(() => controller.abort(), 30_000)
   init.signal = controller.signal
 
   try {
@@ -51,6 +51,13 @@ async function request(method: string, path: string, body?: unknown) {
     }
 
     return data
+  } catch (e: any) {
+    if (e?.name === "AbortError" || e?.name === "TimeoutError") {
+      const err = new Error("timeout") as any
+      err.timeout = true
+      throw err
+    }
+    throw e
   } finally {
     clearTimeout(timeout)
   }

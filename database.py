@@ -355,6 +355,15 @@ CREATE TABLE IF NOT EXISTS limited_models (
     last_income_at TEXT,
     PRIMARY KEY (model_id, token_id)
 );
+
+CREATE TABLE IF NOT EXISTS case_open_requests (
+    request_id TEXT PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    case_id TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 1,
+    result TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 """
 
 SCHEMA_STATEMENTS = [
