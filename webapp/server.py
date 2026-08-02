@@ -1574,6 +1574,19 @@ async def handle_nexus_model_transfer(request: web.Request):
     return web.json_response({"ok": True})
 
 
+async def handle_nexus_model_sell(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    token_id = body.get("token_id")
+    if not isinstance(token_id, int):
+        return web.json_response({"error": "invalid token_id"}, status=400)
+    ok, err, price = await db.sell_limited_model(user["id"], token_id)
+    if not ok:
+        return web.json_response({"error": err}, status=400)
+    return web.json_response({"ok": True, "price": price})
+
+
 # Ежедневный доход владельцам лимитированной 3D-модели (50-100 ⭐ в сутки).
 MODEL_INCOME_TICK = 3600
 
@@ -2654,6 +2667,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/nexus/model/unlist", handle_nexus_model_unlist)
     app.router.add_post("/api/nexus/model/buy", handle_nexus_model_buy)
     app.router.add_post("/api/nexus/model/transfer", handle_nexus_model_transfer)
+    app.router.add_post("/api/nexus/model/sell", handle_nexus_model_sell)
 
     # Battle Pass, Promo, Referral, Streak, Achievements
     app.router.add_get("/api/battlepass", handle_battlepass)

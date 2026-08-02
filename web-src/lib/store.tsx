@@ -391,10 +391,11 @@ type Nexus = PersistedState & {
   sellItem: (uid: string) => Promise<void>
   openCase: (caseId: string, count?: number, requestId?: string) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }>
   refreshModels: () => Promise<void>
-  listModel: (tokenId: number, price: number) => Promise<{ ok: boolean; error?: string }>
-  unlistModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
-  buyModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
-  transferModel: (tokenId: number, toUserId: number) => Promise<{ ok: boolean; error?: string }>
+    listModel: (tokenId: number, price: number) => Promise<{ ok: boolean; error?: string }>
+    unlistModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
+    buyModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
+    transferModel: (tokenId: number, toUserId: number) => Promise<{ ok: boolean; error?: string }>
+    sellModel: (tokenId: number) => Promise<{ ok: boolean; error?: string; price?: number }>
   useFreeSearch: () => boolean
   unlockPlayer: (id: string, cost: number) => Promise<boolean>
   caseReadyIn: (caseId: string) => number
@@ -690,6 +691,17 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    const sellModel = async (tokenId: number): Promise<{ ok: boolean; error?: string; price?: number }> => {
+      try {
+        const data = await api.post("/api/nexus/model/sell", { token_id: tokenId })
+        await refresh()
+        await refreshModels()
+        return { ok: true, price: data.price }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Не удалось продать модель" }
+      }
+    }
+
     const useFreeSearch = () => {
       if (s.freeSearchesLeft <= 0) return false
       setS((p: PersistedState) => ({ ...p, freeSearchesLeft: p.freeSearchesLeft - 1 }))
@@ -852,6 +864,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       unlistModel,
       buyModel,
       transferModel,
+      sellModel,
       useFreeSearch,
       unlockPlayer,
       caseReadyIn,

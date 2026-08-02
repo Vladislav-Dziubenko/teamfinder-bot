@@ -1187,6 +1187,8 @@ class Database:
     LIMITED_MODEL_SALE_CUT = 0.05
     # Фиксированная плата (в звёздах) за передачу модели другому пользователю.
     LIMITED_MODEL_TRANSFER_FEE = 5
+    # Выкуп модели разработчиком: владелец получает эту сумму звёзд на баланс, модель удаляется.
+    LIMITED_MODEL_SELL_PRICE = 55000
 
     async def next_limited_token(self, conn: asyncpg.Connection) -> int | None:
         """Выдаёт следующий свободный номер экземпляра (1..SUPPLY) или None, если тираж распродан.
@@ -1334,6 +1336,23 @@ class Database:
                     to_id, now, self.LIMITED_MODEL_ID, token_id,
                 )
                 return True, "ok"
+
+    async def sell_limited_model(self, owner_id: int, token_id: int) -> tuple[bool, str, int]:
+        """Продажа модели разработчику: владелец получает LIMITED_MODEL_SELL_PRICE звёзд на баланс, модель удаляется."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT owner_id FROM limited_models WHERE model_id = $1 AND token_id = $2 FOR UPDATE",
+                    self.LIMITED_MODEL_ID, token_id,
+                )
+                if not row or row["owner_id"] != owner_id:
+                    return False, "not owner", 0
+                await self._adjust_currency_conn(conn, owner_id, stars=self.LIMITED_MODEL_SELL_PRICE)
+                await conn.execute(
+                    "DELETE FROM limited_models WHERE model_id = $1 AND token_id = $2",
+                    self.LIMITED_MODEL_ID, token_id,
+                )
+                return True, "ok", self.LIMITED_MODEL_SELL_PRICE
 
     async def pay_limited_model_income(self) -> int:
         """Ежедневный доход владельцу модели: 50-100 ⭐ за каждый экземпляр, раз в сутки (UTC)."""

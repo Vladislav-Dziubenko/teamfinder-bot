@@ -110,7 +110,7 @@ function ModelViewer() {
 }
 
 export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
-  const { modelState, stars, listModel, unlistModel, buyModel, transferModel, refreshModels } = useNexus()
+  const { modelState, stars, listModel, unlistModel, buyModel, transferModel, sellModel, refreshModels } = useNexus()
   const [listing, setListing] = useState<number | null>(null)
   const [price, setPrice] = useState("")
   const [transfer, setTransfer] = useState<number | null>(null)
@@ -144,6 +144,13 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
     onToast(res.ok ? "Модель передана (комиссия 5 ⭐)" : res.error ?? "Ошибка")
     setTransfer(null)
     setTransferId("")
+  }
+
+  async function submitSell(token: number) {
+    setBusy(true)
+    const res = await sellModel(token)
+    setBusy(false)
+    onToast(res.ok ? `Модель продана за ${(res.price ?? 55000).toLocaleString("ru")} ⭐` : res.error ?? "Ошибка")
   }
 
   const mine = modelState.mine ?? []
@@ -280,6 +287,14 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                       className="flex items-center gap-1 rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-semibold active:scale-95"
                     >
                       <Send className="size-3.5" /> Передать
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => submitSell(m.token_id)}
+                      className="flex items-center gap-1 rounded-xl bg-[#ffd700]/15 px-3 py-2 text-xs font-bold text-[#ffd700] active:scale-95 disabled:opacity-50"
+                    >
+                      <Star className="size-3.5" /> Продать за 55 000 ⭐
                     </button>
                     {transfer === m.token_id && (
                       <div className="flex w-full gap-2">
