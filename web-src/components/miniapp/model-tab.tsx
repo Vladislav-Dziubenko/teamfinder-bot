@@ -168,12 +168,25 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
 
       <ModelViewer />
 
-      <div className="flex items-center justify-between rounded-2xl border border-[#ffd700]/30 bg-[#ffd700]/5 px-4 py-3">
-        <div className="flex items-center gap-2 text-sm font-semibold">
-          <Crown className="size-4 text-[#ffd700]" />
-          Выбито: {modelState.claimed} / {modelState.supply}
+      <div className="rounded-2xl border border-[#ffd700]/30 bg-[#ffd700]/5 px-4 py-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2 text-sm font-semibold">
+            <Crown className="size-4 text-[#ffd700]" />
+            Лимитированный тираж: {modelState.claimed} / {modelState.supply}
+          </div>
+          <div className="text-sm font-bold text-[#ffd700]">
+            {modelState.claimed === modelState.supply ? "Тираж распродан" : `Осталось: ${modelState.remaining}`}
+          </div>
         </div>
-        <div className="text-sm font-bold text-[#ffd700]">Осталось: {modelState.remaining}</div>
+        <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#ffd700]/15">
+          <div
+            className="h-full rounded-full bg-gradient-to-r from-[#ffd700] to-[#ff9d00] transition-all"
+            style={{ width: `${modelState.supply > 0 ? Math.round((modelState.claimed / modelState.supply) * 100) : 0}%` }}
+          />
+        </div>
+        <p className="mt-1.5 text-[11px] text-muted-foreground">
+          Всего 20 экземпляров навсегда — больше выпускаться не будут
+        </p>
       </div>
 
       {mine.length === 0 && (
