@@ -2269,7 +2269,13 @@ class Database:
 
     async def send_global_message(self, user_id: int, text: str, kind: str = "user", conn: asyncpg.Connection | None = None) -> dict:
         now = datetime.utcnow().isoformat()
-        async with conn or self.pool.acquire() as c:
+        if conn is not None:
+            row = await conn.fetchrow(
+                "INSERT INTO global_messages (user_id, text, created_at, kind) VALUES ($1, $2, $3, $4) RETURNING id",
+                user_id, text, now, kind,
+            )
+            return {"id": str(row["id"]), "user_id": user_id, "text": text, "created_at": now, "kind": kind}
+        async with self.pool.acquire() as c:
             row = await c.fetchrow(
                 "INSERT INTO global_messages (user_id, text, created_at, kind) VALUES ($1, $2, $3, $4) RETURNING id",
                 user_id, text, now, kind,
