@@ -1130,7 +1130,7 @@ async def handle_nexus_open_case(request: web.Request):
 
             if inventory_batch:
                 rows_sql = ", ".join(
-                    f"({user['id']}, ${i*5+1}, ${i*5+2}, ${i*5+3}, ${i*5+4}, ${i*5+5}, ${i*5+6})"
+                    f"({user['id']}, ${i*6+1}, ${i*6+2}, ${i*6+3}, ${i*6+4}, ${i*6+5}, ${i*6+6})"
                     for i in range(len(inventory_batch))
                 )
                 inv_params: list = []
