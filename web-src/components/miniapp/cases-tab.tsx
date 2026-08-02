@@ -5,7 +5,7 @@ import { flushSync } from "react-dom"
 import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2 } from "lucide-react"
 import { rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
-import { useNexus } from "@/lib/store"
+import { useNexus, type InventoryItem } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { tick, win as winSfx, whoosh, setMuted, isMuted, ensureAudio } from "@/lib/sfx"
 import { formatNum } from "@/lib/format"
@@ -53,10 +53,42 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem, lootCases, refresh, modelState } = useNexus()
+  const { stars, coins, inventory, pinnedKeys, caseReadyIn, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
+  const [sortMode, setSortMode] = useState<"value" | "rarity">("value")
+
+  // Стакаем предметы одного типа: показываем иконку + количество + суммарную ценность.
+  const stackedInventory = useMemo(() => {
+    const map = new Map<string, { item: InventoryItem; count: number; totalSell: number }>()
+    for (const it of inventory) {
+      const g = map.get(it.key)
+      if (g) {
+        g.count++
+        g.totalSell += it.sell ?? 0
+      } else {
+        map.set(it.key, { item: it, count: 1, totalSell: it.sell ?? 0 })
+      }
+    }
+    return Array.from(map.values())
+  }, [inventory])
+
+  const sortedStacked = useMemo(() => {
+    const arr = [...stackedInventory]
+    arr.sort((a, b) => {
+      const pa = pinnedKeys.includes(a.item.key) ? 1 : 0
+      const pb = pinnedKeys.includes(b.item.key) ? 1 : 0
+      if (pa !== pb) return pb - pa
+      if (sortMode === "value") {
+        return (b.totalSell || 0) - (a.totalSell || 0)
+      }
+      const rDiff = rarityRank[b.item.rarity] - rarityRank[a.item.rarity]
+      if (rDiff !== 0) return rDiff
+      return (b.totalSell || 0) - (a.totalSell || 0)
+    })
+    return arr
+  }, [stackedInventory, pinnedKeys, sortMode])
 
   useEffect(() => {
     setSound(!isMuted())
@@ -324,6 +356,23 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
             <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {formatNum(coins)}
           </span>
         </div>
+        {inventory.length > 0 && (
+          <div className="mb-3 flex items-center gap-1.5">
+            {(["value", "rarity"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setSortMode(mode)}
+                className={cn(
+                  "rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors active:scale-95",
+                  sortMode === mode ? "bg-primary text-primary-foreground" : "border border-border bg-secondary text-muted-foreground",
+                )}
+              >
+                {mode === "value" ? t("cases.sort_value") : t("cases.sort_rarity")}
+              </button>
+            ))}
+          </div>
+        )}
         {modelState.mine.length > 0 && (
           <div className="mb-3 rounded-2xl border border-[#ffd700]/40 bg-[#ffd700]/5 p-3">
             <div className="flex items-center gap-3">
@@ -345,33 +394,56 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3">
-            {inventory.map((item) => (
-              <div key={item.uid} className="overflow-hidden rounded-2xl border border-border bg-card p-3">
-                <div className="flex items-center gap-2">
-                  {item.image ? (
-                    <img src={item.image || "/placeholder.svg"} alt="" className="size-10 rounded-lg object-cover" />
-                  ) : (
-                    <span className="grid size-10 place-items-center rounded-lg bg-secondary text-xl">{item.icon}</span>
+            {sortedStacked.map(({ item, count, totalSell }) => {
+              const pinned = pinnedKeys.includes(item.key)
+              return (
+                <div
+                  key={item.key}
+                  className={cn(
+                    "overflow-hidden rounded-2xl border bg-card p-3",
+                    pinned ? "border-[#ffd700]/60 shadow-[0_0_16px_-6px_rgba(255,215,0,0.6)]" : "border-border",
                   )}
-                  <div className="min-w-0">
-                    <p className="truncate text-xs font-bold">{item.name}</p>
-                    <p className="text-[10px]" style={{ color: rarityMeta[item.rarity].color }}>
-                      {rarityMeta[item.rarity].label}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={async () => {
-                    await sellItem(item.uid)
-                    onToast(t("cases.sold_for", { cost: item.sell }))
-                  }}
-                  className="mt-2.5 flex w-full items-center justify-center gap-1 rounded-xl border border-primary/30 bg-primary/10 py-2 text-xs font-semibold text-primary active:scale-95"
                 >
-                  <Coins className="size-3.5" /> {t("cases.sell_for", { cost: item.sell })}
-                </button>
-              </div>
-            ))}
+                  <div className="flex items-center gap-2">
+                    {item.image ? (
+                      <img src={item.image || "/placeholder.svg"} alt="" className="size-10 rounded-lg object-cover" />
+                    ) : (
+                      <span className="grid size-10 place-items-center rounded-lg bg-secondary text-xl">{item.icon}</span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold">{item.name}</p>
+                      <p className="text-[10px]" style={{ color: rarityMeta[item.rarity].color }}>
+                        {rarityMeta[item.rarity].label} {count > 1 && <span className="text-muted-foreground">×{count}</span>}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => togglePin(item.key)}
+                      aria-label={pinned ? t("cases.unpin") : t("cases.pin")}
+                      className={cn(
+                        "grid size-7 shrink-0 place-items-center rounded-lg text-xs active:scale-90",
+                        pinned ? "bg-[#ffd700]/20 text-[#ffd700]" : "bg-secondary text-muted-foreground",
+                      )}
+                    >
+                      📌
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const uid = inventory.find((i) => i.key === item.key)?.uid
+                      if (!uid) return
+                      await sellItem(uid)
+                      onToast(t("cases.sold_for", { cost: item.sell }))
+                    }}
+                    className="mt-2.5 flex w-full items-center justify-center gap-1 rounded-xl border border-primary/30 bg-primary/10 py-2 text-xs font-semibold text-primary active:scale-95"
+                  >
+                    <Coins className="size-3.5" /> {t("cases.sell_for", { cost: item.sell })}
+                    {count > 1 && <span className="text-[10px] text-muted-foreground">({formatNum(totalSell)} всего)</span>}
+                  </button>
+                </div>
+              )
+            })}
           </div>
         )}
       </section>

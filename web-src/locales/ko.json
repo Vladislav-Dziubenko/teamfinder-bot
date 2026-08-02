@@ -79,5 +79,9 @@
   "cases.need_stars_desc": "Need {cost} ⭐, balance {stars} ⭐",
   "cases.top_up": "Top up {cost} ⭐",
   "cases.top_up_done": "Stars added",
-  "cases.buy_pack": "Buy {stars} ⭐"
+  "cases.buy_pack": "Buy {stars} ⭐",
+  "cases.sort_value": "가치순",
+  "cases.sort_rarity": "희귀도순",
+  "cases.pin": "고정",
+  "cases.unpin": "고정 해제"
 }

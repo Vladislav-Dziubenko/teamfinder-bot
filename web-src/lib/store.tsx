@@ -95,6 +95,7 @@ type PersistedState = {
   points: number
   premiumActive: boolean
   inventory: InventoryItem[]
+  pinnedKeys: string[]
   freeSearchesLeft: number
   unlockedPlayers: string[]
   caseCooldown: Record<string, number>
@@ -189,6 +190,28 @@ function mergePromos(
 }
 
 const CURRENCY_PERSIST_KEY = "nexus.currency.v1"
+const PINS_PERSIST_KEY = "nexus.pins.v1"
+
+function loadSavedPins(): string[] {
+  if (typeof window === "undefined") return []
+  try {
+    const raw = localStorage.getItem(PINS_PERSIST_KEY)
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === "string") : []
+  } catch {
+    return []
+  }
+}
+
+function savePins(pins: string[]): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(PINS_PERSIST_KEY, JSON.stringify(pins))
+  } catch {
+    // ignore quota / privacy errors
+  }
+}
 
 function loadSavedCurrency(): { stars: number; coins: number; points: number } | null {
   if (typeof window === "undefined") return null
@@ -225,6 +248,7 @@ function defaultState(): PersistedState {
     points: saved?.points ?? 0,
     premiumActive: false,
     inventory: [],
+    pinnedKeys: loadSavedPins(),
     freeSearchesLeft: FREE_SEARCHES,
     unlockedPlayers: [],
     caseCooldown: {},
@@ -265,7 +289,7 @@ function defaultState(): PersistedState {
   }
 }
 
-function mapMeToState(me: MeResponse, modelState?: ModelState): PersistedState {
+function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: string[] = []): PersistedState {
   const user = me.user || {}
   const currency = me.currency || {}
   const mini = me.mini_profile || {}
@@ -296,6 +320,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState): PersistedState {
     points: currency.points ?? 0,
     premiumActive: me.premium_active || false,
     inventory: (me.inventory || []).map((i) => enrichInventoryItem(i, registry)),
+    pinnedKeys,
     freeSearchesLeft: FREE_SEARCHES,
     unlockedPlayers: [],
     caseCooldown,
@@ -389,13 +414,14 @@ type Nexus = PersistedState & {
   activatePremium: () => void
   addToInventory: (item: CaseItem) => void
   sellItem: (uid: string) => Promise<void>
+  togglePin: (key: string) => void
   openCase: (caseId: string, count?: number, requestId?: string) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }>
   refreshModels: () => Promise<void>
-    listModel: (tokenId: number, price: number) => Promise<{ ok: boolean; error?: string }>
-    unlistModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
-    buyModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
-    transferModel: (tokenId: number, toUserId: number) => Promise<{ ok: boolean; error?: string }>
-    sellModel: (tokenId: number) => Promise<{ ok: boolean; error?: string; price?: number }>
+  listModel: (tokenId: number, price: number) => Promise<{ ok: boolean; error?: string }>
+  unlistModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
+  buyModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
+  transferModel: (tokenId: number, toUserId: number) => Promise<{ ok: boolean; error?: string }>
+  sellModel: (tokenId: number) => Promise<{ ok: boolean; error?: string; price?: number }>
   useFreeSearch: () => boolean
   unlockPlayer: (id: string, cost: number) => Promise<boolean>
   caseReadyIn: (caseId: string) => number
@@ -434,7 +460,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       try {
         const me = (await api.get("/api/me")) as MeResponse
         if (!cancelled) {
-          const next = mapMeToState(me)
+          const next = mapMeToState(me, undefined, loadSavedPins())
           setS(next)
           saveCurrency(next)
           setReady(true)
@@ -475,7 +501,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         api.get("/api/me"),
         api.get("/api/nexus/model/state"),
       ])
-      const next = mapMeToState(me as MeResponse, modelState as ModelState)
+      const next = mapMeToState(me as MeResponse, modelState as ModelState, loadSavedPins())
       setS(next)
       saveCurrency(next)
     } catch (e) {
@@ -621,6 +647,16 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         console.error("sellItem failed", e)
         await refresh()
       }
+    }
+
+    const togglePin = (key: string) => {
+      setS((p: PersistedState) => {
+        const pinned = p.pinnedKeys.includes(key)
+          ? p.pinnedKeys.filter((k) => k !== key)
+          : [...p.pinnedKeys, key]
+        savePins(pinned)
+        return { ...p, pinnedKeys: pinned }
+      })
     }
 
     const openCase = async (caseId: string, count = 1, requestId?: string): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }> => {
@@ -858,6 +894,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       activatePremium,
       addToInventory,
       sellItem,
+      togglePin,
       openCase,
       refreshModels,
       listModel,

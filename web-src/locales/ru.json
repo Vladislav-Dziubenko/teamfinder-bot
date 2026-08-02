@@ -441,5 +441,9 @@
   "cases.need_stars_desc": "Нужно {cost} ⭐, на балансе {stars} ⭐",
   "cases.top_up": "Пополнить {cost} ⭐",
   "cases.top_up_done": "Звёзды начислены",
-  "cases.buy_pack": "Купить {stars} ⭐"
+  "cases.buy_pack": "Купить {stars} ⭐",
+  "cases.sort_value": "По ценности",
+  "cases.sort_rarity": "По редкости",
+  "cases.pin": "Закрепить",
+  "cases.unpin": "Открепить"
 }

@@ -80,5 +80,9 @@
   "cases.need_stars_desc": "Need {cost} ⭐, balance {stars} ⭐",
   "cases.top_up": "Top up {cost} ⭐",
   "cases.top_up_done": "Stars added",
-  "cases.buy_pack": "Buy {stars} ⭐"
+  "cases.buy_pack": "Buy {stars} ⭐",
+  "cases.sort_value": "بر اساس ارزش",
+  "cases.sort_rarity": "بر اساس کمیابی",
+  "cases.pin": "پین",
+  "cases.unpin": "برداشتن پین"
 }

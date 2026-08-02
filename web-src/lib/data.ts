@@ -480,7 +480,7 @@ export const lootCases: LootCase[] = [
         icon: "💎",
         rarity: "legendary",
         sell: 0,
-        weight: 0.25,
+        weight: 0.1,
         jackpot: true,
         kind: "model",
       },

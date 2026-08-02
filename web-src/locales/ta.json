@@ -79,5 +79,9 @@
   "cases.need_stars_desc": "Need {cost} ⭐, balance {stars} ⭐",
   "cases.top_up": "Top up {cost} ⭐",
   "cases.top_up_done": "Stars added",
-  "cases.buy_pack": "Buy {stars} ⭐"
+  "cases.buy_pack": "Buy {stars} ⭐",
+  "cases.sort_value": "மதிப்பு மூலம்",
+  "cases.sort_rarity": "அரிதானவை மூலம்",
+  "cases.pin": "பின்",
+  "cases.unpin": "பின் நீக்கு"
 }

@@ -441,5 +441,9 @@
   "cases.need_stars_desc": "Need {cost} ⭐, balance {stars} ⭐",
   "cases.top_up": "Top up {cost} ⭐",
   "cases.top_up_done": "Stars added",
-  "cases.buy_pack": "Buy {stars} ⭐"
+  "cases.buy_pack": "Buy {stars} ⭐",
+  "cases.sort_value": "By value",
+  "cases.sort_rarity": "By rarity",
+  "cases.pin": "Pin",
+  "cases.unpin": "Unpin"
 }

@@ -200,7 +200,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
         <div className="rounded-3xl border border-dashed border-border py-8 text-center">
           <Gem className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-2 text-sm text-muted-foreground">
-            У тебя пока нет модели. Выбить её можно из кейса NEXUS Premium (шанс 0.25%).
+            У тебя пока нет модели. Выбить её можно из кейса NEXUS Premium (шанс 0.1%).
           </p>
         </div>
       )}

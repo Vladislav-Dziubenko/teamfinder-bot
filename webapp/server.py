@@ -968,7 +968,7 @@ CASES_CONFIG = {
             {"key": "stars-150", "name": "150 ⭐", "desc": "150 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 8, "kind": "stars", "stars": 150},
             {"key": "stars-400", "name": "400 ⭐", "desc": "400 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 4, "kind": "stars", "stars": 400},
             {"key": "stars-1200", "name": "1200 ⭐", "desc": "1200 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 1.2, "kind": "stars", "stars": 1200},
-            {"key": "nexus-model", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 0, "weight": 0.25, "jackpot": True},
+            {"key": "nexus-model", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 0, "weight": 0.1, "jackpot": True},
         ]
     }
 }
@@ -1078,11 +1078,11 @@ async def handle_nexus_open_case(request: web.Request):
             now = datetime.utcnow().isoformat()
 
             for _ in range(count):
-                # Джекпот-ролл (0.25%) — лимитированная 3D-модель, если тираж не распродан.
+                # Джекпот-ролл (0.1%) — лимитированная 3D-модель, если тираж не распродан.
                 rolled_item = _roll_normal_item(case_config["items"])
                 model_token = None
                 granted_role = None
-                if jackpot_item and random.random() < 0.0025:
+                if jackpot_item and random.random() < 0.001:
                     token = await db.next_limited_token(conn)
                     if token is not None:
                         rolled_item = jackpot_item

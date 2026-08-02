@@ -79,5 +79,9 @@
   "cases.need_stars_desc": "Need {cost} ⭐, balance {stars} ⭐",
   "cases.top_up": "Top up {cost} ⭐",
   "cases.top_up_done": "Stars added",
-  "cases.buy_pack": "Buy {stars} ⭐"
+  "cases.buy_pack": "Buy {stars} ⭐",
+  "cases.sort_value": "Por valor",
+  "cases.sort_rarity": "Por rareza",
+  "cases.pin": "Fijar",
+  "cases.unpin": "Quitar"
 }
