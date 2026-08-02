@@ -82,15 +82,18 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   }
 
   const [multi, setMulti] = useState<{ box: LootCase; items: CaseItem[] } | null>(null)
+  const [multiBusy, setMultiBusy] = useState<number | null>(null)
 
   async function handleOpenMulti(c: LootCase, count: number) {
-    if (multi || spin) return
+    if (multi || spin || multiBusy) return
     const totalCost = c.costStars * count
     if (stars < totalCost) {
       const res = await buyStars(totalCost)
       if (!res.ok) { onToast(res.error ?? t("common.error")); return }
     }
+    setMultiBusy(count)
     const res = await openCase(c.id, count)
+    setMultiBusy(null)
     if (!res.ok) {
       onToast(res.error ?? t("common.error"))
       return
@@ -230,18 +233,28 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
               </button>
 
               {!c.free && c.gold && (
-                <div className="mt-2 grid grid-cols-5 gap-1.5">
-                  {[3, 5, 10, 50, 100].map((n) => (
-                    <button
-                      key={n}
-                      type="button"
-                      disabled={spin || multi !== null}
-                      onClick={() => handleOpenMulti(c, n)}
-                      className="rounded-xl border border-stars/25 bg-stars/5 py-2 text-xs font-bold text-stars active:scale-95 disabled:opacity-50"
-                    >
-                      ×{n}
-                    </button>
-                  ))}
+                <div className="mt-2">
+                  <p className="mb-1.5 text-[11px] font-semibold text-muted-foreground">{t("cases.multi_hint")}</p>
+                  <div className="grid grid-cols-5 gap-1.5">
+                    {[3, 5, 10, 50, 100].map((n) => (
+                      <button
+                        key={n}
+                        type="button"
+                        disabled={spin || multi !== null || multiBusy !== null}
+                        onClick={() => handleOpenMulti(c, n)}
+                        className="flex flex-col items-center justify-center rounded-xl border border-stars/25 bg-stars/5 py-1.5 active:scale-95 disabled:opacity-50"
+                      >
+                        {multiBusy === n ? (
+                          <Loader2 className="size-3.5 animate-spin text-stars" />
+                        ) : (
+                          <span className="text-xs font-bold text-stars">×{n}</span>
+                        )}
+                        <span className="text-[9px] tabular-nums text-muted-foreground">
+                          {multiBusy === n ? "..." : `${(c.costStars * n).toLocaleString("ru")} ⭐`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 

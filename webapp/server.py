@@ -1053,6 +1053,11 @@ async def handle_nexus_open_case(request: web.Request):
 
             jackpot_item = next((i for i in case_config["items"] if i.get("jackpot")), None)
             rolled_items: list[dict] = []
+            stars_won = 0
+            inventory_batch: list[tuple] = []
+            premium_count = 0
+            now = datetime.utcnow().isoformat()
+
             for _ in range(count):
                 # Джекпот-ролл (0.1%) — лимитированная 3D-модель, если тираж не распродан.
                 rolled_item = _roll_normal_item(case_config["items"])
@@ -1064,27 +1069,23 @@ async def handle_nexus_open_case(request: web.Request):
                         rolled_item = jackpot_item
                         model_token = token
 
-                await db.record_case_open(user["id"], case_id, rolled_item["key"], conn)
-
                 kind = rolled_item.get("kind", "inventory")
                 if kind == "stars":
-                    await db._adjust_currency_conn(conn, user["id"], stars=rolled_item["stars"])
+                    stars_won += rolled_item.get("stars", 0)
                 elif kind == "model":
                     settings = request.app.get("settings")
                     dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
                     granted_role = await db.grant_limited_model(conn, user["id"], model_token, dev_id)
                 else:
-                    await db.add_to_inventory(
-                        user["id"],
+                    inventory_batch.append((
                         rolled_item["key"],
                         rolled_item["name"],
                         rolled_item["rarity"],
                         rolled_item["sell"],
-                        rolled_item.get("grantsPremium", False),
-                        conn,
-                    )
+                        int(bool(rolled_item.get("grantsPremium"))),
+                    ))
                     if rolled_item.get("grantsPremium"):
-                        await db.set_pro_status(user["id"], days=1, conn=conn)
+                        premium_count += 1
 
                 result_item = dict(rolled_item)
                 if model_token is not None:
@@ -1105,6 +1106,40 @@ async def handle_nexus_open_case(request: web.Request):
                         conn=conn,
                     )
                 rolled_items.append(result_item)
+
+            # Применяем результаты батчами — всего несколько запросов вместо count*3,
+            # чтобы мульти-открытие не превышало таймаут клиента на удалённой БД.
+            if stars_won > 0:
+                await db._adjust_currency_conn(conn, user["id"], stars=stars_won)
+
+            if inventory_batch:
+                rows_sql = ", ".join(
+                    f"({user['id']}, ${i*5+1}, ${i*5+2}, ${i*5+3}, ${i*5+4}, ${i*5+5}, ${i*5+6})"
+                    for i in range(len(inventory_batch))
+                )
+                inv_params: list = []
+                for key, name, rarity, sell, premium in inventory_batch:
+                    inv_params += [key, name, rarity, sell, premium, now]
+                await conn.execute(
+                    f"INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, grants_premium, acquired_at) VALUES {rows_sql}",
+                    *inv_params,
+                )
+
+            if premium_count > 0:
+                await db.set_pro_status(user["id"], days=premium_count, conn=conn)
+
+            if rolled_items:
+                keys_sql = ", ".join(
+                    f"({user['id']}, ${i*3+1}, ${i*3+2}, ${i*3+3})"
+                    for i in range(len(rolled_items))
+                )
+                open_params: list = []
+                for it in rolled_items:
+                    open_params += [case_id, now, it["key"]]
+                await conn.execute(
+                    f"INSERT INTO case_opens (user_id, case_id, opened_at, item_key) VALUES {keys_sql}",
+                    *open_params,
+                )
 
             await db.add_battlepass_xp(user["id"], 20 * count, conn)
 

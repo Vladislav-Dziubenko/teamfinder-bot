@@ -435,5 +435,6 @@
   "donate.insufficient_stars": "Недостаточно звезд",
   "donate.no_teammates": "Пока нет тиммейтов — найди игроков и пообщайся",
   "chat.send_stars": "Отправить звёзды",
-  "cases.multi_title": "Открыто кейсов: {count}"
+  "cases.multi_title": "Открыто кейсов: {count}",
+  "cases.multi_hint": "Мульти-открытие: кейс откроется сразу N раз"
 }
