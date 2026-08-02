@@ -1076,6 +1076,22 @@ async def handle_nexus_open_case(request: web.Request):
                     await db.set_pro_status(user["id"], days=1, conn=conn)
             await db.add_battlepass_xp(user["id"], 20, conn)
 
+            if model_token is not None:
+                nick = await conn.fetchval(
+                    "SELECT nick FROM mini_app_profiles WHERE user_id = $1",
+                    user["id"],
+                )
+                claimed_now = await conn.fetchval(
+                    "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
+                    "nexus-model",
+                )
+                await db.send_global_message(
+                    user["id"],
+                    f"выбил Mini Boss bro #{model_token} из кейса NEXUS Premium! Тираж: {claimed_now}/20",
+                    kind="system",
+                    conn=conn,
+                )
+
     # Track quest progress: case opened
     asyncio.create_task(db.update_quest_progress(user["id"], "open-cases", 1))
     asyncio.create_task(db.update_quest_progress(user["id"], "open-cases-2", 1))

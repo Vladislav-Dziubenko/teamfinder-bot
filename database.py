@@ -264,7 +264,8 @@ CREATE TABLE IF NOT EXISTS global_messages (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
     text TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'user'
 );
 
 CREATE TABLE IF NOT EXISTS user_roles (
@@ -526,6 +527,7 @@ class Database:
 
             ("users", "last_active_at", "TEXT"),
             ("chat_messages", "read_at", "TEXT"),
+            ("global_messages", "kind", "TEXT NOT NULL DEFAULT 'user'"),
         ]
 
         for table, column, col_type in column_migrations:
@@ -2231,7 +2233,7 @@ class Database:
     async def get_global_messages(self, limit: int = 50) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
-                """SELECT gm.id, gm.user_id, gm.text, gm.created_at,
+                """SELECT gm.id, gm.user_id, gm.text, gm.created_at, gm.kind,
                           COALESCE(mp.nick, '') AS nick, mp.avatar,
                           COALESCE(ur.role, '') AS role, mp.deco
                    FROM global_messages gm
@@ -2242,14 +2244,14 @@ class Database:
             )
             return [dict(r) for r in reversed(rows)]
 
-    async def send_global_message(self, user_id: int, text: str) -> dict:
+    async def send_global_message(self, user_id: int, text: str, kind: str = "user", conn: asyncpg.Connection | None = None) -> dict:
         now = datetime.utcnow().isoformat()
-        async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "INSERT INTO global_messages (user_id, text, created_at) VALUES ($1, $2, $3) RETURNING id",
-                user_id, text, now,
+        async with conn or self.pool.acquire() as c:
+            row = await c.fetchrow(
+                "INSERT INTO global_messages (user_id, text, created_at, kind) VALUES ($1, $2, $3, $4) RETURNING id",
+                user_id, text, now, kind,
             )
-            return {"id": str(row["id"]), "user_id": user_id, "text": text, "created_at": now}
+            return {"id": str(row["id"]), "user_id": user_id, "text": text, "created_at": now, "kind": kind}
 
     async def delete_global_message(self, message_id: int) -> bool:
         async with self.pool.acquire() as conn:

@@ -271,6 +271,7 @@ export type GlobalMessage = {
   avatar: string
   role?: string
   deco?: string
+  kind?: "user" | "system"
 }
 
 const _globalCache: GlobalMessage[] = []
@@ -298,6 +299,7 @@ function mapGlobalMsg(m: any): GlobalMessage {
     avatar: m.avatar ?? null,
     role: m.role ?? "",
     deco: m.deco ?? "",
+    kind: m.kind === "system" ? "system" : "user",
   }
 }
 

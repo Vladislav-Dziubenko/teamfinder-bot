@@ -878,6 +878,21 @@ function GlobalMsg({
     setLoading(false)
   }
 
+  if (msg.kind === "system") {
+    return (
+      <div className="flex justify-center px-6">
+        <div className="w-full max-w-[92%] rounded-2xl border border-[#ffd700]/40 bg-gradient-to-r from-[#ffd700]/15 via-[#ff9d00]/10 to-[#ffd700]/15 px-4 py-3 text-center">
+          <p className="flex items-center justify-center gap-1.5 text-sm font-bold text-[#ffd700]">
+            <span className="text-lg leading-none">💎</span>
+            <span className="truncate">{msg.nick}</span>
+          </p>
+          <p className="mt-1 text-[13px] leading-relaxed text-card-foreground">{msg.text}</p>
+          <p className="mt-1 text-[10px] text-muted-foreground">{relativeTime(msg.ts, lang)}</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className={cn("group flex", mine ? "justify-end" : "justify-start")}>
       <div
