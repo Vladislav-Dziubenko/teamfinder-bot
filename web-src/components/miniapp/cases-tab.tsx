@@ -50,7 +50,7 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem, buyStars, lootCases, refresh } = useNexus()
+  const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem, buyStars, lootCases, refresh, modelState } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
@@ -249,6 +249,20 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
             <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {coins}
           </span>
         </div>
+        {modelState.mine.length > 0 && (
+          <div className="mb-3 rounded-2xl border border-[#ffd700]/40 bg-[#ffd700]/5 p-3">
+            <div className="flex items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#ffd700]/15 text-xl">💎</span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold">Mini Boss bro</p>
+                <p className="text-[11px]" style={{ color: rarityMeta.legendary.color }}>
+                  {rarityMeta.legendary.label} · #{modelState.mine[0].token_id}
+                </p>
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] text-[#ffd700]">Доход: 50-100 ⭐ каждый день · крутить во вкладке «Модель»</p>
+          </div>
+        )}
         {inventory.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-border py-8 text-center">
             <Package className="mx-auto size-7 text-muted-foreground" />
