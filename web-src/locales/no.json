@@ -63,5 +63,14 @@
   "profile.achievements_title": "Prestasjoner",
   "nav.model": "Modell",
   "cases.stars_added": "Stjerner lagt til",
-  "cases.jackpot_collect": "Hent jackpot"
+  "cases.jackpot_collect": "Hent jackpot",
+  "donate.send_btn": "Send stars",
+  "donate.send_amount": "Amount",
+  "donate.send_choose": "Choose a teammate",
+  "donate.send_to": "Send {count} stars",
+  "donate.sent_to": "Sent {count} stars to {nick}",
+  "donate.your_balance": "Your balance: {count} stars",
+  "donate.insufficient_stars": "Not enough stars",
+  "donate.no_teammates": "No teammates yet — find players and chat",
+  "chat.send_stars": "Send stars"
 }

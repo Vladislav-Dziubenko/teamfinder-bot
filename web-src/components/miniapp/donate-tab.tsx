@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { api, openInvoice } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { StarSendSheet, type StarRecipient } from "@/components/miniapp/star-send-sheet"
 
 const coinPacks = [
   { id: "c1", coins: 50, stars: 13 },
@@ -16,15 +17,16 @@ const coinPacks = [
 
 export function DonateTab() {
   const { t } = useI18n()
-  const { starPacks, stars, nick, avatar, coins, buyStarPack, buyCoinPack, buyStars, refresh } = useNexus()
+  const { starPacks, stars, nick, avatar, coins, buyStarPack, buyCoinPack, buyStars } = useNexus()
   const [selected, setSelected] = useState<StarPack | null>(null)
   const [done, setDone] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
   const [buying, setBuying] = useState(false)
-  const [tipping, setTipping] = useState<number | null>(null)
   const [buyingCoins, setBuyingCoins] = useState<string | null>(null)
   const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([])
   const [leaderLoading, setLeaderLoading] = useState(true)
+  const [starSheetOpen, setStarSheetOpen] = useState(false)
+  const [teammates, setTeammates] = useState<StarRecipient[]>([])
 
   useEffect(() => {
     let cancelled = false
@@ -41,8 +43,22 @@ export function DonateTab() {
       }
     }
     loadLeaderboard()
+    api.get("/api/chat/list")
+      .then((data: any) => {
+        const list: StarRecipient[] = (data.chats ?? []).map((c: any) => ({
+          id: Number(c.other_id ?? 0),
+          nick: typeof c.other_nick === "string" && c.other_nick.trim() ? c.other_nick.trim() : "Unknown",
+          avatar: typeof c.other_avatar === "string" ? c.other_avatar : null,
+        }))
+        setTeammates(list.filter((r) => r.id > 0))
+      })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [])
+
+  function openSendStars() {
+    setStarSheetOpen(true)
+  }
 
   async function buy() {
     if (buying || !selected) return
@@ -77,23 +93,6 @@ export function DonateTab() {
       setFlash(t("donate.coins_added", { count: pack.coins }))
     }
     setTimeout(() => setFlash(null), 2000)
-  }
-
-  async function sendTip(amount: number) {
-    if (tipping) return
-    setTipping(amount)
-    try {
-      const res = await api.post("/api/pay/invoice", { type: "tip", amount })
-      if (res?.invoice_link) {
-        openInvoice(res.invoice_link, () => refresh())
-      } else {
-        setFlash(t("common.error"))
-      }
-    } catch {
-      setFlash(t("common.error"))
-    } finally {
-      setTipping(null)
-    }
   }
 
   return (
@@ -287,23 +286,13 @@ export function DonateTab() {
       <div className="rounded-3xl border border-border bg-card p-4">
         <p className="font-display text-base font-bold">{t("donate.send_stars_title")}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{t("donate.send_stars_desc")}</p>
-        <div className="mt-3 flex gap-2">
-          {[5, 15, 50].map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => sendTip(n)}
-              disabled={tipping !== null}
-              className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-stars/30 bg-stars/10 py-2.5 text-sm font-semibold text-stars active:scale-95 disabled:opacity-50"
-            >
-              {tipping === n ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Star className="size-3.5 fill-stars" />
-              )} {n}
-            </button>
-          ))}
-        </div>
+        <button
+          type="button"
+          onClick={openSendStars}
+          className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border border-stars/30 bg-stars/10 py-3 text-sm font-semibold text-stars active:scale-95"
+        >
+          <Star className="size-4 fill-stars" /> {t("donate.send_btn")}
+        </button>
       </div>
 
       {/* Sticky checkout */}
@@ -334,6 +323,15 @@ export function DonateTab() {
           </button>
         </div>
       )}
+      <StarSendSheet
+        open={starSheetOpen}
+        onClose={() => setStarSheetOpen(false)}
+        list={teammates}
+        onToast={(m) => {
+          setFlash(m)
+          setTimeout(() => setFlash(null), 2000)
+        }}
+      />
     </div>
   )
 }

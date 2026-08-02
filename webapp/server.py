@@ -1417,6 +1417,29 @@ async def handle_nexus_model_state(request: web.Request):
     return web.json_response(await db.get_limited_models_state(user["id"]))
 
 
+async def handle_nexus_transfer_stars(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    to_user_id = body.get("to_user_id")
+    amount = body.get("amount")
+    if not isinstance(to_user_id, int) or not isinstance(amount, int) or amount <= 0:
+        return web.json_response({"error": "invalid params"}, status=400)
+    if to_user_id == user["id"]:
+        return web.json_response({"error": "cannot send to self"}, status=400)
+    if amount > 100000:
+        return web.json_response({"error": "amount too large"}, status=400)
+    async with db.pool.acquire() as conn:
+        async with conn.transaction():
+            exists = await conn.fetchval("SELECT 1 FROM users WHERE user_id = $1", to_user_id)
+            if not exists:
+                return web.json_response({"error": "user not found"}, status=404)
+            if not await db._adjust_currency_conn(conn, user["id"], stars=-amount):
+                return web.json_response({"error": "not enough stars"}, status=400)
+            await db._adjust_currency_conn(conn, to_user_id, stars=amount)
+    return web.json_response({"ok": True})
+
+
 async def handle_nexus_model_list(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -2548,6 +2571,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/nexus/spend-stars", handle_nexus_spend_stars)
     app.router.add_post("/api/nexus/buy-star-pack", handle_nexus_buy_star_pack)
     app.router.add_get("/api/nexus/model/state", handle_nexus_model_state)
+    app.router.add_post("/api/nexus/transfer-stars", handle_nexus_transfer_stars)
     app.router.add_post("/api/nexus/model/list", handle_nexus_model_list)
     app.router.add_post("/api/nexus/model/unlist", handle_nexus_model_unlist)
     app.router.add_post("/api/nexus/model/buy", handle_nexus_model_buy)

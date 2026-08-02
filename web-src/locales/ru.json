@@ -425,5 +425,14 @@
   "team.apply": "Подать заявку",
   "nav.model": "Модель",
   "cases.stars_added": "Звёзды начислены",
-  "cases.jackpot_collect": "Забрать джекпот"
+  "cases.jackpot_collect": "Забрать джекпот",
+  "donate.send_btn": "Отправить звёзды",
+  "donate.send_amount": "Сумма",
+  "donate.send_choose": "Кому отправить",
+  "donate.send_to": "Отправить {count} звезд",
+  "donate.sent_to": "Отправлено: {count} звезд -> {nick}",
+  "donate.your_balance": "Твой баланс: {count} звезд",
+  "donate.insufficient_stars": "Недостаточно звезд",
+  "donate.no_teammates": "Пока нет тиммейтов — найди игроков и пообщайся",
+  "chat.send_stars": "Отправить звёзды"
 }

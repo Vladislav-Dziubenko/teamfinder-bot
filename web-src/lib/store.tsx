@@ -354,6 +354,7 @@ type Nexus = PersistedState & {
   buyCoinPack: (packId: string) => Promise<{ ok: boolean; error?: string }>
   buyStarPack: (packId: string) => Promise<{ ok: boolean; error?: string }>
   buyStars: (amount: number) => Promise<{ ok: boolean; error?: string }>
+  transferStars: (toUserId: number, amount: number) => Promise<{ ok: boolean; error?: string }>
   buyShopItem: (key: string) => Promise<{ ok: boolean; error?: string }>
   activatePremium: () => void
   addToInventory: (item: CaseItem) => void
@@ -527,6 +528,16 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         return { ok: false, error: "Не удалось получить ссылку на оплату" }
       } catch (e: any) {
         return { ok: false, error: e.message || "Не удалось открыть оплату" }
+      }
+    }
+
+    const transferStars = async (toUserId: number, amount: number): Promise<{ ok: boolean; error?: string }> => {
+      try {
+        await api.post("/api/nexus/transfer-stars", { to_user_id: toUserId, amount })
+        await refresh()
+        return { ok: true }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Не удалось отправить звёзды" }
       }
     }
 
@@ -779,6 +790,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       buyCoinPack,
       buyStarPack,
       buyStars,
+      transferStars,
       buyShopItem,
       activatePremium,
       addToInventory,

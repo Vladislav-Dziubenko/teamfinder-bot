@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X } from "lucide-react"
+import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star } from "lucide-react"
 import {
   useChatMessages,
   useChats,
@@ -15,6 +15,7 @@ import { useI18n, LANGUAGES } from "@/lib/i18n"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { RoleBadge, roleRank } from "@/components/miniapp/role-badge"
+import { StarSendSheet } from "@/components/miniapp/star-send-sheet"
 import { useMe } from "@/lib/store"
 
 import type { Player } from "@/lib/data"
@@ -245,6 +246,7 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
+  const [starSheetOpen, setStarSheetOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -330,6 +332,14 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
                     : t("common.offline")}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => setStarSheetOpen(true)}
+          aria-label={t("chat.send_stars")}
+          className="grid size-9 place-items-center rounded-full text-stars active:scale-90"
+        >
+          <Star className="size-5 fill-stars" />
+        </button>
         <div className="relative">
           <button
             type="button"
@@ -414,6 +424,11 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
           <div className="flex-1 py-3 text-center text-sm text-muted-foreground">{t("chat.blocked_hint")}</div>
         )}
       </div>
+      <StarSendSheet
+        open={starSheetOpen}
+        onClose={() => setStarSheetOpen(false)}
+        fixed={player && player.id ? { id: Number(player.id), nick: player.nick, avatar: player.avatar } : undefined}
+      />
     </div>
   )
 }
