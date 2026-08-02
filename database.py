@@ -129,9 +129,9 @@ CREATE TABLE IF NOT EXISTS user_quests (
 
 CREATE TABLE IF NOT EXISTS user_currency (
     user_id BIGINT PRIMARY KEY,
-    coins INTEGER DEFAULT 0,
-    stars INTEGER DEFAULT 0,
-    points INTEGER DEFAULT 0,
+    coins BIGINT DEFAULT 0,
+    stars BIGINT DEFAULT 0,
+    points BIGINT DEFAULT 0,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
@@ -544,6 +544,20 @@ class Database:
                 await conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}")
             except asyncpg.PostgresError as e:
                 print(f"Migration warning for {table}.{column}: {e}")
+
+        # Большие суммы не должны переполнять 32-битный INTEGER (лимит ~2.1 млрд).
+        # Колонки уже существуют, поэтому нужен ALTER COLUMN TYPE (идемпотентно:
+        # повторный прогон на BIGINT-колонке — no-op).
+        for table, col in [
+            ("user_currency", "coins"),
+            ("user_currency", "stars"),
+            ("user_currency", "points"),
+            ("limited_models", "sale_price_stars"),
+        ]:
+            try:
+                await conn.execute(f"ALTER TABLE {table} ALTER COLUMN {col} TYPE BIGINT")
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning for {table}.{col} -> BIGINT: {e}")
 
         # Ежедневные задания: строки без quest_date (созданные до этой версии)
         # привязываем к сегодняшнему дню один раз, чтобы текущий прогресс не

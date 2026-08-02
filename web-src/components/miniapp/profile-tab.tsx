@@ -27,6 +27,7 @@ import { api, openLink } from "@/lib/api"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
 import { useNexus, useMe } from "@/lib/store"
 import { games, dailyStreakRewards } from "@/lib/data"
+import { formatNum } from "@/lib/format"
 import type { TabId } from "./bottom-nav"
 import { DiscordSection } from "@/components/miniapp/discord-section"
 import { cn } from "@/lib/utils"
@@ -624,7 +625,7 @@ function CoinStat({ img, value, label }: { img: string; value: number; label: st
   return (
     <div className="rounded-2xl border border-border bg-card p-3 text-center">
       <img src={img || "/placeholder.svg"} alt="" className="mx-auto size-6 rounded-full object-cover" />
-      <p className="mt-1.5 font-display text-xl font-bold leading-none">{value}</p>
+      <p className="mt-1.5 font-display text-xl font-bold leading-none">{formatNum(value)}</p>
       <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
     </div>
   )
@@ -634,7 +635,7 @@ function StarStat({ value, label }: { value: number; label: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-3 text-center">
       <Star className="mx-auto size-6 fill-stars text-stars" />
-      <p className="mt-1.5 font-display text-xl font-bold leading-none">{value}</p>
+      <p className="mt-1.5 font-display text-xl font-bold leading-none">{formatNum(value)}</p>
       <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
     </div>
   )
@@ -644,7 +645,7 @@ function PointStat({ value, label }: { value: number; label: string }) {
   return (
     <div className="rounded-2xl border border-border bg-card p-3 text-center">
       <Coins className="mx-auto size-6 text-primary" />
-      <p className="mt-1.5 font-display text-xl font-bold leading-none">{value}</p>
+      <p className="mt-1.5 font-display text-xl font-bold leading-none">{formatNum(value)}</p>
       <p className="mt-0.5 text-[11px] text-muted-foreground">{label}</p>
     </div>
   )

@@ -1,12 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
+import { flushSync } from "react-dom"
 import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2 } from "lucide-react"
 import { rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { tick, win as winSfx, whoosh, setMuted, isMuted, ensureAudio } from "@/lib/sfx"
+import { formatNum } from "@/lib/format"
+import { TopUpSheet } from "./top-up-sheet"
 
 const rarityRank: Record<Rarity, number> = { common: 0, rare: 2, epic: 3, premium: 4, legendary: 6 }
 
@@ -50,7 +53,7 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem, buyStars, lootCases, refresh, modelState } = useNexus()
+  const { stars, coins, inventory, caseReadyIn, openCase, sellItem, buyShopItem, lootCases, refresh, modelState } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
@@ -68,8 +71,8 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   async function handleOpen(c: LootCase) {
     if (spin) return
     if (!c.free && stars < c.costStars) {
-      const res = await buyStars(c.costStars)
-      if (!res.ok) { onToast(res.error ?? t("common.error")); return }
+      setTopUp({ box: c, count: 1, isMulti: false })
+      return
     }
     setSpin({ box: c, winner: null })
     const res = await openCase(c.id)
@@ -83,13 +86,32 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
   const [multi, setMulti] = useState<{ box: LootCase; items: CaseItem[] } | null>(null)
   const [multiBusy, setMultiBusy] = useState<number | null>(null)
+  const [topUp, setTopUp] = useState<{ box: LootCase; count: number; isMulti: boolean } | null>(null)
+  const handleOpenRef = useRef(handleOpen)
+  handleOpenRef.current = handleOpen
+  const handleOpenMultiRef = useRef<(c: LootCase, count: number) => void>(() => {})
+  handleOpenMultiRef.current = handleOpenMulti
+
+  function handleTopUpDone() {
+    const pending = topUp
+    setTopUp(null)
+    if (!pending) return
+    // Принудительно применяем обновление баланса (refresh после оплаты), чтобы
+    // повторное открытие читало свежие звёзды, а не устаревшие из замыкания.
+    flushSync(() => {})
+    if (pending.isMulti) {
+      void handleOpenMultiRef.current(pending.box, pending.count)
+    } else {
+      void handleOpenRef.current(pending.box)
+    }
+  }
 
   async function handleOpenMulti(c: LootCase, count: number) {
     if (multi || spin || multiBusy) return
     const totalCost = c.costStars * count
     if (stars < totalCost) {
-      const res = await buyStars(totalCost)
-      if (!res.ok) { onToast(res.error ?? t("common.error")); return }
+      setTopUp({ box: c, count, isMulti: true })
+      return
     }
     const rid =
       typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `rid-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -299,7 +321,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-display text-lg font-bold">{t("cases.inventory_title")}</h2>
           <span className="flex items-center gap-1 text-xs font-semibold text-primary">
-            <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {coins}
+            <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {formatNum(coins)}
           </span>
         </div>
         {modelState.mine.length > 0 && (
@@ -376,7 +398,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 ) : (
                   <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" />
                 )}
-                {" "}{s.price}
+                {" "}{formatNum(s.price)}
               </button>
             </div>
           ))}
@@ -409,6 +431,17 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
       {/* Multi reveal modal */}
       {multi && <MultiRevealModal box={multi.box} items={multi.items} onClose={() => { setMulti(null); refresh() }} />}
+
+      {/* Недостаточно звёзд -> пополнение (оплата картой через Telegram Stars) */}
+      {topUp && (
+        <TopUpSheet
+          open={!!topUp}
+          need={topUp.box.costStars * topUp.count}
+          onClose={() => setTopUp(null)}
+          onDone={handleTopUpDone}
+          onToast={onToast}
+        />
+      )}
     </div>
   )
 }
@@ -689,7 +722,7 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
 
         {isStars && (
           <p className="mt-2 flex items-center justify-center gap-1 text-sm font-bold text-stars">
-            <Star className="size-4 fill-stars" /> +{item.stars} {t("cases.stars_added")}
+            <Star className="size-4 fill-stars" /> +{formatNum(item.stars)} {t("cases.stars_added")}
           </p>
         )}
 
@@ -757,7 +790,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
 
         <div className="flex gap-2 px-5 py-3">
           <div className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-stars/25 bg-stars/10 py-2.5 text-sm font-bold text-stars">
-            <Star className="size-4 fill-stars" /> +{totalStars}
+            <Star className="size-4 fill-stars" /> +{formatNum(totalStars)}
           </div>
           <div className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-accent/25 bg-accent/10 py-2.5 text-sm font-bold text-accent">
             <Package className="size-4" /> {items.length - jackpots.length - items.filter((i) => i.kind === "stars").length}

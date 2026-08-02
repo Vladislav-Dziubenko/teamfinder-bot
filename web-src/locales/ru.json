@@ -436,5 +436,10 @@
   "donate.no_teammates": "Пока нет тиммейтов — найди игроков и пообщайся",
   "chat.send_stars": "Отправить звёзды",
   "cases.multi_title": "Открыто кейсов: {count}",
-  "cases.multi_hint": "Мульти-открытие: кейс откроется сразу N раз"
+  "cases.multi_hint": "Мульти-открытие: кейс откроется сразу N раз",
+  "cases.need_stars_title": "Недостаточно звёзд",
+  "cases.need_stars_desc": "Нужно {cost} ⭐, на балансе {stars} ⭐",
+  "cases.top_up": "Пополнить {cost} ⭐",
+  "cases.top_up_done": "Звёзды начислены",
+  "cases.buy_pack": "Купить {stars} ⭐"
 }

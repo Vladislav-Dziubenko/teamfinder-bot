@@ -4,6 +4,7 @@ import { useMemo } from "react"
 import { Star } from "lucide-react"
 import { useNexus } from "@/lib/store"
 import { useI18n } from "@/lib/i18n"
+import { formatNum } from "@/lib/format"
 
 export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () => void }) {
   const { t } = useI18n()
@@ -41,7 +42,7 @@ export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () 
             aria-label={t("topbar.coins")}
           >
             <img src="/nexus-coin.png" alt="" className="size-5 rounded-full object-cover" />
-            {coins}
+            {formatNum(coins)}
           </button>
           {/* Telegram Stars */}
           <button
@@ -51,7 +52,7 @@ export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () 
             aria-label={t("topbar.stars")}
           >
             <Star className="size-4 fill-stars" />
-            {stars}
+            {formatNum(stars)}
           </button>
         </div>
       </div>
