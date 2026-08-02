@@ -964,7 +964,7 @@ CASES_CONFIG = {
             {"key": "premium-medium", "name": "Премиум средний", "desc": "4 открытия в день", "image": "/premium-x4.png", "rarity": "epic", "sell": 75, "weight": 25, "grantsPremium": True},
             {"key": "stars-1000", "name": "1000 ⭐", "desc": "1000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 10, "kind": "stars", "stars": 1000},
             {"key": "stars-10000", "name": "10000 ⭐", "desc": "10000 звёзд на баланс", "icon": "⭐", "rarity": "premium", "sell": 0, "weight": 5, "kind": "stars", "stars": 10000},
-            {"key": "nexus-model", "name": "Лимитированная 3D-модель NEXUS", "desc": "Тираж 20 шт. Джекпот: 50 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 0, "weight": 0.1, "jackpot": True},
+            {"key": "nexus-model", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 50 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 0, "weight": 0.1, "jackpot": True},
         ]
     }
 }

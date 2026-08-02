@@ -153,8 +153,8 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
     <div className="space-y-5 px-4 py-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold">Лимитированная 3D-модель</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">NEXUS — тираж всего 20 экземпляров</p>
+          <h1 className="font-display text-2xl font-bold">Mini Boss bro</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">Лимитированная 3D-модель NEXUS — тираж всего 20 экземпляров</p>
         </div>
         <button
           type="button"
