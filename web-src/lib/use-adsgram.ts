@@ -88,7 +88,7 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
           }
           reportSdkDiag("adsgram loaded but window.Adsgram.init missing (attempt " + (attempt + 1) + ")")
         } catch (e: any) {
-          reportSdkDiag("adsgram init error attempt " + (attempt + 1) + ": " + String(e?.message || e))
+          reportSdkDiag("adsgram init error attempt " + (attempt + 1) + ": " + (typeof e === "object" ? JSON.stringify(e) : String(e?.message || e)))
         }
         await new Promise((r) => setTimeout(r, 1500))
       }
@@ -116,7 +116,7 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
       }
       return false
     } catch (err: any) {
-      reportSdkDiag("adsgram show threw: " + String(err?.message || err))
+      reportSdkDiag("adsgram show threw: " + (typeof err === "object" ? JSON.stringify(err) : String(err?.message || err)))
       onErrorRef.current?.(err)
       return false
     }
