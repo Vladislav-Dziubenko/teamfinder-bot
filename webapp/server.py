@@ -944,14 +944,14 @@ CASES_CONFIG = {
         "free": True,
         "dailyLimit": 1,
         "items": [
-            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум-доступ на 4 открытия в день", "image": "/premium-x4.png", "rarity": "epic", "sell": 35, "weight": 8, "grantsPremium": True},
-            {"key": "ak47", "name": "Скин AK-47", "desc": "Легендарный калаш из старой школы", "image": "/ak47.png", "rarity": "rare", "sell": 15, "weight": 14},
-            {"key": "icon-skull", "name": "Череп", "desc": "Иконка «Череп»", "icon": "💀", "rarity": "common", "sell": 10, "weight": 10},
-            {"key": "icon-fire", "name": "Пламя", "desc": "Иконка «Пламя»", "icon": "🔥", "rarity": "common", "sell": 10, "weight": 10},
-            {"key": "icon-crown", "name": "Корона", "desc": "Иконка «Корона»", "icon": "👑", "rarity": "common", "sell": 10, "weight": 10},
-            {"key": "icon-target", "name": "Прицел", "desc": "Иконка «Прицел»", "icon": "🎯", "rarity": "common", "sell": 10, "weight": 10},
-            {"key": "icon-bolt", "name": "Молния", "desc": "Иконка «Молния»", "icon": "⚡", "rarity": "common", "sell": 10, "weight": 10},
-            {"key": "icon-star", "name": "Звезда", "desc": "Иконка «Звезда»", "icon": "⭐", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков", "image": "/premium-x4.png", "rarity": "epic", "sell": 35, "weight": 8, "grantsPremium": True},
+            {"key": "ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для твоей анкеты. Показывается в профиле, не влияет на геймплей", "image": "/ak47.png", "rarity": "rare", "sell": 15, "weight": 14},
+            {"key": "icon-skull", "name": "Череп", "desc": "Декоративная иконка для профиля 💀", "icon": "💀", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "icon-fire", "name": "Пламя", "desc": "Декоративная иконка для профиля 🔥", "icon": "🔥", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "icon-crown", "name": "Корона", "desc": "Декоративная иконка для профиля 👑", "icon": "👑", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "icon-target", "name": "Прицел", "desc": "Декоративная иконка для профиля 🎯", "icon": "🎯", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "icon-bolt", "name": "Молния", "desc": "Декоративная иконка для профиля ⚡", "icon": "⚡", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "icon-star", "name": "Звезда", "desc": "Декоративная иконка для профиля ⭐", "icon": "⭐", "rarity": "common", "sell": 10, "weight": 10},
         ]
     },
     "gold": {
@@ -964,9 +964,9 @@ CASES_CONFIG = {
         "free": False,
         "dailyLimit": 99,
         "items": [
-            {"key": "premium-card", "name": "Премиум-анкета", "desc": "Кастомные фото, свой текст и украшения карточки — без ограничений 1 день", "image": "/premium-reveal.png", "rarity": "premium", "sell": 100, "weight": 40, "grantsPremium": True},
-            {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "rarity": "epic", "sell": 45, "weight": 22, "grantsPremium": True},
-            {"key": "premium-medium", "name": "Премиум средний", "desc": "4 открытия в день", "image": "/premium-x4.png", "rarity": "epic", "sell": 75, "weight": 20, "grantsPremium": True},
+            {"key": "premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастомные фото, свой текст и украшения карточки без ограничений, до 4 открытий кейсов, приоритет в поиске, расширенные анкеты игроков", "image": "/premium-reveal.png", "rarity": "premium", "sell": 100, "weight": 40, "grantsPremium": True},
+            {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус на 1 день: приоритет в поиске тиммейтов, расширенные анкеты игроков, больше результатов в поиске", "image": "/premium-card.png", "rarity": "epic", "sell": 45, "weight": 22, "grantsPremium": True},
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков", "image": "/premium-x4.png", "rarity": "epic", "sell": 75, "weight": 20, "grantsPremium": True},
             {"key": "stars-150", "name": "150 ⭐", "desc": "150 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 8, "kind": "stars", "stars": 150},
             {"key": "stars-400", "name": "400 ⭐", "desc": "400 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 4, "kind": "stars", "stars": 400},
             {"key": "stars-1200", "name": "1200 ⭐", "desc": "1200 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 1.2, "kind": "stars", "stars": 1200},
@@ -976,10 +976,10 @@ CASES_CONFIG = {
 }
 
 COIN_SHOP = [
-    {"key": "buy-premium-card", "name": "Премиум-анкета", "desc": "Кастом фото, текст и украшения на 1 день", "image": "/premium-reveal.png", "price": 100},
-    {"key": "buy-premium-lite", "name": "Премиум", "desc": "Премиум-статус для анкеты", "image": "/premium-card.png", "price": 45},
-    {"key": "buy-ak47", "name": "Скин AK-47", "desc": "Легендарный калаш", "image": "/ak47.png", "price": 18},
-    {"key": "buy-premium-medium", "name": "Премиум средний", "desc": "4 открытия в день", "image": "/premium-x4.png", "price": 38},
+    {"key": "buy-premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастом фото/текст, 4 открытия кейсов, приоритет в поиске", "image": "/premium-reveal.png", "price": 100},
+    {"key": "buy-premium-lite", "name": "Премиум", "desc": "Премиум-статус на 1 день: приоритет в поиске, расширенные анкеты игроков", "image": "/premium-card.png", "price": 45},
+    {"key": "buy-ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для профиля", "image": "/ak47.png", "price": 18},
+    {"key": "buy-premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске", "image": "/premium-x4.png", "price": 38},
 ]
 
 QUESTS_CONFIG = [

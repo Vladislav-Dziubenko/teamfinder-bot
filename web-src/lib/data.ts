@@ -381,7 +381,7 @@ export const lootCases: LootCase[] = [
       {
         key: "premium-medium",
         name: "Премиум средний",
-        desc: "Премиум-доступ на 4 открытия в день",
+        desc: "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков",
         image: "/premium-x4.png",
         rarity: "epic",
         sell: 75,
@@ -391,7 +391,7 @@ export const lootCases: LootCase[] = [
       {
         key: "ak47",
         name: "Скин AK-47",
-        desc: "Легендарный калаш из старой школы",
+        desc: "Коллекционный скин-картинка для твоей анкеты. Показывается в профиле, не влияет на геймплей",
         image: "/ak47.png",
         rarity: "rare",
         sell: 35,
@@ -413,7 +413,7 @@ export const lootCases: LootCase[] = [
       {
         key: "premium-card",
         name: "Премиум-анкета",
-        desc: "Кастомные фото, свой текст и украшения карточки — без ограничений 1 день",
+        desc: "Максимальный премиум на 1 день: кастомные фото, свой текст и украшения карточки без ограничений, до 4 открытий кейсов, приоритет в поиске, расширенные анкеты игроков",
         image: "/premium-reveal.png",
         rarity: "premium",
         sell: 100,
@@ -423,7 +423,7 @@ export const lootCases: LootCase[] = [
       {
         key: "premium-card-lite",
         name: "Премиум",
-        desc: "Премиум-статус для анкеты",
+        desc: "Премиум-статус на 1 день: приоритет в поиске тиммейтов, расширенные анкеты игроков, больше результатов в поиске",
         image: "/premium-card.png",
         rarity: "epic",
         sell: 45,
@@ -433,7 +433,7 @@ export const lootCases: LootCase[] = [
       {
         key: "premium-medium",
         name: "Премиум средний",
-        desc: "4 открытия в день",
+        desc: "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков",
         image: "/premium-x4.png",
         rarity: "epic",
         sell: 75,
@@ -490,10 +490,10 @@ export const lootCases: LootCase[] = [
 
 // Магазин: продажа карточек за монетки
 export const coinShop: { key: string; name: string; desc: string; image: string; price: number }[] = [
-  { key: "buy-premium-card", name: "Премиум-анкета", desc: "Кастом фото, текст и украшения на 1 день", image: "/premium-reveal.png", price: 200 },
-  { key: "buy-premium-lite", name: "Премиум", desc: "Премиум-статус для анкеты", image: "/premium-card.png", price: 90 },
-  { key: "buy-ak47", name: "Скин AK-47", desc: "Легендарный калаш", image: "/ak47.png", price: 35 },
-  { key: "buy-premium-medium", name: "Премиум средний", desc: "4 открытия в день", image: "/premium-x4.png", price: 75 },
+  { key: "buy-premium-card", name: "Премиум-анкета", desc: "Максимальный премиум на 1 день: кастом фото/текст, 4 открытия кейсов, приоритет в поиске", image: "/premium-reveal.png", price: 100 },
+  { key: "buy-premium-lite", name: "Премиум", desc: "Премиум-статус на 1 день: приоритет в поиске, расширенные анкеты игроков", image: "/premium-card.png", price: 45 },
+  { key: "buy-ak47", name: "Скин AK-47", desc: "Коллекционный скин-картинка для профиля", image: "/ak47.png", price: 18 },
+  { key: "buy-premium-medium", name: "Премиум средний", desc: "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске", image: "/premium-x4.png", price: 38 },
 ]
 
 /* ---------- Достижения ---------- */
