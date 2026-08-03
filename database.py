@@ -757,6 +757,10 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_user_achievements_user ON user_achievements (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat ON chat_messages (chat_id)",
             "CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages (chat_id, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_chat_messages_sender ON chat_messages (sender_id, chat_id)",
+            "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id ON chat_messages (chat_id, id DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_mini_app_profiles_user ON mini_app_profiles (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_limited_models_owner ON limited_models (owner_id)",
             "CREATE INDEX IF NOT EXISTS idx_match_predictions_user ON match_predictions (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_pvp_challenges_creator ON pvp_challenges (creator_id)",
@@ -2203,25 +2207,24 @@ class Database:
 
     async def get_user_chats(self, user_id: int) -> list[dict]:
         async with self.pool.acquire() as conn:
-            # Один запрос: последнее сообщение + unread по каждому диалогу.
+            # Один проход по таблице: для каждого чата сразу берём последнее
+            # сообщение (MAX(id)) и число непрочитанных (FILTER). Индексы
+            # idx_chat_messages_sender + idx_chat_messages_chat_id делают
+            # сканирование быстрым, без коррелированных подзапросов.
             rows = await conn.fetch(
                 """WITH my_chats AS (
-                       SELECT DISTINCT chat_id FROM chat_messages
+                       SELECT chat_id,
+                              MAX(id) AS last_id,
+                              COUNT(*) FILTER (WHERE sender_id != $1 AND read_at IS NULL) AS unread
+                       FROM chat_messages
                        WHERE chat_id LIKE 'dm-%'
                          AND (sender_id = $1 OR chat_id LIKE $2 OR chat_id LIKE $3)
-                   ),
-                   last_msg AS (
-                       SELECT DISTINCT ON (chat_id) chat_id, text, created_at
-                       FROM chat_messages
-                       WHERE chat_id IN (SELECT chat_id FROM my_chats)
-                       ORDER BY chat_id, id DESC
+                       GROUP BY chat_id
                    )
-                   SELECT lm.chat_id, lm.text, lm.created_at,
-                          (SELECT COUNT(*) FROM chat_messages c
-                            WHERE c.chat_id = lm.chat_id AND c.sender_id != $1
-                              AND c.read_at IS NULL) AS unread
-                   FROM last_msg lm
-                   ORDER BY lm.created_at DESC""",
+                   SELECT mc.chat_id, m.text, m.created_at, mc.unread
+                   FROM my_chats mc
+                   JOIN chat_messages m ON m.id = mc.last_id
+                   ORDER BY m.created_at DESC""",
                 user_id,
                 f"dm-{user_id}-%",
                 f"dm-%-{user_id}",
