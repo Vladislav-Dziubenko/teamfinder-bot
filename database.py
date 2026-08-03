@@ -372,6 +372,16 @@ CREATE TABLE IF NOT EXISTS user_ad_watches (
     updated_at TEXT NOT NULL DEFAULT '',
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
+
+CREATE TABLE IF NOT EXISTS user_activity_log (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    event TEXT NOT NULL,
+    ts TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_log_user_ts ON user_activity_log (user_id, ts);
 """
 
 SCHEMA_STATEMENTS = [
@@ -2687,3 +2697,98 @@ class Database:
                 "INSERT INTO audit_log (user_id, action, details, ip, created_at) VALUES ($1, $2, $3, $4, $5)",
                 user_id, action, details, ip, now,
             )
+
+    async def log_activity(self, user_id: int, event: str) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO user_activity_log (user_id, event, ts) VALUES ($1, $2, $3)",
+                user_id, event, now,
+            )
+
+    async def get_general_stats(self, user_id: int, days: int) -> dict:
+        """Return aggregated stats for the given period."""
+        now = datetime.utcnow()
+        from datetime import timedelta
+        since = (now - timedelta(days=days)).isoformat()
+
+        async with self.pool.acquire() as conn:
+            # Active days & total events
+            rows = await conn.fetch(
+                "SELECT ts::date AS d, COUNT(*) AS cnt FROM user_activity_log "
+                "WHERE user_id = $1 AND ts >= $2 GROUP BY ts::date ORDER BY d",
+                user_id, since,
+            )
+            active_days = len(rows)
+            total_events = sum(r["cnt"] for r in rows)
+
+            # Events by type
+            event_rows = await conn.fetch(
+                "SELECT event, COUNT(*) AS cnt FROM user_activity_log "
+                "WHERE user_id = $1 AND ts >= $2 GROUP BY event",
+                user_id, since,
+            )
+            events = {r["event"]: r["cnt"] for r in event_rows}
+
+            # Searches & contacts from user_stats (cumulative, use as-is)
+            stats_row = await conn.fetchrow(
+                "SELECT search_count, contact_count, team_app_count FROM user_stats WHERE user_id = $1",
+                user_id,
+            )
+            searches_total = stats_row["search_count"] if stats_row else 0
+            contacts_total = stats_row["contact_count"] if stats_row else 0
+            team_apps_total = stats_row["team_app_count"] if stats_row else 0
+
+            # Case opens in period
+            case_opens = await conn.fetchval(
+                "SELECT COUNT(*) FROM case_opens WHERE user_id = $1 AND opened_at >= $2",
+                user_id, since,
+            )
+
+            # Ad watches in period
+            ad_watches = await conn.fetchval(
+                "SELECT COALESCE(watch_count, 0) FROM user_ad_watches WHERE user_id = $1",
+                user_id,
+            )
+
+            # Achievements claimed in period, grouped by game
+            ach_rows = await conn.fetch(
+                "SELECT achievement_id, claimed_at FROM user_achievements "
+                "WHERE user_id = $1 AND claimed = TRUE AND claimed_at >= $2",
+                user_id, since,
+            )
+            # Map achievement_id -> game (from static config)
+            ACH_GAME_MAP = {
+                "a1": "CS:GO", "a2": "War Thunder", "a3": "Roblox",
+            }
+            ach_by_game: dict[str, int] = {}
+            for r in ach_rows:
+                game = ACH_GAME_MAP.get(r["achievement_id"], "Другое")
+                ach_by_game[game] = ach_by_game.get(game, 0) + 1
+
+            # Coins earned in period (from currency changes - approximate)
+            coins_row = await conn.fetchrow(
+                "SELECT coins FROM user_currency WHERE user_id = $1", user_id,
+            )
+            current_coins = coins_row["coins"] if coins_row else 0
+
+            # Referrals in period
+            ref_count = await conn.fetchval(
+                "SELECT COUNT(*) FROM referrals WHERE referred_by = $1",
+                user_id,
+            )
+
+            return {
+                "activeDays": active_days,
+                "totalEvents": total_events,
+                "searches": searches_total,
+                "contacts": contacts_total,
+                "teamApps": team_apps_total,
+                "caseOpens": case_opens or 0,
+                "adWatches": ad_watches or 0,
+                "achievementsByGame": ach_by_game,
+                "totalAchievements": len(ach_rows),
+                "referrals": ref_count or 0,
+                "currentCoins": current_coins,
+                "eventsByType": events,
+            }

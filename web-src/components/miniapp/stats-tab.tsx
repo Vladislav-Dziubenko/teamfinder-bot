@@ -2,22 +2,34 @@
 
 import { useEffect, useState } from "react"
 import {
-  Gamepad2, Trophy, Heart, Timer, ArrowUp, ArrowDown,
-  Medal, ChevronRight, Sparkles, Loader2,
+  Clock, Search, Package, Users, Trophy, Sparkles,
+  Medal, ChevronRight, Loader2, Gamepad2, Eye, Gift,
+  BarChart3, Calendar,
 } from "lucide-react"
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis } from "recharts"
 import {
-  getOverview, getProgress, useRecentAchievements, useRankInfo,
-  type StatRange, type OverviewStat, type ProgressPoint,
+  getGeneralStats, useRecentAchievements, useRankInfo,
+  type GeneralStats,
 } from "@/lib/stats"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
+type Period = 1 | 7 | 30
+
+const PERIOD_LABELS: Record<Period, string> = { 1: "День", 7: "Неделя", 30: "Месяц" }
+
+const GAME_ICONS: Record<string, string> = {
+  "CS:GO": "🎯",
+  "War Thunder": "⚔️",
+  "Roblox": "🎮",
+  "Dota 2": "🛡️",
+  "Valorant": "🔫",
+  " Fortnite": "🏗️",
+}
+
 export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void }) {
   const { t } = useI18n()
-  const [range, setRange] = useState<StatRange>("7")
-  const [ov, setOv] = useState<OverviewStat | null>(null)
-  const [progress, setProgress] = useState<ProgressPoint[]>([])
+  const [period, setPeriod] = useState<Period>(30)
+  const [stats, setStats] = useState<GeneralStats | null>(null)
   const [loading, setLoading] = useState(true)
 
   const achievements = useRecentAchievements()
@@ -25,67 +37,114 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
 
   useEffect(() => {
     setLoading(true)
-    Promise.all([getOverview(range), getProgress(range)]).then(([o, p]) => {
-      setOv(o); setProgress(p); setLoading(false)
+    getGeneralStats(period).then((s) => {
+      setStats(s)
+      setLoading(false)
     }).catch(() => setLoading(false))
-  }, [range])
-
-  const winrate = ov && ov.games > 0 ? Math.round((ov.wins / ov.games) * 100) : 0
+  }, [period])
 
   return (
     <div className="space-y-4 px-4 py-5">
       <div>
         <h1 className="font-display text-2xl font-bold">Статистика</h1>
-        <p className="text-sm text-muted-foreground text-pretty">Твой прогресс, достижения и место в рейтинге</p>
+        <p className="text-sm text-muted-foreground text-pretty">Твоя активность, достижения и место в рейтинге</p>
       </div>
 
+      {/* Period selector */}
       <div className="flex rounded-2xl border border-border bg-card p-1">
-        {(["7", "30"] as const).map((r) => (
-          <button key={r} type="button" onClick={() => setRange(r)}
-            className={cn("flex-1 rounded-xl py-2.5 text-sm font-semibold transition-colors", range === r ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
-            {r === "7" ? "7 дней" : "30 дней"}
+        {([1, 7, 30] as const).map((p) => (
+          <button key={p} type="button" onClick={() => setPeriod(p)}
+            className={cn("flex-1 rounded-xl py-2.5 text-sm font-semibold transition-colors", period === p ? "bg-primary text-primary-foreground" : "text-muted-foreground")}>
+            {PERIOD_LABELS[p]}
           </button>
         ))}
       </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-20"><Loader2 className="size-8 animate-spin text-muted-foreground" /></div>
-      ) : (
+      ) : stats ? (
         <>
+          {/* Main stat cards */}
           <div className="grid grid-cols-2 gap-3">
-            <StatCard icon={Gamepad2} label="Игр сыграно" value={String(ov?.games ?? "—")} delta={ov?.gamesDelta} />
-            <StatCard icon={Trophy} label="Побед" value={String(ov?.wins ?? "—")} sub={ov ? `${winrate}% винрейт` : undefined} delta={ov?.winsDelta} />
-            <StatCard icon={Heart} label="Любимая игра" value={ov?.favoriteGame ?? "—"} accent />
-            <StatCard icon={Timer} label="В поиске команд" value={formatMinutes(ov?.searchMinutes ?? 0)} delta={ov?.searchDelta} invertDelta />
+            <BigStatCard
+              icon={Calendar}
+              label="Активных дней"
+              value={String(stats.activeDays)}
+              sub={stats.activeDays > 0 ? `${Math.round(stats.totalEvents / Math.max(stats.activeDays, 1))} действий/день` : undefined}
+            />
+            <BigStatCard
+              icon={Search}
+              label="Поисков"
+              value={String(stats.searches)}
+              accent
+            />
+            <BigStatCard
+              icon={Package}
+              label="Открытий кейсов"
+              value={String(stats.caseOpens)}
+            />
+            <BigStatCard
+              icon={Users}
+              label="Заявок в тимы"
+              value={String(stats.teamApps)}
+              accent
+            />
           </div>
 
-          <section className="rounded-3xl border border-border bg-card p-4">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="font-display text-base font-bold">Прогресс</h2>
-              <div className="flex items-center gap-3 text-[11px]">
-                <Legend color="var(--chart-1)" label="Игры" />
-                <Legend color="var(--accent)" label="Победы" />
-              </div>
-            </div>
-            {Array.isArray(progress) && progress.length > 0 && (
-              <div className="h-44 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={progress} margin={{ top: 4, right: 4, left: 4, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="gGames" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--chart-1)" stopOpacity={0.4} /><stop offset="100%" stopColor="var(--chart-1)" stopOpacity={0} /></linearGradient>
-                      <linearGradient id="gWins" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity={0.4} /><stop offset="100%" stopColor="var(--accent)" stopOpacity={0} /></linearGradient>
-                    </defs>
-                    <CartesianGrid vertical={false} stroke="var(--border)" strokeDasharray="3 3" />
-                    <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: "var(--muted-foreground)", fontSize: 11 }} />
-                    <Tooltip cursor={{ stroke: "var(--border)" }} contentStyle={{ background: "var(--popover)", border: "1px solid var(--border)", borderRadius: 12, color: "var(--popover-foreground)", fontSize: 12 }} labelStyle={{ color: "var(--muted-foreground)" }} />
-                    <Area type="monotone" dataKey="games" name="Игры" stroke="var(--chart-1)" strokeWidth={2} fill="url(#gGames)" />
-                    <Area type="monotone" dataKey="wins" name="Победы" stroke="var(--accent)" strokeWidth={2} fill="url(#gWins)" />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </section>
+          {/* Secondary stats */}
+          <div className="grid grid-cols-3 gap-2">
+            <MiniStatCard icon={Eye} label="Реклама" value={String(stats.adWatches)} />
+            <MiniStatCard icon={Gift} label="Рефералы" value={String(stats.referrals)} />
+            <MiniStatCard icon={Trophy} label="Достижения" value={String(stats.totalAchievements)} />
+          </div>
 
+          {/* Achievements by game */}
+          {Object.keys(stats.achievementsByGame).length > 0 && (
+            <section className="rounded-3xl border border-border bg-card p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <BarChart3 className="size-4 text-primary" />
+                <h2 className="font-display text-base font-bold">Достижения по играм</h2>
+              </div>
+              <div className="space-y-2">
+                {Object.entries(stats.achievementsByGame)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([game, count]) => (
+                    <div key={game} className="flex items-center gap-3 rounded-xl bg-secondary/30 px-3 py-2">
+                      <span className="text-xl">{GAME_ICONS[game] || "🏆"}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold">{game}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {count} {declension(count, "достижение", "достижения", "достижений")}
+                        </p>
+                      </div>
+                      <span className="font-display text-lg font-bold text-primary">{count}</span>
+                    </div>
+                  ))}
+              </div>
+            </section>
+          )}
+
+          {/* Activity breakdown */}
+          {Object.keys(stats.eventsByType).length > 0 && (
+            <section className="rounded-3xl border border-border bg-card p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Sparkles className="size-4 text-accent" />
+                <h2 className="font-display text-base font-bold">Откуда активность</h2>
+              </div>
+              <div className="space-y-1.5">
+                {Object.entries(stats.eventsByType)
+                  .sort(([, a], [, b]) => b - a)
+                  .map(([event, count]) => (
+                    <div key={event} className="flex items-center justify-between rounded-xl px-3 py-2">
+                      <span className="text-sm text-muted-foreground">{eventLabel(event)}</span>
+                      <span className="text-sm font-bold">{count}</span>
+                    </div>
+                  ))}
+              </div>
+            </section>
+          )}
+
+          {/* Leaderboard */}
           <button type="button" onClick={onOpenLeaderboard} className="flex w-full items-center gap-3 rounded-3xl border border-stars/40 bg-stars/5 p-4 text-left active:scale-[0.99]">
             <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-stars/15"><Medal className="size-6 text-stars" /></span>
             <div className="min-w-0 flex-1">
@@ -95,6 +154,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
             <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
           </button>
 
+          {/* Recent achievements */}
           <section>
             <div className="mb-2 flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h2 className="font-display text-base font-bold">Последние достижения</h2></div>
             <div className="space-y-2">
@@ -109,45 +169,61 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
             </div>
           </section>
         </>
+      ) : (
+        <p className="py-10 text-center text-sm text-muted-foreground">Не удалось загрузить статистику</p>
       )}
     </div>
   )
 }
 
-function StatCard({ icon: Icon, label, value, sub, delta, invertDelta = false, accent = false }: {
-  icon: typeof Gamepad2; label: string; value: string; sub?: string; delta?: number; invertDelta?: boolean; accent?: boolean
+/* ── Small components ────────────────────────────────────────── */
+
+function BigStatCard({ icon: Icon, label, value, sub, accent }: {
+  icon: typeof Calendar; label: string; value: string; sub?: string; accent?: boolean
 }) {
   return (
     <div className="rounded-3xl border border-border bg-card p-4">
-      <div className="flex items-center justify-between">
-        <span className={cn("grid size-8 place-items-center rounded-xl", accent ? "bg-accent/15" : "bg-primary/15")}>
-          <Icon className={cn("size-4", accent ? "text-accent" : "text-primary")} />
-        </span>
-        {delta !== undefined && <Delta value={delta} invert={invertDelta} />}
-      </div>
-      <p className="mt-3 truncate font-display text-2xl font-bold">{value}</p>
+      <span className={cn("grid size-8 place-items-center rounded-xl", accent ? "bg-accent/15" : "bg-primary/15")}>
+        <Icon className={cn("size-4", accent ? "text-accent" : "text-primary")} />
+      </span>
+      <p className="mt-3 font-display text-2xl font-bold">{value}</p>
       <p className="text-[11px] text-muted-foreground">{sub ?? label}</p>
     </div>
   )
 }
 
-function Delta({ value, invert }: { value: number; invert?: boolean }) {
-  const good = invert ? value < 0 : value > 0
-  const Arrow = value >= 0 ? ArrowUp : ArrowDown
+function MiniStatCard({ icon: Icon, label, value }: {
+  icon: typeof Eye; label: string; value: string
+}) {
   return (
-    <span className={cn("flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-bold", good ? "bg-primary/15 text-primary" : "bg-destructive/15 text-destructive")}>
-      <Arrow className="size-3" />{Math.abs(value)}%
-    </span>
+    <div className="flex flex-col items-center gap-1 rounded-2xl border border-border bg-card p-3 text-center">
+      <Icon className="size-4 text-muted-foreground" />
+      <p className="font-display text-lg font-bold">{value}</p>
+      <p className="text-[10px] text-muted-foreground">{label}</p>
+    </div>
   )
 }
 
-function Legend({ color, label }: { color: string; label: string }) {
-  return <span className="flex items-center gap-1 text-muted-foreground"><span className="size-2 rounded-full" style={{ background: color }} />{label}</span>
+function eventLabel(event: string): string {
+  const map: Record<string, string> = {
+    search: "Поиск тиммейтов",
+    case_open: "Открытие кейсов",
+    team_app: "Заявки в тимы",
+    ad_watch: "Просмотр рекламы",
+    achievement_claim: "Получение достижений",
+    donate: "Донат / покупки",
+    profile: "Просмотр профиля",
+    me: "Запрос данных",
+    api_call: "Другое",
+  }
+  return map[event] || event
 }
 
-function formatMinutes(min: number): string {
-  if (min < 60) return `${min} мин`
-  const h = Math.floor(min / 60)
-  const m = min % 60
-  return m ? `${h} ч ${m} м` : `${h} ч`
+function declension(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod100 >= 11 && mod100 <= 19) return many
+  if (mod10 === 1) return one
+  if (mod10 >= 2 && mod10 <= 4) return few
+  return many
 }

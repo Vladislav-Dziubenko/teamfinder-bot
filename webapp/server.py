@@ -282,7 +282,7 @@ async def error_middleware(request: web.Request, handler):
 
 @web.middleware
 async def active_middleware(request: web.Request, handler):
-    """Updates last_active_at for authenticated users on each API call (fire-and-forget)."""
+    """Updates last_active_at and logs activity for authenticated users on each API call."""
     response = await handler(request)
     if request.path.startswith("/api/"):
         user = _get_user(request)
@@ -292,7 +292,31 @@ async def active_middleware(request: web.Request, handler):
                 "UPDATE users SET last_active_at = $1 WHERE user_id = $2",
                 datetime.utcnow().isoformat(), user["id"],
             ))
+            # Log activity event (fire-and-forget, skip stats/leaderboard noise)
+            if not any(skip in request.path for skip in ("/api/stats", "/api/leaderboard", "/api/games")):
+                asyncio.ensure_future(db.log_activity(user["id"], _event_from_path(request.path)))
     return response
+
+
+def _event_from_path(path: str) -> str:
+    """Map API path to a short event name for activity logging."""
+    if "/search" in path:
+        return "search"
+    if "/apply" in path or "/team" in path:
+        return "team_app"
+    if "/nexus/open" in path:
+        return "case_open"
+    if "/nexus/ad/watch" in path:
+        return "ad_watch"
+    if "/achievements/claim" in path:
+        return "achievement_claim"
+    if "/donate" in path or "/stars" in path or "/coin" in path:
+        return "donate"
+    if "/profile" in path:
+        return "profile"
+    if "/me" in path:
+        return "me"
+    return "api_call"
 
 
 @web.middleware
@@ -2383,6 +2407,20 @@ async def handle_stats_progress(request: web.Request):
     return web.json_response([])
 
 
+async def handle_stats_general(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    period = request.query.get("period", "30")
+    try:
+        days = int(period)
+    except ValueError:
+        days = 30
+    if days not in (1, 7, 30):
+        days = 30
+    data = await db.get_general_stats(user["id"], days)
+    return web.json_response(data)
+
+
 async def handle_stats_rank(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -2749,6 +2787,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/stats/overview", handle_stats_overview)
     app.router.add_get("/api/stats/progress", handle_stats_progress)
     app.router.add_get("/api/stats/rank", handle_stats_rank)
+    app.router.add_get("/api/stats/general", handle_stats_general)
 
     # Discord OAuth
     app.router.add_get("/api/discord/auth", handle_discord_auth)

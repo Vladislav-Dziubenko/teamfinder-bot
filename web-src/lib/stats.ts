@@ -5,20 +5,19 @@ import { api } from "@/lib/api"
 
 export type StatRange = "7" | "30"
 
-export type OverviewStat = {
-  games: number
-  wins: number
-  favoriteGame: string
-  searchMinutes: number
-  gamesDelta: number
-  winsDelta: number
-  searchDelta: number
-}
-
-export type ProgressPoint = {
-  label: string
-  games: number
-  wins: number
+export type GeneralStats = {
+  activeDays: number
+  totalEvents: number
+  searches: number
+  contacts: number
+  teamApps: number
+  caseOpens: number
+  adWatches: number
+  achievementsByGame: Record<string, number>
+  totalAchievements: number
+  referrals: number
+  currentCoins: number
+  eventsByType: Record<string, number>
 }
 
 export type UnlockedAchievement = {
@@ -35,12 +34,8 @@ export type RankInfo = {
   percentile: number
 }
 
-export async function getOverview(range: StatRange): Promise<OverviewStat> {
-  return api.get("/api/stats/overview?range=" + range)
-}
-
-export async function getProgress(range: StatRange): Promise<ProgressPoint[]> {
-  return api.get("/api/stats/progress?range=" + range)
+export async function getGeneralStats(period: number): Promise<GeneralStats> {
+  return api.get("/api/stats/general?period=" + period)
 }
 
 export function useRecentAchievements(): UnlockedAchievement[] {
