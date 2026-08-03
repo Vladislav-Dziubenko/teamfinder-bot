@@ -382,6 +382,24 @@ CREATE TABLE IF NOT EXISTS user_activity_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_activity_log_user_ts ON user_activity_log (user_id, ts);
+
+CREATE TABLE IF NOT EXISTS beta_state (
+    user_id BIGINT PRIMARY KEY,
+    case_balance INTEGER NOT NULL DEFAULT 0,
+    last_grant TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS bot_reviews (
+    id SERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    rating INTEGER NOT NULL,
+    text TEXT NOT NULL DEFAULT '',
+    pros TEXT NOT NULL DEFAULT '',
+    cons TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
 """
 
 SCHEMA_STATEMENTS = [
@@ -555,6 +573,19 @@ class Database:
             ("users", "last_active_at", "TEXT"),
             ("chat_messages", "read_at", "TEXT"),
             ("global_messages", "kind", "TEXT NOT NULL DEFAULT 'user'"),
+
+            ("user_roles", "is_beta", "INTEGER NOT NULL DEFAULT 0"),
+
+            ("beta_state", "user_id", "BIGINT"),
+            ("beta_state", "case_balance", "INTEGER NOT NULL DEFAULT 0"),
+            ("beta_state", "last_grant", "TEXT NOT NULL DEFAULT ''"),
+
+            ("bot_reviews", "user_id", "BIGINT"),
+            ("bot_reviews", "rating", "INTEGER NOT NULL DEFAULT 5"),
+            ("bot_reviews", "text", "TEXT NOT NULL DEFAULT ''"),
+            ("bot_reviews", "pros", "TEXT NOT NULL DEFAULT ''"),
+            ("bot_reviews", "cons", "TEXT NOT NULL DEFAULT ''"),
+            ("bot_reviews", "created_at", "TEXT NOT NULL DEFAULT ''"),
         ]
 
         for table, column, col_type in column_migrations:
@@ -562,6 +593,14 @@ class Database:
                 await conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}")
             except asyncpg.PostgresError as e:
                 print(f"Migration warning for {table}.{column}: {e}")
+
+        # Migrate existing beta_tester role -> is_beta flag (separate from staff role)
+        try:
+            await conn.execute(
+                "UPDATE user_roles SET is_beta = 1, role = '' WHERE role = 'beta_tester'"
+            )
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning while converting beta_tester role: {e}")
 
         # Большие суммы не должны переполнять 32-битный INTEGER (лимит ~2.1 млрд).
         # Колонки уже существуют, поэтому нужен ALTER COLUMN TYPE (идемпотентно:
@@ -2446,11 +2485,23 @@ class Database:
             )
             return role or ""
 
+    async def get_beta(self, user_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchval(
+                "SELECT is_beta FROM user_roles WHERE user_id = $1",
+                user_id,
+            )
+            return bool(row)
+
     async def set_role(self, user_id: int, role: str | None, granted_by: int) -> None:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
             if not role:
-                await conn.execute("DELETE FROM user_roles WHERE user_id = $1", user_id)
+                # Preserve is_beta flag, just clear staff role
+                await conn.execute(
+                    "UPDATE user_roles SET role = '' WHERE user_id = $1",
+                    user_id,
+                )
             else:
                 await conn.execute(
                     """INSERT INTO user_roles (user_id, role, granted_by, created_at)
@@ -2458,6 +2509,19 @@ class Database:
                        ON CONFLICT (user_id) DO UPDATE SET role = $2, granted_by = $3, created_at = $4""",
                     user_id, role, granted_by, now,
                 )
+
+    async def set_beta(self, user_id: int, enabled: bool, granted_by: int) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO user_roles (user_id, role, is_beta, granted_by, created_at)
+                   VALUES ($1, '', $2, $3, $4)
+                   ON CONFLICT (user_id) DO UPDATE SET is_beta = $2, granted_by = $3, created_at = $4""",
+                user_id, int(enabled), granted_by, now,
+            )
+            # If enabling beta, grant daily bonus immediately
+            if enabled:
+                await self._grant_beta_daily_conn(conn, user_id)
 
     async def get_roles_batch(self, user_ids: list[int]) -> dict[int, str]:
         if not user_ids:
@@ -2468,6 +2532,16 @@ class Database:
                 user_ids,
             )
             return {r["user_id"]: r["role"] for r in rows}
+
+    async def get_beta_batch(self, user_ids: list[int]) -> dict[int, bool]:
+        if not user_ids:
+            return {}
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT user_id, is_beta FROM user_roles WHERE user_id = ANY($1::BIGINT[])",
+                user_ids,
+            )
+            return {r["user_id"]: bool(r["is_beta"]) for r in rows}
 
     async def ban_global(self, user_id: int, banned_by: int, reason: str = "") -> None:
         now = datetime.utcnow().isoformat()
@@ -2499,6 +2573,7 @@ class Database:
             rows = await conn.fetch(
                 """SELECT u.user_id, COALESCE(mp.nick, '') AS nick, mp.avatar,
                           COALESCE(ur.role, '') AS role,
+                          COALESCE(ur.is_beta, 0) AS is_beta,
                           (gb.user_id IS NOT NULL) AS banned
                    FROM users u
                    LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
@@ -2508,6 +2583,95 @@ class Database:
                    ORDER BY (ur.role IS NOT NULL) DESC, u.user_id
                    LIMIT $2""",
                 f"%{query}%", limit,
+            )
+            return [dict(r) for r in rows]
+
+    # ---------- Beta tester ----------
+    # Роль «бета-тестер»: 200 премиум-кейсов в день (накапливаются до 6000),
+    # 10 000 ⭐ каждый день, бесконечные анкеты, доступ к новым фичям.
+    BETA_DAILY_CASES = 200
+    BETA_MAX_CASES = 6000
+    BETA_DAILY_STARS = 10_000
+
+    async def _beta_role(self, user_id: int) -> bool:
+        return await self.get_beta(user_id)
+
+    async def get_beta_state(self, user_id: int) -> dict | None:
+        """Состояние бета-тестера: накопленный баланс кейсов и отметка гранта."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT case_balance, last_grant FROM beta_state WHERE user_id = $1",
+                user_id,
+            )
+            if row is None:
+                return None
+            return {"case_balance": row["case_balance"], "last_grant": row["last_grant"]}
+
+    async def grant_beta_daily(self, user_id: int) -> dict | None:
+        """Ежедневная выдача бета-тестеру: +200 премиум-кейсов (копятся до 6000)
+        и 10 000 ⭐. Если роль снята — вернёт None и ничего не начислит.
+        Идемпотентно: раз в календарный день (UTC)."""
+        async with self.pool.acquire() as conn:
+            return await self._grant_beta_daily_conn(conn, user_id)
+
+    async def _grant_beta_daily_conn(self, conn: asyncpg.Connection, user_id: int) -> dict | None:
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        row = await conn.fetchrow(
+            "SELECT case_balance, last_grant FROM beta_state WHERE user_id = $1",
+            user_id,
+        )
+        balance = row["case_balance"] if row else 0
+        last_grant = row["last_grant"] if row else ""
+        if last_grant >= today:
+            return {"case_balance": balance, "last_grant": last_grant}
+        new_balance = min(self.BETA_MAX_CASES, balance + self.BETA_DAILY_CASES)
+        await conn.execute(
+            """INSERT INTO beta_state (user_id, case_balance, last_grant)
+               VALUES ($1, $2, $3)
+               ON CONFLICT (user_id) DO UPDATE SET case_balance = $2, last_grant = $3""",
+            user_id, new_balance, today,
+        )
+        await self._adjust_currency_conn(conn, user_id, stars=self.BETA_DAILY_STARS)
+        return {"case_balance": new_balance, "last_grant": today}
+
+    async def consume_beta_case(self, user_id: int, count: int, conn: asyncpg.Connection) -> bool:
+        """Списывает count из накопленных бесплатных премиум-кейсов."""
+        result = await conn.execute(
+            "UPDATE beta_state SET case_balance = case_balance - $2 WHERE user_id = $1 AND case_balance >= $2",
+            user_id, count,
+        )
+        return result == "UPDATE 1"
+
+    # ---------- Reviews ----------
+
+    async def submit_review(self, user_id: int, rating: int, text: str, pros: str, cons: str) -> dict:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO bot_reviews (user_id, rating, text, pros, cons, created_at)
+                   VALUES ($1, $2, $3, $4, $5, $6)""",
+                user_id, rating, text, pros, cons, now,
+            )
+            return {"id": 0, "rating": rating, "text": text, "pros": pros, "cons": cons, "created_at": now}
+
+    async def get_my_review(self, user_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT id, rating, text, pros, cons, created_at FROM bot_reviews WHERE user_id = $1 ORDER BY id DESC LIMIT 1",
+                user_id,
+            )
+            return dict(row) if row else None
+
+    async def get_reviews(self, limit: int = 50) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT r.id, r.user_id, r.rating, r.text, r.pros, r.cons, r.created_at,
+                          COALESCE(mp.nick, '') AS nick
+                   FROM bot_reviews r
+                   LEFT JOIN mini_app_profiles mp ON mp.user_id = r.user_id
+                   ORDER BY r.id DESC
+                   LIMIT $1""",
+                limit,
             )
             return [dict(r) for r in rows]
 

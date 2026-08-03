@@ -39,6 +39,8 @@ const FREE_SEARCHES = 5
 
 type MeResponse = {
   user: { id: number; username?: string; first_name?: string; level?: number; wins?: number }
+  role?: string
+  is_beta?: boolean
   currency: { coins: number; stars: number; points: number }
   mini_profile: {
     avatar: string | null
@@ -78,6 +80,7 @@ type MeResponse = {
     createdByUser: boolean
   }>
   redeemed_codes?: string[]
+  beta_state?: { case_balance: number; last_grant: string } | null
   cases: LootCase[]
   battlepass_tiers: BattlePassTier[]
   star_packs: StarPack[]
@@ -125,6 +128,7 @@ type PersistedState = {
   wins: number
   userId: number
   role: string
+  isBeta: boolean
   lootCases: LootCase[]
   battlePassTiers: BattlePassTier[]
   battlePassPriceStars: number
@@ -137,6 +141,7 @@ type PersistedState = {
   referralReward: { coins: number; stars: number }
   games: string[]
   modelState: ModelState
+  betaBalance: number
 }
 
 function makeReferralCode() {
@@ -290,7 +295,10 @@ function defaultState(): PersistedState {
     referralReward: { coins: 0, stars: 0 },
     games: [],
     userId: 0,
+    role: "",
+    isBeta: false,
     modelState: { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
+    betaBalance: 0,
   }
 }
 
@@ -298,6 +306,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
   const user = me.user || {}
   const currency = me.currency || {}
   const mini = me.mini_profile || {}
+  const isBeta = me.is_beta ?? false
   const bp = me.battlepass || {}
   const streak = me.streak || {}
   const ref = me.referral || {}
@@ -352,6 +361,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     lastQuestAt: 0,
     userId: user.id ?? 0,
     role: me.role ?? "",
+    isBeta: me.is_beta ?? false,
     level: user.level ?? 0,
     wins: user.wins ?? 0,
     lootCases,
@@ -366,6 +376,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     referralReward: me.referral_reward || { coins: 50, stars: 5 },
     games: me.mini_profile?.games || [],
     modelState: modelState || { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
+    betaBalance: me.beta_state?.case_balance ?? 0,
   }
 }
 
@@ -678,12 +689,14 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     const openCase = async (caseId: string, count = 1, requestId?: string, viaAd = false): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }> => {
       const c = s.lootCases.find((x) => x.id === caseId)
       if (!c) return { ok: false, error: "Кейс не найден" }
-      if (!c.free && s.stars < c.costStars * count) return { ok: false, error: "Недостаточно Telegram Stars" }
+      const isBeta = s.isBeta
+      const betaPays = !c.free && isBeta && caseId === "gold" && s.betaBalance >= count
+      if (!c.free && !betaPays && s.stars < c.costStars * count) return { ok: false, error: "Недостаточно Telegram Stars" }
       const rid =
         requestId ||
         (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `rid-${Date.now()}-${Math.random().toString(36).slice(2)}`)
       try {
-        const data = await api.post("/api/nexus/cases/open", { case_id: caseId, count, request_id: rid, via_ad: viaAd })
+        const data = await api.post("/api/nexus/cases/open", { case_id: caseId, count, request_id: rid, via_ad: viaAd, beta_free: betaPays })
         if (c.free && data.last_open_at) {
           const until = parseIsoTs(data.last_open_at) + DAY_MS
           setS((p: PersistedState) => ({

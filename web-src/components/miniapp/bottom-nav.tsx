@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Swords, Package, Trophy, Ticket, User, BarChart3, MessageCircle, TrendingUp, Users, Gem } from "lucide-react"
+import { Home, Swords, Package, Trophy, Ticket, User, BarChart3, MessageCircle, TrendingUp, Users, Gem, Star } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useTotalUnread } from "@/lib/chat"
 import { cn } from "@/lib/utils"
@@ -19,6 +19,7 @@ export type TabId =
   | "profile"
   | "friends"
   | "model"
+  | "review"
 
 const items: { id: TabId; labelKey: string; icon: typeof Home }[] = [
   { id: "home", labelKey: "nav.home", icon: Home },
@@ -31,6 +32,7 @@ const items: { id: TabId; labelKey: string; icon: typeof Home }[] = [
   { id: "promo", labelKey: "nav.promo", icon: Ticket },
   { id: "friends", labelKey: "nav.friends", icon: Users },
   { id: "model", labelKey: "nav.model", icon: Gem },
+  { id: "review", labelKey: "nav.review", icon: Star },
   { id: "profile", labelKey: "nav.profile", icon: User },
 ]
 

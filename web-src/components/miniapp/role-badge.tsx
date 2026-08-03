@@ -1,6 +1,6 @@
 "use client"
 
-import { Crown, Shield, ShieldCheck } from "lucide-react"
+import { Crown, Shield, ShieldCheck, FlaskConical } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -22,6 +22,11 @@ const ROLE_META: Record<
     labelKey: "role.moderator",
     icon: ShieldCheck,
     className: "border-sky-500/50 bg-sky-500/15 text-sky-400",
+  },
+  beta_tester: {
+    labelKey: "role.beta_tester",
+    icon: FlaskConical,
+    className: "border-emerald-500/50 bg-emerald-500/15 text-emerald-400",
   },
 }
 

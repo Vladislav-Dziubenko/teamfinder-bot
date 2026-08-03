@@ -22,6 +22,8 @@ import {
   Share2,
   Send,
   X,
+  Package,
+  Infinity as InfinityIcon,
 } from "lucide-react"
 import { api, openLink } from "@/lib/api"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
@@ -32,6 +34,7 @@ import type { TabId } from "./bottom-nav"
 import { DiscordSection } from "@/components/miniapp/discord-section"
 import { cn } from "@/lib/utils"
 import { LanguageSelector } from "./language-selector"
+import { RoleBadge } from "./role-badge"
 
 type AchievementItem = {
   id: string
@@ -196,6 +199,12 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
             )}
             <p className="text-sm text-muted-foreground">{t("profile.level", { level })}</p>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
+              {me.role ? <RoleBadge role={me.role} /> : null}
+              {me.isBeta && (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold text-emerald-400">
+                  ∞
+                </span>
+              )}
               {userGames.length === 0 ? (
                 <span className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
                   <Gamepad2 className="size-3" /> {t("profile.no_games")}
@@ -424,6 +433,24 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
           </button>
         </section>
       )}
+
+        {me.isBeta && (
+          <section className="relative overflow-hidden rounded-3xl border border-emerald-500/40 bg-emerald-500/5 p-4">
+            <div className="flex items-center gap-3">
+              <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-emerald-500/15 text-xl font-bold text-emerald-400">∞</span>
+              <div className="min-w-0">
+                <p className="font-display text-base font-bold">{t("beta.title")}</p>
+                <p className="text-xs text-emerald-400/80">{t("beta.role")}</p>
+              </div>
+            </div>
+            <ul className="mt-3 space-y-1.5 text-xs">
+              <li className="flex items-center gap-2"><Package className="size-3.5 text-emerald-400" /> {t("beta.cases")}</li>
+              <li className="flex items-center gap-2"><Star className="size-3.5 text-emerald-400" /> {t("beta.stars")}</li>
+              <li className="flex items-center gap-2"><InfinityIcon /> {t("beta.quests")}</li>
+              <li className="flex items-center gap-2"><Crown className="size-3.5 text-emerald-400" /> {t("beta.features")}</li>
+            </ul>
+          </section>
+        )}
 
       {/* Currency stats */}
       <section className="grid grid-cols-3 gap-3">

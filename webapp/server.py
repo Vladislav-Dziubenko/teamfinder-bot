@@ -432,9 +432,18 @@ async def handle_me(request: web.Request):
         _effective_role(request, db, user["id"]),
     )
 
+    is_beta = await db.get_beta(user["id"])
+
+    # Ежедневная выдача бета-тестеру (200 кейсов + 10 000 ⭐) — идемпотентно раз в день.
+    beta_state = None
+    if is_beta:
+        beta_state = await db.grant_beta_daily(user["id"])
+
     return web.json_response({
         "user": user,
         "role": role,
+        "is_beta": is_beta,
+        "beta_state": beta_state,
         "currency": currency,
         "mini_profile": mini_profile if mini_profile else {"games": []},
         "inventory": inventory,
@@ -660,6 +669,8 @@ async def handle_search(request: web.Request):
     is_pro = await db.is_pro(user["id"])
     has_boost = await db.has_search_boost(user["id"], game_to_search) if not is_pro else False
     premium = is_pro or has_boost
+    is_beta = await db.get_beta(user["id"])
+    search_limit = 500 if (premium or is_beta) else 20
     if has_boost:
         await db.consume_search_boost(user["id"], game_to_search)
     if game_filter == "all":
@@ -683,11 +694,11 @@ async def handle_search(request: web.Request):
             or query in c.get("rank", "").lower()
         ]
 
-    matches = find_matches(profile, candidates, limit=50 if premium else 20)
+    matches = find_matches(profile, candidates, limit=search_limit)
     if not matches and candidates:
         scored = [(c, score_match(profile, c)) for c in candidates]
         scored.sort(key=lambda x: (-x[1], -int(x[0].get("_highlighted", False))))
-        matches = scored[: 50 if premium else 20]
+        matches = scored[:search_limit]
 
     players = []
     for p, score in matches:
@@ -1122,9 +1133,23 @@ async def handle_nexus_open_case(request: web.Request):
                         if (datetime.utcnow() - last_dt).total_seconds() < 24 * 3600 and not body.get("via_ad"):
                             return web.json_response({"error": "cooldown"}, status=400)
                 else:
-                    total_cost = case_config["costStars"] * count
-                    if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
-                        return web.json_response({"error": "not enough stars"}, status=400)
+                    # Бета-тестер открывает премиум-кейс за накопленный бесплатный
+                    # баланс (до 200/день, копится до 6000) вместо звёзд.
+                    is_beta = await db.get_beta(user["id"])
+                    beta_free = body.get("beta_free") or is_beta
+                    if beta_free and case_id == "gold":
+                        beta_state = await db.get_beta_state(user["id"])
+                        if beta_state and beta_state["case_balance"] >= count:
+                            if not await db.consume_beta_case(user["id"], count, conn):
+                                return web.json_response({"error": "not enough beta cases"}, status=400)
+                        else:
+                            total_cost = case_config["costStars"] * count
+                            if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
+                                return web.json_response({"error": "not enough stars"}, status=400)
+                    else:
+                        total_cost = case_config["costStars"] * count
+                        if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
+                            return web.json_response({"error": "not enough stars"}, status=400)
 
                 jackpot_item = next((i for i in case_config["items"] if i.get("jackpot")), None)
                 rolled_items: list[dict] = []
@@ -2072,11 +2097,22 @@ async def handle_admin_role(request: web.Request):
         target_id = int(body.get("user_id"))
     except (ValueError, TypeError):
         return web.json_response({"error": "invalid user_id"}, status=400)
+    # Staff role (moderator/admin/developer or empty to clear)
     role = (body.get("role") or "").strip()
-    allowed = {"admin", "moderator"}
-    if role and role not in allowed:
+    allowed_roles = {"admin", "moderator", "developer"}
+    if role and role not in allowed_roles:
         return web.json_response({"error": "invalid role"}, status=400)
-    await db.set_role(target_id, role or None, user["id"])
+    # Beta flag (independent from staff role)
+    beta = body.get("beta")
+    if beta is not None:
+        if not isinstance(beta, bool):
+            return web.json_response({"error": "beta must be boolean"}, status=400)
+        await db.set_beta(target_id, beta, user["id"])
+    if role:
+        await db.set_role(target_id, role, user["id"])
+    elif role == "":
+        # Explicit clear of staff role (keep beta flag)
+        await db.set_role(target_id, "", user["id"])
     return web.json_response({"ok": True})
 
 
@@ -2088,6 +2124,45 @@ async def handle_admin_users(request: web.Request):
     query = request.query.get("q", "").strip().lower()
     users = await db.search_users_with_roles(query or "%", 30)
     return web.json_response({"users": users})
+
+
+# ---------------------------------------------------------------------------
+# Reviews (отзывы о боте)
+# ---------------------------------------------------------------------------
+
+async def handle_review_submit(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    try:
+        rating = int(body.get("rating", 0))
+    except (ValueError, TypeError):
+        rating = 0
+    if not 1 <= rating <= 5:
+        return web.json_response({"error": "invalid rating"}, status=400)
+    text = sanitize(body.get("text", ""), 2000)
+    pros = sanitize(body.get("pros", ""), 1000)
+    cons = sanitize(body.get("cons", ""), 1000)
+    review = await db.submit_review(user["id"], rating, text, pros, cons)
+    return web.json_response({"review": review})
+
+
+async def handle_review_my(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    review = await db.get_my_review(user["id"])
+    return web.json_response({"review": review})
+
+
+async def handle_reviews_list(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    role = await _effective_role(request, db, user["id"])
+    if db.ROLE_RANK.get(role, 0) < 2:
+        return web.json_response({"error": "forbidden"}, status=403)
+    review = await db.get_my_review(user["id"])
+    all_reviews = await db.get_reviews(100)
+    return web.json_response({"reviews": all_reviews, "my": review})
 
 
 # ---------------------------------------------------------------------------
@@ -2818,6 +2893,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/global/unban", handle_global_unban)
     app.router.add_post("/api/admin/role", handle_admin_role)
     app.router.add_get("/api/admin/users", handle_admin_users)
+    app.router.add_post("/api/nexus/review", handle_review_submit)
+    app.router.add_get("/api/nexus/review/my", handle_review_my)
+    app.router.add_get("/api/nexus/reviews", handle_reviews_list)
 
     # Profile
     app.router.add_get("/api/profile/by-id/{user_id}", handle_profile_by_id)

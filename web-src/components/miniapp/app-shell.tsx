@@ -28,6 +28,7 @@ const BattlePassTab = lazy(() => import("./battlepass-tab").then((m) => ({ defau
 const PredictionsTab = lazy(() => import("./predictions-tab").then((m) => ({ default: m.PredictionsTab })))
 const ChatTab = lazy(() => import("./chat-tab").then((m) => ({ default: m.ChatTab })))
 const GuidesTab = lazy(() => import("./guides-tab").then((m) => ({ default: m.GuidesTab })))
+const ReviewTab = lazy(() => import("./review-tab").then((m) => ({ default: m.ReviewTab })))
 
 function TabFallback() {
   return (
@@ -119,6 +120,7 @@ function Shell() {
         {tab === "donate" && <DonateTab />}
         {tab === "profile" && <ProfileTab onGo={goTab} onToast={setToast} />}
         {tab === "friends" && <FriendsTab onChat={openChat} />}
+        {tab === "review" && <Suspense fallback={<TabFallback />}><ReviewTab onToast={setToast} /></Suspense>}
       </main>
 
       <BottomNav active={tab} onChange={goTab} />
