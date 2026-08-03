@@ -60,6 +60,7 @@ export default function RootLayout({
         </ErrorBoundary>
         {process.env.NODE_ENV === 'production' && <Analytics />}
         <Script src="https://telegram.org/js/telegram-web-app.js" strategy="beforeInteractive" />
+        <Script src="https://sad.adsgram.ai/js/sad.min.js" strategy="beforeInteractive" />
       </body>
     </html>
   )

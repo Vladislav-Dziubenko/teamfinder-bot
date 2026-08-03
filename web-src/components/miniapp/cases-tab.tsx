@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { tick, win as winSfx, whoosh, setMuted, isMuted, ensureAudio } from "@/lib/sfx"
 import { formatNum } from "@/lib/format"
 import { TopUpSheet } from "./top-up-sheet"
+import { useAdsgram } from "@/lib/use-adsgram"
 
 const rarityRank: Record<Rarity, number> = { common: 0, rare: 2, epic: 3, premium: 4, legendary: 6 }
 
@@ -60,9 +61,17 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const [sortMode, setSortMode] = useState<"value" | "rarity">("value")
   const [adBusy, setAdBusy] = useState(false)
 
-  // Проверяем доступность рекламного SDK (AdsGram / Telegram).
-  const adSdkAvailable = typeof window !== "undefined" &&
-    typeof (window.Telegram?.WebApp as any)?.showRewardedVideo === "function"
+  // AdsGram SDK: реальная реклама. onReward вызывается когда юзер досмотрел до конца.
+  const [adSdkReady, setAdSdkReady] = useState(false)
+  const showAd = useAdsgram(
+    useCallback(() => { /* награда начисляется в handleOpenForAd после recordAdWatch */ }, []),
+    useCallback(() => {}, []),
+  )
+
+  // Проверяем доступность AdsGram SDK после маунта.
+  useEffect(() => {
+    setAdSdkReady(typeof window !== "undefined" && typeof window.Adsgram?.init === "function")
+  }, [])
 
   // Синхронный мьютекс: React-состояние обновляется асинхронно, поэтому при
   // быстрых кликах гард `if (spin) return` не срабатывает (все клики видят
@@ -110,21 +119,10 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     setMuted(!next)
   }
 
-  // TODO: подключить реальную рекламную сеть (Telegram Rewarded Ads / AdMob).
-  // Заглушка: если Telegram SDK не предоставляет showRewardedVideo
-  // (AdsGram не одобрен), возвращаем false — кейс не откроется.
-  // После одобрения блока SDK будет вызываться нативно.
+  // Реклама через AdsGram SDK. showAd() показывает рекламу,
+  // возвращает true если юзер досмотрел до конца.
   async function showRewardedAd(): Promise<boolean> {
-    const wa = (typeof window !== "undefined" && window.Telegram?.WebApp) as any
-    if (typeof wa?.showRewardedVideo === "function") {
-      try {
-        return await wa.showRewardedVideo()
-      } catch {
-        return false
-      }
-    }
-    // SDK не подключён — блируем открытие за рекламу.
-    return false
+    return showAd()
   }
 
   async function handleOpenForAd(c: LootCase) {
@@ -386,7 +384,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 )}
               </button>
 
-              {c.free && onCooldown && adSdkAvailable && (
+              {c.free && onCooldown && adSdkReady && (
                 <button
                   type="button"
                   disabled={isSpin || adBusy}
