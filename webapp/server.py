@@ -2410,6 +2410,8 @@ async def handle_stats_progress(request: web.Request):
 async def handle_stats_general(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
     period = request.query.get("period", "30")
     try:
         days = int(period)
@@ -2417,8 +2419,12 @@ async def handle_stats_general(request: web.Request):
         days = 30
     if days not in (1, 7, 30):
         days = 30
-    data = await db.get_general_stats(user["id"], days)
-    return web.json_response(data)
+    try:
+        data = await db.get_general_stats(user["id"], days)
+        return web.json_response(data)
+    except Exception as e:
+        logging.exception("stats/general error for user %s: %s", user["id"], e)
+        return web.json_response({"error": "internal error"}, status=500)
 
 
 async def handle_stats_rank(request: web.Request):

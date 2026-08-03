@@ -2699,17 +2699,19 @@ class Database:
             )
 
     async def log_activity(self, user_id: int, event: str) -> None:
-        now = datetime.utcnow().isoformat()
-        async with self.pool.acquire() as conn:
-            await conn.execute(
-                "INSERT INTO user_activity_log (user_id, event, ts) VALUES ($1, $2, $3)",
-                user_id, event, now,
-            )
+        try:
+            now = datetime.utcnow().isoformat()
+            async with self.pool.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO user_activity_log (user_id, event, ts) VALUES ($1, $2, $3)",
+                    user_id, event, now,
+                )
+        except Exception:
+            pass  # non-critical, silently ignore
 
     async def get_general_stats(self, user_id: int, days: int) -> dict:
         """Return aggregated stats for the given period."""
         now = datetime.utcnow()
-        from datetime import timedelta
         since = (now - timedelta(days=days)).isoformat()
 
         async with self.pool.acquire() as conn:
@@ -2730,7 +2732,7 @@ class Database:
             )
             events = {r["event"]: r["cnt"] for r in event_rows}
 
-            # Searches & contacts from user_stats (cumulative, use as-is)
+            # Searches & contacts from user_stats (cumulative)
             stats_row = await conn.fetchrow(
                 "SELECT search_count, contact_count, team_app_count FROM user_stats WHERE user_id = $1",
                 user_id,
@@ -2743,21 +2745,24 @@ class Database:
             case_opens = await conn.fetchval(
                 "SELECT COUNT(*) FROM case_opens WHERE user_id = $1 AND opened_at >= $2",
                 user_id, since,
-            )
+            ) or 0
 
-            # Ad watches in period
+            # Ad watches total
             ad_watches = await conn.fetchval(
                 "SELECT COALESCE(watch_count, 0) FROM user_ad_watches WHERE user_id = $1",
                 user_id,
-            )
+            ) or 0
 
             # Achievements claimed in period, grouped by game
-            ach_rows = await conn.fetch(
-                "SELECT achievement_id, claimed_at FROM user_achievements "
-                "WHERE user_id = $1 AND claimed = TRUE AND claimed_at >= $2",
-                user_id, since,
-            )
-            # Map achievement_id -> game (from static config)
+            try:
+                ach_rows = await conn.fetch(
+                    "SELECT achievement_id, claimed_at FROM user_achievements "
+                    "WHERE user_id = $1 AND claimed = TRUE AND claimed_at IS NOT NULL AND claimed_at >= $2",
+                    user_id, since,
+                )
+            except Exception:
+                ach_rows = []
+
             ACH_GAME_MAP = {
                 "a1": "CS:GO", "a2": "War Thunder", "a3": "Roblox",
             }
@@ -2766,17 +2771,32 @@ class Database:
                 game = ACH_GAME_MAP.get(r["achievement_id"], "Другое")
                 ach_by_game[game] = ach_by_game.get(game, 0) + 1
 
-            # Coins earned in period (from currency changes - approximate)
+            # Current coins
             coins_row = await conn.fetchrow(
                 "SELECT coins FROM user_currency WHERE user_id = $1", user_id,
             )
             current_coins = coins_row["coins"] if coins_row else 0
 
-            # Referrals in period
+            # Referrals
             ref_count = await conn.fetchval(
                 "SELECT COUNT(*) FROM referrals WHERE referred_by = $1",
                 user_id,
-            )
+            ) or 0
+
+            return {
+                "activeDays": active_days,
+                "totalEvents": total_events,
+                "searches": searches_total,
+                "contacts": contacts_total,
+                "teamApps": team_apps_total,
+                "caseOpens": case_opens,
+                "adWatches": ad_watches,
+                "achievementsByGame": ach_by_game,
+                "totalAchievements": len(ach_rows),
+                "referrals": ref_count,
+                "currentCoins": current_coins,
+                "eventsByType": events,
+            }
 
             return {
                 "activeDays": active_days,
