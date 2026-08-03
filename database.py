@@ -727,6 +727,47 @@ class Database:
                 datetime.utcnow().isoformat(),
             )
 
+        # Legacy: старые экземпляры Mini Boss bro выпадали в user_inventory как
+        # обычные предметы (sell_price=0) до внедрения limited_models. Переносим
+        # их в limited_models с новыми токенами — тогда они появятся в тираже,
+        # дают ежедневный доход и их можно продать за LIMITED_MODEL_SELL_PRICE.
+        migration_name = "legacy_nexus_model_to_limited_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute("SELECT pg_advisory_xact_lock(hashtext('nexus-limited-model-claim'))")
+                    old_rows = await conn.fetch(
+                        "SELECT id, user_id, acquired_at FROM user_inventory WHERE item_key = 'nexus-model' ORDER BY id"
+                    )
+                    for r in old_rows:
+                        count = await conn.fetchval(
+                            "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
+                            self.LIMITED_MODEL_ID,
+                        )
+                        if count >= self.LIMITED_MODEL_SUPPLY:
+                            break
+                        mx = await conn.fetchval(
+                            "SELECT COALESCE(MAX(token_id), 0) FROM limited_models WHERE model_id = $1",
+                            self.LIMITED_MODEL_ID,
+                        )
+                        token_id = mx + 1
+                        await conn.execute(
+                            "INSERT INTO limited_models (model_id, token_id, owner_id, acquired_at) VALUES ($1, $2, $3, $4)",
+                            self.LIMITED_MODEL_ID, token_id, r["user_id"], r["acquired_at"],
+                        )
+                        await conn.execute("DELETE FROM user_inventory WHERE id = $1", r["id"])
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning legacy_nexus_model_to_limited: {e}")
+
         # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
         try:
             await conn.execute("""
