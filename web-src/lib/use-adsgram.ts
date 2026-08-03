@@ -23,6 +23,22 @@ declare global {
 // скрипт рекламы должен подгружаться как обычный script-тег.
 let scriptPromise: Promise<void> | null = null
 
+function reportSdkDiag(msg: string) {
+  try {
+    const apiBase = (window as any)._ab || ""
+    const body = JSON.stringify({
+      message: msg,
+      stack: "",
+      componentStack: "",
+      tab: "cases",
+      url: location.href,
+    })
+    navigator.sendBeacon(apiBase + "/api/client-error", new Blob([body], { type: "application/json" }))
+  } catch {
+    // ignore
+  }
+}
+
 function loadAdsgramScript(): Promise<void> {
   if (scriptPromise) return scriptPromise
   scriptPromise = new Promise((resolve, reject) => {
@@ -33,8 +49,12 @@ function loadAdsgramScript(): Promise<void> {
     const s = document.createElement("script")
     s.src = ADSGRAM_SCRIPT
     s.async = true
-    s.onload = () => resolve()
+    s.onload = () => {
+      reportSdkDiag("adsgram script loaded; window.Adsgram=" + typeof (window as any).Adsgram)
+      resolve()
+    }
     s.onerror = () => {
+      reportSdkDiag("adsgram script LOAD FAILED")
       scriptPromise = null
       reject(new Error("Adsgram script failed to load"))
     }
@@ -61,13 +81,16 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
           if (window.Adsgram?.init) {
             ctrlRef.current = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID })
             setReady(true)
+            reportSdkDiag("adsgram INIT OK blockId=" + ADSGRAM_BLOCK_ID)
             return
           }
-        } catch {
-          // не загрузилось — ретраим
+          reportSdkDiag("adsgram loaded but window.Adsgram.init missing (attempt " + (attempt + 1) + ")")
+        } catch (e: any) {
+          reportSdkDiag("adsgram init error attempt " + (attempt + 1) + ": " + String(e?.message || e))
         }
         await new Promise((r) => setTimeout(r, 1500))
       }
+      if (!cancelled) reportSdkDiag("adsgram init GAVE UP after 6 attempts")
     }
     init()
     return () => {
