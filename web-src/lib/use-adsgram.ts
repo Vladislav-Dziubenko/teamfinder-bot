@@ -65,6 +65,18 @@ function loadAdsgramScript(): Promise<void> {
   return scriptPromise
 }
 
+async function probeAdsApi(): Promise<void> {
+  try {
+    const r = await fetch("https://api.adsgram.ai/adv?probe=1&blockId=40994", {
+      method: "GET",
+      headers: { "X-Probe": "1" },
+    })
+    reportSdkDiag("adsgram API probe: HTTP " + r.status + " ok=" + r.ok)
+  } catch (e: any) {
+    reportSdkDiag("adsgram API probe FAILED: " + (typeof e === "object" ? JSON.stringify(e) : String(e?.message || e)))
+  }
+}
+
 export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
   const [ready, setReady] = useState(false)
   const ctrlRef = useRef<AdController | null>(null)
@@ -76,6 +88,7 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
   useEffect(() => {
     let cancelled = false
     async function init() {
+      probeAdsApi()
       for (let attempt = 0; attempt < 6 && !cancelled; attempt++) {
         try {
           await loadAdsgramScript()
