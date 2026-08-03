@@ -411,7 +411,7 @@ class Database:
             self.database_url,
             ssl=ssl_arg,
             min_size=2,
-            max_size=40,
+            max_size=10,
         )
         async with self._pool.acquire() as conn:
             await self._init_schema(conn)

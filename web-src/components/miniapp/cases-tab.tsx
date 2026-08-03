@@ -60,6 +60,11 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const [sortMode, setSortMode] = useState<"value" | "rarity">("value")
   const [adBusy, setAdBusy] = useState(false)
 
+  // Синхронный мьютекс: React-состояние обновляется асинхронно, поэтому при
+  // быстрых кликах гард `if (spin) return` не срабатывает (все клики видят
+  // старое состояние). Ref-блокировка ставится синхронно и гасит спам.
+  const openBusyRef = useRef(false)
+
   // Стакаем предметы одного типа: показываем иконку + количество + суммарную ценность.
   const stackedInventory = useMemo(() => {
     const map = new Map<string, { item: InventoryItem; count: number; totalSell: number }>()
@@ -118,7 +123,8 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   }
 
   async function handleOpenForAd(c: LootCase) {
-    if (spin || adBusy) return
+    if (spin || adBusy || openBusyRef.current) return
+    openBusyRef.current = true
     setAdBusy(true)
     try {
       const watched = await showRewardedAd()
@@ -143,13 +149,16 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       }
       if (res.item) setSpin((p) => (p ? { box: p.box, winner: res.item! } : p))
     } finally {
+      openBusyRef.current = false
       setAdBusy(false)
     }
   }
 
   async function handleOpen(c: LootCase) {
-    if (spin) return
+    if (spin || openBusyRef.current) return
+    openBusyRef.current = true
     if (!c.free && stars < c.costStars) {
+      openBusyRef.current = false
       setTopUp({ box: c, count: 1, isMulti: false })
       return
     }
@@ -158,9 +167,10 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     if (!res.ok) {
       setSpin(null)
       onToast(res.error ?? t("common.error"))
-      return
+    } else if (res.item) {
+      setSpin((p) => (p ? { box: p.box, winner: res.item! } : p))
     }
-    if (res.item) setSpin((p) => (p ? { box: p.box, winner: res.item! } : p))
+    openBusyRef.current = false
   }
 
   const [multi, setMulti] = useState<{ box: LootCase; items: CaseItem[] } | null>(null)
@@ -186,27 +196,32 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   }
 
   async function handleOpenMulti(c: LootCase, count: number) {
-    if (multi || spin || multiBusy) return
+    if (multi || spin || multiBusy || openBusyRef.current) return
     const totalCost = c.costStars * count
     if (stars < totalCost) {
       setTopUp({ box: c, count, isMulti: true })
       return
     }
+    openBusyRef.current = true
     const rid =
       typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `rid-${Date.now()}-${Math.random().toString(36).slice(2)}`
     setMultiBusy(count)
-    let res = await openCase(c.id, count, rid)
-    // Обрыв сети/таймаут: один безопасный повтор с тем же ключом — сервер
-    // не спишет повторно, если первая попытка уже была обработана.
-    if (!res.ok && res.error === "timeout") {
-      res = await openCase(c.id, count, rid)
+    try {
+      let res = await openCase(c.id, count, rid)
+      // Обрыв сети/таймаут: один безопасный повтор с тем же ключом — сервер
+      // не спишет повторно, если первая попытка уже была обработана.
+      if (!res.ok && res.error === "timeout") {
+        res = await openCase(c.id, count, rid)
+      }
+      if (!res.ok) {
+        onToast(res.error ?? t("common.error"))
+        return
+      }
+      if (res.items) setMulti({ box: c, items: res.items })
+    } finally {
+      openBusyRef.current = false
+      setMultiBusy(null)
     }
-    setMultiBusy(null)
-    if (!res.ok) {
-      onToast(res.error ?? t("common.error"))
-      return
-    }
-    if (res.items) setMulti({ box: c, items: res.items })
   }
 
   const [shopBuying, setShopBuying] = useState<string | null>(null)
