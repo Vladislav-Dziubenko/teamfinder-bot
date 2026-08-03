@@ -103,15 +103,20 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
   }, [])
 
   const showAd = useCallback(async (): Promise<boolean> => {
-    if (!ctrlRef.current) return false
+    if (!ctrlRef.current) {
+      reportSdkDiag("showAd called but controller missing")
+      return false
+    }
     try {
       const result = await ctrlRef.current.show()
+      reportSdkDiag("adsgram show result: " + JSON.stringify(result))
       if (result.done) {
         onRewardRef.current()
         return true
       }
       return false
-    } catch (err) {
+    } catch (err: any) {
+      reportSdkDiag("adsgram show threw: " + String(err?.message || err))
       onErrorRef.current?.(err)
       return false
     }
