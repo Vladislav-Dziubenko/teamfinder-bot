@@ -3,7 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 
 const ADSGRAM_BLOCK_ID = "40994"
-const ADSGRAM_SCRIPT = "https://sad.adsgram.ai/js/sad.min.js"
+// Скрипт хостится локально — Telegram WebView блокирует загрузку со сторонних
+// доменов (sad.adsgram.ai давал LOAD FAILED).
+const ADSGRAM_SCRIPT = "/adsgram-sad.min.js"
 
 type AdController = {
   show: () => Promise<{ done: boolean; description: string; state: string; error: boolean }>
