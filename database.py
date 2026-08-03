@@ -364,6 +364,14 @@ CREATE TABLE IF NOT EXISTS case_open_requests (
     result TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS user_ad_watches (
+    user_id BIGINT PRIMARY KEY,
+    watch_count INTEGER NOT NULL DEFAULT 0,
+    rewarded INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
 """
 
 SCHEMA_STATEMENTS = [
@@ -2056,6 +2064,52 @@ class Database:
                 if await self._adjust_currency_conn(conn, user_id, coins=coins, points=points):
                     return True
                 return False
+
+    # ---------- Rewarded Ads ----------
+
+    async def get_ad_watch_state(self, user_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT watch_count, rewarded FROM user_ad_watches WHERE user_id = $1",
+                user_id,
+            )
+            return {
+                "watch_count": row["watch_count"] if row else 0,
+                "rewarded": row["rewarded"] if row else 0,
+            }
+
+    async def record_ad_watch(self, user_id: int) -> dict:
+        """Инкрементит счётчик просмотренных реклам. При достижении 15 начисляет
+        +20 звёзд один раз (rewarded). Возвращает новый счётчик и приз."""
+        now = datetime.utcnow().isoformat()
+        AD_REWARD_THRESHOLD = 15
+        AD_REWARD_STARS = 20
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT watch_count, rewarded FROM user_ad_watches WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                count = (row["watch_count"] if row else 0) + 1
+                rewarded = row["rewarded"] if row else 0
+                reward_stars = 0
+                if rewarded == 0 and count >= AD_REWARD_THRESHOLD:
+                    rewarded = 1
+                    reward_stars = AD_REWARD_STARS
+                await conn.execute(
+                    """
+                    INSERT INTO user_ad_watches (user_id, watch_count, rewarded, updated_at)
+                    VALUES ($1, $2, $3, $4)
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        watch_count = EXCLUDED.watch_count,
+                        rewarded = EXCLUDED.rewarded,
+                        updated_at = EXCLUDED.updated_at
+                    """,
+                    user_id, count, rewarded, now,
+                )
+                if reward_stars > 0:
+                    await self._adjust_currency_conn(conn, user_id, stars=reward_stars)
+                return {"watch_count": count, "rewarded": rewarded, "reward_stars": reward_stars}
 
     # ---------- Chat ----------
 

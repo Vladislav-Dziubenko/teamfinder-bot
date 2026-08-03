@@ -383,6 +383,7 @@ async def handle_me(request: web.Request):
     referral = await db.get_or_create_referral(user["id"])
     achievements = await db.get_user_achievements(user["id"])
     premium_active = await db.is_pro(user["id"])
+    ad_state = await db.get_ad_watch_state(user["id"])
 
     case_cooldowns = {}
     for case_id in CASES_CONFIG:
@@ -407,6 +408,7 @@ async def handle_me(request: web.Request):
         "streak": streak,
         "referral": referral,
         "achievements": achievements,
+        "ad_state": ad_state,
         "cases": list(CASES_CONFIG.values()),
         "case_cooldowns": case_cooldowns,
         "premium_active": premium_active,
@@ -1063,7 +1065,7 @@ async def handle_nexus_open_case(request: web.Request):
                 last_open = await db.get_last_case_open(user["id"], case_id, conn)
                 if last_open:
                     last_dt = datetime.fromisoformat(last_open)
-                    if (datetime.utcnow() - last_dt).total_seconds() < 24 * 3600:
+                    if (datetime.utcnow() - last_dt).total_seconds() < 24 * 3600 and not body.get("via_ad"):
                         return web.json_response({"error": "cooldown"}, status=400)
             else:
                 total_cost = case_config["costStars"] * count
@@ -1271,6 +1273,22 @@ async def handle_nexus_claim_quest_reward(request: web.Request):
 
 async def handle_nexus_shop(request: web.Request):
     return web.json_response({"shop": COIN_SHOP})
+
+
+async def handle_nexus_ad_state(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    state = await db.get_ad_watch_state(user["id"])
+    return web.json_response(state)
+
+
+async def handle_nexus_ad_watch(request: web.Request):
+    """Клиент засчитывает просмотр рекламы после показа. Сервер ведёт счётчик
+    и выдаёт достижение «15 реклам → +20 ⭐» один раз."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    state = await db.record_ad_watch(user["id"])
+    return web.json_response(state)
 
 
 async def handle_nexus_buy(request: web.Request):
@@ -2668,6 +2686,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/nexus/model/buy", handle_nexus_model_buy)
     app.router.add_post("/api/nexus/model/transfer", handle_nexus_model_transfer)
     app.router.add_post("/api/nexus/model/sell", handle_nexus_model_sell)
+    app.router.add_get("/api/nexus/ad/state", handle_nexus_ad_state)
+    app.router.add_post("/api/nexus/ad/watch", handle_nexus_ad_watch)
 
     # Battle Pass, Promo, Referral, Streak, Achievements
     app.router.add_get("/api/battlepass", handle_battlepass)

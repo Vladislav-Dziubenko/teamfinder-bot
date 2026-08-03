@@ -84,5 +84,10 @@
   "cases.sort_value": "بر اساس ارزش",
   "cases.sort_rarity": "بر اساس کمیابی",
   "cases.pin": "پین",
-  "cases.unpin": "برداشتن پین"
+  "cases.unpin": "برداشتن پین",
+  "cases.open_for_ad": "Open for ad",
+  "cases.ad_not_watched": "Ad not watched",
+  "cases.ad_reward": "Reward: +{stars} stars for 15 ads!",
+  "cases.ad_achievement_title": "Achievement: ad watcher",
+  "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars"
 }

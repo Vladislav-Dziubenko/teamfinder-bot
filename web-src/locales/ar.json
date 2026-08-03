@@ -84,5 +84,10 @@
   "cases.sort_value": "بالقيمة",
   "cases.sort_rarity": "بالندرة",
   "cases.pin": "تثبيت",
-  "cases.unpin": "إلغاء التثبيت"
+  "cases.unpin": "إلغاء التثبيت",
+  "cases.open_for_ad": "Open for ad",
+  "cases.ad_not_watched": "Ad not watched",
+  "cases.ad_reward": "Reward: +{stars} stars for 15 ads!",
+  "cases.ad_achievement_title": "Achievement: ad watcher",
+  "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars"
 }

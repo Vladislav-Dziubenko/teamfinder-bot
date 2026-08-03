@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
-import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2 } from "lucide-react"
+import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2, Play, Trophy } from "lucide-react"
 import { rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus, type InventoryItem } from "@/lib/store"
@@ -53,11 +53,12 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { stars, coins, inventory, pinnedKeys, caseReadyIn, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState } = useNexus()
+  const { stars, coins, inventory, pinnedKeys, caseReadyIn, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
   const [sortMode, setSortMode] = useState<"value" | "rarity">("value")
+  const [adBusy, setAdBusy] = useState(false)
 
   // Стакаем предметы одного типа: показываем иконку + количество + суммарную ценность.
   const stackedInventory = useMemo(() => {
@@ -98,6 +99,52 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     const next = !sound
     setSound(next)
     setMuted(!next)
+  }
+
+  // TODO: подключить реальную рекламную сеть (Telegram Rewarded Ads / AdMob).
+  // Сейчас это заглушка: эмулирует просмотр рекламы с задержкой, после чего
+  // начисляется награда через recordAdWatch. Точка интеграции SDK — здесь.
+  async function showRewardedAd(): Promise<boolean> {
+    const wa = (typeof window !== "undefined" && window.Telegram?.WebApp) as any
+    if (typeof wa?.showRewardedVideo === "function") {
+      try {
+        return await wa.showRewardedVideo()
+      } catch {
+        return false
+      }
+    }
+    await new Promise((r) => setTimeout(r, 1200))
+    return true
+  }
+
+  async function handleOpenForAd(c: LootCase) {
+    if (spin || adBusy) return
+    setAdBusy(true)
+    try {
+      const watched = await showRewardedAd()
+      if (!watched) {
+        onToast(t("cases.ad_not_watched"))
+        return
+      }
+      const ad = await recordAdWatch()
+      if (!ad.ok) {
+        onToast(ad.error ?? t("common.error"))
+        return
+      }
+      if (ad.reward_stars) {
+        onToast(t("cases.ad_reward", { stars: ad.reward_stars }))
+      }
+      setSpin({ box: c, winner: null })
+      const res = await openCase(c.id, 1, undefined, true)
+      if (!res.ok) {
+        setSpin(null)
+        onToast(res.error ?? t("common.error"))
+        return
+      }
+      if (res.item) setSpin((p) => (p ? { box: p.box, winner: res.item! } : p))
+    } finally {
+      setAdBusy(false)
+    }
   }
 
   async function handleOpen(c: LootCase) {
@@ -198,6 +245,32 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         </button>
       </div>
 
+      {/* Рекламное достижение: 15 просмотров → +20 ⭐ */}
+      {adRewarded === 0 && (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3">
+          <div className="flex items-center gap-3">
+            <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary/15 text-primary">
+              <Trophy className="size-4" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-bold">{t("cases.ad_achievement_title")}</p>
+              <p className="text-[11px] text-muted-foreground">{t("cases.ad_achievement_desc", { stars: 20 })}</p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
+                  <div
+                    className="h-full rounded-full bg-primary"
+                    style={{ width: `${Math.min(100, Math.round((adWatchCount / 15) * 100))}%` }}
+                  />
+                </div>
+                <span className="text-[10px] font-semibold tabular-nums text-muted-foreground">
+                  {adWatchCount}/15
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Cases */}
       <div className="space-y-4">
         {lootCases.length === 0 && (
@@ -263,7 +336,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
               <button
                 type="button"
-                disabled={isSpin || (c.free && onCooldown)}
+                disabled={isSpin || (c.free && onCooldown && adBusy)}
                 onClick={() => handleOpen(c)}
                 className={cn(
                   "mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-display text-base font-bold transition-all active:scale-[0.98] disabled:opacity-50",
@@ -292,6 +365,23 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                   </>
                 )}
               </button>
+
+              {c.free && onCooldown && (
+                <button
+                  type="button"
+                  disabled={isSpin || adBusy}
+                  onClick={() => handleOpenForAd(c)}
+                  className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/40 bg-primary/10 py-2.5 font-display text-sm font-bold text-primary transition-all active:scale-[0.98] disabled:opacity-50"
+                >
+                  {adBusy ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <>
+                      <Play className="size-4 fill-current" /> {t("cases.open_for_ad")}
+                    </>
+                  )}
+                </button>
+              )}
 
               {!c.free && c.gold && (
                 <div className="mt-2">

@@ -445,5 +445,10 @@
   "cases.sort_value": "По ценности",
   "cases.sort_rarity": "По редкости",
   "cases.pin": "Закрепить",
-  "cases.unpin": "Открепить"
+  "cases.unpin": "Открепить",
+  "cases.open_for_ad": "Открыть за рекламу",
+  "cases.ad_not_watched": "Реклама не досмотрена",
+  "cases.ad_reward": "Награда: +{stars} ⭐ за 15 реклам!",
+  "cases.ad_achievement_title": "Достижение: зритель рекламы",
+  "cases.ad_achievement_desc": "Посмотри 15 реклам и получи +{stars} ⭐"
 }

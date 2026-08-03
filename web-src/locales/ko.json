@@ -83,5 +83,10 @@
   "cases.sort_value": "가치순",
   "cases.sort_rarity": "희귀도순",
   "cases.pin": "고정",
-  "cases.unpin": "고정 해제"
+  "cases.unpin": "고정 해제",
+  "cases.open_for_ad": "Open for ad",
+  "cases.ad_not_watched": "Ad not watched",
+  "cases.ad_reward": "Reward: +{stars} stars for 15 ads!",
+  "cases.ad_achievement_title": "Achievement: ad watcher",
+  "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars"
 }

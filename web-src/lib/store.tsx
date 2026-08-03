@@ -67,6 +67,7 @@ type MeResponse = {
   streak: { streak_day: number; last_streak_at: string | null }
   referral: { referral_code: string; invited_count: number; referral_earned_coins: number }
   achievements: Array<{ achievement_id: string; claimed: number }>
+  ad_state?: { watch_count: number; rewarded: number }
   case_cooldowns: Record<string, string | null>
   premium_active: boolean
   promos?: Array<{
@@ -117,6 +118,8 @@ type PersistedState = {
   streakDay: number
   lastStreakAt: number
   claimedAchievements: string[]
+  adWatchCount: number
+  adRewarded: number
   lastQuestAt: number
   level: number
   wins: number
@@ -270,6 +273,8 @@ function defaultState(): PersistedState {
     streakDay: 0,
     lastStreakAt: 0,
     claimedAchievements: [],
+    adWatchCount: 0,
+    adRewarded: 0,
     lastQuestAt: 0,
     level: 0,
     wins: 0,
@@ -342,6 +347,8 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     streakDay: streak.streak_day || 0,
     lastStreakAt: streak.last_streak_at ? parseIsoTs(streak.last_streak_at) : 0,
     claimedAchievements: achievements.filter((a) => a.claimed).map((a) => a.achievement_id),
+    adWatchCount: me.ad_state?.watch_count ?? 0,
+    adRewarded: me.ad_state?.rewarded ?? 0,
     lastQuestAt: 0,
     userId: user.id ?? 0,
     role: me.role ?? "",
@@ -415,8 +422,9 @@ type Nexus = PersistedState & {
   addToInventory: (item: CaseItem) => void
   sellItem: (uid: string) => Promise<void>
   togglePin: (key: string) => void
-  openCase: (caseId: string, count?: number, requestId?: string) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }>
+  openCase: (caseId: string, count?: number, requestId?: string, viaAd?: boolean) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }>
   refreshModels: () => Promise<void>
+  recordAdWatch: () => Promise<{ ok: boolean; watch_count?: number; reward_stars?: number; error?: string }>
   listModel: (tokenId: number, price: number) => Promise<{ ok: boolean; error?: string }>
   unlistModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
   buyModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
@@ -659,7 +667,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       })
     }
 
-    const openCase = async (caseId: string, count = 1, requestId?: string): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }> => {
+    const openCase = async (caseId: string, count = 1, requestId?: string, viaAd = false): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }> => {
       const c = s.lootCases.find((x) => x.id === caseId)
       if (!c) return { ok: false, error: "Кейс не найден" }
       if (!c.free && s.stars < c.costStars * count) return { ok: false, error: "Недостаточно Telegram Stars" }
@@ -667,7 +675,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         requestId ||
         (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `rid-${Date.now()}-${Math.random().toString(36).slice(2)}`)
       try {
-        const data = await api.post("/api/nexus/cases/open", { case_id: caseId, count, request_id: rid })
+        const data = await api.post("/api/nexus/cases/open", { case_id: caseId, count, request_id: rid, via_ad: viaAd })
         if (c.free && data.last_open_at) {
           const until = parseIsoTs(data.last_open_at) + DAY_MS
           setS((p: PersistedState) => ({
@@ -735,6 +743,21 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         return { ok: true, price: data.price }
       } catch (e: any) {
         return { ok: false, error: e.message || "Не удалось продать модель" }
+      }
+    }
+
+    const recordAdWatch = async (): Promise<{ ok: boolean; watch_count?: number; reward_stars?: number; error?: string }> => {
+      try {
+        const data = await api.post("/api/nexus/ad/watch")
+        setS((p: PersistedState) => ({
+          ...p,
+          adWatchCount: data.watch_count ?? p.adWatchCount,
+          adRewarded: data.rewarded ?? p.adRewarded,
+        }))
+        await refresh()
+        return { ok: true, watch_count: data.watch_count, reward_stars: data.reward_stars }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Не удалось засчитать рекламу" }
       }
     }
 
@@ -897,6 +920,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       togglePin,
       openCase,
       refreshModels,
+      recordAdWatch,
       listModel,
       unlistModel,
       buyModel,

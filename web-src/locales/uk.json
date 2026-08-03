@@ -83,5 +83,10 @@
   "cases.sort_value": "За цінністю",
   "cases.sort_rarity": "За рідкістю",
   "cases.pin": "Закріпити",
-  "cases.unpin": "Відкріпити"
+  "cases.unpin": "Відкріпити",
+  "cases.open_for_ad": "Открыть за рекламу",
+  "cases.ad_not_watched": "Реклама не досмотрена",
+  "cases.ad_reward": "Награда: +{stars} ⭐ за 15 реклам!",
+  "cases.ad_achievement_title": "Достижение: зритель рекламы",
+  "cases.ad_achievement_desc": "Посмотри 15 реклам и получи +{stars} ⭐"
 }
