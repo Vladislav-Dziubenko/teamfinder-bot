@@ -917,6 +917,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       ...s,
       bpLevel,
       freeCaseReadyIn: caseReadyIn("blue"),
+      caseCooldown: s.caseCooldown,
       bpNextClaimIn,
       bpCanClaim,
       refresh,

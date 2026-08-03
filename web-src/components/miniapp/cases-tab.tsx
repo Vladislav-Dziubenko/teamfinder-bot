@@ -54,12 +54,24 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { stars, coins, inventory, pinnedKeys, caseReadyIn, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded } = useNexus()
+  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
   const [sortMode, setSortMode] = useState<"value" | "rarity">("value")
   const [adBusy, setAdBusy] = useState(false)
+  // Локальный тикер: счётчик кулдауна тикает каждую секунду,
+  // а не раз в 30с (store всё равно тикает медленно).
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
+
+  const caseReadyInT = useCallback((caseId: string) => {
+    const until = caseCooldown[caseId] ?? 0
+    return Math.max(0, until - Date.now())
+  }, [caseCooldown])
 
   // AdsGram SDK: реальная реклама. onReward вызывается когда юзер досмотрел до конца.
   const [adSdkReady, setAdSdkReady] = useState(false)
@@ -68,9 +80,24 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     useCallback(() => {}, []),
   )
 
-  // Проверяем доступность AdsGram SDK после маунта.
+  // Проверяем доступность AdsGram SDK. Скрипт может грузиться дольше,
+  // чем маунт компонента — проверяем с ретраями до 5с.
   useEffect(() => {
-    setAdSdkReady(typeof window !== "undefined" && typeof window.Adsgram?.init === "function")
+    let cancelled = false
+    let attempts = 0
+    const check = () => {
+      if (cancelled) return
+      if (typeof window !== "undefined" && typeof window.Adsgram?.init === "function") {
+        setAdSdkReady(true)
+        return
+      }
+      attempts++
+      if (attempts < 10) setTimeout(check, 500)
+    }
+    check()
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   // Синхронный мьютекс: React-состояние обновляется асинхронно, поэтому при
@@ -159,6 +186,8 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
   async function handleOpen(c: LootCase) {
     if (spin || openBusyRef.current) return
+    // Во время кулдауна бесплатный кейс можно открыть только за рекламу.
+    if (c.free && caseReadyInT(c.id) > 0) return
     openBusyRef.current = true
     if (!c.free && stars < c.costStars) {
       openBusyRef.current = false
@@ -298,7 +327,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
           </div>
         )}
         {lootCases.map((c) => {
-          const cooldown = c.free ? caseReadyIn(c.id) : 0
+          const cooldown = c.free ? caseReadyInT(c.id) : 0
           const onCooldown = cooldown > 0
           const isSpin = spin?.box.id === c.id
           const chances = caseChances(c)
@@ -354,7 +383,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
               <button
                 type="button"
-                disabled={isSpin || (c.free && onCooldown && adBusy)}
+                disabled={isSpin || (c.free && onCooldown)}
                 onClick={() => handleOpen(c)}
                 className={cn(
                   "mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3.5 font-display text-base font-bold transition-all active:scale-[0.98] disabled:opacity-50",
