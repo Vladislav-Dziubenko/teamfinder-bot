@@ -14,10 +14,10 @@ import { TopUpSheet } from "./top-up-sheet"
 const rarityRank: Record<Rarity, number> = { common: 0, rare: 2, epic: 3, premium: 4, legendary: 6 }
 
 const coinShop: { key: string; name: string; desc: string; image: string; price: number }[] = [
-  { key: "buy-premium-card", name: "Премиум-анкета", desc: "Кастом фото, текст и украшения на 1 день", image: "/premium-reveal.png", price: 200 },
-  { key: "buy-premium-lite", name: "Премиум", desc: "Премиум-статус для анкеты", image: "/premium-card.png", price: 90 },
-  { key: "buy-ak47", name: "Скин AK-47", desc: "Легендарный калаш", image: "/ak47.png", price: 35 },
-  { key: "buy-premium-medium", name: "Премиум средний", desc: "4 открытия в день", image: "/premium-x4.png", price: 75 },
+  { key: "buy-premium-card", name: "Премиум-анкета", desc: "Максимальный премиум на 1 день: кастом фото/текст, 4 открытия кейсов, приоритет в поиске", image: "/premium-reveal.png", price: 100 },
+  { key: "buy-premium-lite", name: "Премиум", desc: "Премиум-статус на 1 день: приоритет в поиске, расширенные анкеты игроков", image: "/premium-card.png", price: 45 },
+  { key: "buy-ak47", name: "Скин AK-47", desc: "Коллекционный скин-картинка для профиля", image: "/ak47.png", price: 18 },
+  { key: "buy-premium-medium", name: "Премиум средний", desc: "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске", image: "/premium-x4.png", price: 38 },
 ]
 
 function formatCooldown(ms: number) {
