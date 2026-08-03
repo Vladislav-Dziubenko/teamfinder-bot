@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
 import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2, Play, Trophy } from "lucide-react"
 import { rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
