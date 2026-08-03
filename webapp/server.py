@@ -84,12 +84,12 @@ SECURITY_HEADERS = {
 
 CSP = (
     "default-src 'self';"
-    "script-src 'self' 'unsafe-inline' https://telegram.org;"
+    "script-src 'self' 'unsafe-inline' https://telegram.org https://cdn.adsgram.ai https://sad.adsgram.ai https://*.adsgram.ai;"
     "style-src 'self' 'unsafe-inline';"
-    "img-src 'self' data: https:;"
+    "img-src 'self' data: https: https://*.adsgram.ai;"
     "font-src 'self' data:;"
-    "connect-src 'self' https://translate.googleapis.com;"
-    "frame-src https://www.youtube.com https://www.youtube-nocookie.com;"
+    "connect-src 'self' https://translate.googleapis.com https://api.adsgram.ai https://partner.adsgram.ai https://tma.adsgram.ai https://*.adsgram.ai;"
+    "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://*.adsgram.ai;"
     "frame-ancestors https://telegram.org;"
     "base-uri 'self';"
     "form-action 'self';"
