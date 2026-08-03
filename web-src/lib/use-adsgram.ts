@@ -52,7 +52,6 @@ function loadAdsgramScript(): Promise<void> {
     s.src = ADSGRAM_SCRIPT
     s.async = true
     s.onload = () => {
-      reportSdkDiag("adsgram script loaded; window.Adsgram=" + typeof (window as any).Adsgram)
       resolve()
     }
     s.onerror = () => {
@@ -63,18 +62,6 @@ function loadAdsgramScript(): Promise<void> {
     document.head.appendChild(s)
   })
   return scriptPromise
-}
-
-async function probeAdsApi(): Promise<void> {
-  try {
-    const r = await fetch("https://api.adsgram.ai/adv?probe=1&blockId=40994", {
-      method: "GET",
-      headers: { "X-Probe": "1" },
-    })
-    reportSdkDiag("adsgram API probe: HTTP " + r.status + " ok=" + r.ok)
-  } catch (e: any) {
-    reportSdkDiag("adsgram API probe FAILED: " + (typeof e === "object" ? JSON.stringify(e) : String(e?.message || e)))
-  }
 }
 
 export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
@@ -88,7 +75,6 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
   useEffect(() => {
     let cancelled = false
     async function init() {
-      probeAdsApi()
       for (let attempt = 0; attempt < 6 && !cancelled; attempt++) {
         try {
           await loadAdsgramScript()
@@ -96,7 +82,6 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
           if (window.Adsgram?.init) {
             ctrlRef.current = window.Adsgram.init({ blockId: ADSGRAM_BLOCK_ID })
             setReady(true)
-            reportSdkDiag("adsgram INIT OK blockId=" + ADSGRAM_BLOCK_ID)
             return
           }
           reportSdkDiag("adsgram loaded but window.Adsgram.init missing (attempt " + (attempt + 1) + ")")
@@ -122,7 +107,6 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
     }
     try {
       const result = await ctrlRef.current.show()
-      reportSdkDiag("adsgram show result: " + JSON.stringify(result))
       if (result.done) {
         onRewardRef.current()
         return true
