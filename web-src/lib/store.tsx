@@ -454,7 +454,6 @@ const NexusContext = createContext<Nexus | null>(null)
 
 export function NexusProvider({ children }: { children: ReactNode }) {
   const [s, setS] = useState<PersistedState>(defaultState)
-  const [ready, setReady] = useState(false)
   const [now, setNow] = useState(() => Date.now())
   const refreshing = useRef(false)
 
@@ -471,7 +470,6 @@ export function NexusProvider({ children }: { children: ReactNode }) {
           const next = mapMeToState(me, undefined, loadSavedPins())
           setS(next)
           saveCurrency(next)
-          setReady(true)
         }
       } catch (e: any) {
         // Ретраим на любые 5xx, 429 и сетевые таймауты — чтобы при временном
@@ -482,15 +480,9 @@ export function NexusProvider({ children }: { children: ReactNode }) {
           if (!cancelled) return load(attempt + 1)
         }
         console.error("Failed to load Nexus state", e)
-        if (!cancelled) setReady(true)
       }
     }
     load()
-    const fallback = setTimeout(() => setReady(true), 20_000)
-    return () => {
-      cancelled = true
-      clearTimeout(fallback)
-    }
   }, [])
 
   useEffect(() => {
@@ -963,17 +955,6 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       setGames,
     }
   }, [s, now, refresh, refreshModels])
-
-  if (!ready) {
-    return (
-      <div className="grid h-dvh place-items-center bg-background text-foreground">
-        <div className="text-center">
-          <div className="mx-auto mb-3 size-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-          <p className="text-sm text-muted-foreground">Загрузка…</p>
-        </div>
-      </div>
-    )
-  }
 
   return <NexusContext.Provider value={value}>{children}</NexusContext.Provider>
 }
