@@ -113,6 +113,10 @@ CORS_ALLOW = {
 WEB_RATE_LIMIT = 120
 WEB_RATE_WINDOW = 60
 
+# Rate limit для /api/me —防止 при наплыве 500+ юзеров опрашивать бэкенд каждые 5с.
+ME_RATE_LIMIT = 6       # запросов
+ME_RATE_WINDOW = 60     # секунд (1 запрос в 10с)
+
 # ---------------------------------------------------------------------------
 # Rate limiting — публичные /api/ эндпоинты (по IP, без авторизации)
 # Применяется к: /api/leaderboard, /api/teams, /api/teams/{id}/applications
@@ -395,6 +399,11 @@ async def handle_me(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"))
+
+    # Rate limit:防止 при наплыве 500+ юзеров опрашивать бэкенд каждые 5с.
+    # Возвращаем 429 — клиент использует кэшированные данные (store уже хранит предыдущий ответ).
+    if await rate_limit_check(f"me:{user['id']}", ME_RATE_LIMIT, ME_RATE_WINDOW):
+        return web.json_response({"error": "slow down"}, status=429)
 
     # Независимые запросы выполняются параллельно — пул max=10,
     # gather использует до 9 коннектов одновременно, остальные ждут.
@@ -995,7 +1004,7 @@ CASES_CONFIG = {
             {"key": "stars-150", "name": "150 ⭐", "desc": "150 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 8, "kind": "stars", "stars": 150},
             {"key": "stars-400", "name": "400 ⭐", "desc": "400 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 4, "kind": "stars", "stars": 400},
             {"key": "stars-1200", "name": "1200 ⭐", "desc": "1200 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 1.2, "kind": "stars", "stars": 1200},
-            {"key": "nexus-model", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 0, "weight": 0.1, "jackpot": True, "kind": "model"},
+            {"key": "nexus-model", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
         ]
     }
 }
@@ -1823,7 +1832,13 @@ async def handle_achievements_claim(request: web.Request):
 async def handle_chat_list(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    chats = await db.get_user_chats(user["id"])
+    # Кэшируем список чатов на 5с — он общий для всех poll-запросов одного юзера.
+    cached = await cache_get(f"chat_list:{user['id']}")
+    if cached is not None:
+        chats = cached.get("chats", [])
+    else:
+        chats = await db.get_user_chats(user["id"])
+        await cache_set(f"chat_list:{user['id']}", {"chats": chats}, 5)
     settings = request.app.get("settings")
     admin_ids = set(settings.admin_ids) if settings else set()
     for c in chats:
@@ -1839,7 +1854,14 @@ async def handle_chat_messages(request: web.Request):
     if not await db.can_access_chat(chat_id, user["id"]):
         return web.json_response({"error": "forbidden"}, status=403)
     await db.mark_chat_read(chat_id, user["id"])
-    messages = await db.get_chat_messages(chat_id)
+    # Кэшируем сообщения на 3с — убирает дублирующие SQL при поллинге.
+    cache_key = f"chat_msgs:{chat_id}"
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        messages = cached.get("messages", [])
+    else:
+        messages = await db.get_chat_messages(chat_id)
+        await cache_set(cache_key, {"messages": messages}, 3)
     for msg in messages:
         if msg.get("sender_id") == user["id"]:
             msg["sender_id"] = "me"
@@ -1862,6 +1884,8 @@ async def handle_chat_send(request: web.Request):
         return web.json_response({"error": "empty message"}, status=400)
     await db.mark_chat_read(chat_id, user["id"])
     msg = await db.send_message(chat_id, user["id"], text)
+    # Сбрасываем кэш сообщений — чтобы poller сразу получил новое сообщение.
+    await cache_delete_pattern(f"chat_msgs:{chat_id}")
     return web.json_response({"message": msg})
 
 
@@ -1976,6 +2000,8 @@ async def handle_global_send(request: web.Request):
         return web.json_response({"error": "empty message"}, status=400)
     msg = await db.send_global_message(user["id"], text)
     msg["user_id"] = "me"
+    # Сбрасываем кэш глобальных сообщений — чтобы poller сразу видел новое.
+    await cache_delete_pattern("global_chat_msgs")
     return web.json_response({"message": msg})
 
 

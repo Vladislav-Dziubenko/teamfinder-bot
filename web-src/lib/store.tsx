@@ -523,6 +523,8 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         api.get("/api/me"),
         api.get("/api/nexus/model/state"),
       ])
+      // 429 = rate limit — сервер вернул "slow down", оставляем текущее состояние.
+      if (me?.error === "slow down") return
       const next = mapMeToState(me as MeResponse, modelState as ModelState, loadSavedPins())
       setS(next)
       saveCurrency(next)

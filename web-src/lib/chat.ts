@@ -81,7 +81,7 @@ export function useChats(): ChatPreview[] {
       }
     }
     load()
-    const id = setInterval(load, 10000)
+    const id = setInterval(load, 15000)
     pollingRef.current = id
 
     // Пауза при сворачивании вкладки — не опрашиваем сервер в фоне.
@@ -90,7 +90,7 @@ export function useChats(): ChatPreview[] {
         clearInterval(pollingRef.current)
       } else {
         load()
-        pollingRef.current = setInterval(load, 10000)
+        pollingRef.current = setInterval(load, 15000)
       }
     }
     document.addEventListener("visibilitychange", onVisibility)
@@ -182,7 +182,7 @@ export function useChatMessages(chatId: string | null) {
       }
     }
     fetchMsgs()
-    const id = setInterval(fetchMsgs, 5000)
+    const id = setInterval(fetchMsgs, 10000)
     pollingRef.current = id
 
     function onVisibility() {
@@ -190,7 +190,7 @@ export function useChatMessages(chatId: string | null) {
         clearInterval(pollingRef.current)
       } else {
         fetchMsgs()
-        pollingRef.current = setInterval(fetchMsgs, 5000)
+        pollingRef.current = setInterval(fetchMsgs, 10000)
       }
     }
     document.addEventListener("visibilitychange", onVisibility)
@@ -355,7 +355,7 @@ export function useGlobalChat() {
       }
     }
     load()
-    const id = setInterval(load, 5000)
+    const id = setInterval(load, 10000)
     pollRef.current = id
 
     function onVisibility() {
@@ -363,7 +363,7 @@ export function useGlobalChat() {
         clearInterval(pollRef.current)
       } else {
         load()
-        pollRef.current = setInterval(load, 5000)
+        pollRef.current = setInterval(load, 10000)
       }
     }
     document.addEventListener("visibilitychange", onVisibility)
