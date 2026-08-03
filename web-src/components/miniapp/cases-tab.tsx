@@ -74,31 +74,10 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   }, [caseCooldown])
 
   // AdsGram SDK: реальная реклама. onReward вызывается когда юзер досмотрел до конца.
-  const [adSdkReady, setAdSdkReady] = useState(false)
-  const showAd = useAdsgram(
+  const { showAd, ready: adSdkReady } = useAdsgram(
     useCallback(() => { /* награда начисляется в handleOpenForAd после recordAdWatch */ }, []),
     useCallback(() => {}, []),
   )
-
-  // Проверяем доступность AdsGram SDK. Скрипт может грузиться дольше,
-  // чем маунт компонента — проверяем с ретраями до 5с.
-  useEffect(() => {
-    let cancelled = false
-    let attempts = 0
-    const check = () => {
-      if (cancelled) return
-      if (typeof window !== "undefined" && typeof window.Adsgram?.init === "function") {
-        setAdSdkReady(true)
-        return
-      }
-      attempts++
-      if (attempts < 10) setTimeout(check, 500)
-    }
-    check()
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   // Синхронный мьютекс: React-состояние обновляется асинхронно, поэтому при
   // быстрых кликах гард `if (spin) return` не срабатывает (все клики видят
