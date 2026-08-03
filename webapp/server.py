@@ -396,33 +396,32 @@ async def handle_me(request: web.Request):
     user = _get_user(request)
     await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"))
 
-    # Все запросы выполняются последовательно: каждый берёт/освобождает свой
-    # коннекшн из пула, но не более одного одновременно. Это исключает пиковую
-    # нагрузку на пул (asyncio.gather выше открывал до 8 коннектов сразу, что
-    # при частых /api/me (refresh после каждого открытия кейса) исчерпывало пул
-    # и вызывало периодические 500 "internal server error").
-    currency = await db.get_currency(user["id"])
-    mini_profile = await db.get_mini_app_profile(user["id"])
-    inventory = await db.get_inventory(user["id"])
-    battlepass = await db.get_battlepass(user["id"])
-    streak = await db.get_daily_streak(user["id"])
-    referral = await db.get_or_create_referral(user["id"])
-    achievements = await db.get_user_achievements(user["id"])
-    premium_active = await db.is_pro(user["id"])
-    ad_state = await db.get_ad_watch_state(user["id"])
+    # Независимые запросы выполняются параллельно — пул max=10,
+    # gather использует до 9 коннектов одновременно, остальные ждут.
+    currency, mini_profile, inventory, battlepass, streak, referral, achievements, premium_active, ad_state = await asyncio.gather(
+        db.get_currency(user["id"]),
+        db.get_mini_app_profile(user["id"]),
+        db.get_inventory(user["id"]),
+        db.get_battlepass(user["id"]),
+        db.get_daily_streak(user["id"]),
+        db.get_or_create_referral(user["id"]),
+        db.get_user_achievements(user["id"]),
+        db.is_pro(user["id"]),
+        db.get_ad_watch_state(user["id"]),
+    )
 
-    case_cooldowns = {}
-    for case_id in CASES_CONFIG:
-        last_open = await db.get_last_case_open(user["id"], case_id)
-        case_cooldowns[case_id] = last_open
+    # Кулдауны кейсов — одним запросом вместо N.
+    case_cooldowns = await db.get_case_cooldowns(user["id"])
 
     bot_username = getattr(request.app.get("bot"), "username", None) or "TeamUpMatchBot"
     referral_bot_url = f"https://t.me/{bot_username}"
     app_short_name = "nexus"
     direct_app_url = f"https://t.me/{bot_username}/{app_short_name}"
 
-    promo_data = await db.get_promo_codes_with_redemption(user["id"])
-    role = await _effective_role(request, db, user["id"])
+    promo_data, role = await asyncio.gather(
+        db.get_promo_codes_with_redemption(user["id"]),
+        _effective_role(request, db, user["id"]),
+    )
 
     return web.json_response({
         "user": user,
@@ -1944,7 +1943,13 @@ async def _effective_role(request: web.Request, db: Database, user_id: int) -> s
 async def handle_global_messages(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    messages = await db.get_global_messages(50)
+    # Кэшируем сообщения на 3с — они общие для всех пользователей.
+    cached = await cache_get("global_chat_msgs")
+    if cached is not None:
+        messages = cached.get("messages", [])
+    else:
+        messages = await db.get_global_messages(50)
+        await cache_set("global_chat_msgs", {"messages": messages}, 3)
     settings = request.app.get("settings")
     admin_ids = set(settings.admin_ids) if settings else set()
     for msg in messages:

@@ -1,7 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Check } from "lucide-react"
+import { Suspense, lazy, useEffect, useState } from "react"
+import { Check, Loader2 } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { NexusProvider } from "@/lib/store"
 import { TopBar } from "./top-bar"
@@ -9,15 +9,9 @@ import { BottomNav, type TabId } from "./bottom-nav"
 import { HomeTab } from "./home-tab"
 import { MatchTab } from "./match-tab"
 import { CasesTab } from "./cases-tab"
-import { ModelTab } from "./model-tab"
-import { GuidesTab } from "./guides-tab"
 import { DonateTab } from "./donate-tab"
 import { ProfileTab } from "./profile-tab"
-import { BattlePassTab } from "./battlepass-tab"
 import { PromoTab } from "./promo-tab"
-import { StatsTab } from "./stats-tab"
-import { ChatTab } from "./chat-tab"
-import { PredictionsTab } from "./predictions-tab"
 import { FriendsTab } from "./friends-tab"
 import { ContactSheet } from "./contact-sheet"
 import { ProfileViewSheet } from "./profile-view-sheet"
@@ -25,6 +19,23 @@ import { openChatWithPlayer } from "@/lib/chat"
 import { api } from "@/lib/api"
 import { useMe } from "@/lib/store"
 import type { Player, Team } from "@/lib/data"
+
+// Ленивая загрузка тяжёлых вкладок: Three.js (~600KB), Recharts (~400KB)
+// загружаются только при первом открытии, а не в основном бандле.
+const ModelTab = lazy(() => import("./model-tab").then((m) => ({ default: m.ModelTab })))
+const StatsTab = lazy(() => import("./stats-tab").then((m) => ({ default: m.StatsTab })))
+const BattlePassTab = lazy(() => import("./battlepass-tab").then((m) => ({ default: m.BattlePassTab })))
+const PredictionsTab = lazy(() => import("./predictions-tab").then((m) => ({ default: m.PredictionsTab })))
+const ChatTab = lazy(() => import("./chat-tab").then((m) => ({ default: m.ChatTab })))
+const GuidesTab = lazy(() => import("./guides-tab").then((m) => ({ default: m.GuidesTab })))
+
+function TabFallback() {
+  return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="size-6 animate-spin text-muted-foreground" />
+    </div>
+  )
+}
 
 function Shell() {
   const { t } = useI18n()
@@ -95,16 +106,16 @@ function Shell() {
       <main id="miniapp-scroll" className="flex-1 overflow-y-auto pb-24">
         {tab === "home" && <HomeTab onGo={goTab} onConnect={setContact} />}
         {tab === "match" && <MatchTab onConnect={setContact} onJoinTeam={joinTeam} onChat={openChat} />}
-        {tab === "predictions" && <PredictionsTab onToast={setToast} />}
+        {tab === "predictions" && <Suspense fallback={<TabFallback />}><PredictionsTab onToast={setToast} /></Suspense>}
         {tab === "chat" && (
-          <ChatTab openChatId={chatOpen?.chatId ?? null} openPlayer={chatOpen?.player} onOpenConsumed={() => setChatOpen(null)} />
+          <Suspense fallback={<TabFallback />}><ChatTab openChatId={chatOpen?.chatId ?? null} openPlayer={chatOpen?.player} onOpenConsumed={() => setChatOpen(null)} /></Suspense>
         )}
-        {tab === "stats" && <StatsTab onOpenLeaderboard={() => setToast(t("stats.leaderboard_placeholder"))} />}
+        {tab === "stats" && <Suspense fallback={<TabFallback />}><StatsTab onOpenLeaderboard={() => setToast(t("stats.leaderboard_placeholder"))} /></Suspense>}
         {tab === "cases" && <CasesTab onToast={setToast} />}
-        {tab === "model" && <ModelTab onToast={setToast} />}
-        {tab === "battlepass" && <BattlePassTab onToast={setToast} />}
+        {tab === "model" && <Suspense fallback={<TabFallback />}><ModelTab onToast={setToast} /></Suspense>}
+        {tab === "battlepass" && <Suspense fallback={<TabFallback />}><BattlePassTab onToast={setToast} /></Suspense>}
         {tab === "promo" && <PromoTab onToast={setToast} />}
-        {tab === "guides" && <GuidesTab />}
+        {tab === "guides" && <Suspense fallback={<TabFallback />}><GuidesTab /></Suspense>}
         {tab === "donate" && <DonateTab />}
         {tab === "profile" && <ProfileTab onGo={goTab} onToast={setToast} />}
         {tab === "friends" && <FriendsTab onChat={openChat} />}

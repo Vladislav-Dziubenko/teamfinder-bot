@@ -494,8 +494,22 @@ export function NexusProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 1_000)
-    return () => clearInterval(id)
+    // 30с вместо 1с — таймеры (кулдауны, баттлпасс) обновляются
+    // достаточно плавно, но не триггерят полный пересчёт контекста каждую секунду.
+    const id = setInterval(() => setNow(Date.now()), 30_000)
+
+    function onVisibility() {
+      if (document.hidden) {
+        clearInterval(id)
+      } else {
+        setNow(Date.now())
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
+    return () => {
+      clearInterval(id)
+      document.removeEventListener("visibilitychange", onVisibility)
+    }
   }, [])
 
   const refresh = useCallback(async () => {

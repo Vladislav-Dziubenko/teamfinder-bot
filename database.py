@@ -1648,6 +1648,16 @@ class Database:
             row = await conn.fetchrow(sql, user_id, case_id)
         return row["opened_at"] if row else None
 
+    async def get_case_cooldowns(self, user_id: int) -> dict[str, str | None]:
+        """Batch-fetch last open time for all case types in one query."""
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT DISTINCT ON (case_id) case_id, opened_at "
+                "FROM case_opens WHERE user_id = $1 ORDER BY case_id, opened_at DESC",
+                user_id,
+            )
+            return {r["case_id"]: r["opened_at"] for r in rows}
+
     # ---------- Battle Pass ----------
 
     async def get_battlepass(self, user_id: int) -> dict:

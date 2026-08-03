@@ -81,10 +81,23 @@ export function useChats(): ChatPreview[] {
       }
     }
     load()
-    pollingRef.current = setInterval(load, 10000)
+    const id = setInterval(load, 10000)
+    pollingRef.current = id
+
+    // Пауза при сворачивании вкладки — не опрашиваем сервер в фоне.
+    function onVisibility() {
+      if (document.hidden) {
+        clearInterval(pollingRef.current)
+      } else {
+        load()
+        pollingRef.current = setInterval(load, 10000)
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
     return () => {
       cancelled = true
       clearInterval(pollingRef.current)
+      document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [])
 
@@ -169,10 +182,22 @@ export function useChatMessages(chatId: string | null) {
       }
     }
     fetchMsgs()
-    pollingRef.current = setInterval(fetchMsgs, 5000)
+    const id = setInterval(fetchMsgs, 5000)
+    pollingRef.current = id
+
+    function onVisibility() {
+      if (document.hidden) {
+        clearInterval(pollingRef.current)
+      } else {
+        fetchMsgs()
+        pollingRef.current = setInterval(fetchMsgs, 5000)
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
     return () => {
       cancelled = true
       clearInterval(pollingRef.current)
+      document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [chatId])
 
@@ -330,10 +355,22 @@ export function useGlobalChat() {
       }
     }
     load()
-    pollRef.current = setInterval(load, 5000)
+    const id = setInterval(load, 5000)
+    pollRef.current = id
+
+    function onVisibility() {
+      if (document.hidden) {
+        clearInterval(pollRef.current)
+      } else {
+        load()
+        pollRef.current = setInterval(load, 5000)
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility)
     return () => {
       cancelled = true
       clearInterval(pollRef.current)
+      document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [])
 
