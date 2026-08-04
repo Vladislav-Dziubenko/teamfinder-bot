@@ -25,7 +25,7 @@ export function telegramReady(): void {
   }
 }
 
-async function request(method: string, path: string, body?: unknown) {
+async function request(method: string, path: string, body?: unknown, attempt = 0) {
   const headers: Record<string, string> = {
     "X-Telegram-Init-Data": getInitData(),
   }
@@ -42,6 +42,15 @@ async function request(method: string, path: string, body?: unknown) {
 
   try {
     const res = await fetch(`${API_BASE}${path}`, init)
+
+    // Сервер ещё прогревается (Render cold start — БД подключается в фоне
+    // после открытия порта). Для GET тихо ретраим вместо показа ошибки.
+    if (res.status === 503 && method === "GET" && attempt < 10) {
+      clearTimeout(timeout)
+      await new Promise((r) => setTimeout(r, 800 + attempt * 600))
+      return request(method, path, body, attempt + 1)
+    }
+
     const data = await res.json().catch(() => ({}))
 
     if (!res.ok) {

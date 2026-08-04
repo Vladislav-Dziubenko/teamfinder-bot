@@ -51,7 +51,7 @@ export function HomeTab({
           lastSearchCount = countData.online ?? 0
         }
       } catch (e: any) {
-        if (!cancelled) setError(e.message || t("common.error"))
+        if (!cancelled) setError(e?.status ? t("common.error") : (e.message || t("common.error")))
       } finally {
         if (!cancelled) setLoading(false)
       }
