@@ -54,7 +54,7 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, role, isBeta } = useNexus()
+  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
@@ -357,7 +357,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                   ) : (
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars">
                       <Star className="size-3 fill-stars" />
-                      {role === "beta_tester" && c.id === "gold" && betaBalance > 0
+                      {isBeta && c.id === "gold" && betaBalance > 0
                         ? t("cases.beta_free_hint", { left: betaBalance })
                         : t("cases.cost_stars", { cost: c.costStars })}
                     </p>
@@ -393,7 +393,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 ) : (
                   <>
                     <Star className="size-5 fill-background" />{" "}
-                    {role === "beta_tester" && c.id === "gold" && betaBalance > 0
+                    {isBeta && c.id === "gold" && betaBalance > 0
                       ? t("cases.open_beta")
                       : t("cases.open_stars", { cost: c.costStars })}
                   </>
@@ -435,7 +435,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                           <span className="text-xs font-bold text-stars">×{n}</span>
                         )}
                         <span className="text-[9px] tabular-nums text-muted-foreground">
-                          {multiBusy === n ? "..." : `${role === "beta_tester" && c.id === "gold" && betaBalance >= n ? "FREE ×" + n : `${(c.costStars * n).toLocaleString("ru")} ⭐`}`}
+                          {multiBusy === n ? "..." : `${isBeta && c.id === "gold" && betaBalance >= n ? "FREE ×" + n : `${(c.costStars * n).toLocaleString("ru")} ⭐`}`}
                         </span>
                       </button>
                     ))}

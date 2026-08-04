@@ -611,6 +611,7 @@ type AdminUser = {
   nick: string
   avatar: string | null
   role: string
+  isBeta: boolean
   banned: boolean
 }
 
@@ -632,6 +633,7 @@ function AdminPanel({ userId }: { userId: number }) {
         nick: u.nick ?? "",
         avatar: u.avatar ?? null,
         role: u.role ?? "",
+        isBeta: Boolean(u.is_beta),
         banned: Boolean(u.banned),
       }))
       setUsers(list.filter((u) => u.id !== userId))
@@ -652,6 +654,16 @@ function AdminPanel({ userId }: { userId: number }) {
     try {
       await api.post("/api/admin/role", { user_id: u.id, role })
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role } : x)))
+    } catch {}
+    setBusyId(null)
+  }
+
+  async function toggleBeta(u: AdminUser) {
+    if (busyId) return
+    setBusyId(u.id)
+    try {
+      await api.post("/api/admin/role", { user_id: u.id, beta: !u.isBeta })
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isBeta: !u.isBeta } : x)))
     } catch {}
     setBusyId(null)
   }
@@ -697,6 +709,11 @@ function AdminPanel({ userId }: { userId: number }) {
                 <div className="flex items-center gap-1.5">
                   <p className="truncate text-sm font-bold">{u.nick}</p>
                   <RoleBadge role={u.role} />
+                  {u.isBeta && (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold leading-none text-emerald-400">
+                      ∞
+                    </span>
+                  )}
                 </div>
                 <p className="text-[10px] text-muted-foreground">
                   ID {u.id}
@@ -705,7 +722,7 @@ function AdminPanel({ userId }: { userId: number }) {
               </div>
               {busyId === u.id && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
             </div>
-            <div className="mt-2 grid grid-cols-3 gap-1.5">
+            <div className="mt-2 grid grid-cols-4 gap-1.5">
               <button
                 type="button"
                 onClick={() => setConfirm({ u, action: "role", role: u.role === "moderator" ? "" : "moderator" })}
@@ -729,6 +746,18 @@ function AdminPanel({ userId }: { userId: number }) {
                 )}
               >
                 {u.role === "admin" ? t("role.remove") : t("role.admin")}
+              </button>
+              <button
+                type="button"
+                onClick={() => toggleBeta(u)}
+                className={cn(
+                  "rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-colors",
+                  u.isBeta
+                    ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400"
+                    : "border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {u.isBeta ? t("role.remove") : "β " + t("role.beta_tester")}
               </button>
               <button
                 type="button"
