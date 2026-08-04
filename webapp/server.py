@@ -128,6 +128,22 @@ from collections import defaultdict
 public_ip_requests: defaultdict[str, list[float]] = defaultdict(list)
 
 # ---------------------------------------------------------------------------
+# Global capacity limiter — prevent DB pool exhaustion / OOM under load.
+# max concurrent API requests (tunable via env). Skip health, static, webhook.
+# ---------------------------------------------------------------------------
+import os
+MAX_CONCURRENT_REQUESTS = int(os.getenv("MAX_CONCURRENT_REQUESTS", "50"))
+_concurrency_semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
+
+CAPACITY_SKIP_PATHS = {
+    "/health",
+    "/webhook",
+    "/api/client-error",
+    "/api/diag/env",
+}
+CAPACITY_SKIP_PREFIXES = ("/static/", "/api/games", "/api/leaderboard", "/api/teams", "/api/nexus/shop", "/api/search/count", "/api/online", "/api/discord/callback")
+
+# ---------------------------------------------------------------------------
 # Кэш для публичных read-heavy эндпоинтов — Redis GET/SETEX, TTL 2 сек.
 # Fallback: если Redis недоступен — кэш пропускается, данные берутся из БД.
 # Применяется к: /api/leaderboard, /api/teams (с учётом ?game=)
@@ -323,6 +339,23 @@ def _event_from_path(path: str) -> str | None:
     if "/me" in path:
         return "me"
     return None
+
+
+@web.middleware
+async def capacity_middleware(request: web.Request, handler):
+    """Global concurrent request limiter — returns 503 with retry-after when at capacity."""
+    path = request.path
+    if path in CAPACITY_SKIP_PATHS or any(path.startswith(p) for p in CAPACITY_SKIP_PREFIXES):
+        return await handler(request)
+    if not _concurrency_semaphore.locked():
+        async with _concurrency_semaphore:
+            return await handler(request)
+    # at capacity — return 503 with Retry-After hint
+    return web.json_response(
+        {"error": "server busy", "message": "Сервер перегружен, попробуйте через несколько секунд", "retry_after": 5},
+        status=503,
+        headers={"Retry-After": "5"},
+    )
 
 
 @web.middleware
@@ -2806,8 +2839,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # 4. active_middleware      — обновляет last_active_at (fire-and-forget) для авторизованных
     # 5. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
     # Если поменять порядок — rate limiter получит init_data=None и вернёт 500.
-    # Порядок: security → timing → db_ready → cors → gzip → cache → error → auth → active → rate_limit
-    app = web.Application(middlewares=[security_middleware, timing_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, active_middleware, web_rate_limit_middleware])
+    # Порядок: security → timing → capacity → db_ready → cors → gzip → cache → error → auth → active → rate_limit
+    app = web.Application(middlewares=[security_middleware, timing_middleware, capacity_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, active_middleware, web_rate_limit_middleware])
     app["allowed_origins"] = _resolve_allowed_origins(settings)
     app["db"] = db
     app["settings"] = settings
