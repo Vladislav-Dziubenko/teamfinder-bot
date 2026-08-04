@@ -94,6 +94,7 @@ type MeResponse = {
 }
 
 type PersistedState = {
+  loaded: boolean
   stars: number
   coins: number
   points: number
@@ -251,6 +252,7 @@ function saveCurrency(state: PersistedState): void {
 function defaultState(): PersistedState {
   const saved = loadSavedCurrency()
   return {
+    loaded: false,
     stars: saved?.stars ?? 0,
     coins: saved?.coins ?? 0,
     points: saved?.points ?? 0,
@@ -329,6 +331,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
   }
 
   return {
+    loaded: true,
     stars: currency.stars ?? 0,
     coins: currency.coins ?? 0,
     points: currency.points ?? 0,

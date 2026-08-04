@@ -131,6 +131,7 @@
   "match.sort_match": "% Совпадение",
   "cases.title": "Кейсы Nexus",
   "cases.subtitle": "Крути рулетку, выбивай скины и премиум. Шансы указаны для каждого кейса.",
+  "cases.loading": "Загрузка…",
   "cases.sound_on": "Выключить звук",
   "cases.sound_off": "Включить звук",
   "cases.cooldown": "Доступно через {time}",

@@ -137,6 +137,7 @@
   "match.sort_match": "% Match",
   "cases.title": "Nexus Cases",
   "cases.subtitle": "Spin the wheel, get skins and premium. Odds shown for each case.",
+  "cases.loading": "Loading…",
   "cases.sound_on": "Mute sound",
   "cases.sound_off": "Unmute sound",
   "cases.cooldown": "Available in {time}",

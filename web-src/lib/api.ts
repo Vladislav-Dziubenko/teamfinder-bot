@@ -16,7 +16,17 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || ""
 
 export function getInitData(): string {
   if (typeof window === "undefined") return ""
-  return window.Telegram?.WebApp?.initData || ""
+  const wa = window.Telegram?.WebApp
+  if (wa?.initData) return wa.initData
+  // Fallback: Telegram может открыть Mini App во внешнем браузере/веб-превью,
+  // тогда initData лежит в hash-параметре #tgWebAppData=... без инъекции скрипта.
+  try {
+    const hash = window.location.hash
+    if (hash.startsWith("#tgWebAppData=")) {
+      return decodeURIComponent(hash.slice("#tgWebAppData=".length))
+    }
+  } catch {}
+  return ""
 }
 
 export function telegramReady(): void {

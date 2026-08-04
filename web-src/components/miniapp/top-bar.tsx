@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo } from "react"
+import { useEffect, useState } from "react"
 import { Star } from "lucide-react"
 import { useNexus } from "@/lib/store"
 import { useI18n } from "@/lib/i18n"
@@ -9,10 +9,13 @@ import { formatNum } from "@/lib/format"
 export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () => void }) {
   const { t } = useI18n()
   const { stars, coins } = useNexus()
-  const tgPhoto = useMemo(() => {
+  // Читаем window только в effect (после гидратации) — иначе статический HTML
+  // и клиентский рендер не совпадают (React hydration error #418).
+  const [tgPhoto, setTgPhoto] = useState<string | null>(null)
+  useEffect(() => {
     try {
-      return (window as any).Telegram?.WebApp?.initDataUnsafe?.user?.photo_url || null
-    } catch { return null }
+      setTgPhoto((window as any).Telegram?.WebApp?.initDataUnsafe?.user?.photo_url || null)
+    } catch { setTgPhoto(null) }
   }, [])
 
   return (

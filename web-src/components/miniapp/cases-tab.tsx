@@ -54,7 +54,7 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta } = useNexus()
+  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta, loaded } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
@@ -301,7 +301,13 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
       {/* Cases */}
       <div className="space-y-4">
-        {lootCases.length === 0 && (
+        {!loaded && (
+          <div className="rounded-3xl border border-dashed border-border py-8 text-center">
+            <Loader2 className="mx-auto size-7 animate-spin text-muted-foreground" />
+            <p className="mt-2 text-sm text-muted-foreground">{t("cases.loading")}</p>
+          </div>
+        )}
+        {loaded && lootCases.length === 0 && (
           <div className="rounded-3xl border border-dashed border-border py-8 text-center">
             <Package className="mx-auto size-7 text-muted-foreground" />
             <p className="mt-2 text-sm text-muted-foreground">{t("common.error")}</p>
