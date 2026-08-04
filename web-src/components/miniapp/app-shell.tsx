@@ -48,6 +48,26 @@ function Shell() {
   const [sharedProfileId, setSharedProfileId] = useState<number | null>(null)
 
   useEffect(() => {
+    // Предзагрузка ленивых вкладок в фоне — чтобы первый клик открывал их
+    // мгновенно (чанки уже скачаны). Тяжёлые (three.js ~600KB) грузим
+    // позже, чтобы не конкурировать со стартовой загрузкой /api/me.
+    const id = setTimeout(() => {
+      Promise.allSettled([
+        import("./chat-tab"),
+        import("./stats-tab"),
+        import("./review-tab"),
+        import("./guides-tab"),
+        import("./predictions-tab"),
+      ])
+      setTimeout(() => {
+        import("./model-tab").catch(() => {})
+        import("./battlepass-tab").catch(() => {})
+      }, 3000)
+    }, 800)
+    return () => clearTimeout(id)
+  }, [])
+
+  useEffect(() => {
     if (!toast) return
     const t = setTimeout(() => setToast(null), 2400)
     return () => clearTimeout(t)
@@ -134,7 +154,7 @@ function Shell() {
           onChat={(id, nick, avatar) => {
             setChatOpen({
               chatId: openChatWithPlayer(me.userId, String(id)),
-              player: { id: String(id), nick, avatar, game: "", rank: "", role: "", kd: 0, winrate: 0, hours: 0, online: false, tags: [], bio: "", tgUsername: "", vibe: 0 },
+              player: { id: String(id), nick, realName: nick, avatar: avatar ?? "", game: "", rank: "", role: "", kd: 0, winrate: 0, hours: 0, online: false, tags: [], bio: "", tgUsername: "", vibe: 0 },
             })
             goTab("chat")
             setSharedProfileId(null)

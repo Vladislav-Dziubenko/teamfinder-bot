@@ -432,7 +432,7 @@ async def handle_me(request: web.Request):
         _effective_role(request, db, user["id"]),
     )
 
-    is_beta = await db.get_beta(user["id"])
+    is_beta = await _effective_is_beta(request, db, user["id"])
 
     # Ежедневная выдача бета-тестеру (200 кейсов + 10 000 ⭐) — идемпотентно раз в день.
     beta_state = None
@@ -669,7 +669,7 @@ async def handle_search(request: web.Request):
     is_pro = await db.is_pro(user["id"])
     has_boost = await db.has_search_boost(user["id"], game_to_search) if not is_pro else False
     premium = is_pro or has_boost
-    is_beta = await db.get_beta(user["id"])
+    is_beta = await _effective_is_beta(request, db, user["id"])
     search_limit = 500 if (premium or is_beta) else 20
     if has_boost:
         await db.consume_search_boost(user["id"], game_to_search)
@@ -1135,7 +1135,7 @@ async def handle_nexus_open_case(request: web.Request):
                 else:
                     # Бета-тестер открывает премиум-кейс за накопленный бесплатный
                     # баланс (до 200/день, копится до 6000) вместо звёзд.
-                    is_beta = await db.get_beta(user["id"])
+                    is_beta = await _effective_is_beta(request, db, user["id"])
                     beta_free = body.get("beta_free") or is_beta
                     if beta_free and case_id == "gold":
                         beta_state = await db.get_beta_state(user["id"])
@@ -1987,6 +1987,12 @@ async def _effective_role(request: web.Request, db: Database, user_id: int) -> s
     if _is_developer(request, user_id):
         return "developer"
     return await db.get_role(user_id)
+
+
+async def _effective_is_beta(request: web.Request, db: Database, user_id: int) -> bool:
+    """Разработчик (bot ADMIN_IDS) автоматически получает бонусы бета-тестера:
+    ежедневные 200 кейсов + 10 000 ⭐, безлимитный поиск, бесплатный gold-кейс."""
+    return await db.get_beta(user_id) or _is_developer(request, user_id)
 
 
 async def handle_global_messages(request: web.Request):

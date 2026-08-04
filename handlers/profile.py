@@ -209,3 +209,25 @@ async def profile_search(callback: CallbackQuery, db: Database):
         return
     await run_team_search(callback.message, db, profile, callback.from_user.id, edit=True)
     await callback.answer()
+
+
+@router.message(Command("balance"))
+async def cmd_balance(message: Message, db: Database):
+    user = message.from_user
+    currency = await db.get_currency(user.id)
+    is_beta = await db.get_beta(user.id)
+    beta_state = await db.get_beta_state(user.id) if is_beta else None
+    premium = await db.is_pro(user.id)
+
+    lines = [
+        "💰 <b>Твой баланс</b>\n",
+        f"🪙 Nexus Coin: <b>{currency['coins']}</b>",
+        f"⭐ Nexus Stars: <b>{currency['stars']}</b>",
+        f"💎 Очки: <b>{currency['points']}</b>",
+    ]
+    if premium:
+        lines.append("👑 <b>Премиум активен</b>")
+    if is_beta:
+        cases = beta_state["case_balance"] if beta_state else 0
+        lines.append(f"🧪 Бета-тестер: <b>{cases}</b> бесплатных кейсов")
+    await message.answer("\n".join(lines))
