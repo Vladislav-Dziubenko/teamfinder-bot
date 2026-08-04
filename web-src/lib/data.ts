@@ -370,7 +370,7 @@ export const playerIcons: CaseItem[] = [
 export const lootCases: LootCase[] = [
   {
     id: "blue",
-    name: "Nexus Counter Strike 1.6",
+    name: "Nexus Basic case",
     subtitle: "Бесплатный ежедневный кейс",
     image: "/case-blue.png",
     gold: false,

@@ -981,7 +981,7 @@ async def handle_user_applications(request: web.Request):
 CASES_CONFIG = {
     "blue": {
         "id": "blue",
-        "name": "Nexus Counter Strike 1.6",
+        "name": "Nexus Basic case",
         "subtitle": "Бесплатный ежедневный кейс",
         "image": "/case-blue.png",
         "gold": False,
