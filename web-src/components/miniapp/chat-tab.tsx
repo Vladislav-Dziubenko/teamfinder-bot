@@ -748,7 +748,7 @@ function AdminPanel({ userId }: { userId: number }) {
                     </span>
                   )}
                 </div>
-                <p className="mt-0.5 text-[10px] text-muted-foreground">
+                <p className="mt-0.5 truncate text-[10px] text-muted-foreground">
                   ID {u.id}
                   {(u.username || u.firstName) && (
                     <span className="text-foreground/80"> · {[u.firstName, u.lastName].filter(Boolean).join(" ")}{u.username ? ` · @${u.username}` : ""}</span>
