@@ -482,5 +482,9 @@
   "server_busy.title": "Overloaded ang server",
   "server_busy.desc": "Masyadong maraming user ngayon. Pakisubukang muli sa loob ng ilang segundo.",
   "server_busy.retry_hint": "Auto-retry sa loob ng 5s...",
-  "contact_sheet.no_username_hint": "walang username — sumulat sa pamamagitan ng bot"
+  "contact_sheet.no_username_hint": "walang username — sumulat sa pamamagitan ng bot",
+  "role.tg_profile": "Humiling ng profile sa Telegram",
+  "role.tg_profile_ok": "Ipinadala ang card sa DM",
+  "role.tg_profile_ok_forwarded": "Card + message na ipinadala sa DM",
+  "role.tg_profile_fail": "Nabigong makuha ang profile"
 }

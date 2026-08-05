@@ -482,5 +482,9 @@
   "server_busy.title": "Server həddən artıq yüklənib",
   "server_busy.desc": "Hazırda həddən artıq çox istifadəçi var. Bir neçə saniyədən sonra yenidən cəhd edin.",
   "server_busy.retry_hint": "5 saniyəyə avtomatik yenidən cəhd edin...",
-  "contact_sheet.no_username_hint": "istifadəçi adı yoxdur — bot vasitəsilə yazın"
+  "contact_sheet.no_username_hint": "istifadəçi adı yoxdur — bot vasitəsilə yazın",
+  "role.tg_profile": "Telegram profilini tələb edin",
+  "role.tg_profile_ok": "Kart DM-ə göndərildi",
+  "role.tg_profile_ok_forwarded": "Kart + mesaj DM-ə göndərildi",
+  "role.tg_profile_fail": "Profil əldə etmək alınmadı"
 }

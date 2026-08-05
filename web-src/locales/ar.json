@@ -482,5 +482,9 @@
   "server_busy.title": "الخادم مثقل",
   "server_busy.desc": "يوجد عدد كبير جدًا من المستخدمين في الوقت الحالي. يرجى المحاولة مرة أخرى في بضع ثوان.",
   "server_busy.retry_hint": "إعادة المحاولة تلقائيًا خلال 5 ثوانٍ...",
-  "contact_sheet.no_username_hint": "لا يوجد اسم مستخدم - اكتب عبر الروبوت"
+  "contact_sheet.no_username_hint": "لا يوجد اسم مستخدم - اكتب عبر الروبوت",
+  "role.tg_profile": "طلب ملف تعريف Telegram",
+  "role.tg_profile_ok": "تم إرسال البطاقة إلى DM",
+  "role.tg_profile_ok_forwarded": "تم إرسال البطاقة + الرسالة إلى DM",
+  "role.tg_profile_fail": "فشل في الحصول على الملف الشخصي"
 }

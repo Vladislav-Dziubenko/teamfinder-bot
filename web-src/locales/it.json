@@ -482,5 +482,9 @@
   "server_busy.title": "Server sovraccarico",
   "server_busy.desc": "Troppi utenti in questo momento. Riprova tra qualche secondo.",
   "server_busy.retry_hint": "Nuovo tentativo automatico tra 5 secondi...",
-  "contact_sheet.no_username_hint": "nessun nome utente: scrivi tramite bot"
+  "contact_sheet.no_username_hint": "nessun nome utente: scrivi tramite bot",
+  "role.tg_profile": "Richiedi il profilo Telegram",
+  "role.tg_profile_ok": "Carta inviata a DM",
+  "role.tg_profile_ok_forwarded": "Tessera + messaggio inviato al DM",
+  "role.tg_profile_fail": "Impossibile ottenere il profilo"
 }

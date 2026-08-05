@@ -482,5 +482,9 @@
   "server_busy.title": "A szerver túlterhelt",
   "server_busy.desc": "Túl sok felhasználó jelenleg. Kérjük, próbálja újra néhány másodperc múlva.",
   "server_busy.retry_hint": "Automatikus újrapróbálkozás 5 másodperc múlva...",
-  "contact_sheet.no_username_hint": "nincs felhasználónév – írja be a bot segítségével"
+  "contact_sheet.no_username_hint": "nincs felhasználónév – írja be a bot segítségével",
+  "role.tg_profile": "Kérjen Telegram profilt",
+  "role.tg_profile_ok": "Kártya elküldve DM-nek",
+  "role.tg_profile_ok_forwarded": "Kártya + üzenet elküldve DM-nek",
+  "role.tg_profile_fail": "Nem sikerült beszerezni a profilt"
 }

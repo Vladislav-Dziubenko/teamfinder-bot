@@ -482,5 +482,9 @@
   "server_busy.title": "سرور بیش از حد بارگذاری شده است",
   "server_busy.desc": "در حال حاضر کاربران بسیار زیادی هستند. لطفاً چند ثانیه دیگر دوباره امتحان کنید.",
   "server_busy.retry_hint": "امتحان مجدد خودکار در 5 ثانیه...",
-  "contact_sheet.no_username_hint": "بدون نام کاربری - از طریق ربات بنویسید"
+  "contact_sheet.no_username_hint": "بدون نام کاربری - از طریق ربات بنویسید",
+  "role.tg_profile": "درخواست پروفایل تلگرام",
+  "role.tg_profile_ok": "کارت به DM ارسال شد",
+  "role.tg_profile_ok_forwarded": "کارت + پیام به DM ارسال شد",
+  "role.tg_profile_fail": "نمایه دریافت نشد"
 }

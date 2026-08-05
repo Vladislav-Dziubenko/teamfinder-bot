@@ -482,5 +482,9 @@
   "server_busy.title": "سرور اوور لوڈ ہو گیا۔",
   "server_busy.desc": "اس وقت بہت زیادہ صارفین ہیں۔ براہ کرم چند سیکنڈ میں دوبارہ کوشش کریں۔",
   "server_busy.retry_hint": "5 سیکنڈ میں از خود دوبارہ کوشش کریں...",
-  "contact_sheet.no_username_hint": "کوئی صارف نام نہیں — بوٹ کے ذریعے لکھیں۔"
+  "contact_sheet.no_username_hint": "کوئی صارف نام نہیں — بوٹ کے ذریعے لکھیں۔",
+  "role.tg_profile": "ٹیلیگرام پروفائل کی درخواست کریں۔",
+  "role.tg_profile_ok": "ڈی ایم کو کارڈ بھیجا گیا۔",
+  "role.tg_profile_ok_forwarded": "کارڈ + پیغام ڈی ایم کو بھیجا گیا۔",
+  "role.tg_profile_fail": "پروفائل حاصل کرنے میں ناکام"
 }

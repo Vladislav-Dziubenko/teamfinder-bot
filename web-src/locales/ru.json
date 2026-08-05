@@ -482,5 +482,9 @@
   "server_busy.title": "Сервер перегружен",
   "server_busy.desc": "Слишком много пользователей прямо сейчас. Попробуйте через несколько секунд.",
   "server_busy.retry_hint": "Авто-обновление через 5с...",
-  "contact_sheet.no_username_hint": "нет username — напиши через бота"
+  "contact_sheet.no_username_hint": "нет username — напиши через бота",
+  "role.tg_profile": "Запросить профиль Telegram",
+  "role.tg_profile_ok": "Карточка отправлена в ЛС",
+  "role.tg_profile_ok_forwarded": "Карточка + сообщение отправлены в ЛС",
+  "role.tg_profile_fail": "Не удалось получить профиль"
 }

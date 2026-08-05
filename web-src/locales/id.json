@@ -482,5 +482,9 @@
   "server_busy.title": "Server kelebihan beban",
   "server_busy.desc": "Terlalu banyak pengguna saat ini. Silakan coba lagi dalam beberapa detik.",
   "server_busy.retry_hint": "Coba lagi otomatis dalam 5 detik...",
-  "contact_sheet.no_username_hint": "tanpa nama pengguna — tulis melalui bot"
+  "contact_sheet.no_username_hint": "tanpa nama pengguna — tulis melalui bot",
+  "role.tg_profile": "Minta profil Telegram",
+  "role.tg_profile_ok": "Kartu dikirim ke DM",
+  "role.tg_profile_ok_forwarded": "Kartu + pesan dikirim ke DM",
+  "role.tg_profile_fail": "Gagal mendapatkan profil"
 }

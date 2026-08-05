@@ -482,5 +482,9 @@
   "server_busy.title": "Υπερφορτωμένος διακομιστής",
   "server_busy.desc": "Πάρα πολλοί χρήστες αυτήν τη στιγμή. Δοκιμάστε ξανά σε λίγα δευτερόλεπτα.",
   "server_busy.retry_hint": "Αυτόματη επανάληψη σε 5 δευτερόλεπτα...",
-  "contact_sheet.no_username_hint": "χωρίς όνομα χρήστη — γράψτε μέσω bot"
+  "contact_sheet.no_username_hint": "χωρίς όνομα χρήστη — γράψτε μέσω bot",
+  "role.tg_profile": "Ζητήστε προφίλ Telegram",
+  "role.tg_profile_ok": "Η κάρτα στάλθηκε στο DM",
+  "role.tg_profile_ok_forwarded": "Κάρτα + μήνυμα στάλθηκε σε DM",
+  "role.tg_profile_fail": "Αποτυχία λήψης προφίλ"
 }

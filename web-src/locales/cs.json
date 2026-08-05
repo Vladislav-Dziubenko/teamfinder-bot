@@ -482,5 +482,9 @@
   "server_busy.title": "Server přetížen",
   "server_busy.desc": "Právě teď je příliš mnoho uživatelů. Zkuste to znovu za několik sekund.",
   "server_busy.retry_hint": "Automatické opakování za 5 s...",
-  "contact_sheet.no_username_hint": "žádné uživatelské jméno – pište přes bot"
+  "contact_sheet.no_username_hint": "žádné uživatelské jméno – pište přes bot",
+  "role.tg_profile": "Vyžádejte si profil Telegramu",
+  "role.tg_profile_ok": "Karta odeslána do DM",
+  "role.tg_profile_ok_forwarded": "Karta + zpráva odeslána do DM",
+  "role.tg_profile_fail": "Nepodařilo se získat profil"
 }

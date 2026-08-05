@@ -482,5 +482,9 @@
   "server_busy.title": "Server overloaded",
   "server_busy.desc": "Too many users right now. Please try again in a few seconds.",
   "server_busy.retry_hint": "Auto-retry in 5s...",
-  "contact_sheet.no_username_hint": "no username — write via bot"
+  "contact_sheet.no_username_hint": "no username — write via bot",
+  "role.tg_profile": "Request Telegram profile",
+  "role.tg_profile_ok": "Card sent to DM",
+  "role.tg_profile_ok_forwarded": "Card + message sent to DM",
+  "role.tg_profile_fail": "Failed to get profile"
 }

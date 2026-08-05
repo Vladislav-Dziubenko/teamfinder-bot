@@ -482,5 +482,9 @@
   "server_busy.title": "เซิร์ฟเวอร์โอเวอร์โหลด",
   "server_busy.desc": "มีผู้ใช้มากเกินไปในขณะนี้ โปรดลองอีกครั้งในอีกไม่กี่วินาที",
   "server_busy.retry_hint": "ลองใหม่อัตโนมัติใน 5 วินาที...",
-  "contact_sheet.no_username_hint": "ไม่มีชื่อผู้ใช้ — เขียนผ่านบอท"
+  "contact_sheet.no_username_hint": "ไม่มีชื่อผู้ใช้ — เขียนผ่านบอท",
+  "role.tg_profile": "ขอโปรไฟล์โทรเลข",
+  "role.tg_profile_ok": "การ์ดส่งไปที่ DM",
+  "role.tg_profile_ok_forwarded": "การ์ด + ข้อความส่งถึง DM",
+  "role.tg_profile_fail": "ไม่สามารถรับโปรไฟล์ได้"
 }

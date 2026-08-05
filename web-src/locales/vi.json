@@ -482,5 +482,9 @@
   "server_busy.title": "Máy chủ quá tải",
   "server_busy.desc": "Quá nhiều người dùng ngay bây giờ. Vui lòng thử lại sau vài giây.",
   "server_busy.retry_hint": "Tự động thử lại sau 5 giây...",
-  "contact_sheet.no_username_hint": "không có tên người dùng - viết qua bot"
+  "contact_sheet.no_username_hint": "không có tên người dùng - viết qua bot",
+  "role.tg_profile": "Yêu cầu hồ sơ Telegram",
+  "role.tg_profile_ok": "Thẻ đã được gửi tới DM",
+  "role.tg_profile_ok_forwarded": "Thẻ + tin nhắn đã gửi tới DM",
+  "role.tg_profile_fail": "Không lấy được hồ sơ"
 }

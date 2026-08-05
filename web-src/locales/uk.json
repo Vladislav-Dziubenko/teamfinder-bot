@@ -482,5 +482,9 @@
   "server_busy.title": "Сервер перевантажений",
   "server_busy.desc": "Зараз забагато користувачів. Повторіть спробу через кілька секунд.",
   "server_busy.retry_hint": "Автоматичний повтор через 5 секунд...",
-  "contact_sheet.no_username_hint": "немає логіна — пишіть через бота"
+  "contact_sheet.no_username_hint": "немає логіна — пишіть через бота",
+  "role.tg_profile": "Запит профілю Telegram",
+  "role.tg_profile_ok": "Листівка надіслана в DM",
+  "role.tg_profile_ok_forwarded": "Листівка + повідомлення надіслано в DM",
+  "role.tg_profile_fail": "Не вдалося отримати профіль"
 }

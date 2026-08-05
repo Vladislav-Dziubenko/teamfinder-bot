@@ -482,5 +482,9 @@
   "server_busy.title": "Palvelin ylikuormitettu",
   "server_busy.desc": "Liian monta käyttäjää tällä hetkellä. Yritä uudelleen muutaman sekunnin kuluttua.",
   "server_busy.retry_hint": "Automaattinen uudelleenyritys 5 sekunnin kuluttua...",
-  "contact_sheet.no_username_hint": "ei käyttäjätunnusta - kirjoita botin kautta"
+  "contact_sheet.no_username_hint": "ei käyttäjätunnusta - kirjoita botin kautta",
+  "role.tg_profile": "Pyydä Telegram-profiilia",
+  "role.tg_profile_ok": "Kortti lähetetty DM:ään",
+  "role.tg_profile_ok_forwarded": "Kortti + viesti lähetetty DM:ään",
+  "role.tg_profile_fail": "Profiilin hakeminen epäonnistui"
 }

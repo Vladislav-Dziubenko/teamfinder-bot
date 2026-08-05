@@ -482,5 +482,9 @@
   "server_busy.title": "서버 과부하",
   "server_busy.desc": "현재 사용자가 너무 많습니다. 몇 초 후에 다시 시도해 주세요.",
   "server_busy.retry_hint": "5초 안에 자동 재시도...",
-  "contact_sheet.no_username_hint": "사용자 이름 없음 — 봇을 통해 작성"
+  "contact_sheet.no_username_hint": "사용자 이름 없음 — 봇을 통해 작성",
+  "role.tg_profile": "텔레그램 프로필 요청",
+  "role.tg_profile_ok": "DM으로 카드보냈어요",
+  "role.tg_profile_ok_forwarded": "DM으로 보낸 카드 + 메시지",
+  "role.tg_profile_fail": "프로필을 가져오지 못했습니다."
 }

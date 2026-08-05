@@ -621,7 +621,32 @@ function AdminPanel({ userId }: { userId: number }) {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(false)
   const [busyId, setBusyId] = useState<number | null>(null)
+  const [tgBusy, setTgBusy] = useState<number | null>(null)
+  const [tgMsg, setTgMsg] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<{ u: AdminUser; action: "role" | "ban"; role?: string } | null>(null)
+
+  useEffect(() => {
+    if (!tgMsg) return
+    const tm = setTimeout(() => setTgMsg(null), 3000)
+    return () => clearTimeout(tm)
+  }, [tgMsg])
+
+  async function requestTgProfile(u: AdminUser) {
+    if (tgBusy !== null) return
+    setTgBusy(u.id)
+    setTgMsg(null)
+    try {
+      const res: any = await api.post(`/api/admin/tg-profile/${u.id}`)
+      if (res.ok) {
+        setTgMsg(res.forwarded ? t("role.tg_profile_ok_forwarded") : t("role.tg_profile_ok"))
+      } else {
+        setTgMsg(t("role.tg_profile_fail"))
+      }
+    } catch {
+      setTgMsg(t("role.tg_profile_fail"))
+    }
+    setTgBusy(null)
+  }
 
   async function search(q: string) {
     setQuery(q)
@@ -719,6 +744,16 @@ function AdminPanel({ userId }: { userId: number }) {
                   ID {u.id}
                   {u.banned && <span className="text-destructive"> · {t("role.banned")}</span>}
                 </p>
+                <button
+                  type="button"
+                  disabled={tgBusy !== null}
+                  onClick={() => requestTgProfile(u)}
+                  className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary transition-colors active:scale-95 disabled:opacity-50"
+                >
+                  {tgBusy === u.id ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
+                  {t("role.tg_profile")}
+                </button>
+                {tgMsg && <p className="mt-1 text-[10px] font-medium text-accent">{tgMsg}</p>}
               </div>
               {busyId === u.id && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
             </div>

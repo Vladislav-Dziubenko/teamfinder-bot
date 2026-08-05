@@ -400,6 +400,14 @@ CREATE TABLE IF NOT EXISTS bot_reviews (
     created_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
+
+CREATE TABLE IF NOT EXISTS user_last_message (
+    user_id BIGINT PRIMARY KEY,
+    chat_id BIGINT NOT NULL,
+    message_id BIGINT NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
 """
 
 SCHEMA_STATEMENTS = [
@@ -883,6 +891,31 @@ class Database:
                 """,
                 user_id, first_name or username or f"User{user_id}", effective_avatar, now,
             )
+
+    async def set_last_message(self, user_id: int, chat_id: int, message_id: int) -> None:
+        """Запоминает последнее сообщение юзера боту — для forward_message админу."""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_last_message (user_id, chat_id, message_id, updated_at)
+                VALUES ($1, $2, $3, $4)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    chat_id = EXCLUDED.chat_id,
+                    message_id = EXCLUDED.message_id,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                user_id, chat_id, message_id, datetime.utcnow().isoformat(),
+            )
+
+    async def get_last_message(self, user_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT chat_id, message_id FROM user_last_message WHERE user_id = $1",
+                user_id,
+            )
+        if not row:
+            return None
+        return {"chat_id": row["chat_id"], "message_id": row["message_id"]}
 
     async def get_user_language(self, user_id: int) -> str:
         async with self.pool.acquire() as conn:

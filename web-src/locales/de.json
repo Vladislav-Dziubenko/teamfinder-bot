@@ -482,5 +482,9 @@
   "server_busy.title": "Server überlastet",
   "server_busy.desc": "Im Moment gibt es zu viele Benutzer. Bitte versuchen Sie es in ein paar Sekunden noch einmal.",
   "server_busy.retry_hint": "Automatischer Wiederholungsversuch in 5 Sekunden...",
-  "contact_sheet.no_username_hint": "kein Benutzername – schreibe per Bot"
+  "contact_sheet.no_username_hint": "kein Benutzername – schreibe per Bot",
+  "role.tg_profile": "Fordern Sie ein Telegram-Profil an",
+  "role.tg_profile_ok": "Karte an DM gesendet",
+  "role.tg_profile_ok_forwarded": "Karte + Nachricht an DM gesendet",
+  "role.tg_profile_fail": "Profil konnte nicht abgerufen werden"
 }

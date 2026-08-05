@@ -482,5 +482,9 @@
   "server_busy.title": "Serwer przeciążony",
   "server_busy.desc": "Obecnie jest zbyt wielu użytkowników. Spróbuj ponownie za kilka sekund.",
   "server_busy.retry_hint": "Automatyczna ponowna próba za 5 s...",
-  "contact_sheet.no_username_hint": "brak nazwy użytkownika — napisz przez bota"
+  "contact_sheet.no_username_hint": "brak nazwy użytkownika — napisz przez bota",
+  "role.tg_profile": "Poproś o profil na Telegramie",
+  "role.tg_profile_ok": "Karta wysłana na DM",
+  "role.tg_profile_ok_forwarded": "Karta + wiadomość wysłana na DM",
+  "role.tg_profile_fail": "Nie udało się pobrać profilu"
 }

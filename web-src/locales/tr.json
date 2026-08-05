@@ -482,5 +482,9 @@
   "server_busy.title": "Sunucu aşırı yüklendi",
   "server_busy.desc": "Şu anda çok fazla kullanıcı var. Lütfen birkaç saniye sonra tekrar deneyin.",
   "server_busy.retry_hint": "5 saniye içinde otomatik yeniden dene...",
-  "contact_sheet.no_username_hint": "kullanıcı adı yok — bot aracılığıyla yaz"
+  "contact_sheet.no_username_hint": "kullanıcı adı yok — bot aracılığıyla yaz",
+  "role.tg_profile": "Telegram profili talep et",
+  "role.tg_profile_ok": "Kart DM'ye gönderildi",
+  "role.tg_profile_ok_forwarded": "DM'ye kart + mesaj gönderildi",
+  "role.tg_profile_fail": "Profil alınamadı"
 }

@@ -482,5 +482,9 @@
   "server_busy.title": "サーバーが過負荷になっている",
   "server_busy.desc": "現在ユーザーが多すぎます。数秒後にもう一度試してください。",
   "server_busy.retry_hint": "5秒後に自動再試行...",
-  "contact_sheet.no_username_hint": "ユーザー名なし — ボット経由で書き込みます"
+  "contact_sheet.no_username_hint": "ユーザー名なし — ボット経由で書き込みます",
+  "role.tg_profile": "Telegram プロフィールをリクエストする",
+  "role.tg_profile_ok": "DMにカードを送りました",
+  "role.tg_profile_ok_forwarded": "カード+メッセージをDMに送信",
+  "role.tg_profile_fail": "プロフィールの取得に失敗しました"
 }

@@ -2176,6 +2176,65 @@ async def handle_admin_users(request: web.Request):
     return web.json_response({"users": users})
 
 
+async def handle_admin_tg_profile(request: web.Request):
+    """Developer-only: get_chat(user_id) → карточка (имя/фамилия/username/био)
+    в ЛС админу + пересылка последнего сообщения юзера (forward_message)."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not user or not _is_developer(request, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    try:
+        target_id = int(request.match_info.get("user_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    bot = request.app.get("bot")
+    if not bot:
+        return web.json_response({"error": "bot not ready"}, status=503)
+    admin_id = user["id"]
+
+    try:
+        chat = await bot.get_chat(target_id)
+    except Exception as e:
+        logging.warning("[ADMIN] get_chat(%s) failed: %s", target_id, e)
+        return web.json_response({"ok": False, "error": f"get_chat: {e}"})
+
+    first = chat.first_name or ""
+    last = chat.last_name or ""
+    username = chat.username or ""
+    bio = (getattr(chat, "bio", None) or "").strip()
+
+    name_line = "👤 <b>Имя:</b> " + html.escape((first + " " + last).strip() or "—")
+    username_line = "📛 <b>Username:</b> " + ("@" + html.escape(username) if username else "—")
+    bio_line = "📝 <b>Био:</b> " + (html.escape(bio) if bio else "—")
+    card = "\n".join([
+        "👤 <b>Карточка пользователя</b>",
+        "",
+        f"🆔 <b>ID:</b> <code>{target_id}</code>",
+        name_line,
+        username_line,
+        bio_line,
+    ])
+
+    # 1) Карточка в ЛС админу
+    try:
+        await bot.send_message(admin_id, card)
+    except Exception as e:
+        logging.warning("[ADMIN] send card to %s failed: %s", admin_id, e)
+        return web.json_response({"ok": False, "error": f"send_message: {e}"})
+
+    # 2) Пересылка последнего сообщения юзера — кликабельное имя для перехода в профиль
+    forwarded = False
+    last = await db.get_last_message(target_id)
+    if last:
+        try:
+            await bot.forward_message(admin_id, from_chat_id=last["chat_id"], message_id=last["message_id"])
+            forwarded = True
+        except Exception as e:
+            logging.warning("[ADMIN] forward_message for %s failed: %s", target_id, e)
+
+    return web.json_response({"ok": True, "forwarded": forwarded, "username": username})
+
+
 # ---------------------------------------------------------------------------
 # Reviews (отзывы о боте)
 # ---------------------------------------------------------------------------
@@ -2951,6 +3010,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/global/unban", handle_global_unban)
     app.router.add_post("/api/admin/role", handle_admin_role)
     app.router.add_get("/api/admin/users", handle_admin_users)
+    app.router.add_post("/api/admin/tg-profile/{user_id}", handle_admin_tg_profile)
     app.router.add_post("/api/nexus/review", handle_review_submit)
     app.router.add_get("/api/nexus/review/my", handle_review_my)
     app.router.add_get("/api/nexus/reviews", handle_reviews_list)
@@ -3028,6 +3088,20 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             update_data = await request.json()
             from aiogram.types import Update
             update = Update.model_validate(update_data)
+
+            # Трекинг последнего сообщения юзера (для forward_message админу).
+            # Fire-and-forget, чтобы не задерживать webhook.
+            if update.message:
+                msg = update.message
+                sender = msg.from_user
+                if sender and msg.chat.type == "private":
+                    db_obj = request.app.get("db")
+                    if db_obj is not None and request.app.get("db_ready"):
+                        try:
+                            asyncio.ensure_future(db_obj.set_last_message(sender.id, msg.chat.id, msg.message_id))
+                        except Exception:
+                            pass
+
             await dp.feed_update(bot, update)
         except Exception:
             logging.exception("Telegram webhook error")

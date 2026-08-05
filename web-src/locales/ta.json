@@ -482,5 +482,9 @@
   "server_busy.title": "சர்வர் ஓவர்லோட்",
   "server_busy.desc": "தற்போது அதிகமான பயனர்கள். சில நொடிகளில் மீண்டும் முயற்சிக்கவும்.",
   "server_busy.retry_hint": "5 வினாடிகளில் தானாக மீண்டும் முயற்சிக்கவும்...",
-  "contact_sheet.no_username_hint": "பயனர் பெயர் இல்லை - பாட் வழியாக எழுதவும்"
+  "contact_sheet.no_username_hint": "பயனர் பெயர் இல்லை - பாட் வழியாக எழுதவும்",
+  "role.tg_profile": "டெலிகிராம் சுயவிவரத்தைக் கோரவும்",
+  "role.tg_profile_ok": "அட்டை DMக்கு அனுப்பப்பட்டது",
+  "role.tg_profile_ok_forwarded": "அட்டை + செய்தி DMக்கு அனுப்பப்பட்டது",
+  "role.tg_profile_fail": "சுயவிவரத்தைப் பெறுவதில் தோல்வி"
 }

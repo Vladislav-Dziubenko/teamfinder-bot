@@ -482,5 +482,9 @@
   "server_busy.title": "服务器超载",
   "server_busy.desc": "现在用户太多了。请几秒钟后重试。",
   "server_busy.retry_hint": "5秒后自动重试...",
-  "contact_sheet.no_username_hint": "无用户名 — 通过机器人写入"
+  "contact_sheet.no_username_hint": "无用户名 — 通过机器人写入",
+  "role.tg_profile": "索取 Telegram 个人资料",
+  "role.tg_profile_ok": "卡已发送至 DM",
+  "role.tg_profile_ok_forwarded": "卡片 + 消息发送至 DM",
+  "role.tg_profile_fail": "获取个人资料失败"
 }

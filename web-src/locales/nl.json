@@ -482,5 +482,9 @@
   "server_busy.title": "Server overbelast",
   "server_busy.desc": "Te veel gebruikers momenteel. Probeer het over een paar seconden opnieuw.",
   "server_busy.retry_hint": "Automatisch opnieuw proberen over 5 seconden...",
-  "contact_sheet.no_username_hint": "geen gebruikersnaam - schrijf via bot"
+  "contact_sheet.no_username_hint": "geen gebruikersnaam - schrijf via bot",
+  "role.tg_profile": "Telegram-profiel aanvragen",
+  "role.tg_profile_ok": "Kaart verzonden naar DM",
+  "role.tg_profile_ok_forwarded": "Kaart + bericht verzonden naar DM",
+  "role.tg_profile_fail": "Kan profiel niet ophalen"
 }

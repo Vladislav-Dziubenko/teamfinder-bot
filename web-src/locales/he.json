@@ -482,5 +482,9 @@
   "server_busy.title": "השרת עמוס יתר על המידה",
   "server_busy.desc": "יותר מדי משתמשים כרגע. אנא נסה שוב בעוד מספר שניות.",
   "server_busy.retry_hint": "נסה שוב אוטומטית בעוד 5 שניות...",
-  "contact_sheet.no_username_hint": "ללא שם משתמש - כתוב דרך בוט"
+  "contact_sheet.no_username_hint": "ללא שם משתמש - כתוב דרך בוט",
+  "role.tg_profile": "בקש פרופיל טלגרם",
+  "role.tg_profile_ok": "הכרטיס נשלח ל-DM",
+  "role.tg_profile_ok_forwarded": "כרטיס + הודעה נשלחה ל-DM",
+  "role.tg_profile_fail": "קבלת הפרופיל נכשלה"
 }

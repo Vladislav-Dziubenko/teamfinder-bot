@@ -482,5 +482,9 @@
   "server_busy.title": "Server overbelastet",
   "server_busy.desc": "For mange brukere akkurat nå. Prøv igjen om noen sekunder.",
   "server_busy.retry_hint": "Prøv automatisk på nytt om 5 sekunder...",
-  "contact_sheet.no_username_hint": "ingen brukernavn - skriv via bot"
+  "contact_sheet.no_username_hint": "ingen brukernavn - skriv via bot",
+  "role.tg_profile": "Be om Telegram-profil",
+  "role.tg_profile_ok": "Kort sendt til DM",
+  "role.tg_profile_ok_forwarded": "Kort + melding sendt til DM",
+  "role.tg_profile_fail": "Kunne ikke hente profil"
 }
