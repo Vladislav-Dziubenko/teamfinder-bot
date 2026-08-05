@@ -478,5 +478,8 @@
   "cases.ad_not_watched": "Ad not watched",
   "cases.ad_reward": "Reward: +{stars} stars for 15 ads!",
   "cases.ad_achievement_title": "Achievement: ad watcher",
-  "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars"
+  "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
+  "server_busy.title": "서버 과부하",
+  "server_busy.desc": "현재 사용자가 너무 많습니다. 몇 초 후에 다시 시도해 주세요.",
+  "server_busy.retry_hint": "5초 안에 자동 재시도..."
 }

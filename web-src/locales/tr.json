@@ -478,5 +478,8 @@
   "cases.ad_not_watched": "Ad not watched",
   "cases.ad_reward": "Reward: +{stars} stars for 15 ads!",
   "cases.ad_achievement_title": "Achievement: ad watcher",
-  "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars"
+  "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
+  "server_busy.title": "Sunucu aşırı yüklendi",
+  "server_busy.desc": "Şu anda çok fazla kullanıcı var. Lütfen birkaç saniye sonra tekrar deneyin.",
+  "server_busy.retry_hint": "5 saniye içinde otomatik yeniden dene..."
 }

@@ -17,7 +17,7 @@ import { ContactSheet } from "./contact-sheet"
 import { ProfileViewSheet } from "./profile-view-sheet"
 import { openChatWithPlayer } from "@/lib/chat"
 import { api } from "@/lib/api"
-import { useMe } from "@/lib/store"
+import { useMe, useNexus } from "@/lib/store"
 import type { Player, Team } from "@/lib/data"
 
 // Ленивая загрузка тяжёлых вкладок: Three.js (~600KB), Recharts (~400KB)
@@ -41,11 +41,24 @@ function TabFallback() {
 function Shell() {
   const { t } = useI18n()
   const me = useMe()
+  const { serverBusy, setServerBusy } = useNexus()
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState<{ chatId: string; player: Player } | null>(null)
   const [sharedProfileId, setSharedProfileId] = useState<number | null>(null)
+
+  // Auto-recover from server busy: poll /health every 5s, dismiss overlay when OK
+  useEffect(() => {
+    if (!serverBusy) return
+    const iv = setInterval(async () => {
+      try {
+        const res = await fetch("/health")
+        if (res.ok) setServerBusy(false)
+      } catch {}
+    }, 5000)
+    return () => clearInterval(iv)
+  }, [serverBusy, setServerBusy])
 
   useEffect(() => {
     // Предзагрузка ленивых вкладок в фоне — чтобы первый клик открывал их
@@ -160,6 +173,18 @@ function Shell() {
             setSharedProfileId(null)
           }}
         />
+      )}
+
+      {/* Server busy full-screen overlay */}
+      {serverBusy && (
+        <div className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-background/95 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-4 rounded-3xl border border-border bg-card p-8 text-center shadow-2xl">
+            <Loader2 className="size-10 animate-spin text-primary" />
+            <h2 className="font-display text-xl font-bold">{t("server_busy.title")}</h2>
+            <p className="max-w-xs text-sm text-muted-foreground">{t("server_busy.desc")}</p>
+            <p className="text-xs text-muted-foreground">{t("server_busy.retry_hint")}</p>
+          </div>
+        </div>
       )}
 
       {toast && (

@@ -421,6 +421,8 @@ type Nexus = PersistedState & {
   freeCaseReadyIn: number
   bpNextClaimIn: number
   bpCanClaim: boolean
+  serverBusy: boolean
+  setServerBusy: (v: boolean) => void
   refresh: () => Promise<void>
   addCoins: (n: number) => Promise<boolean>
   addPoints: (n: number) => Promise<boolean>
@@ -466,10 +468,17 @@ type Nexus = PersistedState & {
 
 const NexusContext = createContext<Nexus | null>(null)
 
+// Module-level setter for serverBusy — allows api.ts to set it without React context
+let _setServerBusy: ((v: boolean) => void) | null = null
+export function getServerBusySetter(): ((v: boolean) => void) | null { return _setServerBusy }
+
 export function NexusProvider({ children }: { children: ReactNode }) {
   const [s, setS] = useState<PersistedState>(defaultState)
   const [now, setNow] = useState(() => Date.now())
+  const [serverBusy, setServerBusy] = useState(false)
   const refreshing = useRef(false)
+
+  useEffect(() => { _setServerBusy = setServerBusy; return () => { _setServerBusy = null } }, [setServerBusy])
 
   useEffect(() => {
     telegramReady()
@@ -969,8 +978,10 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       claimAchievement,
       hasUnlockedPlayer: (id: string) => s.unlockedPlayers.includes(id),
       setGames,
+      serverBusy,
+      setServerBusy,
     }
-  }, [s, now, refresh, refreshModels])
+  }, [s, now, refresh, refreshModels, serverBusy, setServerBusy])
 
   return <NexusContext.Provider value={value}>{children}</NexusContext.Provider>
 }

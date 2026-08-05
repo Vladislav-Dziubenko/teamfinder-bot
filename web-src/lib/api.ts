@@ -13,6 +13,7 @@ declare global {
 }
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || ""
+import { getServerBusySetter } from "./store"
 
 export function getInitData(): string {
   if (typeof window === "undefined") return ""
@@ -59,6 +60,12 @@ async function request(method: string, path: string, body?: unknown, attempt = 0
       clearTimeout(timeout)
       await new Promise((r) => setTimeout(r, 800 + attempt * 600))
       return request(method, path, body, attempt + 1)
+    }
+
+    // 503 after retries or on POST — server at capacity
+    if (res.status === 503) {
+      const setter = getServerBusySetter()
+      if (setter) setter(true)
     }
 
     const data = await res.json().catch(() => ({}))

@@ -478,5 +478,8 @@
   "cases.ad_not_watched": "Ad not watched",
   "cases.ad_reward": "Reward: +{stars} stars for 15 ads!",
   "cases.ad_achievement_title": "Achievement: ad watcher",
-  "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars"
+  "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
+  "server_busy.title": "Server überlastet",
+  "server_busy.desc": "Im Moment gibt es zu viele Benutzer. Bitte versuchen Sie es in ein paar Sekunden noch einmal.",
+  "server_busy.retry_hint": "Automatischer Wiederholungsversuch in 5 Sekunden..."
 }

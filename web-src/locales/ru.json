@@ -478,5 +478,8 @@
   "cases.ad_not_watched": "Реклама не досмотрена",
   "cases.ad_reward": "Награда: +{stars} ⭐ за 15 реклам!",
   "cases.ad_achievement_title": "Достижение: зритель рекламы",
-  "cases.ad_achievement_desc": "Посмотри 15 реклам и получи +{stars} ⭐"
+  "cases.ad_achievement_desc": "Посмотри 15 реклам и получи +{stars} ⭐",
+  "server_busy.title": "Сервер перегружен",
+  "server_busy.desc": "Слишком много пользователей прямо сейчас. Попробуйте через несколько секунд.",
+  "server_busy.retry_hint": "Авто-обновление через 5с..."
 }
