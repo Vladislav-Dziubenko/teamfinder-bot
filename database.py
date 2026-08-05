@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS users (
     user_id BIGINT PRIMARY KEY,
     username TEXT,
     first_name TEXT,
+    last_name TEXT,
     created_at TEXT NOT NULL,
     pro_until TEXT
 );
@@ -484,6 +485,11 @@ class Database:
             pass
 
         try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name TEXT")
+        except asyncpg.PostgresError:
+            pass
+
+        try:
             await conn.execute("ALTER TABLE team_applications ADD COLUMN IF NOT EXISTS is_premium INTEGER DEFAULT 0")
         except asyncpg.PostgresError:
             pass
@@ -863,14 +869,19 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Index creation warning: {e}")
 
-    async def ensure_user(self, user_id: int, username: str | None, first_name: str | None, avatar: str | None = None) -> None:
+    async def ensure_user(self, user_id: int, username: str | None, first_name: str | None, avatar: str | None = None, last_name: str | None = None) -> None:
         now = datetime.utcnow().isoformat()
         default_avatar = f"/player-{((user_id % 4) + 1)}.png"
         effective_avatar = avatar or default_avatar
         async with self.pool.acquire() as conn:
             await conn.execute(
-                "INSERT INTO users (user_id, username, first_name, created_at) VALUES ($1, $2, $3, $4) ON CONFLICT (user_id) DO UPDATE SET last_active_at = $4",
-                user_id, username or "", first_name or "", now,
+                """INSERT INTO users (user_id, username, first_name, last_name, created_at) VALUES ($1, $2, $3, $4, $5)
+                   ON CONFLICT (user_id) DO UPDATE SET
+                       username = COALESCE(NULLIF(EXCLUDED.username, ''), users.username),
+                       first_name = COALESCE(NULLIF(EXCLUDED.first_name, ''), users.first_name),
+                       last_name = COALESCE(NULLIF(EXCLUDED.last_name, ''), users.last_name),
+                       last_active_at = EXCLUDED.created_at""",
+                user_id, username or "", first_name or "", last_name or "", now,
             )
             # Создаём mini_app_profiles запись, если её нет (для ника/аватарки в чате и списке друзей).
             # Реальный photo_url из Telegram должен заменять плейсхолдер /player-N.png,
@@ -2605,6 +2616,9 @@ class Database:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """SELECT u.user_id, COALESCE(mp.nick, '') AS nick, mp.avatar,
+                          COALESCE(u.username, '') AS username,
+                          COALESCE(u.first_name, '') AS first_name,
+                          COALESCE(u.last_name, '') AS last_name,
                           COALESCE(ur.role, '') AS role,
                           COALESCE(ur.is_beta, 0) AS is_beta,
                           (gb.user_id IS NOT NULL) AS banned

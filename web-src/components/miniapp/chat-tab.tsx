@@ -610,6 +610,9 @@ type AdminUser = {
   id: number
   nick: string
   avatar: string | null
+  username: string
+  firstName: string
+  lastName: string
   role: string
   isBeta: boolean
   banned: boolean
@@ -657,6 +660,9 @@ function AdminPanel({ userId }: { userId: number }) {
         id: u.user_id ?? u.id,
         nick: u.nick ?? "",
         avatar: u.avatar ?? null,
+        username: u.username ?? "",
+        firstName: u.first_name ?? "",
+        lastName: u.last_name ?? "",
         role: u.role ?? "",
         isBeta: Boolean(u.is_beta),
         banned: Boolean(u.banned),
@@ -731,8 +737,10 @@ function AdminPanel({ userId }: { userId: number }) {
             <div className="flex items-center gap-2">
               <img src={u.avatar || "/placeholder.svg"} alt={u.nick} className="size-8 shrink-0 rounded-full object-cover" />
               <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold">
+                  {u.nick || [u.firstName, u.lastName].filter(Boolean).join(" ") || "—"}
+                </p>
                 <div className="flex items-center gap-1.5">
-                  <p className="truncate text-sm font-bold">{u.nick}</p>
                   <RoleBadge role={u.role} />
                   {u.isBeta && (
                     <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/50 bg-emerald-500/15 px-2 py-0.5 text-[10px] font-bold leading-none text-emerald-400">
@@ -740,8 +748,11 @@ function AdminPanel({ userId }: { userId: number }) {
                     </span>
                   )}
                 </div>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="mt-0.5 text-[10px] text-muted-foreground">
                   ID {u.id}
+                  {(u.username || u.firstName) && (
+                    <span className="text-foreground/80"> · {[u.firstName, u.lastName].filter(Boolean).join(" ")}{u.username ? ` · @${u.username}` : ""}</span>
+                  )}
                   {u.banned && <span className="text-destructive"> · {t("role.banned")}</span>}
                 </p>
                 <button

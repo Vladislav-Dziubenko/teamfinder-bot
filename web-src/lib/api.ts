@@ -3,6 +3,9 @@ declare global {
     Telegram?: {
       WebApp?: {
         initData: string
+        initDataUnsafe?: {
+          user?: { id: number; first_name?: string; last_name?: string; username?: string; photo_url?: string }
+        }
         openTelegramLink?: (url: string) => void
         openInvoice?: (url: string, callback?: () => void) => void
         shareURL?: (url: string, text?: string) => void
@@ -34,6 +37,33 @@ export function telegramReady(): void {
   if (typeof window !== "undefined" && window.Telegram?.WebApp?.ready) {
     window.Telegram.WebApp.ready()
   }
+}
+
+export function getInitDataUser(): { id: number; first_name?: string; last_name?: string; username?: string } | null {
+  if (typeof window === "undefined") return null
+  const user = window.Telegram?.WebApp?.initDataUnsafe?.user
+  if (user?.id) return user
+  // Fallback для веб-превью (#tgWebAppData=...): парсим user из init data строки.
+  try {
+    const raw = new URLSearchParams(getInitData()).get("user")
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (parsed?.id) return parsed
+    }
+  } catch {}
+  return null
+}
+
+// Отправляет имя/фамилию/username пользователя на бэкенд при каждом запуске,
+// чтобы профиль был известен даже если юзер никогда не писал боту в ЛС.
+export function syncTelegramProfile(): void {
+  const u = getInitDataUser()
+  if (!u?.id) return
+  request("POST", "/api/user/sync", {
+    username: u.username || "",
+    first_name: u.first_name || "",
+    last_name: u.last_name || "",
+  }).catch(() => {})
 }
 
 async function request(method: string, path: string, body?: unknown, attempt = 0) {

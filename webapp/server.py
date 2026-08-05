@@ -431,7 +431,7 @@ async def handle_games(request: web.Request):
 async def handle_me(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"))
+    await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"), user.get("last_name"))
 
     # Rate limit:防止 при наплыве 500+ юзеров опрашивать бэкенд каждые 5с.
     # Возвращаем 429 — клиент использует кэшированные данные (store уже хранит предыдущий ответ).
@@ -505,7 +505,7 @@ async def handle_me(request: web.Request):
 async def handle_user_language(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"))
+    await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"), user.get("last_name"))
 
     if request.method == "POST":
         body = await request.json()
@@ -515,6 +515,23 @@ async def handle_user_language(request: web.Request):
 
     lang = await db.get_user_language(user["id"])
     return web.json_response({"lang": lang})
+
+
+async def handle_user_sync(request: web.Request):
+    """Сохраняет профиль Telegram (id, username, first/last name) из initDataUnsafe.user.
+    Вызывается фронтендом при каждом запуске Mini App — чтобы в админке имя и
+    username отображались даже для тех, кто ни разу не писал боту в ЛС."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    await db.ensure_user(
+        user["id"],
+        (body.get("username") or "").strip()[:64] or None,
+        (body.get("first_name") or "").strip()[:128] or None,
+        None,
+        (body.get("last_name") or "").strip()[:128] or None,
+    )
+    return web.json_response({"ok": True})
 
 
 async def handle_save_profile(request: web.Request):
@@ -2939,6 +2956,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/me", handle_me)
     app.router.add_route("GET", "/api/user/language", handle_user_language)
     app.router.add_route("POST", "/api/user/language", handle_user_language)
+    app.router.add_post("/api/user/sync", handle_user_sync)
     app.router.add_post("/api/profile", handle_save_profile)
     app.router.add_post("/api/profile/hide", handle_hide_profile)
     app.router.add_post("/api/profile/customize", handle_customize_profile)
