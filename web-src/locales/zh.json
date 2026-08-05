@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "服务器超载",
   "server_busy.desc": "现在用户太多了。请几秒钟后重试。",
-  "server_busy.retry_hint": "5秒后自动重试..."
+  "server_busy.retry_hint": "5秒后自动重试...",
+  "contact_sheet.no_username_hint": "无用户名 — 通过机器人写入"
 }

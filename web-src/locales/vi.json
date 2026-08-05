@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "Máy chủ quá tải",
   "server_busy.desc": "Quá nhiều người dùng ngay bây giờ. Vui lòng thử lại sau vài giây.",
-  "server_busy.retry_hint": "Tự động thử lại sau 5 giây..."
+  "server_busy.retry_hint": "Tự động thử lại sau 5 giây...",
+  "contact_sheet.no_username_hint": "không có tên người dùng - viết qua bot"
 }

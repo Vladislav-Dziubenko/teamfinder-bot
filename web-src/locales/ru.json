@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Посмотри 15 реклам и получи +{stars} ⭐",
   "server_busy.title": "Сервер перегружен",
   "server_busy.desc": "Слишком много пользователей прямо сейчас. Попробуйте через несколько секунд.",
-  "server_busy.retry_hint": "Авто-обновление через 5с..."
+  "server_busy.retry_hint": "Авто-обновление через 5с...",
+  "contact_sheet.no_username_hint": "нет username — напиши через бота"
 }

@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "เซิร์ฟเวอร์โอเวอร์โหลด",
   "server_busy.desc": "มีผู้ใช้มากเกินไปในขณะนี้ โปรดลองอีกครั้งในอีกไม่กี่วินาที",
-  "server_busy.retry_hint": "ลองใหม่อัตโนมัติใน 5 วินาที..."
+  "server_busy.retry_hint": "ลองใหม่อัตโนมัติใน 5 วินาที...",
+  "contact_sheet.no_username_hint": "ไม่มีชื่อผู้ใช้ — เขียนผ่านบอท"
 }

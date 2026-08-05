@@ -618,7 +618,7 @@ async def handle_search(request: web.Request):
             where += " AND p.game = $2"
             params.append(game_filter)
         rows = await db.pool.fetch(
-            f"""SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
+            f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
                 FROM users u
                 JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
                 LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
@@ -641,7 +641,7 @@ async def handle_search(request: web.Request):
                 "kd": 0,
                 "tags": [],
                 "bio": "",
-                "tgUsername": "",
+                "tgUsername": r["username"] or "",
                 "vibe": 0,
                 "hours": 0,
                 "level": None,
@@ -657,7 +657,7 @@ async def handle_search(request: web.Request):
     # When "all" games with nickname query, search across every game
     if game_filter == "all" and query:
         rows = await db.pool.fetch(
-            """SELECT u.user_id, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
+            """SELECT u.user_id, u.username, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
                FROM users u
                LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
                JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
@@ -686,7 +686,7 @@ async def handle_search(request: web.Request):
                 "kd": 0,
                 "tags": [],
                 "bio": "",
-                "tgUsername": "",
+                "tgUsername": r["username"] or "",
                 "vibe": 0,
                 "hours": 0,
                 "level": None,
@@ -734,6 +734,17 @@ async def handle_search(request: web.Request):
         matches = scored[:search_limit]
 
     players = []
+    matched_ids = [p["user_id"] for p, _ in matches]
+    usernames: dict[int, str] = {}
+    if matched_ids:
+        try:
+            urows = await db.pool.fetch(
+                "SELECT user_id, username FROM users WHERE user_id = ANY($1::bigint[])",
+                matched_ids,
+            )
+            usernames = {r["user_id"]: (r["username"] or "") for r in urows}
+        except Exception:
+            usernames = {}
     for p, score in matches:
         contact_unlocked = await db.has_unlocked_contact(user["id"], p["id"])
         mini_profile = await db.get_mini_app_profile(p["user_id"])
@@ -756,7 +767,7 @@ async def handle_search(request: web.Request):
             "kd": 0,
             "tags": [],
             "bio": p.get("description") or "",
-            "tgUsername": "",
+            "tgUsername": usernames.get(p["user_id"], ""),
             "vibe": score,
             "hours": int(p.get("playtime") or 0) if (p.get("playtime") or "").isdigit() else 0,
             "level": None,
@@ -2253,6 +2264,13 @@ async def handle_profile_by_id(request: web.Request):
         return web.json_response({"error": "invalid user_id"}, status=400)
     await db.ensure_user(target_id, None, None, None)
     prof = await db.get_mini_app_profile(target_id)
+    tg_username = ""
+    try:
+        urow = await db.pool.fetchrow("SELECT username FROM users WHERE user_id = $1", target_id)
+        if urow:
+            tg_username = urow["username"] or ""
+    except Exception:
+        pass
     # Статус дружбы (проверяем обе стороны)
     friend_status = None
     if current_id and current_id != target_id:
@@ -2269,6 +2287,7 @@ async def handle_profile_by_id(request: web.Request):
         "nick": prof.get("nick"),
         "avatar": prof.get("avatar"),
         "bio": prof.get("bio"),
+        "tgUsername": tg_username,
         "friend_status": friend_status,
         "role": await _effective_role(request, db, target_id),
     })

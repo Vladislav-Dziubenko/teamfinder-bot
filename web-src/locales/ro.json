@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "Server supraîncărcat",
   "server_busy.desc": "Prea mulți utilizatori în acest moment. Vă rugăm să încercați din nou în câteva secunde.",
-  "server_busy.retry_hint": "Reîncercați automat în 5 secunde..."
+  "server_busy.retry_hint": "Reîncercați automat în 5 secunde...",
+  "contact_sheet.no_username_hint": "fără nume de utilizator - scrieți prin bot"
 }

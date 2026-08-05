@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "Serwer przeciążony",
   "server_busy.desc": "Obecnie jest zbyt wielu użytkowników. Spróbuj ponownie za kilka sekund.",
-  "server_busy.retry_hint": "Automatyczna ponowna próba za 5 s..."
+  "server_busy.retry_hint": "Automatyczna ponowna próba za 5 s...",
+  "contact_sheet.no_username_hint": "brak nazwy użytkownika — napisz przez bota"
 }

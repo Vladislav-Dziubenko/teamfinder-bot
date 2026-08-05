@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "Server overbelastet",
   "server_busy.desc": "For mange brukere akkurat nå. Prøv igjen om noen sekunder.",
-  "server_busy.retry_hint": "Prøv automatisk på nytt om 5 sekunder..."
+  "server_busy.retry_hint": "Prøv automatisk på nytt om 5 sekunder...",
+  "contact_sheet.no_username_hint": "ingen brukernavn - skriv via bot"
 }

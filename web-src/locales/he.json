@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "השרת עמוס יתר על המידה",
   "server_busy.desc": "יותר מדי משתמשים כרגע. אנא נסה שוב בעוד מספר שניות.",
-  "server_busy.retry_hint": "נסה שוב אוטומטית בעוד 5 שניות..."
+  "server_busy.retry_hint": "נסה שוב אוטומטית בעוד 5 שניות...",
+  "contact_sheet.no_username_hint": "ללא שם משתמש - כתוב דרך בוט"
 }

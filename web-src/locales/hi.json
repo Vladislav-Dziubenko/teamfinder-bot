@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "सर्वर ओवरलोड हो गया",
   "server_busy.desc": "अभी बहुत सारे उपयोगकर्ता हैं. कृपया कुछ सेकंड में पुनः प्रयास करें.",
-  "server_busy.retry_hint": "5 सेकंड में स्वतः पुनः प्रयास करें..."
+  "server_busy.retry_hint": "5 सेकंड में स्वतः पुनः प्रयास करें...",
+  "contact_sheet.no_username_hint": "कोई उपयोगकर्ता नाम नहीं - बॉट के माध्यम से लिखें"
 }

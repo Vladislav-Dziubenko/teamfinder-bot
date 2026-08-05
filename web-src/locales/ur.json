@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "سرور اوور لوڈ ہو گیا۔",
   "server_busy.desc": "اس وقت بہت زیادہ صارفین ہیں۔ براہ کرم چند سیکنڈ میں دوبارہ کوشش کریں۔",
-  "server_busy.retry_hint": "5 سیکنڈ میں از خود دوبارہ کوشش کریں..."
+  "server_busy.retry_hint": "5 سیکنڈ میں از خود دوبارہ کوشش کریں...",
+  "contact_sheet.no_username_hint": "کوئی صارف نام نہیں — بوٹ کے ذریعے لکھیں۔"
 }

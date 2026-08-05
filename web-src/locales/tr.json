@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "Sunucu aşırı yüklendi",
   "server_busy.desc": "Şu anda çok fazla kullanıcı var. Lütfen birkaç saniye sonra tekrar deneyin.",
-  "server_busy.retry_hint": "5 saniye içinde otomatik yeniden dene..."
+  "server_busy.retry_hint": "5 saniye içinde otomatik yeniden dene...",
+  "contact_sheet.no_username_hint": "kullanıcı adı yok — bot aracılığıyla yaz"
 }

@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "Υπερφορτωμένος διακομιστής",
   "server_busy.desc": "Πάρα πολλοί χρήστες αυτήν τη στιγμή. Δοκιμάστε ξανά σε λίγα δευτερόλεπτα.",
-  "server_busy.retry_hint": "Αυτόματη επανάληψη σε 5 δευτερόλεπτα..."
+  "server_busy.retry_hint": "Αυτόματη επανάληψη σε 5 δευτερόλεπτα...",
+  "contact_sheet.no_username_hint": "χωρίς όνομα χρήστη — γράψτε μέσω bot"
 }

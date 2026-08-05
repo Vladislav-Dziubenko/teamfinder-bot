@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "Overloaded ang server",
   "server_busy.desc": "Masyadong maraming user ngayon. Pakisubukang muli sa loob ng ilang segundo.",
-  "server_busy.retry_hint": "Auto-retry sa loob ng 5s..."
+  "server_busy.retry_hint": "Auto-retry sa loob ng 5s...",
+  "contact_sheet.no_username_hint": "walang username — sumulat sa pamamagitan ng bot"
 }

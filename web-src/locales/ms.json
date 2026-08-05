@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "Pelayan terlebih muatan",
   "server_busy.desc": "Terlalu ramai pengguna sekarang. Sila cuba lagi dalam beberapa saat.",
-  "server_busy.retry_hint": "Auto-cuba semula dalam 5s..."
+  "server_busy.retry_hint": "Auto-cuba semula dalam 5s...",
+  "contact_sheet.no_username_hint": "tiada nama pengguna — tulis melalui bot"
 }

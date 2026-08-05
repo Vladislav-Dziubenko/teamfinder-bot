@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "서버 과부하",
   "server_busy.desc": "현재 사용자가 너무 많습니다. 몇 초 후에 다시 시도해 주세요.",
-  "server_busy.retry_hint": "5초 안에 자동 재시도..."
+  "server_busy.retry_hint": "5초 안에 자동 재시도...",
+  "contact_sheet.no_username_hint": "사용자 이름 없음 — 봇을 통해 작성"
 }

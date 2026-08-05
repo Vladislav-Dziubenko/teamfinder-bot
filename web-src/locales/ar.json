@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "الخادم مثقل",
   "server_busy.desc": "يوجد عدد كبير جدًا من المستخدمين في الوقت الحالي. يرجى المحاولة مرة أخرى في بضع ثوان.",
-  "server_busy.retry_hint": "إعادة المحاولة تلقائيًا خلال 5 ثوانٍ..."
+  "server_busy.retry_hint": "إعادة المحاولة تلقائيًا خلال 5 ثوانٍ...",
+  "contact_sheet.no_username_hint": "لا يوجد اسم مستخدم - اكتب عبر الروبوت"
 }

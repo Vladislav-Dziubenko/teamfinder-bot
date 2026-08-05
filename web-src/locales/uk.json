@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Посмотри 15 реклам и получи +{stars} ⭐",
   "server_busy.title": "Сервер перевантажений",
   "server_busy.desc": "Зараз забагато користувачів. Повторіть спробу через кілька секунд.",
-  "server_busy.retry_hint": "Автоматичний повтор через 5 секунд..."
+  "server_busy.retry_hint": "Автоматичний повтор через 5 секунд...",
+  "contact_sheet.no_username_hint": "немає логіна — пишіть через бота"
 }

@@ -1,9 +1,10 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, Send, MessageCircle, UserPlus, UserCheck, Check, Loader2 } from "lucide-react"
+import { X, Send, MessageCircle, UserPlus, UserCheck, Check, Loader2, Clock } from "lucide-react"
 import type { Player } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
+import { useNexus } from "@/lib/store"
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 
@@ -15,6 +16,8 @@ export function ContactSheet({
   onClose: () => void
 }) {
   const { t } = useI18n()
+  const { referralBotUrl } = useNexus()
+  const botLink = (referralBotUrl || "https://t.me/NexusTeammatesBot").replace(/\/+$/, "")
   const [invited, setInvited] = useState(false)
   const [message, setMessage] = useState("")
   const [sent, setSent] = useState(false)
@@ -87,7 +90,7 @@ export function ContactSheet({
 
         {/* Telegram social link */}
         <a
-          href={`https://t.me/${player.tgUsername}`}
+          href={player.tgUsername ? `https://t.me/${player.tgUsername}` : `${botLink}?start=profile_${player.id}`}
           target="_blank"
           rel="noopener noreferrer"
           className="mt-4 flex items-center justify-between rounded-2xl border border-accent/30 bg-accent/10 p-3 transition-transform active:scale-[0.98]"
@@ -98,7 +101,9 @@ export function ContactSheet({
             </span>
             <span className="leading-tight">
               <span className="block text-sm font-semibold text-foreground">{t("contact_sheet.write_telegram")}</span>
-              <span className="block text-xs text-accent">@{player.tgUsername}</span>
+              <span className="block text-xs text-accent">
+                {player.tgUsername ? `@${player.tgUsername}` : t("contact_sheet.no_username_hint")}
+              </span>
             </span>
           </span>
           <span className="text-xs font-medium text-muted-foreground">{t("contact_sheet.open")}</span>

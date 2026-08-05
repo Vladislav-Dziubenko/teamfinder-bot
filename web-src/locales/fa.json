@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "سرور بیش از حد بارگذاری شده است",
   "server_busy.desc": "در حال حاضر کاربران بسیار زیادی هستند. لطفاً چند ثانیه دیگر دوباره امتحان کنید.",
-  "server_busy.retry_hint": "امتحان مجدد خودکار در 5 ثانیه..."
+  "server_busy.retry_hint": "امتحان مجدد خودکار در 5 ثانیه...",
+  "contact_sheet.no_username_hint": "بدون نام کاربری - از طریق ربات بنویسید"
 }

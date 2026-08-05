@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "A szerver túlterhelt",
   "server_busy.desc": "Túl sok felhasználó jelenleg. Kérjük, próbálja újra néhány másodperc múlva.",
-  "server_busy.retry_hint": "Automatikus újrapróbálkozás 5 másodperc múlva..."
+  "server_busy.retry_hint": "Automatikus újrapróbálkozás 5 másodperc múlva...",
+  "contact_sheet.no_username_hint": "nincs felhasználónév – írja be a bot segítségével"
 }

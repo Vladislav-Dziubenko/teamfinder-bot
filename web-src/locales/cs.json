@@ -481,5 +481,6 @@
   "cases.ad_achievement_desc": "Watch 15 ads and get +{stars} stars",
   "server_busy.title": "Server přetížen",
   "server_busy.desc": "Právě teď je příliš mnoho uživatelů. Zkuste to znovu za několik sekund.",
-  "server_busy.retry_hint": "Automatické opakování za 5 s..."
+  "server_busy.retry_hint": "Automatické opakování za 5 s...",
+  "contact_sheet.no_username_hint": "žádné uživatelské jméno – pište přes bot"
 }
