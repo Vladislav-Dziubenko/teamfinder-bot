@@ -140,7 +140,13 @@ async def pay_premium_application(callback: CallbackQuery, bot: Bot, settings: S
 
 
 @router.pre_checkout_query()
-async def pre_checkout(query: PreCheckoutQuery):
+async def pre_checkout(query: PreCheckoutQuery, db: Database):
+    """Отклоняем оплату забаненным — Telegram шлёт этот колбэк до списания
+    средств и для инвойсов из ЛС бота, и для Mini App (XTR)."""
+    if query.from_user and await db.is_globally_banned(query.from_user.id):
+        logging.warning("pre_checkout rejected for banned user_id=%s payload=%s", query.from_user.id, query.invoice_payload)
+        await query.answer(ok=False, error_message="Аккаунт заблокирован. Обратитесь к модерации.")
+        return
     await query.answer(ok=True)
 
 
