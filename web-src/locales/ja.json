@@ -710,5 +710,6 @@
   "consent.cb2": "私はサービスを自発的に利用し、自分の行動に責任があることを理解しています",
   "consent.accept": "受け入れて続行します",
   "consent.agree_all": "続行するには両方のボックスにチェックを入れてください",
-  "consent.version": "契約バージョン: v{version}"
+  "consent.version": "契約バージョン: v{version}",
+  "welcome_bonus.toast": "🎁 ウェルカムボーナス: 500 ⭐、プレミアムケース 10 個、無料プロフィールロック解除 10 個!"
 }

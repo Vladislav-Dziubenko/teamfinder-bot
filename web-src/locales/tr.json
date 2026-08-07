@@ -710,5 +710,6 @@
   "consent.cb2": "Hizmeti gönüllü olarak kullandığımı ve kendi eylemlerimin sorumluluğunu aldığımı anlıyorum.",
   "consent.accept": "Kabul et ve devam et",
   "consent.agree_all": "Devam etmek için her iki kutuyu da işaretleyin",
-  "consent.version": "Anlaşma sürümü: v{version}"
+  "consent.version": "Anlaşma sürümü: v{version}",
+  "welcome_bonus.toast": "🎁 Hoşgeldin bonusu: 500 ⭐, 10 premium kasa ve 10 ücretsiz profil kilidi açma!"
 }

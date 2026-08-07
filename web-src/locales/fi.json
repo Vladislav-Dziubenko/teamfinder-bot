@@ -710,5 +710,6 @@
   "consent.cb2": "Ymmärrän, että käytän palvelua vapaaehtoisesti ja otan vastuun omasta toiminnastani",
   "consent.accept": "Hyväksy ja jatka",
   "consent.agree_all": "Valitse molemmat ruudut jatkaaksesi",
-  "consent.version": "Sopimusversio: v{version}"
+  "consent.version": "Sopimusversio: v{version}",
+  "welcome_bonus.toast": "🎁 Tervetuliaisbonus: 500 ⭐, 10 premium-koteloa ja 10 ilmaista profiilin avausta!"
 }

@@ -710,5 +710,6 @@
   "consent.cb2": "Beru na vědomí, že službu využívám dobrovolně a beru odpovědnost za své vlastní činy",
   "consent.accept": "Přijmout a pokračovat",
   "consent.agree_all": "Chcete-li pokračovat, zaškrtněte obě políčka",
-  "consent.version": "Verze smlouvy: v{version}"
+  "consent.version": "Verze smlouvy: v{version}",
+  "welcome_bonus.toast": "🎁 Uvítací bonus: 500 ⭐, 10 prémiových pouzder a 10 bezplatných odemknutí profilu!"
 }

@@ -710,5 +710,6 @@
   "consent.cb2": "Entendo que uso o serviço voluntariamente e assumo a responsabilidade por minhas próprias ações",
   "consent.accept": "Aceite e continue",
   "consent.agree_all": "Marque ambas as caixas para continuar",
-  "consent.version": "Versão do contrato: v{version}"
+  "consent.version": "Versão do contrato: v{version}",
+  "welcome_bonus.toast": "🎁 Bônus de boas-vindas: 500 ⭐, 10 caixas premium e 10 desbloqueios de perfil gratuitos!"
 }

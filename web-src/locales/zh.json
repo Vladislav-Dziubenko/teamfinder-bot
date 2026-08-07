@@ -710,5 +710,6 @@
   "consent.cb2": "我了解我自愿使用该服务并对自己的行为负责",
   "consent.accept": "接受并继续",
   "consent.agree_all": "选中两个框以继续",
-  "consent.version": "协议版本：v{version}"
+  "consent.version": "协议版本：v{version}",
+  "welcome_bonus.toast": "🎁 欢迎奖金：500 ⭐、10 个高级案例和 10 个免费个人资料解锁！"
 }

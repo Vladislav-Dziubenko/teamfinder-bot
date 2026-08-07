@@ -710,5 +710,6 @@
   "consent.cb2": "Mir ist bewusst, dass ich den Dienst freiwillig nutze und die Verantwortung für mein eigenes Handeln übernehme",
   "consent.accept": "Akzeptieren und fortfahren",
   "consent.agree_all": "Aktivieren Sie beide Kontrollkästchen, um fortzufahren",
-  "consent.version": "Vereinbarungsversion: v{version}"
+  "consent.version": "Vereinbarungsversion: v{version}",
+  "welcome_bonus.toast": "🎁 Willkommensbonus: 500 ⭐, 10 Premium-Hüllen und 10 kostenlose Profilfreischaltungen!"
 }

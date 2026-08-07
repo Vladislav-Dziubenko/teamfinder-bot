@@ -710,5 +710,6 @@
   "consent.cb2": "I understand that I use the service voluntarily and take responsibility for my own actions",
   "consent.accept": "Accept and continue",
   "consent.agree_all": "Check both boxes to continue",
-  "consent.version": "Agreement version: v{version}"
+  "consent.version": "Agreement version: v{version}",
+  "welcome_bonus.toast": "🎁 Welcome bonus: 500 ⭐, 10 premium cases and 10 free profile unlocks!"
 }

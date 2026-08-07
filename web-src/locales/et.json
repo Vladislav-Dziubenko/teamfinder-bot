@@ -710,5 +710,6 @@
   "consent.cb2": "Mõistan, et kasutan teenust vabatahtlikult ja vastutan oma tegude eest ise",
   "consent.accept": "Nõustu ja jätka",
   "consent.agree_all": "Jätkamiseks märkige mõlemad ruudud",
-  "consent.version": "Lepingu versioon: v{version}"
+  "consent.version": "Lepingu versioon: v{version}",
+  "welcome_bonus.toast": "🎁 Tervitusboonus: 500 ⭐, 10 esmaklassilist ümbrist ja 10 tasuta profiili avamist!"
 }

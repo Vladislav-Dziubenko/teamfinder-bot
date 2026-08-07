@@ -710,5 +710,6 @@
   "consent.cb2": "Jeg forstår, at jeg bruger tjenesten frivilligt og tager ansvar for mine egne handlinger",
   "consent.accept": "Accepter og fortsæt",
   "consent.agree_all": "Marker begge felter for at fortsætte",
-  "consent.version": "Aftaleversion: v{version}"
+  "consent.version": "Aftaleversion: v{version}",
+  "welcome_bonus.toast": "🎁 Velkomstbonus: 500 ⭐, 10 premium covers og 10 gratis profiloplåsninger!"
 }

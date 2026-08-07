@@ -74,6 +74,7 @@ type MeResponse = {
   case_cooldowns: Record<string, string | null>
   free_gold_opens?: number
   consent?: number
+  welcome_bonus?: boolean
   premium_active: boolean
   promos?: Array<{
     code: string
@@ -148,6 +149,7 @@ type PersistedState = {
   betaBalance: number
   freeGoldOpens: number
   consentVersion: number
+  welcomeBonus: boolean
 }
 
 function makeReferralCode() {
@@ -308,6 +310,7 @@ function defaultState(): PersistedState {
     betaBalance: 0,
     freeGoldOpens: 0,
     consentVersion: 0,
+    welcomeBonus: false,
   }
 }
 
@@ -389,6 +392,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     betaBalance: me.beta_state?.case_balance ?? 0,
     freeGoldOpens: me.free_gold_opens ?? 0,
     consentVersion: me.consent ?? 0,
+    welcomeBonus: !!me.welcome_bonus,
   }
 }
 
@@ -821,6 +825,15 @@ export function NexusProvider({ children }: { children: ReactNode }) {
 
     const unlockPlayer = async (id: string, cost: number) => {
       if (s.unlockedPlayers.includes(id)) return true
+      // Сначала пробуем бесплатное открытие анкеты (приветственный бонус
+      // и т.п.) — сервер сам списывает free_contact_opens.
+      try {
+        const free = await api.post("/api/nexus/unlock-contact", { user_id: Number(id) })
+        if (free.ok) {
+          setS((p: PersistedState) => ({ ...p, unlockedPlayers: [...p.unlockedPlayers, id] }))
+          return true
+        }
+      } catch {}
       if (s.stars < cost) return false
       const ok = await spendStars(cost)
       if (ok) {

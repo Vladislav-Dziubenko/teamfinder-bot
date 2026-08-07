@@ -710,5 +710,6 @@
   "consent.cb2": "Es saprotu, ka pakalpojumu izmantoju brīvprātīgi un uzņemos atbildību par savu rīcību",
   "consent.accept": "Pieņemiet un turpiniet",
   "consent.agree_all": "Lai turpinātu, atzīmējiet abas izvēles rūtiņas",
-  "consent.version": "Līguma versija: v{version}"
+  "consent.version": "Līguma versija: v{version}",
+  "welcome_bonus.toast": "🎁 Iepazīšanās bonuss: 500 ⭐, 10 premium futrāļi un 10 bezmaksas profila atbloķēšanas reizes!"
 }

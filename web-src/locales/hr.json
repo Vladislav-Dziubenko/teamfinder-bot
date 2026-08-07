@@ -710,5 +710,6 @@
   "consent.cb2": "Razumijem da dobrovoljno koristim uslugu i preuzimam odgovornost za svoje postupke",
   "consent.accept": "Prihvati i nastavi",
   "consent.agree_all": "Označite oba okvira za nastavak",
-  "consent.version": "Verzija ugovora: v{version}"
+  "consent.version": "Verzija ugovora: v{version}",
+  "welcome_bonus.toast": "🎁 Bonus dobrodošlice: 500 ⭐, 10 premium futrola i 10 besplatnih otključavanja profila!"
 }

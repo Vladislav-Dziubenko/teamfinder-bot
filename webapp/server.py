@@ -443,6 +443,11 @@ async def handle_me(request: web.Request):
     if await rate_limit_check(f"me:{user['id']}", ME_RATE_LIMIT, ME_RATE_WINDOW):
         return web.json_response({"error": "slow down"}, status=429)
 
+    # Приветственный бонус — один раз при первом входе в Mini App:
+    # 500 ⭐, 10 бесплатных открытий премиум-кейса, 10 бесплатных открытий анкет.
+    # Считается до gather, чтобы в ответе оказался уже обновлённый баланс.
+    welcome_bonus = await db.claim_welcome_bonus(user["id"])
+
     # Независимые запросы выполняются параллельно — пул max=10,
     # gather использует до 9 коннектов одновременно, остальные ждут.
     currency, mini_profile, inventory, battlepass, streak, referral, achievements, premium_active, ad_state = await asyncio.gather(
@@ -488,6 +493,7 @@ async def handle_me(request: web.Request):
         "is_beta": is_beta,
         "beta_state": beta_state,
         "consent": consent,
+        "welcome_bonus": welcome_bonus,
         "currency": currency,
         "mini_profile": mini_profile if mini_profile else {"games": []},
         "inventory": inventory,
@@ -1706,6 +1712,45 @@ async def handle_nexus_spend_stars(request: web.Request):
         return web.json_response({"error": "not enough stars"}, status=400)
 
     return web.json_response({"ok": True})
+
+
+async def handle_nexus_unlock_contact(request: web.Request):
+    """Бесплатное открытие анкеты (контакта) игрока.
+
+    Использует баланс free_contact_opens (приветственный бонус и т.п.).
+    Если бесплатных открытий нет — возвращает ошибку, клиент фолбэком
+    списывает звёзды как раньше.
+    """
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    try:
+        target_user_id = int(body.get("user_id") or 0)
+    except (TypeError, ValueError):
+        target_user_id = 0
+    if target_user_id <= 0:
+        return web.json_response({"error": "user_id required"}, status=400)
+
+    async with db.pool.acquire() as conn:
+        profile = await conn.fetchrow(
+            "SELECT id FROM profiles WHERE user_id = $1 AND is_active = 1 ORDER BY updated_at DESC LIMIT 1",
+            target_user_id,
+        )
+        if not profile:
+            return web.json_response({"error": "profile not found"}, status=404)
+        profile_id = profile["id"]
+        if await conn.fetchrow(
+            "SELECT 1 FROM contact_unlocks WHERE user_id = $1 AND profile_id = $2",
+            user["id"], profile_id,
+        ):
+            return web.json_response({"error": "already unlocked"}, status=400)
+        async with conn.transaction():
+            used = await db.consume_free_contact_open(user["id"], conn)
+            if not used:
+                return web.json_response({"error": "no free contact opens"}, status=400)
+            await db.unlock_contact(user["id"], profile_id)
+
+    return web.json_response({"ok": True, "used_free": True})
 
 
 async def handle_nexus_buy_star_pack(request: web.Request):
@@ -3093,6 +3138,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/nexus/shop/buy", handle_nexus_buy)
     app.router.add_post("/api/nexus/exchange", handle_nexus_exchange)
     app.router.add_post("/api/nexus/spend-stars", handle_nexus_spend_stars)
+    app.router.add_post("/api/nexus/unlock-contact", handle_nexus_unlock_contact)
     app.router.add_post("/api/nexus/buy-star-pack", handle_nexus_buy_star_pack)
     app.router.add_get("/api/nexus/model/state", handle_nexus_model_state)
     app.router.add_post("/api/nexus/transfer-stars", handle_nexus_transfer_stars)

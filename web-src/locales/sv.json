@@ -710,5 +710,6 @@
   "consent.cb2": "Jag förstår att jag använder tjänsten frivilligt och tar ansvar för mina egna handlingar",
   "consent.accept": "Acceptera och fortsätt",
   "consent.agree_all": "Markera båda rutorna för att fortsätta",
-  "consent.version": "Avtalsversion: v{version}"
+  "consent.version": "Avtalsversion: v{version}",
+  "welcome_bonus.toast": "🎁 Välkomstbonus: 500 ⭐, 10 premiumfodral och 10 gratis profilupplåsningar!"
 }

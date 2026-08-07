@@ -506,6 +506,12 @@ class Database:
             pass
 
         try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS welcome_claimed INTEGER DEFAULT 0")
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_contact_opens INTEGER DEFAULT 0")
+        except asyncpg.PostgresError:
+            pass
+
+        try:
             await conn.execute("ALTER TABLE team_applications ADD COLUMN IF NOT EXISTS is_premium INTEGER DEFAULT 0")
         except asyncpg.PostgresError:
             pass
@@ -968,6 +974,41 @@ class Database:
                 "UPDATE users SET consent_version = $1, consent_at = $2 WHERE user_id = $3",
                 version, datetime.utcnow().isoformat(), user_id,
             )
+
+    # Welcome-бонус: выдаётся один раз при первом входе в Mini App.
+    # 500 звёзд + 10 бесплатных открытий премиум-кейса + 10 бесплатных
+    # открытий анкет (контактов). Идемпотентно: флаг welcome_claimed.
+    WELCOME_STARS = 500
+    WELCOME_GOLD_OPENS = 10
+    WELCOME_CONTACT_OPENS = 10
+
+    async def claim_welcome_bonus(self, user_id: int) -> bool:
+        """Начисляет приветственный бонус, если ещё не начислен. True — бонус выдан."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                claimed = await conn.fetchval(
+                    "UPDATE users SET welcome_claimed = 1, free_gold_opens = free_gold_opens + $1, free_contact_opens = free_contact_opens + $2 WHERE user_id = $3 AND welcome_claimed = 0 RETURNING 1",
+                    self.WELCOME_GOLD_OPENS, self.WELCOME_CONTACT_OPENS, user_id,
+                )
+                if not claimed:
+                    return False
+                await conn.execute(
+                    "INSERT INTO user_currency (user_id, coins, stars, points, updated_at) VALUES ($1, 0, $2, 0, $3) ON CONFLICT (user_id) DO UPDATE SET stars = stars + $2, updated_at = EXCLUDED.updated_at",
+                    user_id, self.WELCOME_STARS, datetime.utcnow().isoformat(),
+                )
+                return True
+
+    async def consume_free_contact_open(self, user_id: int, conn: asyncpg.Connection | None = None) -> bool:
+        """Списывает одно бесплатное открытие анкеты, если есть. True — списано."""
+        async def _exec(c: asyncpg.Connection) -> bool:
+            return await c.fetchval(
+                "UPDATE users SET free_contact_opens = free_contact_opens - 1 WHERE user_id = $1 AND free_contact_opens > 0 RETURNING free_contact_opens",
+                user_id,
+            ) is not None
+        if conn:
+            return await _exec(conn)
+        async with self.pool.acquire() as c:
+            return await _exec(c)
 
     async def save_profile(self, data: dict) -> None:
         now = datetime.utcnow().isoformat()

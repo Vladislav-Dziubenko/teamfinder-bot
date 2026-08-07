@@ -710,5 +710,6 @@
   "consent.cb2": "Jeg forstår at jeg bruker tjenesten frivillig og tar ansvar for mine egne handlinger",
   "consent.accept": "Godta og fortsett",
   "consent.agree_all": "Merk av i begge boksene for å fortsette",
-  "consent.version": "Avtaleversjon: v{version}"
+  "consent.version": "Avtaleversjon: v{version}",
+  "welcome_bonus.toast": "🎁 Velkomstbonus: 500 ⭐, 10 premium-deksler og 10 gratis profilopplåsninger!"
 }

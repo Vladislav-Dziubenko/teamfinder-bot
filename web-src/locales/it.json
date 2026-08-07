@@ -710,5 +710,6 @@
   "consent.cb2": "Comprendo che utilizzo il servizio volontariamente e mi assumo la responsabilità delle mie azioni",
   "consent.accept": "Accetta e continua",
   "consent.agree_all": "Seleziona entrambe le caselle per continuare",
-  "consent.version": "Versione del contratto: v{version}"
+  "consent.version": "Versione del contratto: v{version}",
+  "welcome_bonus.toast": "🎁 Bonus di benvenuto: 500 ⭐, 10 custodie premium e 10 sblocchi gratuiti del profilo!"
 }

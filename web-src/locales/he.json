@@ -710,5 +710,6 @@
   "consent.cb2": "אני מבין שאני משתמש בשירות בהתנדבות ולוקח אחריות על מעשיי",
   "consent.accept": "קבל והמשך",
   "consent.agree_all": "סמן את שתי התיבות כדי להמשיך",
-  "consent.version": "גרסת הסכם: v{version}"
+  "consent.version": "גרסת הסכם: v{version}",
+  "welcome_bonus.toast": "🎁 בונוס קבלת פנים: 500 ⭐, 10 מקרים פרימיום ו-10 פתיחת פרופיל בחינם!"
 }

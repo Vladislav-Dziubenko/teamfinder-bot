@@ -42,12 +42,21 @@ function TabFallback() {
 function Shell() {
   const { t } = useI18n()
   const me = useMe()
-  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded } = useNexus()
+  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus } = useNexus()
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState<{ chatId: string; player: Player } | null>(null)
   const [sharedProfileId, setSharedProfileId] = useState<number | null>(null)
+  const [welcomeShown, setWelcomeShown] = useState(false)
+
+  // Приветственный бонус (первый вход): показываем тост с составом награды.
+  useEffect(() => {
+    if (welcomeBonus && !welcomeShown) {
+      setWelcomeShown(true)
+      setToast(t("welcome_bonus.toast"))
+    }
+  }, [welcomeBonus, welcomeShown, t])
 
   // Auto-recover from server busy: poll /health every 5s, dismiss overlay when OK
   useEffect(() => {

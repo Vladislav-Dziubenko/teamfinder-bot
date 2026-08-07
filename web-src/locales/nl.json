@@ -710,5 +710,6 @@
   "consent.cb2": "Ik begrijp dat ik de dienst vrijwillig gebruik en de verantwoordelijkheid neem voor mijn eigen daden",
   "consent.accept": "Accepteer en ga door",
   "consent.agree_all": "Vink beide vakjes aan om door te gaan",
-  "consent.version": "Overeenkomstversie: v{version}"
+  "consent.version": "Overeenkomstversie: v{version}",
+  "welcome_bonus.toast": "🎁 Welkomstbonus: 500 ⭐, 10 premium cases en 10 gratis profielontgrendelingen!"
 }

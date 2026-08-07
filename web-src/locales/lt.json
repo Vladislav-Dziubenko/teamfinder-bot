@@ -710,5 +710,6 @@
   "consent.cb2": "Suprantu, kad naudojuosi paslauga savo noru ir prisiimu atsakomybę už savo veiksmus",
   "consent.accept": "Priimk ir tęsk",
   "consent.agree_all": "Norėdami tęsti, pažymėkite abu langelius",
-  "consent.version": "Sutarties versija: v{version}"
+  "consent.version": "Sutarties versija: v{version}",
+  "welcome_bonus.toast": "🎁 Sveikinimo premija: 500 ⭐, 10 aukščiausios kokybės dėklų ir 10 nemokamų profilių atrakinimo!"
 }

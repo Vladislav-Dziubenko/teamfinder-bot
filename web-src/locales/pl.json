@@ -710,5 +710,6 @@
   "consent.cb2": "Rozumiem, że korzystam z usługi dobrowolnie i biorę odpowiedzialność za swoje czyny",
   "consent.accept": "Zaakceptuj i kontynuuj",
   "consent.agree_all": "Zaznacz oba pola, aby kontynuować",
-  "consent.version": "Wersja umowy: v{version}"
+  "consent.version": "Wersja umowy: v{version}",
+  "welcome_bonus.toast": "🎁 Bonus powitalny: 500 ⭐, 10 skrzynek premium i 10 bezpłatnych odblokowań profili!"
 }

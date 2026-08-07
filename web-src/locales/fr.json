@@ -710,5 +710,6 @@
   "consent.cb2": "Je comprends que j'utilise le service volontairement et que j'assume la responsabilité de mes propres actions",
   "consent.accept": "Accepter et continuer",
   "consent.agree_all": "Cochez les deux cases pour continuer",
-  "consent.version": "Version du contrat : v{version}"
+  "consent.version": "Version du contrat : v{version}",
+  "welcome_bonus.toast": "🎁 Bonus de bienvenue : 500 ⭐, 10 coques premium et 10 déverrouillages de profil gratuits !"
 }

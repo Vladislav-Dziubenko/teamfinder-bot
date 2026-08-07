@@ -710,5 +710,6 @@
   "consent.cb2": "Entiendo que uso el servicio voluntariamente y asumo la responsabilidad de mis propias acciones.",
   "consent.accept": "Aceptar y continuar",
   "consent.agree_all": "Marque ambas casillas para continuar",
-  "consent.version": "Versión del acuerdo: v{version}"
+  "consent.version": "Versión del acuerdo: v{version}",
+  "welcome_bonus.toast": "🎁 Bono de bienvenida: 500 ⭐, 10 estuches premium y 10 desbloqueos de perfiles gratuitos."
 }

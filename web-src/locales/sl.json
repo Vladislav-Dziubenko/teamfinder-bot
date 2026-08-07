@@ -710,5 +710,6 @@
   "consent.cb2": "Razumem, da storitev uporabljam prostovoljno in prevzemam odgovornost za svoja dejanja",
   "consent.accept": "Sprejmi in nadaljuj",
   "consent.agree_all": "Za nadaljevanje označite obe polji",
-  "consent.version": "Različica pogodbe: v{version}"
+  "consent.version": "Različica pogodbe: v{version}",
+  "welcome_bonus.toast": "🎁 Bonus dobrodošlice: 500 ⭐, 10 vrhunskih etuijev in 10 brezplačnih odklepanj profila!"
 }
