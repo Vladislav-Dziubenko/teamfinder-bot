@@ -82,35 +82,50 @@ async def rate_limit_check(user_id: int | str, limit: int, window: int) -> bool:
       - ZCOUNT считает запросы за последние `window` секунд
       - EXPIRE сбрасывает TTL ключа на window секунд (Redis удалит сам)
     """
+    return (await rate_limit_checks([(user_id, limit, window)]))[0]
+
+
+async def rate_limit_checks(checks: list[tuple[str, int, int]]) -> list[bool]:
+    """Проверяет несколько rate-limit ключей одним Redis pipeline.
+
+    Каждый элемент: (ключ, лимит, окно). Возвращает список bool —
+    True если соответствующий ключ превысил лимит.
+
+    Это один RTT вместо N отдельных rate_limit_check — критично, потому
+    что проверки выполняются для КАЖДОГО /api запроса (IP + global + user).
+    """
     r = get_redis()
-    if r is not None:
-        key = f"rate:{user_id}"
-        try:
-            now = time()
-            window_start = now - window
-
-            pipe = r.pipeline()
-            pipe.zadd(key, {str(now): now})
-            pipe.zcount(key, window_start, "+inf")
-            pipe.expire(key, window)
-            results = await pipe.execute()
-
-            count = results[1]
-            if count > limit:
-                return True
-            return False
-        except Exception as exc:
-            logger.warning("[redis] rate_limit_check error: %s", exc)
+    if r is None:
+        return [await rate_limit_check(k, l, w) for k, l, w in checks]
+    try:
+        now = time()
+        pipe = r.pipeline()
+        for key, limit, window in checks:
+            pipe.zadd(f"rate:{key}", {str(now): now})
+            pipe.zcount(f"rate:{key}", now - window, "+inf")
+            pipe.expire(f"rate:{key}", window)
+        results = await pipe.execute()
+        blocked = []
+        for i, (key, limit, window) in enumerate(checks):
+            count = results[i * 3 + 1]
+            blocked.append(count > limit)
+        return blocked
+    except Exception as exc:
+        logger.warning("[redis] rate_limit_checks error: %s", exc)
 
     # In-memory fallback when Redis is unavailable
-    key = f"mem_rate:{user_id}"
-    now = time()
-    window_start = now - window
-    _fallback_rates[key] = [t for t in _fallback_rates[key] if t > window_start]
-    if len(_fallback_rates[key]) >= limit:
-        return True  # лимит превышен
-    _fallback_rates[key].append(now)
-    return False
+    out = []
+    for key, limit, window in checks:
+        mem_key = f"mem_rate:{key}"
+        now = time()
+        window_start = now - window
+        _fallback_rates[mem_key] = [t for t in _fallback_rates[mem_key] if t > window_start]
+        if len(_fallback_rates[mem_key]) >= limit:
+            out.append(True)
+        else:
+            _fallback_rates[mem_key].append(now)
+            out.append(False)
+    return out
 
 
 async def counter_incr(key: str, ttl: int) -> int:

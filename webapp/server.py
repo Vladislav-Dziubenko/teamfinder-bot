@@ -39,7 +39,7 @@ from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
                             fetch_discord_connections, revoke_token, _make_state, _verify_state)
 from webapp.redis_client import (
     init_redis, close_redis,
-    rate_limit_check,
+    rate_limit_check, rate_limit_checks,
     counter_incr,
     cache_get, cache_set, cache_delete_pattern,
 )
@@ -408,9 +408,10 @@ async def ip_rate_limit_middleware(request: web.Request, handler):
     """
     if request.path.startswith("/api/"):
         ip = _client_ip(request)
-        if await rate_limit_check(f"ip:{ip}", IP_RATE_LIMIT, IP_RATE_WINDOW):
-            return web.json_response({"error": "slow down"}, status=429, headers={"Retry-After": "30"})
-        if await rate_limit_check("global", GLOBAL_RATE_LIMIT, GLOBAL_RATE_WINDOW):
+        blocked = await rate_limit_checks(
+            [(f"ip:{ip}", IP_RATE_LIMIT, IP_RATE_WINDOW), ("global", GLOBAL_RATE_LIMIT, GLOBAL_RATE_WINDOW)]
+        )
+        if blocked[0] or blocked[1]:
             return web.json_response({"error": "slow down"}, status=429, headers={"Retry-After": "30"})
     return await handler(request)
 
@@ -433,9 +434,7 @@ async def auth_middleware(request: web.Request, handler):
         is_public = any(request.path.startswith(p) for p in PUBLIC_API_PREFIXES)
         settings: Settings = request.app["settings"]
         init_data_raw = request.headers.get("X-Telegram-Init-Data", "")
-        logging.info(f"[AUTH] {request.method} {request.path} init_data_present={bool(init_data_raw)} init_data_len={len(init_data_raw)} is_public={is_public}")
         parsed = validate_init_data(init_data_raw, settings.bot_token)
-        logging.info(f"[AUTH] {request.path} parsed={parsed is not None} user_in_parsed={'user' in (parsed or {})}")
         if parsed and "user" in parsed:
             request["init_data"] = parsed
         elif not is_public:
