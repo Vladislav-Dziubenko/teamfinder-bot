@@ -40,6 +40,7 @@ from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
 from webapp.redis_client import (
     init_redis, close_redis,
     rate_limit_check,
+    counter_incr,
     cache_get, cache_set, cache_delete_pattern,
 )
 
@@ -118,6 +119,19 @@ WEB_RATE_WINDOW = 60
 # и повторные открытия приложения.
 ME_RATE_LIMIT = 12       # запросов
 ME_RATE_WINDOW = 60      # секунд
+
+# Per-IP и глобальный RPS для всех /api/* (Redis, sliding window).
+# У одного честного юзера 1-2 IP — лимит по IP срабатывает раньше, чем
+# per-user, и режет фермеров с альт-аккаунтов и ботнеты.
+# Глобальный лимит — верхний предохранитель от лавины.
+IP_RATE_LIMIT = 150       # запросов/мин с одного IP
+IP_RATE_WINDOW = 60
+GLOBAL_RATE_LIMIT = 3000  # суммарно на весь сервис
+GLOBAL_RATE_WINDOW = 60
+
+# Антифарм welcome-бонуса: не больше N выдач стартового капитала с одного IP.
+WELCOME_BONUS_IP_LIMIT = 3   # выдач
+WELCOME_BONUS_IP_WINDOW = 86400  # за 24 часа
 
 # Версия соглашения (онбординг: политика конфиденциальности + дисклеймер).
 # Показываем пользователю один раз; при изменении текста политики версию
@@ -384,6 +398,23 @@ async def web_rate_limit_middleware(request: web.Request, handler):
     return await handler(request)
 
 
+@web.middleware
+async def ip_rate_limit_middleware(request: web.Request, handler):
+    """Per-IP и глобальный RPS для /api/* — работает до auth (в т.ч. для публичных).
+
+    Счётчики в Redis (sliding window): rate:ip:{ip} и rate:global.
+    Лимит по IP режет фермеров с альт-аккаунтов (много user_id с 1-2 IP),
+    глобальный — предохранитель от лавины. Fail-open при недоступности Redis.
+    """
+    if request.path.startswith("/api/"):
+        ip = _client_ip(request)
+        if await rate_limit_check(f"ip:{ip}", IP_RATE_LIMIT, IP_RATE_WINDOW):
+            return web.json_response({"error": "slow down"}, status=429, headers={"Retry-After": "30"})
+        if await rate_limit_check("global", GLOBAL_RATE_LIMIT, GLOBAL_RATE_WINDOW):
+            return web.json_response({"error": "slow down"}, status=429, headers={"Retry-After": "30"})
+    return await handler(request)
+
+
 PUBLIC_API_PREFIXES = (
     "/api/games",
     "/api/leaderboard",
@@ -452,7 +483,14 @@ async def handle_me(request: web.Request):
     # Приветственный бонус — один раз при первом входе в Mini App:
     # 500 ⭐, 10 бесплатных открытий премиум-кейса, 10 бесплатных открытий анкет.
     # Считается до gather, чтобы в ответе оказался уже обновлённый баланс.
-    welcome_bonus = await db.claim_welcome_bonus(user["id"])
+    # Антифарм: не больше WELCOME_BONUS_IP_LIMIT выдач с одного IP за 24 часа.
+    # Счётчик INCR растёт только при реальной выдаче (после проверки welcome_claimed).
+    if await db.welcome_claimed(user["id"]):
+        welcome_bonus = False
+    elif await counter_incr(f"wbon:{_client_ip(request)}", WELCOME_BONUS_IP_WINDOW) > WELCOME_BONUS_IP_LIMIT:
+        welcome_bonus = False
+    else:
+        welcome_bonus = await db.claim_welcome_bonus(user["id"])
 
     # Независимые запросы выполняются параллельно — пул max=10,
     # gather использует до 9 коннектов одновременно, остальные ждут.
@@ -486,6 +524,10 @@ async def handle_me(request: web.Request):
 
     is_beta = await _effective_is_beta(request, db, user["id"])
 
+    # Антифрод рефералки: награда рефереру выплачивается не сразу при вводе кода,
+    # а когда приглашённый заполнил анкету и прошло ≥24ч (см. settle_referral_reward).
+    referral_settled = await db.settle_referral_reward(user["id"], REFERRAL_REWARD)
+
     # Ежедневная выдача бета-тестеру (200 кейсов + 10 000 ⭐) — идемпотентно раз в день.
     beta_state = None
     if is_beta:
@@ -506,6 +548,7 @@ async def handle_me(request: web.Request):
         "battlepass": battlepass,
         "streak": streak,
         "referral": referral,
+        "referral_settled": referral_settled,
         "achievements": achievements,
         "ad_state": ad_state,
         "cases": list(CASES_CONFIG.values()),
@@ -1282,7 +1325,6 @@ async def handle_nexus_open_case(request: web.Request):
                 else:
                     # Бета-тестер открывает премиум-кейс за накопленный бесплатный
                     # баланс (до 200/день, копится до 6000) вместо звёзд.
-                    is_beta = await _effective_is_beta(request, db, user["id"])
                     beta_free = body.get("beta_free") or is_beta
                     if beta_free and case_id == "gold":
                         beta_state = await db.get_beta_state(user["id"])
@@ -3089,13 +3131,14 @@ async def handle_client_error(request: web.Request):
 def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # Порядок middleware критичен — менять только осознанно:
     # 1. security_middleware     — самый внешний: CSP + security headers на любой ответ (включая ошибки)
-    # 2. error_middleware        — перехватывает все исключения, скрывает стектрейс от клиента
-    # 3. auth_middleware         — проверяет X-Telegram-Init-Data, пишет request["init_data"]
-    # 4. active_middleware      — обновляет last_active_at (fire-and-forget) для авторизованных
-    # 5. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
+    # 2. ip_rate_limit_middleware — per-IP + глобальный RPS на /api/* (до auth, работает и для публичных)
+    # 3. error_middleware        — перехватывает все исключения, скрывает стектрейс от клиента
+    # 4. auth_middleware         — проверяет X-Telegram-Init-Data, пишет request["init_data"]
+    # 5. active_middleware      — обновляет last_active_at (fire-and-forget) для авторизованных
+    # 6. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
     # Если поменять порядок — rate limiter получит init_data=None и вернёт 500.
-    # Порядок: security → timing → capacity → db_ready → cors → gzip → cache → error → auth → active → rate_limit
-    app = web.Application(middlewares=[security_middleware, timing_middleware, capacity_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, active_middleware, web_rate_limit_middleware])
+    # Порядок: security → ip_rate_limit → timing → capacity → db_ready → cors → gzip → cache → error → auth → active → rate_limit
+    app = web.Application(middlewares=[security_middleware, ip_rate_limit_middleware, timing_middleware, capacity_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, active_middleware, web_rate_limit_middleware])
     app["allowed_origins"] = _resolve_allowed_origins(settings)
     app["db"] = db
     app["settings"] = settings

@@ -113,6 +113,26 @@ async def rate_limit_check(user_id: int | str, limit: int, window: int) -> bool:
     return False
 
 
+async def counter_incr(key: str, ttl: int) -> int:
+    """Атомарно инкрементирует счётчик с TTL и возвращает новое значение.
+
+    Используется для антифрода (например, число выдач welcome-бонуса с IP
+    за 24 часа): INCR + EXPIRE при первом инкременте — без гонок.
+    При недоступности Redis возвращает 0 (никого не блокируем).
+    """
+    r = get_redis()
+    if r is None:
+        return 0
+    try:
+        val = await r.incr(key)
+        if val == 1:
+            await r.expire(key, ttl)
+        return val
+    except Exception as exc:
+        logger.warning("[redis] counter_incr error key=%s: %s", key, exc)
+        return 0
+
+
 # ---------------------------------------------------------------------------
 # Cache helpers (string JSON)
 # ---------------------------------------------------------------------------

@@ -783,6 +783,17 @@ class Database:
         except asyncpg.PostgresError as e:
             print(f"Migration warning adding referrals.referred_by: {e}")
 
+        # referred_at + referral_reward_paid — отложенная выплата награды рефереру
+        # (антифрод: награда не уходит мгновенно за ввод кода альт-аккаунтом)
+        try:
+            await conn.execute("ALTER TABLE referrals ADD COLUMN IF NOT EXISTS referred_at TEXT DEFAULT ''")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning adding referrals.referred_at: {e}")
+        try:
+            await conn.execute("ALTER TABLE referrals ADD COLUMN IF NOT EXISTS referral_reward_paid BOOLEAN DEFAULT FALSE")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning adding referrals.referral_reward_paid: {e}")
+
         if not already_applied:
             if await self._column_exists(conn, "promo_codes", "reward_json"):
                 try:
@@ -997,6 +1008,13 @@ class Database:
                     user_id, self.WELCOME_STARS, datetime.utcnow().isoformat(),
                 )
                 return True
+
+    async def welcome_claimed(self, user_id: int) -> bool:
+        """True если welcome-бонус этому юзеру уже выдан (быстрый SELECT по PK)."""
+        async with self.pool.acquire() as conn:
+            return bool(await conn.fetchval(
+                "SELECT welcome_claimed FROM users WHERE user_id = $1", user_id
+            ))
 
     async def consume_free_contact_open(self, user_id: int, conn: asyncpg.Connection | None = None) -> bool:
         """Списывает одно бесплатное открытие анкеты, если есть. True — списано."""
@@ -2215,6 +2233,12 @@ class Database:
                 }
 
     async def claim_referral_reward(self, referrer_user_id: int, referred_user_id: int, referral_reward: dict) -> bool:
+        """Привязывает реферала к рефереру и сразу платит награду ТОЛЬКО рефералу.
+
+        Награда реферера выплачивается позже — settle_referral_reward, когда
+        приглашённый проявил реальную активность (заполнил анкету и прошло ≥24ч).
+        Это блокирует мгновенный фрод «альт ввёл код → оба получили награду».
+        """
         if referrer_user_id == referred_user_id:
             return False
         now = datetime.utcnow().isoformat()
@@ -2227,22 +2251,65 @@ class Database:
                 if already:
                     return False
                 await conn.execute(
-                    "UPDATE referrals SET invited_count = invited_count + 1, referral_earned_coins = referral_earned_coins + $1, updated_at = $2 WHERE user_id = $3",
-                    referral_reward.get("coins", 0), now, referrer_user_id,
-                )
-                await conn.execute(
-                    "UPDATE referrals SET referred_by = $1, updated_at = $2 WHERE user_id = $3",
+                    "UPDATE referrals SET referred_by = $1, referred_at = $2, updated_at = $2 WHERE user_id = $3",
                     referrer_user_id, now, referred_user_id,
                 )
-                await self._adjust_currency_conn(
-                    conn,
-                    referrer_user_id,
-                    coins=referral_reward.get("coins", 0),
-                    stars=referral_reward.get("stars", 0),
+                await conn.execute(
+                    "UPDATE referrals SET invited_count = invited_count + 1, updated_at = $1 WHERE user_id = $2",
+                    now, referrer_user_id,
                 )
                 await self._adjust_currency_conn(
                     conn,
                     referred_user_id,
+                    coins=referral_reward.get("coins", 0),
+                    stars=referral_reward.get("stars", 0),
+                )
+                return True
+
+    async def settle_referral_reward(self, referred_user_id: int, referral_reward: dict) -> bool:
+        """Выплачивает награду рефереру, если реферал «созрел» (антифрод).
+
+        Условия зрелости:
+          - у реферала заполнена анкета (mini_app_profiles.games не пуст) —
+            фермерские альты обычно анкеты не заполняют;
+          - с момента ввода кода прошло ≥24 часов — фарм «за день» не окупается.
+        Идемпотентно: выплата ровно один раз (флаг referral_reward_paid).
+        """
+        now = datetime.utcnow()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    """
+                    SELECT r.referred_by, r.referred_at, r.referral_reward_paid,
+                           COALESCE(NULLIF(mp.games, ''), '') <> '' AS has_profile
+                    FROM referrals r
+                    LEFT JOIN mini_app_profiles mp ON mp.user_id = r.user_id
+                    WHERE r.user_id = $1 AND r.referred_by IS NOT NULL
+                    FOR UPDATE OF r
+                    """,
+                    referred_user_id,
+                )
+                if not row or row["referral_reward_paid"] or not row["referred_by"]:
+                    return False
+                if not row["has_profile"]:
+                    return False
+                try:
+                    referred_at = datetime.fromisoformat(row["referred_at"]) if row["referred_at"] else None
+                except (ValueError, TypeError):
+                    referred_at = None
+                if not referred_at or (now - referred_at).total_seconds() < 24 * 3600:
+                    return False
+                await conn.execute(
+                    "UPDATE referrals SET referral_reward_paid = TRUE, updated_at = $1 WHERE user_id = $2",
+                    now.isoformat(), referred_user_id,
+                )
+                await conn.execute(
+                    "UPDATE referrals SET referral_earned_coins = referral_earned_coins + $1, updated_at = $2 WHERE user_id = $3",
+                    referral_reward.get("coins", 0), now.isoformat(), row["referred_by"],
+                )
+                await self._adjust_currency_conn(
+                    conn,
+                    row["referred_by"],
                     coins=referral_reward.get("coins", 0),
                     stars=referral_reward.get("stars", 0),
                 )
