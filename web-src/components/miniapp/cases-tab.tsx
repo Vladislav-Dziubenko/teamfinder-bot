@@ -174,7 +174,11 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       const affordable = c.costCoins && c.costCoins > 0 ? coins >= c.costCoins : stars >= c.costStars
       if (!affordable) {
         openBusyRef.current = false
-        setTopUp({ box: c, count: 1, isMulti: false })
+        if (c.costCoins && c.costCoins > 0) {
+          onToast(t("cases.need_coins"))
+        } else {
+          setTopUp({ box: c, count: 1, isMulti: false })
+        }
         return
       }
     }
@@ -217,7 +221,11 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     const betaPays = isBeta && c.id === "gold" && betaBalance >= count
     const freeGoldPays = c.id === "gold" && freeGoldOpens >= count
     if (!betaPays && !freeGoldPays && (c.costCoins && c.costCoins > 0 ? coins < totalCost : stars < totalCost)) {
-      setTopUp({ box: c, count, isMulti: true })
+      if (c.costCoins && c.costCoins > 0) {
+        onToast(t("cases.need_coins"))
+      } else {
+        setTopUp({ box: c, count, isMulti: true })
+      }
       return
     }
     openBusyRef.current = true
