@@ -113,9 +113,11 @@ CORS_ALLOW = {
 WEB_RATE_LIMIT = 120
 WEB_RATE_WINDOW = 60
 
-# Rate limit для /api/me —防止 при наплыве 500+ юзеров опрашивать бэкенд каждые 5с.
-ME_RATE_LIMIT = 6       # запросов
-ME_RATE_WINDOW = 60     # секунд (1 запрос в 10с)
+# Rate limit для /api/me — защита от наплыва опросов при 500+ юзерах.
+# 12/мин = 1 запрос в 5с: с запасом на стартовый load, refresh после мутаций
+# и повторные открытия приложения.
+ME_RATE_LIMIT = 12       # запросов
+ME_RATE_WINDOW = 60      # секунд
 
 # Версия соглашения (онбординг: политика конфиденциальности + дисклеймер).
 # Показываем пользователю один раз; при изменении текста политики версию
@@ -438,9 +440,13 @@ async def handle_me(request: web.Request):
     user = _get_user(request)
     await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"), user.get("last_name"))
 
-    # Rate limit:防止 при наплыве 500+ юзеров опрашивать бэкенд каждые 5с.
-    # Возвращаем 429 — клиент использует кэшированные данные (store уже хранит предыдущий ответ).
+    # Rate limit: защита от спама опросами при 500+ юзерах. Вместо 429 сначала
+    # пробуем отдать закэшированный ответ (TTL 4с) — клиент получает данные
+    # вместо ошибки и не запускает ретрай-петлю.
     if await rate_limit_check(f"me:{user['id']}", ME_RATE_LIMIT, ME_RATE_WINDOW):
+        cached = await cache_get(f"me:{user['id']}")
+        if cached is not None:
+            return web.json_response(cached)
         return web.json_response({"error": "slow down"}, status=429)
 
     # Приветственный бонус — один раз при первом входе в Mini App:
@@ -487,7 +493,7 @@ async def handle_me(request: web.Request):
 
     consent = await db.get_consent(user["id"])
 
-    return web.json_response({
+    payload = {
         "user": user,
         "role": role,
         "is_beta": is_beta,
@@ -517,7 +523,10 @@ async def handle_me(request: web.Request):
             {"code": p["code"], "reward": p["reward"], "maxUses": p["max_uses"], "uses": 0, "createdByUser": False}
             for p in DEFAULT_PROMO_CODES
         ],
-    })
+    }
+    # Кэш на 4с: спайк запросов (открытие аппа, ретраи) бьётся в кэш вместо БД.
+    await cache_set(f"me:{user['id']}", payload, ttl=4)
+    return web.json_response(payload)
 
 
 async def handle_user_language(request: web.Request):
