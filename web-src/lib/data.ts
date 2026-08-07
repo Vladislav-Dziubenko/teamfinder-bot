@@ -338,8 +338,9 @@ export type CaseItem = {
   sell: number // цена продажи в монетках Nexus
   weight: number // шанс выпадения
   grantsPremium?: boolean // выдаёт премиум-статус
-  kind?: "inventory" | "stars" | "model" // тип награды кейса
+  kind?: "inventory" | "stars" | "model" | "jet" // тип награды кейса
   stars?: number // количество звёзд для kind === "stars"
+  bonuses?: { stars?: number; coins?: number; searches?: number; highlight_hours?: number; premium_days?: number; free_gold_opens?: number }
   jackpot?: boolean // лимитированный джекпот-предмет
   token?: number // номер экземпляра лимитированной модели
   role?: string // роль, выданная за джекпот
@@ -351,7 +352,8 @@ export type LootCase = {
   subtitle: string
   image: string
   gold: boolean
-  costStars: number // 0 = бесплатный
+  costStars: number // 0 = бесплатный или оплата коинами
+  costCoins?: number // стоимость в монетах Nexus
   free: boolean
   dailyLimit: number // сколько открытий в день
   items: CaseItem[]
@@ -376,28 +378,40 @@ export const lootCases: LootCase[] = [
     gold: false,
     costStars: 0,
     free: true,
-    dailyLimit: 1, // 1 бесплатное открытие в день, дальше кулдаун 24ч
+    dailyLimit: 1,
     items: [
-      {
-        key: "premium-medium",
-        name: "Премиум средний",
-        desc: "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков",
-        image: "/premium-x4.png",
-        rarity: "epic",
-        sell: 75,
-        weight: 8,
-        grantsPremium: true,
-      },
-      {
-        key: "ak47",
-        name: "Скин AK-47",
-        desc: "Коллекционный скин-картинка для твоей анкеты. Показывается в профиле, не влияет на геймплей",
-        image: "/ak47.png",
-        rarity: "rare",
-        sell: 35,
-        weight: 14,
-      },
-      ...playerIcons,
+      { key: "premium-medium", name: "Премиум средний", desc: "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков", image: "/premium-x4.png", rarity: "epic", sell: 35, weight: 12, grantsPremium: true },
+      { key: "ak47", name: "Скин AK-47", desc: "Коллекционный скин-картинка для твоей анкеты. Показывается в профиле, не влияет на геймплей", image: "/ak47.png", rarity: "rare", sell: 15, weight: 30 },
+      { key: "icon-skull", name: "Череп", desc: "Декоративная иконка для профиля 💀", icon: "💀", rarity: "common", sell: 10, weight: 8 },
+      { key: "icon-fire", name: "Пламя", desc: "Декоративная иконка для профиля 🔥", icon: "🔥", rarity: "common", sell: 10, weight: 12 },
+      { key: "icon-crown", name: "Корона", desc: "Декоративная иконка для профиля 👑", icon: "👑", rarity: "common", sell: 10, weight: 6 },
+      { key: "icon-target", name: "Прицел", desc: "Декоративная иконка для профиля 🎯", icon: "🎯", rarity: "common", sell: 10, weight: 14 },
+      { key: "icon-bolt", name: "Молния", desc: "Декоративная иконка для профиля ⚡", icon: "⚡", rarity: "common", sell: 10, weight: 9 },
+      { key: "icon-star", name: "Звезда", desc: "Декоративная иконка для профиля ⭐", icon: "⭐", rarity: "common", sell: 10, weight: 9 },
+    ],
+  },
+  {
+    id: "jet",
+    name: "Nexus Jet case",
+    subtitle: "Военный кейс · 1200 монет за открытие",
+    image: "/case-jet.png",
+    gold: false,
+    costStars: 0,
+    costCoins: 1200,
+    free: false,
+    dailyLimit: 99,
+    items: [
+      { key: "f16", name: "F-16 Fighting Falcon", desc: "+2000 ⭐ · +20 анкет/день · топ в поиске", image: "/f16.png", rarity: "legendary", sell: 0, weight: 15, kind: "jet", bonuses: { stars: 2000, searches: 20, highlight_hours: 24 } },
+      { key: "f15", name: "F-15 Eagle", desc: "+5000 монет · +10 анкет · топ 2-3 · бесплатное премиум-открытие", image: "/f15.png", rarity: "epic", sell: 0, weight: 20, kind: "jet", bonuses: { coins: 5000, searches: 10, highlight_hours: 48, free_gold_opens: 1 } },
+      { key: "f14", name: "F-14 Tomcat", desc: "+4000 ⭐ · +50 премиум-открытий · +50 анкет · топ-1 на 3 дня", image: "/f14.png", rarity: "legendary", sell: 0, weight: 10, kind: "jet", bonuses: { stars: 4000, free_gold_opens: 50, searches: 50, highlight_hours: 72 } },
+      { key: "premium-medium", name: "Премиум средний", desc: "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске", image: "/premium-x4.png", rarity: "epic", sell: 35, weight: 10, grantsPremium: true },
+      { key: "ak47", name: "Скин AK-47", desc: "Коллекционный скин-картинка для профиля", image: "/ak47.png", rarity: "rare", sell: 15, weight: 8 },
+      { key: "icon-skull", name: "Череп", desc: "Декоративная иконка 💀", icon: "💀", rarity: "common", sell: 10, weight: 6 },
+      { key: "icon-fire", name: "Пламя", desc: "Декоративная иконка 🔥", icon: "🔥", rarity: "common", sell: 10, weight: 6 },
+      { key: "icon-crown", name: "Корона", desc: "Декоративная иконка 👑", icon: "👑", rarity: "common", sell: 10, weight: 5 },
+      { key: "icon-target", name: "Прицел", desc: "Декоративная иконка 🎯", icon: "🎯", rarity: "common", sell: 10, weight: 7 },
+      { key: "icon-bolt", name: "Молния", desc: "Декоративная иконка ⚡", icon: "⚡", rarity: "common", sell: 10, weight: 6 },
+      { key: "icon-star", name: "Звезда", desc: "Декоративная иконка ⭐", icon: "⭐", rarity: "common", sell: 10, weight: 7 },
     ],
   },
   {
@@ -410,80 +424,13 @@ export const lootCases: LootCase[] = [
     free: false,
     dailyLimit: 99,
     items: [
-      {
-        key: "premium-card",
-        name: "Премиум-анкета",
-        desc: "Максимальный премиум на 1 день: кастомные фото, свой текст и украшения карточки без ограничений, до 4 открытий кейсов, приоритет в поиске, расширенные анкеты игроков",
-        image: "/premium-reveal.png",
-        rarity: "premium",
-        sell: 100,
-        weight: 40,
-        grantsPremium: true,
-      },
-      {
-        key: "premium-card-lite",
-        name: "Премиум",
-        desc: "Премиум-статус на 1 день: приоритет в поиске тиммейтов, расширенные анкеты игроков, больше результатов в поиске",
-        image: "/premium-card.png",
-        rarity: "epic",
-        sell: 45,
-        weight: 22,
-        grantsPremium: true,
-      },
-      {
-        key: "premium-medium",
-        name: "Премиум средний",
-        desc: "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков",
-        image: "/premium-x4.png",
-        rarity: "epic",
-        sell: 75,
-        weight: 20,
-        grantsPremium: true,
-      },
-      {
-        key: "stars-150",
-        name: "150 ⭐",
-        desc: "150 звёзд на баланс",
-        icon: "⭐",
-        rarity: "common",
-        sell: 0,
-        weight: 8,
-        kind: "stars",
-        stars: 150,
-      },
-      {
-        key: "stars-400",
-        name: "400 ⭐",
-        desc: "400 звёзд на баланс",
-        icon: "⭐",
-        rarity: "rare",
-        sell: 0,
-        weight: 4,
-        kind: "stars",
-        stars: 400,
-      },
-      {
-        key: "stars-1200",
-        name: "1200 ⭐",
-        desc: "1200 звёзд на баланс",
-        icon: "⭐",
-        rarity: "epic",
-        sell: 0,
-        weight: 1.2,
-        kind: "stars",
-        stars: 1200,
-      },
-      {
-    key: "nexus-model",
-    name: "Mini Boss bro",
-    desc: "Лимитированная 3D-модель персонажа. Появляется в профиле владельца. Доход: 50-100 ⭐ в день через вкладку «Модель». Можно продать системе за 55 000 ⭐.",
-    icon: "💎",
-    rarity: "legendary",
-    sell: 55000,
-    weight: 0.1,
-    jackpot: true,
-    kind: "model",
-      },
+      { key: "premium-card", name: "Премиум-анкета", desc: "Максимальный премиум на 1 день: кастомные фото, свой текст и украшения карточки без ограничений, до 4 открытий кейсов, приоритет в поиске, расширенные анкеты игроков", image: "/premium-reveal.png", rarity: "premium", sell: 100, weight: 40, grantsPremium: true },
+      { key: "premium-card-lite", name: "Премиум", desc: "Премиум-статус на 1 день: приоритет в поиске тиммейтов, расширенные анкеты игроков, больше результатов в поиске", image: "/premium-card.png", rarity: "epic", sell: 45, weight: 22, grantsPremium: true },
+      { key: "premium-medium", name: "Премиум средний", desc: "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков", image: "/premium-x4.png", rarity: "epic", sell: 75, weight: 20, grantsPremium: true },
+      { key: "stars-150", name: "150 ⭐", desc: "150 звёзд на баланс", icon: "⭐", rarity: "common", sell: 0, weight: 8, kind: "stars", stars: 150 },
+      { key: "stars-400", name: "400 ⭐", desc: "400 звёзд на баланс", icon: "⭐", rarity: "rare", sell: 0, weight: 4, kind: "stars", stars: 400 },
+      { key: "stars-1200", name: "1200 ⭐", desc: "1200 звёзд на баланс", icon: "⭐", rarity: "epic", sell: 0, weight: 1.2, kind: "stars", stars: 1200 },
+      { key: "nexus-model", name: "Mini Boss bro", desc: "Лимитированная 3D-модель персонажа. Появляется в профиле владельца. Доход: 50-100 ⭐ в день через вкладку «Модель». Можно продать системе за 55 000 ⭐.", icon: "💎", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
     ],
   },
 ]

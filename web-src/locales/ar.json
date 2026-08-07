@@ -486,5 +486,7 @@
   "role.tg_profile": "طلب ملف تعريف Telegram",
   "role.tg_profile_ok": "تم إرسال البطاقة إلى DM",
   "role.tg_profile_ok_forwarded": "تم إرسال البطاقة + الرسالة إلى DM",
-  "role.tg_profile_fail": "فشل في الحصول على الملف الشخصي"
+  "role.tg_profile_fail": "فشل في الحصول على الملف الشخصي",
+  "cases.cost_coins": "عملات {cost} لكل فتح",
+  "cases.open_coins": "مفتوح لـ {cost} 🪙"
 }

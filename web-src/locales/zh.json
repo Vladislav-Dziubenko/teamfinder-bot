@@ -486,5 +486,7 @@
   "role.tg_profile": "索取 Telegram 个人资料",
   "role.tg_profile_ok": "卡已发送至 DM",
   "role.tg_profile_ok_forwarded": "卡片 + 消息发送至 DM",
-  "role.tg_profile_fail": "获取个人资料失败"
+  "role.tg_profile_fail": "获取个人资料失败",
+  "cases.cost_coins": "每开 {cost} 硬币",
+  "cases.open_coins": "开放 {cost} 🪙"
 }

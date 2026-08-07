@@ -486,5 +486,7 @@
   "role.tg_profile": "Solicitați profilul Telegram",
   "role.tg_profile_ok": "Card trimis la DM",
   "role.tg_profile_ok_forwarded": "Card + mesaj trimis la DM",
-  "role.tg_profile_fail": "Nu s-a putut obține profilul"
+  "role.tg_profile_fail": "Nu s-a putut obține profilul",
+  "cases.cost_coins": "{cost} monede pe deschidere",
+  "cases.open_coins": "Deschis pentru {cost} 🪙"
 }

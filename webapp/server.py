@@ -452,8 +452,11 @@ async def handle_me(request: web.Request):
         db.get_ad_watch_state(user["id"]),
     )
 
-    # Кулдауны кейсов — одним запросом вместо N.
-    case_cooldowns = await db.get_case_cooldowns(user["id"])
+    # Кулдауны кейсов и бонусы jet-предметов.
+    case_cooldowns, free_gold_opens = await asyncio.gather(
+        db.get_case_cooldowns(user["id"]),
+        db.get_free_gold_opens(user["id"]),
+    )
 
     bot_username = getattr(request.app.get("bot"), "username", None) or "TeamUpMatchBot"
     referral_bot_url = f"https://t.me/{bot_username}"
@@ -487,6 +490,7 @@ async def handle_me(request: web.Request):
         "ad_state": ad_state,
         "cases": list(CASES_CONFIG.values()),
         "case_cooldowns": case_cooldowns,
+        "free_gold_opens": free_gold_opens,
         "premium_active": premium_active,
         "star_packs": [{"id": k, "stars": v["stars"], "perk": v["desc"], "title": v["title"]} for k, v in STAR_PACKS.items()],
         "battlepass_tiers": BATTLE_PASS_TIERS,
@@ -1050,14 +1054,38 @@ CASES_CONFIG = {
         "free": True,
         "dailyLimit": 1,
         "items": [
-            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков", "image": "/premium-x4.png", "rarity": "epic", "sell": 35, "weight": 8, "grantsPremium": True},
-            {"key": "ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для твоей анкеты. Показывается в профиле, не влияет на геймплей", "image": "/ak47.png", "rarity": "rare", "sell": 15, "weight": 14},
-            {"key": "icon-skull", "name": "Череп", "desc": "Декоративная иконка для профиля 💀", "icon": "💀", "rarity": "common", "sell": 10, "weight": 10},
-            {"key": "icon-fire", "name": "Пламя", "desc": "Декоративная иконка для профиля 🔥", "icon": "🔥", "rarity": "common", "sell": 10, "weight": 10},
-            {"key": "icon-crown", "name": "Корона", "desc": "Декоративная иконка для профиля 👑", "icon": "👑", "rarity": "common", "sell": 10, "weight": 10},
-            {"key": "icon-target", "name": "Прицел", "desc": "Декоративная иконка для профиля 🎯", "icon": "🎯", "rarity": "common", "sell": 10, "weight": 10},
-            {"key": "icon-bolt", "name": "Молния", "desc": "Декоративная иконка для профиля ⚡", "icon": "⚡", "rarity": "common", "sell": 10, "weight": 10},
-            {"key": "icon-star", "name": "Звезда", "desc": "Декоративная иконка для профиля ⭐", "icon": "⭐", "rarity": "common", "sell": 10, "weight": 10},
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков", "image": "/premium-x4.png", "rarity": "epic", "sell": 35, "weight": 12, "grantsPremium": True},
+            {"key": "ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для твоей анкеты. Показывается в профиле, не влияет на геймплей", "image": "/ak47.png", "rarity": "rare", "sell": 15, "weight": 30},
+            {"key": "icon-skull", "name": "Череп", "desc": "Декоративная иконка для профиля 💀", "icon": "💀", "rarity": "common", "sell": 10, "weight": 8},
+            {"key": "icon-fire", "name": "Пламя", "desc": "Декоративная иконка для профиля 🔥", "icon": "🔥", "rarity": "common", "sell": 10, "weight": 12},
+            {"key": "icon-crown", "name": "Корона", "desc": "Декоративная иконка для профиля 👑", "icon": "👑", "rarity": "common", "sell": 10, "weight": 6},
+            {"key": "icon-target", "name": "Прицел", "desc": "Декоративная иконка для профиля 🎯", "icon": "🎯", "rarity": "common", "sell": 10, "weight": 14},
+            {"key": "icon-bolt", "name": "Молния", "desc": "Декоративная иконка для профиля ⚡", "icon": "⚡", "rarity": "common", "sell": 10, "weight": 9},
+            {"key": "icon-star", "name": "Звезда", "desc": "Декоративная иконка для профиля ⭐", "icon": "⭐", "rarity": "common", "sell": 10, "weight": 9},
+        ]
+    },
+    "jet": {
+        "id": "jet",
+        "name": "Nexus Jet case",
+        "subtitle": "Военный кейс · 1200 монет за открытие",
+        "image": "/case-jet.png",
+        "gold": False,
+        "costStars": 0,
+        "costCoins": 1200,
+        "free": False,
+        "dailyLimit": 99,
+        "items": [
+            {"key": "f16", "name": "F-16 Fighting Falcon", "desc": "15% шанс · +2000 ⭐ · +20 анкет/день · топ в поиске", "image": "/f16.png", "rarity": "legendary", "sell": 0, "weight": 15, "kind": "jet", "bonuses": {"stars": 2000, "searches": 20, "highlight_hours": 24}},
+            {"key": "f15", "name": "F-15 Eagle", "desc": "20% шанс · +5000 монет · +10 анкет · топ 2-3 · бесплатное премиум-открытие", "image": "/f15.png", "rarity": "epic", "sell": 0, "weight": 20, "kind": "jet", "bonuses": {"coins": 5000, "searches": 10, "highlight_hours": 48, "free_gold_opens": 1}},
+            {"key": "f14", "name": "F-14 Tomcat", "desc": "10% шанс · +4000 ⭐ · +50 премиум-открытий · +50 анкет · топ-1 на 3 дня", "image": "/f14.png", "rarity": "legendary", "sell": 0, "weight": 10, "kind": "jet", "bonuses": {"stars": 4000, "free_gold_opens": 50, "searches": 50, "highlight_hours": 72}},
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске", "image": "/premium-x4.png", "rarity": "epic", "sell": 35, "weight": 10, "grantsPremium": True},
+            {"key": "ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для профиля", "image": "/ak47.png", "rarity": "rare", "sell": 15, "weight": 8},
+            {"key": "icon-skull", "name": "Череп", "desc": "Декоративная иконка 💀", "icon": "💀", "rarity": "common", "sell": 10, "weight": 6},
+            {"key": "icon-fire", "name": "Пламя", "desc": "Декоративная иконка 🔥", "icon": "🔥", "rarity": "common", "sell": 10, "weight": 6},
+            {"key": "icon-crown", "name": "Корона", "desc": "Декоративная иконка 👑", "icon": "👑", "rarity": "common", "sell": 10, "weight": 5},
+            {"key": "icon-target", "name": "Прицел", "desc": "Декоративная иконка 🎯", "icon": "🎯", "rarity": "common", "sell": 10, "weight": 7},
+            {"key": "icon-bolt", "name": "Молния", "desc": "Декоративная иконка ⚡", "icon": "⚡", "rarity": "common", "sell": 10, "weight": 6},
+            {"key": "icon-star", "name": "Звезда", "desc": "Декоративная иконка ⭐", "icon": "⭐", "rarity": "common", "sell": 10, "weight": 7},
         ]
     },
     "gold": {
@@ -1207,6 +1235,29 @@ async def handle_nexus_open_case(request: web.Request):
                             total_cost = case_config["costStars"] * count
                             if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
                                 return web.json_response({"error": "not enough stars"}, status=400)
+                    elif case_id == "gold":
+                        # Бесплатные премиум-открытия от jet-предметов
+                        free_opens = await conn.fetchval(
+                            "SELECT free_gold_opens FROM users WHERE user_id = $1", user["id"],
+                        ) or 0
+                        if free_opens >= count:
+                            await conn.execute(
+                                "UPDATE users SET free_gold_opens = free_gold_opens - $1 WHERE user_id = $2",
+                                count, user["id"],
+                            )
+                        else:
+                            remaining = count - free_opens
+                            if free_opens > 0:
+                                await conn.execute(
+                                    "UPDATE users SET free_gold_opens = 0 WHERE user_id = $1", user["id"],
+                                )
+                            total_cost = case_config["costStars"] * remaining
+                            if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
+                                return web.json_response({"error": "not enough stars"}, status=400)
+                    elif case_config.get("costCoins"):
+                        total_cost = case_config["costCoins"] * count
+                        if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):
+                            return web.json_response({"error": "not enough coins"}, status=400)
                     else:
                         total_cost = case_config["costStars"] * count
                         if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
@@ -1215,8 +1266,10 @@ async def handle_nexus_open_case(request: web.Request):
                 jackpot_item = next((i for i in case_config["items"] if i.get("jackpot")), None)
                 rolled_items: list[dict] = []
                 stars_won = 0
+                coins_won = 0
                 inventory_batch: list[tuple] = []
                 premium_count = 0
+                jet_bonuses_batch: list[dict] = []
                 now = datetime.utcnow().isoformat()
 
                 for _ in range(count):
@@ -1233,6 +1286,11 @@ async def handle_nexus_open_case(request: web.Request):
                     kind = rolled_item.get("kind", "inventory")
                     if kind == "stars":
                         stars_won += rolled_item.get("stars", 0)
+                    elif kind == "jet":
+                        bonuses = rolled_item.get("bonuses", {})
+                        stars_won += bonuses.get("stars", 0)
+                        coins_won += bonuses.get("coins", 0)
+                        jet_bonuses_batch.append(bonuses)
                     elif kind == "model":
                         settings = request.app.get("settings")
                         dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
@@ -1268,10 +1326,15 @@ async def handle_nexus_open_case(request: web.Request):
                         )
                     rolled_items.append(result_item)
 
-                # Применяем результаты батчами — всего несколько запросов вместо count*3,
-                # чтобы мульти-открытие не превышало таймаут клиента на удалённой БД.
+                # Применяем результаты батчами
                 if stars_won > 0:
                     await db._adjust_currency_conn(conn, user["id"], stars=stars_won)
+                if coins_won > 0:
+                    await db._adjust_currency_conn(conn, user["id"], coins=coins_won)
+
+                # Jet-бонусы: подсветка, бесплатные премиум-открытия, анкеты
+                for bonuses in jet_bonuses_batch:
+                    await db.grant_jet_bonuses(user["id"], bonuses, conn)
 
                 if inventory_batch:
                     rows_sql = ", ".join(

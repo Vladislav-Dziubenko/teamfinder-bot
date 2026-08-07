@@ -486,5 +486,7 @@
   "role.tg_profile": "텔레그램 프로필 요청",
   "role.tg_profile_ok": "DM으로 카드보냈어요",
   "role.tg_profile_ok_forwarded": "DM으로 보낸 카드 + 메시지",
-  "role.tg_profile_fail": "프로필을 가져오지 못했습니다."
+  "role.tg_profile_fail": "프로필을 가져오지 못했습니다.",
+  "cases.cost_coins": "공개당 {cost} 코인",
+  "cases.open_coins": "{cost}를 위해 열려있습니다 🪙"
 }

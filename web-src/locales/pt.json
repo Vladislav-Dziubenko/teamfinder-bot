@@ -486,5 +486,7 @@
   "role.tg_profile": "Solicitar perfil do Telegram",
   "role.tg_profile_ok": "Cartão enviado para DM",
   "role.tg_profile_ok_forwarded": "Cartão + mensagem enviada para DM",
-  "role.tg_profile_fail": "Falha ao obter perfil"
+  "role.tg_profile_fail": "Falha ao obter perfil",
+  "cases.cost_coins": "Moedas {cost} por abertura",
+  "cases.open_coins": "Aberto para {cost} 🪙"
 }

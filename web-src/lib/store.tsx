@@ -71,6 +71,7 @@ type MeResponse = {
   achievements: Array<{ achievement_id: string; claimed: number }>
   ad_state?: { watch_count: number; rewarded: number }
   case_cooldowns: Record<string, string | null>
+  free_gold_opens?: number
   premium_active: boolean
   promos?: Array<{
     code: string
@@ -143,6 +144,7 @@ type PersistedState = {
   games: string[]
   modelState: ModelState
   betaBalance: number
+  freeGoldOpens: number
 }
 
 function makeReferralCode() {
@@ -301,6 +303,7 @@ function defaultState(): PersistedState {
     isBeta: false,
     modelState: { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
     betaBalance: 0,
+    freeGoldOpens: 0,
   }
 }
 
@@ -380,6 +383,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     games: me.mini_profile?.games || [],
     modelState: modelState || { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
     betaBalance: me.beta_state?.case_balance ?? 0,
+    freeGoldOpens: me.free_gold_opens ?? 0,
   }
 }
 
@@ -705,7 +709,14 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       if (!c) return { ok: false, error: "Кейс не найден" }
       const isBeta = s.isBeta
       const betaPays = !c.free && isBeta && caseId === "gold" && s.betaBalance >= count
-      if (!c.free && !betaPays && s.stars < c.costStars * count) return { ok: false, error: "Недостаточно Telegram Stars" }
+      const hasFreeGold = caseId === "gold" && s.freeGoldOpens >= count
+      if (!c.free && !betaPays && !hasFreeGold) {
+        if (c.costCoins && c.costCoins > 0) {
+          if (s.coins < c.costCoins * count) return { ok: false, error: "Недостаточно монет Nexus" }
+        } else if (s.stars < c.costStars * count) {
+          return { ok: false, error: "Недостаточно Telegram Stars" }
+        }
+      }
       const rid =
         requestId ||
         (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `rid-${Date.now()}-${Math.random().toString(36).slice(2)}`)

@@ -486,5 +486,7 @@
   "role.tg_profile": "टेलीग्राम प्रोफ़ाइल का अनुरोध करें",
   "role.tg_profile_ok": "कार्ड डीएम को भेजा गया है",
   "role.tg_profile_ok_forwarded": "कार्ड + संदेश डीएम को भेजा गया",
-  "role.tg_profile_fail": "प्रोफ़ाइल प्राप्त करने में विफल"
+  "role.tg_profile_fail": "प्रोफ़ाइल प्राप्त करने में विफल",
+  "cases.cost_coins": "{cost} सिक्के प्रति खुले",
+  "cases.open_coins": "{cost} 🪙 के लिए खोलें"
 }

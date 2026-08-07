@@ -486,5 +486,7 @@
   "role.tg_profile": "Запит профілю Telegram",
   "role.tg_profile_ok": "Листівка надіслана в DM",
   "role.tg_profile_ok_forwarded": "Листівка + повідомлення надіслано в DM",
-  "role.tg_profile_fail": "Не вдалося отримати профіль"
+  "role.tg_profile_fail": "Не вдалося отримати профіль",
+  "cases.cost_coins": "{cost} монет на відкриття",
+  "cases.open_coins": "Відкрито для {cost} 🪙"
 }

@@ -486,5 +486,7 @@
   "role.tg_profile": "Pyydä Telegram-profiilia",
   "role.tg_profile_ok": "Kortti lähetetty DM:ään",
   "role.tg_profile_ok_forwarded": "Kortti + viesti lähetetty DM:ään",
-  "role.tg_profile_fail": "Profiilin hakeminen epäonnistui"
+  "role.tg_profile_fail": "Profiilin hakeminen epäonnistui",
+  "cases.cost_coins": "{cost} kolikkoa auki",
+  "cases.open_coins": "Avoinna {cost}:lle 🪙"
 }

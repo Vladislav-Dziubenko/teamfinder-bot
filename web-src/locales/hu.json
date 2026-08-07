@@ -486,5 +486,7 @@
   "role.tg_profile": "Kérjen Telegram profilt",
   "role.tg_profile_ok": "Kártya elküldve DM-nek",
   "role.tg_profile_ok_forwarded": "Kártya + üzenet elküldve DM-nek",
-  "role.tg_profile_fail": "Nem sikerült beszerezni a profilt"
+  "role.tg_profile_fail": "Nem sikerült beszerezni a profilt",
+  "cases.cost_coins": "{cost} érme nyitásonként",
+  "cases.open_coins": "Nyitva {cost} 🪙"
 }

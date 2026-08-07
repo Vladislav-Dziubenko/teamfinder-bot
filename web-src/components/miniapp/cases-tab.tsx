@@ -54,7 +54,7 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta, loaded } = useNexus()
+  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta, loaded, freeGoldOpens } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
@@ -169,10 +169,14 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     if (c.free && caseReadyInT(c.id) > 0) return
     openBusyRef.current = true
     const betaPays = !c.free && isBeta && c.id === "gold" && betaBalance >= 1
-    if (!c.free && !betaPays && stars < c.costStars) {
-      openBusyRef.current = false
-      setTopUp({ box: c, count: 1, isMulti: false })
-      return
+    const freeGoldPays = c.id === "gold" && freeGoldOpens >= 1
+    if (!c.free && !betaPays && !freeGoldPays) {
+      const affordable = c.costCoins && c.costCoins > 0 ? coins >= c.costCoins : stars >= c.costStars
+      if (!affordable) {
+        openBusyRef.current = false
+        setTopUp({ box: c, count: 1, isMulti: false })
+        return
+      }
     }
     setSpin({ box: c, winner: null })
     const res = await openCase(c.id)
@@ -209,9 +213,10 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
   async function handleOpenMulti(c: LootCase, count: number) {
     if (multi || spin || multiBusy || openBusyRef.current) return
-    const totalCost = c.costStars * count
+    const totalCost = c.costCoins && c.costCoins > 0 ? c.costCoins * count : c.costStars * count
     const betaPays = isBeta && c.id === "gold" && betaBalance >= count
-    if (stars < totalCost && !betaPays) {
+    const freeGoldPays = c.id === "gold" && freeGoldOpens >= count
+    if (!betaPays && !freeGoldPays && (c.costCoins && c.costCoins > 0 ? coins < totalCost : stars < totalCost)) {
       setTopUp({ box: c, count, isMulti: true })
       return
     }
@@ -362,10 +367,19 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                     )
                   ) : (
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars">
-                      <Star className="size-3 fill-stars" />
-                      {isBeta && c.id === "gold" && betaBalance > 0
-                        ? t("cases.beta_free_hint", { left: betaBalance })
-                        : t("cases.cost_stars", { cost: c.costStars })}
+                      {c.costCoins && c.costCoins > 0 ? (
+                        <>
+                          <img src="/nexus-coin.png" alt="" className="size-3 rounded-full" />
+                          {t("cases.cost_coins", { cost: c.costCoins })}
+                        </>
+                      ) : (
+                        <>
+                          <Star className="size-3 fill-stars" />
+                          {isBeta && c.id === "gold" && betaBalance > 0
+                            ? t("cases.beta_free_hint", { left: betaBalance })
+                            : t("cases.cost_stars", { cost: c.costStars })}
+                        </>
+                      )}
                     </p>
                   )}
                 </div>
@@ -398,10 +412,19 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                   )
                 ) : (
                   <>
-                    <Star className="size-5 fill-background" />{" "}
-                    {isBeta && c.id === "gold" && betaBalance > 0
-                      ? t("cases.open_beta")
-                      : t("cases.open_stars", { cost: c.costStars })}
+                    {c.costCoins && c.costCoins > 0 ? (
+                      <>
+                        <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" />
+                        {t("cases.open_coins", { cost: c.costCoins })}
+                      </>
+                    ) : (
+                      <>
+                        <Star className="size-5 fill-background" />{" "}
+                        {isBeta && c.id === "gold" && betaBalance > 0
+                          ? t("cases.open_beta")
+                          : t("cases.open_stars", { cost: c.costStars })}
+                      </>
+                    )}
                   </>
                 )}
               </button>
@@ -423,7 +446,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 </button>
               )}
 
-              {!c.free && c.gold && (
+              {!c.free && (c.gold || (c.costCoins && c.costCoins > 0)) && (
                 <div className="mt-2">
                   <p className="mb-1.5 text-[11px] font-semibold text-muted-foreground">{t("cases.multi_hint")}</p>
                   <div className="grid grid-cols-5 gap-1.5">
@@ -441,7 +464,9 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                           <span className="text-xs font-bold text-stars">×{n}</span>
                         )}
                         <span className="text-[9px] tabular-nums text-muted-foreground">
-                          {multiBusy === n ? "..." : `${isBeta && c.id === "gold" && betaBalance >= n ? "FREE ×" + n : `${(c.costStars * n).toLocaleString("ru")} ⭐`}`}
+                          {multiBusy === n
+                            ? "..."
+                            : `${isBeta && c.id === "gold" && betaBalance >= n ? "FREE ×" + n : c.costCoins && c.costCoins > 0 ? `${(c.costCoins * n).toLocaleString("ru")} 🪙` : `${(c.costStars * n).toLocaleString("ru")} ⭐`}`}
                         </span>
                       </button>
                     ))}
@@ -854,6 +879,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
       </div>
 
       {landed && winner?.kind === "model" && <JackpotBurst onDone={() => {}} />}
+      {landed && winner?.kind === "jet" && <JetBurst onDone={() => {}} />}
     </div>
   )
 }
@@ -864,13 +890,19 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
   const pct = itemPct(box, item)
   const isJackpot = item.kind === "model"
   const isStars = item.kind === "stars"
+  const isJet = item.kind === "jet"
+  const b = item.bonuses ?? {}
+  const isLegendary = item.rarity === "legendary"
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-6 backdrop-blur-sm">
       {isJackpot && <JackpotBurst onDone={() => {}} />}
+      {isJet && <JetBurst onDone={() => {}} />}
       <div
         className={cn(
           "animate-star-pop relative w-full max-w-xs overflow-hidden rounded-3xl border bg-card p-6 text-center",
           isJackpot && "border-[#ffd700]/60 shadow-[0_0_60px_-10px_rgba(255,215,0,0.7)]",
+          isJet && "border-[#4fc3f7]/60 shadow-[0_0_60px_-10px_rgba(79,195,247,0.7)]",
+          isLegendary && !isJet && "border-[#ffd700]/60 shadow-[0_0_60px_-10px_rgba(255,215,0,0.7)]",
         )}
       >
         <button
@@ -928,6 +960,43 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
           </p>
         )}
 
+        {isJet && (
+          <div className="mt-3 space-y-1.5 rounded-2xl border border-[#4fc3f7]/40 bg-[#4fc3f7]/5 p-3 text-left">
+            {b.stars ? (
+              <p className="flex items-center justify-between gap-2 text-xs">
+                <span>Звёзды</span>
+                <span className="font-semibold text-stars">+{formatNum(b.stars)} ⭐</span>
+              </p>
+            ) : null}
+            {b.coins ? (
+              <p className="flex items-center justify-between gap-2 text-xs">
+                <span>Монеты Nexus</span>
+                <span className="font-semibold text-primary">+{formatNum(b.coins)} 🪙</span>
+              </p>
+            ) : null}
+            {b.free_gold_opens ? (
+              <p className="flex items-center justify-between gap-2 text-xs">
+                <span>Открытия Nexus Premium</span>
+                <span className="font-semibold">×{formatNum(b.free_gold_opens)}</span>
+              </p>
+            ) : null}
+            {b.searches ? (
+              <p className="flex items-center justify-between gap-2 text-xs">
+                <span>Анкеты/день</span>
+                <span className="font-semibold">+{formatNum(b.searches)}</span>
+              </p>
+            ) : null}
+            {b.highlight_hours ? (
+              <p className="flex items-center justify-between gap-2 text-xs">
+                <span>Топ в поиске</span>
+                <span className="font-semibold text-accent">
+                  {b.highlight_hours >= 72 ? "Топ-1 · 3 дня" : b.highlight_hours >= 48 ? "Топ 2-3 · 2 дня" : "Топ · 24ч"}
+                </span>
+              </p>
+            ) : null}
+          </div>
+        )}
+
         <p className="mt-2 flex items-center justify-center gap-1 text-xs font-semibold" style={{ color: meta.color }}>
           <Percent className="size-3.5" /> {t("cases.drop_chance_item", { pct: `${pct.toFixed(1)}%` })}
         </p>
@@ -936,7 +1005,7 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
             <Sparkles className="size-3.5" /> {t("cases.premium_activated")}
           </p>
         )}
-        {!isStars && !isJackpot && (
+        {!isStars && !isJackpot && !isJet && (
           <div className="mt-3 flex items-center justify-center gap-1 text-xs text-muted-foreground">
             <Coins className="size-3.5" /> {t("cases.sell_hint", { cost: item.sell })}
           </div>
@@ -946,7 +1015,11 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
           onClick={onClose}
           className={cn(
             "mt-4 w-full rounded-2xl py-3 text-sm font-bold active:scale-[0.98]",
-            isJackpot ? "bg-[#ffd700] text-black shadow-[0_10px_30px_-8px_rgba(255,215,0,0.8)]" : "bg-primary text-primary-foreground",
+            isJackpot
+              ? "bg-[#ffd700] text-black shadow-[0_10px_30px_-8px_rgba(255,215,0,0.8)]"
+              : isJet
+                ? "bg-[#4fc3f7] text-black shadow-[0_10px_30px_-8px_rgba(79,195,247,0.8)]"
+                : "bg-primary text-primary-foreground",
           )}
         >
           {isJackpot ? t("cases.jackpot_collect") : t("cases.collect")}
@@ -959,6 +1032,9 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
 function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseItem[]; onClose: () => void }) {
   const { t } = useI18n()
   const totalStars = items.filter((i) => i.kind === "stars").reduce((s, i) => s + (i.stars ?? 0), 0)
+  const totalJetStars = items.filter((i) => i.kind === "jet").reduce((s, i) => s + (i.bonuses?.stars ?? 0), 0)
+  const totalJetCoins = items.filter((i) => i.kind === "jet").reduce((s, i) => s + (i.bonuses?.coins ?? 0), 0)
+  const jetItems = items.filter((i) => i.kind === "jet")
   const jackpots = items.filter((i) => i.kind === "model")
 
   const grouped = useMemo(() => {
@@ -974,6 +1050,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-6 backdrop-blur-sm">
       {jackpots.length > 0 && <JackpotBurst onDone={() => {}} />}
+      {jetItems.length > 0 && <JetBurst onDone={() => {}} />}
       <div className="animate-star-pop relative flex max-h-[85dvh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-stars/40 bg-card">
         <div className="flex items-center justify-between border-b border-border bg-stars/5 px-5 py-4">
           <div>
@@ -992,12 +1069,28 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
 
         <div className="flex gap-2 px-5 py-3">
           <div className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-stars/25 bg-stars/10 py-2.5 text-sm font-bold text-stars">
-            <Star className="size-4 fill-stars" /> +{formatNum(totalStars)}
+            <Star className="size-4 fill-stars" /> +{formatNum(totalStars + totalJetStars)}
           </div>
           <div className="flex flex-1 items-center justify-center gap-1 rounded-2xl border border-accent/25 bg-accent/10 py-2.5 text-sm font-bold text-accent">
             <Package className="size-4" /> {items.length - jackpots.length - items.filter((i) => i.kind === "stars").length}
           </div>
         </div>
+
+        {totalJetCoins > 0 && (
+          <div className="mx-5 mb-1 flex items-center justify-center gap-1 rounded-2xl border border-primary/30 bg-primary/10 py-2 text-sm font-bold text-primary">
+            <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> +{formatNum(totalJetCoins)} монет
+          </div>
+        )}
+
+        {jetItems.length > 0 && (
+          <div className="mx-5 mb-1 rounded-2xl border border-[#4fc3f7]/50 bg-[#4fc3f7]/10 p-3 text-center">
+            <p className="text-sm font-bold text-[#4fc3f7]">✈️ {jetItems[0].name}</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              {jetItems.reduce((s, i) => s + (i.bonuses?.free_gold_opens ?? 0), 0)} премиум-открытий ·{" "}
+              {jetItems.reduce((s, i) => s + (i.bonuses?.searches ?? 0), 0)} анкет · топ в поиске
+            </p>
+          </div>
+        )}
 
         {jackpots.length > 0 && (
           <div className="mx-5 mb-1 rounded-2xl border border-[#ffd700]/50 bg-[#ffd700]/10 p-3 text-center">
@@ -1080,6 +1173,57 @@ function JackpotBurst({ onDone }: { onDone: () => void }) {
       "position:absolute;inset:0;background:radial-gradient(circle,#fff7cc 0%,#ffd700 25%,rgba(255,180,0,0.5) 50%,transparent 72%);opacity:0"
     el.appendChild(flash)
     flash.animate([{ opacity: 0 }, { opacity: 0.95 }, { opacity: 0 }], { duration: 1000, easing: "ease-out" })
+    const t = setTimeout(onDone, 2100)
+    return () => {
+      clearTimeout(t)
+      spans.forEach((x) => x.remove())
+      flash.remove()
+    }
+  }, [onDone])
+
+  return <div ref={ref} className="pointer-events-none fixed inset-0 z-[80] overflow-hidden" />
+}
+
+function JetBurst({ onDone }: { onDone: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const emojis = ["✈️", "🛩️", "🚀", "⭐", "💨", "🛬", "⚡"]
+    const spans: HTMLSpanElement[] = []
+    for (let i = 0; i < 50; i++) {
+      const s = document.createElement("span")
+      s.textContent = emojis[Math.floor(Math.random() * emojis.length)]
+      s.style.position = "absolute"
+      s.style.fontSize = `${20 + Math.random() * 28}px`
+      s.style.left = `${Math.random() * 100}%`
+      s.style.top = "55%"
+      s.style.willChange = "transform, opacity"
+      s.style.filter = "drop-shadow(0 0 6px rgba(79,195,247,0.9))"
+      el.appendChild(s)
+      spans.push(s)
+      s.animate(
+        [
+          { transform: "translate(0,0) scale(0.4)", opacity: 0 },
+          {
+            transform: `translate(${(Math.random() - 0.5) * 300}px, ${-(70 + Math.random() * 200)}px) scale(1.3)`,
+            opacity: 1,
+            offset: 0.4,
+          },
+          {
+            transform: `translate(${(Math.random() - 0.5) * 400}px, ${-760 - Math.random() * 240}px) scale(0.8)`,
+            opacity: 0,
+          },
+        ],
+        { duration: 1400 + Math.random() * 700, easing: "cubic-bezier(.2,.6,.3,1)", fill: "forwards" },
+      )
+    }
+    const flash = document.createElement("div")
+    flash.style.cssText =
+      "position:absolute;inset:0;background:radial-gradient(circle,#e8f9ff 0%,#4fc3f7 25%,rgba(79,195,247,0.5) 50%,transparent 72%);opacity:0"
+    el.appendChild(flash)
+    flash.animate([{ opacity: 0 }, { opacity: 0.9 }, { opacity: 0 }], { duration: 1000, easing: "ease-out" })
     const t = setTimeout(onDone, 2100)
     return () => {
       clearTimeout(t)

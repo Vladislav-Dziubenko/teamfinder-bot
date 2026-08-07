@@ -486,5 +486,7 @@
   "role.tg_profile": "درخواست پروفایل تلگرام",
   "role.tg_profile_ok": "کارت به DM ارسال شد",
   "role.tg_profile_ok_forwarded": "کارت + پیام به DM ارسال شد",
-  "role.tg_profile_fail": "نمایه دریافت نشد"
+  "role.tg_profile_fail": "نمایه دریافت نشد",
+  "cases.cost_coins": "سکه های {cost} در هر باز",
+  "cases.open_coins": "باز برای {cost} 🪙"
 }

@@ -486,5 +486,7 @@
   "role.tg_profile": "Fordern Sie ein Telegram-Profil an",
   "role.tg_profile_ok": "Karte an DM gesendet",
   "role.tg_profile_ok_forwarded": "Karte + Nachricht an DM gesendet",
-  "role.tg_profile_fail": "Profil konnte nicht abgerufen werden"
+  "role.tg_profile_fail": "Profil konnte nicht abgerufen werden",
+  "cases.cost_coins": "{cost} Münzen pro Öffnung",
+  "cases.open_coins": "Geöffnet für {cost} 🪙"
 }

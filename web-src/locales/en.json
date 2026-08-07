@@ -46,7 +46,7 @@
   "nav.predictions": "Predictions",
   "nav.chat": "Chat",
   "nav.stats": "Stats",
-"nav.cases": "Cases",
+  "nav.cases": "Cases",
   "nav.battlepass": "Pass",
   "nav.promo": "Promo",
   "nav.profile": "Profile",
@@ -486,5 +486,7 @@
   "role.tg_profile": "Request Telegram profile",
   "role.tg_profile_ok": "Card sent to DM",
   "role.tg_profile_ok_forwarded": "Card + message sent to DM",
-  "role.tg_profile_fail": "Failed to get profile"
+  "role.tg_profile_fail": "Failed to get profile",
+  "cases.cost_coins": "{cost} coins per open",
+  "cases.open_coins": "Open for {cost} 🪙"
 }

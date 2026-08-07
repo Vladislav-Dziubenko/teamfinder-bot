@@ -486,5 +486,7 @@
   "role.tg_profile": "Anmod om Telegram-profil",
   "role.tg_profile_ok": "Kort sendt til DM",
   "role.tg_profile_ok_forwarded": "Kort + besked sendt til DM",
-  "role.tg_profile_fail": "Profilen kunne ikke hentes"
+  "role.tg_profile_fail": "Profilen kunne ikke hentes",
+  "cases.cost_coins": "{cost} mønter pr. åbning",
+  "cases.open_coins": "Åben for {cost} 🪙"
 }

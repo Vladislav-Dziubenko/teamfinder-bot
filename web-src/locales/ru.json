@@ -486,5 +486,7 @@
   "role.tg_profile": "Запросить профиль Telegram",
   "role.tg_profile_ok": "Карточка отправлена в ЛС",
   "role.tg_profile_ok_forwarded": "Карточка + сообщение отправлены в ЛС",
-  "role.tg_profile_fail": "Не удалось получить профиль"
+  "role.tg_profile_fail": "Не удалось получить профиль",
+  "cases.cost_coins": "{cost} монет за открытие",
+  "cases.open_coins": "Открыть за {cost} 🪙"
 }

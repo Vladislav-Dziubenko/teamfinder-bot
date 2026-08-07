@@ -486,5 +486,7 @@
   "role.tg_profile": "Telegram-profiel aanvragen",
   "role.tg_profile_ok": "Kaart verzonden naar DM",
   "role.tg_profile_ok_forwarded": "Kaart + bericht verzonden naar DM",
-  "role.tg_profile_fail": "Kan profiel niet ophalen"
+  "role.tg_profile_fail": "Kan profiel niet ophalen",
+  "cases.cost_coins": "{cost}-munten per opening",
+  "cases.open_coins": "Open voor {cost} 🪙"
 }

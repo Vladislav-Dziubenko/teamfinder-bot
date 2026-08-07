@@ -490,6 +490,16 @@ class Database:
             pass
 
         try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS daily_searches_bonus INTEGER DEFAULT 0")
+        except asyncpg.PostgresError:
+            pass
+
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS free_gold_opens INTEGER DEFAULT 0")
+        except asyncpg.PostgresError:
+            pass
+
+        try:
             await conn.execute("ALTER TABLE team_applications ADD COLUMN IF NOT EXISTS is_premium INTEGER DEFAULT 0")
         except asyncpg.PostgresError:
             pass
@@ -1086,6 +1096,55 @@ class Database:
         until = (datetime.utcnow() + timedelta(hours=hours)).isoformat()
         async with self.pool.acquire() as conn:
             await conn.execute("UPDATE profiles SET highlighted_until = $1 WHERE user_id = $2", until, user_id)
+
+    async def grant_jet_bonuses(self, user_id: int, bonuses: dict, conn: asyncpg.Connection | None = None) -> None:
+        """Применяет бонусы от jet-предмета: stars, coins, searches, highlight_hours, premium_days, free_gold_opens."""
+        async def _exec(c: asyncpg.Connection):
+            if bonuses.get("stars"):
+                await self._adjust_currency_conn(c, user_id, stars=bonuses["stars"])
+            if bonuses.get("coins"):
+                await self._adjust_currency_conn(c, user_id, coins=bonuses["coins"])
+            if bonuses.get("searches"):
+                await c.execute(
+                    "UPDATE users SET daily_searches_bonus = daily_searches_bonus + $1 WHERE user_id = $2",
+                    bonuses["searches"], user_id,
+                )
+            if bonuses.get("highlight_hours"):
+                until = (datetime.utcnow() + timedelta(hours=bonuses["highlight_hours"])).isoformat()
+                await c.execute("UPDATE profiles SET highlighted_until = $1 WHERE user_id = $2", until, user_id)
+            if bonuses.get("premium_days"):
+                until_val = await c.fetchval("SELECT pro_until FROM users WHERE user_id = $1", user_id)
+                base = datetime.utcnow() if not until_val or datetime.fromisoformat(until_val) < datetime.utcnow() else datetime.fromisoformat(until_val)
+                new_until = (base + timedelta(days=bonuses["premium_days"])).isoformat()
+                await c.execute("UPDATE users SET pro_until = $1 WHERE user_id = $2", new_until, user_id)
+            if bonuses.get("free_gold_opens"):
+                await c.execute(
+                    "UPDATE users SET free_gold_opens = free_gold_opens + $1 WHERE user_id = $2",
+                    bonuses["free_gold_opens"], user_id,
+                )
+        if conn:
+            await _exec(conn)
+        else:
+            async with self.pool.acquire() as c:
+                await _exec(c)
+
+    async def consume_free_gold_open(self, user_id: int, conn: asyncpg.Connection | None = None) -> bool:
+        """Использует одно бесплатное открытие Nexus Premium. Возвращает True если успешно."""
+        async def _exec(c: asyncpg.Connection) -> bool:
+            return await c.fetchval(
+                "UPDATE users SET free_gold_opens = free_gold_opens - 1 WHERE user_id = $1 AND free_gold_opens > 0 RETURNING free_gold_opens",
+                user_id,
+            ) is not None
+        if conn:
+            return await _exec(conn)
+        async with self.pool.acquire() as c:
+            return await _exec(c)
+
+    async def get_free_gold_opens(self, user_id: int) -> int:
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                "SELECT COALESCE(free_gold_opens, 0) FROM users WHERE user_id = $1", user_id,
+            ) or 0
 
     async def stats(self) -> dict:
         async with self.pool.acquire() as conn:
