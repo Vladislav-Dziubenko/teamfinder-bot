@@ -135,6 +135,7 @@ interface I18nContextValue {
   lang: string
   setLang: (code: string) => void
   t: (key: string, vars?: Record<string, string | number>) => string
+  tl: (key: string, fallback: string) => string
   ready: boolean
 }
 
@@ -142,6 +143,7 @@ const I18nContext = createContext<I18nContextValue>({
   lang: DEFAULT_LANG,
   setLang: () => {},
   t: (key) => key,
+  tl: (_key, fallback) => fallback,
   ready: false,
 })
 
@@ -220,7 +222,18 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     [lang],
   )
 
-  const value = useMemo(() => ({ lang, setLang, t, ready }), [lang, setLang, t, ready])
+  // Перевод серверных текстов (кейсы, предметы, роли и т.п.): берём перевод
+  // из словаря, если ключ есть, иначе — оригинальный текст с сервера.
+  const tl = useCallback(
+    (key: string, fallback: string) => {
+      const dict = dictionaries[lang] || dictionaries[DEFAULT_LANG]
+      const v = dict[key]
+      return v && v !== key ? v : fallback
+    },
+    [lang],
+  )
+
+  const value = useMemo(() => ({ lang, setLang, t, tl, ready }), [lang, setLang, t, tl, ready])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }

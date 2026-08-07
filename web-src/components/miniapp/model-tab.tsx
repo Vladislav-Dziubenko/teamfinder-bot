@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react"
 import { Gem, Send, Star, Loader2, Wallet, Crown, RefreshCw } from "lucide-react"
 import { useNexus } from "@/lib/store"
+import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
 function ModelViewer() {
@@ -110,6 +111,7 @@ function ModelViewer() {
 }
 
 export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
+  const { t } = useI18n()
   const { modelState, stars, listModel, unlistModel, buyModel, transferModel, sellModel, refreshModels } = useNexus()
   const [listing, setListing] = useState<number | null>(null)
   const [price, setPrice] = useState("")
@@ -121,13 +123,13 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
   async function submitList(token: number) {
     const p = parseInt(price, 10)
     if (!p || p <= 0) {
-      onToast("Введи цену в звёздах")
+      onToast(t("model_tab.invalid_price"))
       return
     }
     setBusy(true)
     const res = await listModel(token, p)
     setBusy(false)
-    onToast(res.ok ? "Модель выставлена на продажу" : res.error ?? "Ошибка")
+    onToast(res.ok ? t("model_tab.listed") : res.error ?? t("model_tab.error"))
     setListing(null)
     setPrice("")
   }
@@ -135,13 +137,13 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
   async function submitTransfer(token: number) {
     const id = parseInt(transferId, 10)
     if (!id || id <= 0) {
-      onToast("Введи ID пользователя")
+      onToast(t("model_tab.invalid_id"))
       return
     }
     setBusy(true)
     const res = await transferModel(token, id)
     setBusy(false)
-    onToast(res.ok ? "Модель передана (комиссия 5 ⭐)" : res.error ?? "Ошибка")
+    onToast(res.ok ? t("model_tab.transferred") : res.error ?? t("model_tab.error"))
     setTransfer(null)
     setTransferId("")
   }
@@ -150,7 +152,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
     setBusy(true)
     const res = await sellModel(token)
     setBusy(false)
-    onToast(res.ok ? `Модель продана за ${(res.price ?? 55000).toLocaleString("ru")} ⭐` : res.error ?? "Ошибка")
+    onToast(res.ok ? t("model_tab.sold", { price: (res.price ?? 55000).toLocaleString("ru") }) : res.error ?? t("model_tab.error"))
   }
 
   const mine = modelState.mine ?? []
@@ -160,13 +162,13 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
     <div className="space-y-5 px-4 py-5">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h1 className="font-display text-2xl font-bold">Mini Boss bro</h1>
-          <p className="mt-0.5 text-sm text-muted-foreground">Лимитированная 3D-модель NEXUS — тираж всего 20 экземпляров</p>
+          <h1 className="font-display text-2xl font-bold">{t("model_tab.title")}</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">{t("model_tab.subtitle")}</p>
         </div>
         <button
           type="button"
           onClick={() => refreshModels()}
-          aria-label="Обновить"
+          aria-label={t("model_tab.refresh")}
           className="grid size-10 place-items-center rounded-2xl border border-border bg-secondary text-muted-foreground active:scale-90"
         >
           <RefreshCw className="size-5" />
@@ -179,10 +181,10 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-semibold">
             <Crown className="size-4 text-[#ffd700]" />
-            Лимитированный тираж: {modelState.claimed} / {modelState.supply}
+            {t("model_tab.limited_mint", { claimed: modelState.claimed, supply: modelState.supply })}
           </div>
           <div className="text-sm font-bold text-[#ffd700]">
-            {modelState.claimed === modelState.supply ? "Тираж распродан" : `Осталось: ${modelState.remaining}`}
+            {modelState.claimed === modelState.supply ? t("model_tab.sold_out") : t("model_tab.left", { remaining: modelState.remaining })}
           </div>
         </div>
         <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#ffd700]/15">
@@ -192,7 +194,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
           />
         </div>
         <p className="mt-1.5 text-[11px] text-muted-foreground">
-          Всего 20 экземпляров навсегда — больше выпускаться не будут
+          {t("model_tab.supply_note")}
         </p>
       </div>
 
@@ -200,29 +202,29 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
         <div className="rounded-3xl border border-dashed border-border py-8 text-center">
           <Gem className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-2 text-sm text-muted-foreground">
-            У тебя пока нет модели. Выбить её можно из кейса NEXUS Premium (шанс 0.1%).
+            {t("model_tab.no_model")}
           </p>
         </div>
       )}
 
       {mine.length > 0 && (
         <section>
-          <h2 className="mb-2 font-display text-lg font-bold">Мои модели</h2>
+          <h2 className="mb-2 font-display text-lg font-bold">{t("model_tab.my_models")}</h2>
           <div className="space-y-3">
             {mine.map((m) => (
               <div key={m.token_id} className="rounded-2xl border border-[#ffd700]/30 bg-card p-3">
                 <div className="flex items-center justify-between">
                   <p className="font-bold">
-                    💎 Экземпляр #{m.token_id} <span className="text-xs font-medium text-muted-foreground">/ 20</span>
+                    💎 {t("model_tab.instance", { token: m.token_id })} <span className="text-xs font-medium text-muted-foreground">/ 20</span>
                   </p>
                   {m.sale_price_stars > 0 && (
                     <span className="rounded-lg bg-[#ffd700]/15 px-2 py-0.5 text-xs font-bold text-[#ffd700]">
-                      В продаже · {m.sale_price_stars} ⭐
+                      {t("model_tab.on_sale", { price: m.sale_price_stars })}
                     </span>
                   )}
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Доход: 50-100 ⭐ в день · {m.last_income_at ? "доход начисляется" : "доход ещё не начислен"}
+                  {t("model_tab.income")} · {m.last_income_at ? t("model_tab.income_accruing") : t("model_tab.income_not_accrued")}
                 </p>
 
                 {listing === m.token_id ? (
@@ -231,7 +233,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                       value={price}
                       onChange={(e) => setPrice(e.target.value.replace(/\D/g, ""))}
                       inputMode="numeric"
-                      placeholder="Цена в ⭐"
+                      placeholder={t("model_tab.price_placeholder")}
                       className="w-full min-w-0 rounded-xl border border-border bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
                     />
                     <button
@@ -260,11 +262,11 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                           setBusy(true)
                           const r = await unlistModel(m.token_id)
                           setBusy(false)
-                          onToast(r.ok ? "Снято с продажи" : r.error ?? "Ошибка")
+                          onToast(r.ok ? t("model_tab.unlisted") : r.error ?? t("model_tab.error"))
                         }}
                         className="rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-semibold active:scale-95"
                       >
-                        Снять с продажи
+                        {t("model_tab.unlist")}
                       </button>
                     ) : (
                       <button
@@ -275,7 +277,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                         }}
                         className="rounded-xl bg-[#ffd700] px-3 py-2 text-xs font-bold text-black active:scale-95"
                       >
-                        Выставить на продажу
+                        {t("model_tab.list")}
                       </button>
                     )}
                     <button
@@ -286,7 +288,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                       }}
                       className="flex items-center gap-1 rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-semibold active:scale-95"
                     >
-                      <Send className="size-3.5" /> Передать
+                      <Send className="size-3.5" /> {t("model_tab.transfer")}
                     </button>
                     <button
                       type="button"
@@ -294,7 +296,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                       onClick={() => submitSell(m.token_id)}
                       className="flex items-center gap-1 rounded-xl bg-[#ffd700]/15 px-3 py-2 text-xs font-bold text-[#ffd700] active:scale-95 disabled:opacity-50"
                     >
-                      <Star className="size-3.5" /> Продать за 55 000 ⭐
+                      <Star className="size-3.5" /> {t("model_tab.sell")}
                     </button>
                     {transfer === m.token_id && (
                       <div className="flex w-full gap-2">
@@ -302,7 +304,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                           value={transferId}
                           onChange={(e) => setTransferId(e.target.value.replace(/\D/g, ""))}
                           inputMode="numeric"
-                          placeholder="ID пользователя"
+                          placeholder={t("model_tab.transfer_id_placeholder")}
                           className="w-full min-w-0 rounded-xl border border-border bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
                         />
                         <button
@@ -311,7 +313,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                           onClick={() => submitTransfer(m.token_id)}
                           className="shrink-0 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground active:scale-95 disabled:opacity-50"
                         >
-                          {busy ? <Loader2 className="size-4 animate-spin" /> : "Передать"}
+                          {busy ? <Loader2 className="size-4 animate-spin" /> : t("model_tab.transfer")}
                         </button>
                       </div>
                     )}
@@ -325,15 +327,15 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
 
       {market.length > 0 && (
         <section>
-          <h2 className="mb-2 font-display text-lg font-bold">Маркетплейс</h2>
+          <h2 className="mb-2 font-display text-lg font-bold">{t("model_tab.marketplace")}</h2>
           <div className="space-y-3">
             {market.map((m) => (
               <div key={m.token_id} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
                 <span className="grid size-11 place-items-center rounded-xl bg-[#ffd700]/10 text-xl">💎</span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold">Экземпляр #{m.token_id}</p>
+                  <p className="truncate text-sm font-bold">{t("model_tab.instance", { token: m.token_id })}</p>
                   <p className="truncate text-[11px] text-muted-foreground">
-                    {m.seller_nick || "Продавец"} · комиссия 5%
+                    {m.seller_nick || t("model_tab.seller")} · {t("model_tab.fee")}
                   </p>
                 </div>
                 <button
@@ -341,13 +343,13 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                   disabled={busy}
                   onClick={async () => {
                     if (stars < m.sale_price_stars) {
-                      onToast("Недостаточно звёзд")
+                      onToast(t("model_tab.no_stars"))
                       return
                     }
                     setBusy(true)
                     const r = await buyModel(m.token_id)
                     setBusy(false)
-                    onToast(r.ok ? "Модель куплена!" : r.error ?? "Ошибка")
+                    onToast(r.ok ? t("model_tab.bought") : r.error ?? t("model_tab.error"))
                   }}
                   className="flex shrink-0 items-center gap-1 rounded-xl bg-[#ffd700] px-3 py-2 text-xs font-bold text-black active:scale-95 disabled:opacity-50"
                 >
@@ -363,9 +365,9 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
         <div className="flex items-center gap-2">
           <Wallet className="size-5 text-muted-foreground" />
           <div>
-            <p className="text-sm font-bold">TON-подключение</p>
+            <p className="text-sm font-bold">{t("model_tab.ton")}</p>
             <p className="text-[11px] text-muted-foreground">
-              Скоро: кошелёк TON, выпуск NFT модели, продажа и роялти 1-5% за продажу.
+              {t("model_tab.ton_note")}
             </p>
           </div>
         </div>
@@ -376,13 +378,13 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
             setTonBusy(true)
             setTimeout(() => {
               setTonBusy(false)
-              onToast("TON-интеграция появится в следующем обновлении")
+              onToast(t("model_tab.ton_soon"))
             }, 600)
           }}
           className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl border border-[#ffd700]/40 bg-[#ffd700]/10 py-2.5 text-sm font-semibold text-[#ffd700] active:scale-[0.98] disabled:opacity-50"
         >
           {tonBusy ? <Loader2 className="size-4 animate-spin" /> : <Wallet className="size-4" />}
-          Подключить TON
+          {t("model_tab.connect_ton")}
         </button>
       </section>
     </div>

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { X, Send, MessageCircle, UserPlus, UserCheck, Check, Loader2, Clock } from "lucide-react"
 import type { Player } from "@/lib/data"
+import { roleL10nKey } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { cn } from "@/lib/utils"
@@ -15,7 +16,7 @@ export function ContactSheet({
   player: Player | null
   onClose: () => void
 }) {
-  const { t } = useI18n()
+  const { t, tl } = useI18n()
   const { referralBotUrl } = useNexus()
   const botLink = (referralBotUrl || "https://t.me/NexusTeammatesBot").replace(/\/+$/, "")
   const [invited, setInvited] = useState(false)
@@ -79,7 +80,7 @@ export function ContactSheet({
           <div>
             <p className="font-display text-xl font-bold leading-tight">{player.nick}</p>
             <p className="text-sm text-muted-foreground">
-              {player.realName} · {player.role}
+              {player.realName} · {tl(roleL10nKey(player.game, player.role), player.role)}
             </p>
           </div>
         </div>

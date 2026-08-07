@@ -35,6 +35,13 @@ function caseChances(c: LootCase) {
   return items.map((i) => ({ item: i, pct: (i.weight / totalW) * 100 }))
 }
 
+// Ключи локализации для серверных текстов: название/подзаголовок кейса,
+// название/описание предмета. Возвращаются только если перевод существует.
+export const caseNameKey = (c: { id?: string }) => (c.id ? `case.${c.id}.name` : "")
+export const caseSubtitleKey = (c: { id?: string }) => (c.id ? `case.${c.id}.subtitle` : "")
+export const itemNameKey = (i: { key?: string }) => (i.key ? `item.${i.key}.name` : "")
+export const itemDescKey = (i: { key?: string }) => (i.key ? `item.${i.key}.desc` : "")
+
 function pickWeighted(items: CaseItem[]) {
   const list = items ?? []
   const total = list.reduce((s, i) => s + i.weight, 0)
@@ -53,7 +60,7 @@ function itemPct(c: LootCase, item: CaseItem) {
 }
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
-  const { t } = useI18n()
+  const { t, tl } = useI18n()
   const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta, loaded, freeGoldOpens } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
@@ -349,7 +356,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                   >
                     <img
                       src={c.image || "/placeholder.svg"}
-                      alt={c.name}
+                      alt={tl(caseNameKey(c), c.name)}
                       className={cn("size-full object-cover transition-transform", isSpin && "animate-float")}
                     />
                   </div>
@@ -361,8 +368,8 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 </div>
 
                 <div className="min-w-0 flex-1">
-                  <h2 className="font-display text-lg font-bold leading-tight text-balance">{c.name}</h2>
-                  <p className="text-xs text-muted-foreground">{c.subtitle}</p>
+                  <h2 className="font-display text-lg font-bold leading-tight text-balance">{tl(caseNameKey(c), c.name)}</h2>
+                  <p className="text-xs text-muted-foreground">{tl(caseSubtitleKey(c), c.subtitle)}</p>
                   {c.free ? (
                     onCooldown ? (
                       <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-muted-foreground tabular-nums">
@@ -492,7 +499,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                   return (
                     <div key={item.key} className="flex items-center gap-2">
                       <span className="size-2 shrink-0 rounded-full" style={{ background: color }} />
-                      <span className="w-24 shrink-0 truncate text-[11px] font-medium">{item.name}</span>
+                      <span className="w-24 shrink-0 truncate text-[11px] font-medium">{tl(itemNameKey(item), item.name)}</span>
                       <span className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-secondary">
                         <span
                           className="absolute inset-y-0 left-0 rounded-full"
@@ -574,7 +581,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                       <span className="grid size-10 place-items-center rounded-lg bg-secondary text-xl">{item.icon}</span>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-bold">{item.name}</p>
+                      <p className="truncate text-xs font-bold">{tl(itemNameKey(item), item.name)}</p>
                       <p className="text-[10px]" style={{ color: rarityMeta[item.rarity].color }}>
                         {rarityMeta[item.rarity].label} {count > 1 && <span className="text-muted-foreground">×{count}</span>}
                       </p>
@@ -619,8 +626,8 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
             <div key={s.key} className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3">
               <img src={s.image || "/placeholder.svg"} alt="" className="size-12 shrink-0 rounded-xl object-cover" />
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold">{s.name}</p>
-                <p className="truncate text-[11px] text-muted-foreground">{s.desc}</p>
+                <p className="truncate text-sm font-bold">{tl(itemNameKey(s), s.name)}</p>
+                <p className="truncate text-[11px] text-muted-foreground">{tl(itemDescKey(s), s.desc)}</p>
               </div>
               <button
                 type="button"
@@ -692,7 +699,7 @@ const CRUISE = 3.0
 const LAND_MS = 1500
 
 function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem | null; onDone: () => void }) {
-  const { t } = useI18n()
+  const { t, tl } = useI18n()
   const viewportRef = useRef<HTMLDivElement>(null)
   const trackRef = useRef<HTMLDivElement>(null)
   const [landed, setLanded] = useState(false)
@@ -814,7 +821,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
         <p className="mb-1 flex items-center gap-1.5 text-xs font-medium uppercase tracking-[0.2em] text-muted-foreground">
           <Package className="size-3.5" /> {landed ? t("common.done") : t("cases.opening")}
         </p>
-        <p className="mb-4 font-display text-lg font-bold text-balance text-center">{box.name}</p>
+        <p className="mb-4 font-display text-lg font-bold text-balance text-center">{tl(caseNameKey(box), box.name)}</p>
 
         {/* Reel viewport */}
         <div
@@ -893,7 +900,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
 }
 
 function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; onClose: () => void }) {
-  const { t } = useI18n()
+  const { t, tl } = useI18n()
   const meta = rarityMeta[item.rarity]
   const pct = itemPct(box, item)
   const isJackpot = item.kind === "model"
@@ -929,35 +936,35 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
           style={{ borderColor: meta.color, boxShadow: `0 0 40px -10px ${meta.color}` }}
         >
           {item.image ? (
-            <img src={item.image || "/placeholder.svg"} alt={item.name} className="size-full object-cover animate-float" />
+            <img src={item.image || "/placeholder.svg"} alt={tl(itemNameKey(item), item.name)} className="size-full object-cover animate-float" />
           ) : (
             <span className="grid size-full place-items-center text-6xl animate-float">{item.icon}</span>
           )}
         </div>
-        <h3 className="mt-4 font-display text-xl font-bold text-balance">{item.name}</h3>
-        <p className="mt-1 text-sm text-muted-foreground text-pretty">{item.desc}</p>
+        <h3 className="mt-4 font-display text-xl font-bold text-balance">{tl(itemNameKey(item), item.name)}</h3>
+        <p className="mt-1 text-sm text-muted-foreground text-pretty">{tl(itemDescKey(item), item.desc)}</p>
 
         {isJackpot && (
           <div className="mt-3 space-y-1.5 rounded-2xl border border-[#ffd700]/40 bg-[#ffd700]/5 p-3 text-left">
             <p className="flex items-center justify-between gap-2 text-sm font-bold text-[#ffd700]">
-              <span>💎 Экземпляр</span>
+              <span>💎 {t("cases.reveal_instance")}</span>
               <span>#{item.token ?? "?"} / 20</span>
             </p>
             <p className="flex items-center justify-between gap-2 text-xs">
               <span>10 000 ⭐</span>
-              <span className="font-semibold text-stars">Получено</span>
+              <span className="font-semibold text-stars">{t("cases.reveal_claimed")}</span>
             </p>
             <p className="flex items-center justify-between gap-2 text-xs">
-              <span>Роль</span>
-              <span className="font-semibold capitalize">{item.role ?? "модератор"}</span>
+              <span>{t("cases.reveal_role")}</span>
+              <span className="font-semibold capitalize">{item.role ?? t("cases.reveal_role_mod")}</span>
             </p>
             <p className="flex items-center justify-between gap-2 text-xs">
-              <span>Премиум</span>
-              <span className="font-semibold text-accent">Пожизненно</span>
+              <span>{t("cases.reveal_premium")}</span>
+              <span className="font-semibold text-accent">{t("cases.reveal_lifetime")}</span>
             </p>
             <p className="flex items-center justify-between gap-2 text-xs">
-              <span>Доход</span>
-              <span className="font-semibold">50-100 ⭐ в день</span>
+              <span>{t("cases.reveal_income")}</span>
+              <span className="font-semibold">{t("cases.reveal_income_val")}</span>
             </p>
           </div>
         )}
@@ -972,33 +979,33 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
           <div className="mt-3 space-y-1.5 rounded-2xl border border-[#4fc3f7]/40 bg-[#4fc3f7]/5 p-3 text-left">
             {b.stars ? (
               <p className="flex items-center justify-between gap-2 text-xs">
-                <span>Звёзды</span>
+                <span>{t("cases.reveal_stars")}</span>
                 <span className="font-semibold text-stars">+{formatNum(b.stars)} ⭐</span>
               </p>
             ) : null}
             {b.coins ? (
               <p className="flex items-center justify-between gap-2 text-xs">
-                <span>Монеты Nexus</span>
+                <span>{t("cases.reveal_coins")}</span>
                 <span className="font-semibold text-primary">+{formatNum(b.coins)} 🪙</span>
               </p>
             ) : null}
             {b.free_gold_opens ? (
               <p className="flex items-center justify-between gap-2 text-xs">
-                <span>Открытия Nexus Premium</span>
+                <span>{t("cases.reveal_premium_opens")}</span>
                 <span className="font-semibold">×{formatNum(b.free_gold_opens)}</span>
               </p>
             ) : null}
             {b.searches ? (
               <p className="flex items-center justify-between gap-2 text-xs">
-                <span>Анкеты/день</span>
+                <span>{t("cases.reveal_searches")}</span>
                 <span className="font-semibold">+{formatNum(b.searches)}</span>
               </p>
             ) : null}
             {b.highlight_hours ? (
               <p className="flex items-center justify-between gap-2 text-xs">
-                <span>Топ в поиске</span>
+                <span>{t("cases.reveal_top")}</span>
                 <span className="font-semibold text-accent">
-                  {b.highlight_hours >= 72 ? "Топ-1 · 3 дня" : b.highlight_hours >= 48 ? "Топ 2-3 · 2 дня" : "Топ · 24ч"}
+                  {b.highlight_hours >= 72 ? t("cases.reveal_top1_3d") : b.highlight_hours >= 48 ? t("cases.reveal_top23_2d") : t("cases.reveal_top_24h")}
                 </span>
               </p>
             ) : null}
@@ -1038,7 +1045,7 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
 }
 
 function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseItem[]; onClose: () => void }) {
-  const { t } = useI18n()
+  const { t, tl } = useI18n()
   const totalStars = items.filter((i) => i.kind === "stars").reduce((s, i) => s + (i.stars ?? 0), 0)
   const totalJetStars = items.filter((i) => i.kind === "jet").reduce((s, i) => s + (i.bonuses?.stars ?? 0), 0)
   const totalJetCoins = items.filter((i) => i.kind === "jet").reduce((s, i) => s + (i.bonuses?.coins ?? 0), 0)
@@ -1063,7 +1070,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
         <div className="flex items-center justify-between border-b border-border bg-stars/5 px-5 py-4">
           <div>
             <h3 className="font-display text-lg font-bold">{t("cases.multi_title", { count: items.length })}</h3>
-            <p className="text-xs text-muted-foreground">{box.name}</p>
+            <p className="text-xs text-muted-foreground">{tl(caseNameKey(box), box.name)}</p>
           </div>
           <button
             type="button"
@@ -1092,7 +1099,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
 
         {jetItems.length > 0 && (
           <div className="mx-5 mb-1 rounded-2xl border border-[#4fc3f7]/50 bg-[#4fc3f7]/10 p-3 text-center">
-            <p className="text-sm font-bold text-[#4fc3f7]">✈️ {jetItems[0].name}</p>
+            <p className="text-sm font-bold text-[#4fc3f7]">✈️ {tl(itemNameKey(jetItems[0]), jetItems[0].name)}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
               {jetItems.reduce((s, i) => s + (i.bonuses?.free_gold_opens ?? 0), 0)} премиум-открытий ·{" "}
               {jetItems.reduce((s, i) => s + (i.bonuses?.searches ?? 0), 0)} анкет · топ в поиске
@@ -1118,7 +1125,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
                   <span className="grid size-9 place-items-center rounded-lg bg-secondary text-lg">{item.icon}</span>
                 )}
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-bold">{item.name}</p>
+                  <p className="truncate text-sm font-bold">{tl(itemNameKey(item), item.name)}</p>
                   <p className="text-[10px]" style={{ color }}>{rarityMeta[item.rarity].label}</p>
                 </div>
                 <span className="shrink-0 text-sm font-bold tabular-nums" style={{ color }}>×{count}</span>

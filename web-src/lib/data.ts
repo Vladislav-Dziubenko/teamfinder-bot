@@ -19,6 +19,51 @@ export const games: Game[] = [
   { id: "rust", name: "Rust", short: "Rust", color: "var(--chart-6)", emoji: "🦀" },
 ]
 
+// Слаги ролей для локализации: game -> [русская строка, slug]. Фронт получает
+// роль строкой (как в БД), ищет её в списке и подставляет перевод через
+// i18n-ключ role.<game>.<slug> (см. web-src/locales).
+const GAME_ROLE_SLUGS: Record<string, [string, string][]> = {
+  cs2: [["AWPer", "awper"], ["Entry", "entry"], ["Support", "support"], ["IGL", "igl"], ["Lurker", "lurker"], ["Универсал", "universal"]],
+  roblox: [["Лидер", "leader"], ["Билдер", "builder"], ["Скриптер", "scripter"], ["Дизайнер", "designer"], ["PvP", "pvp"], ["Ролевик", "roleplayer"]],
+  wot: [["Тяжёлый", "heavy"], ["Средний", "medium"], ["ЛТ", "light"], ["ПТ-САУ", "td"], ["САУ", "spg"], ["Универсал", "universal"]],
+  wt: [["Истребитель", "fighter"], ["Штурмовик", "attacker"], ["Бомбардировщик", "bomber"], ["Танки", "tanks"], ["Вертолёты", "helicopters"], ["Смешанный", "mixed"]],
+  dota2: [["Керри", "carry"], ["Мид", "mid"], ["Оффлейн", "offlane"], ["Саппорт 4", "support4"], ["Саппорт 5", "support5"], ["Капитан", "captain"]],
+  valorant: [["Дуэлянт", "duelist"], ["Инициатор", "initiator"], ["Контроллер", "controller"], ["Сентинел", "sentinel"], ["IGL", "igl"]],
+  minecraft: [["Билдер", "builder"], ["Редстоун", "redstone"], ["PvP", "pvp"], ["Фарм", "farm"], ["Ивенты", "events"], ["Выживание", "survival"]],
+  fortnite: [["Шотганер", "shotgunner"], ["Билдер", "builder"], ["IGL", "igl"], ["Саппорт", "support"], ["Снайпер", "sniper"]],
+  apex: [["Entry", "entry"], ["Support", "support"], ["Flex", "flex"], ["IGL", "igl"]],
+  rust: [["Рейдер", "raider"], ["Фармер", "farmer"], ["Билдер", "builder"], ["Электрик", "electrician"], ["PvP", "pvp"]],
+}
+
+const GAME_RANK_SLUGS: Record<string, [string, string][]> = {
+  cs2: [["Silver", "silver"], ["Gold Nova", "goldnova"], ["MG", "mg"], ["DMG", "dmg"], ["LE", "le"], ["LEM", "lem"], ["Supreme", "supreme"], ["Global Elite", "global"], ["Faceit 1-3", "faceit1"], ["Faceit 4-7", "faceit2"], ["Faceit 8-10", "faceit3"]],
+  roblox: [["Новичок", "newbie"], ["Средний", "mid"], ["Опытный", "exp"], ["Про", "pro"]],
+  wot: [["Новичок", "newbie"], ["Бронза", "bronze"], ["Серебро", "silver"], ["Золото", "gold"], ["Платина", "platinum"], ["Алмаз", "diamond"], ["Мастер", "master"]],
+  wt: [["Новичок", "newbie"], ["Ранк 3-4", "rank3"], ["Ранк 5-6", "rank5"], ["Ранк 7-8", "rank7"], ["Топ-ранк", "top"]],
+  dota2: [["Herald", "herald"], ["Guardian", "guardian"], ["Crusader", "crusader"], ["Archon", "archon"], ["Legend", "legend"], ["Ancient", "ancient"], ["Divine", "divine"], ["Immortal", "immortal"]],
+  valorant: [["Iron", "iron"], ["Bronze", "bronze"], ["Silver", "silver"], ["Gold", "gold"], ["Platinum", "platinum"], ["Diamond", "diamond"], ["Ascendant", "ascendant"], ["Immortal", "immortal"], ["Radiant", "radiant"]],
+  minecraft: [["Казуал", "casual"], ["Опытный", "exp"], ["Хардкор", "hardcore"]],
+  fortnite: [["0-1000", "r1"], ["1000-3000", "r2"], ["3000-5000", "r3"], ["5000-8000", "r4"], ["8000+", "r5"]],
+  apex: [["Bronze", "bronze"], ["Silver", "silver"], ["Gold", "gold"], ["Platinum", "platinum"], ["Diamond", "diamond"], ["Master", "master"], ["Predator", "predator"]],
+  rust: [["Новичок", "newbie"], ["100ч+", "h100"], ["500ч+", "h500"], ["1000ч+", "h1000"]],
+}
+
+/** i18n-ключ для роли игрока: role.<game>.<slug>, пустая строка если не найдена. */
+export function roleL10nKey(gameId: string, role: string): string {
+  const list = GAME_ROLE_SLUGS[gameId]
+  if (!list || !role) return ""
+  const found = list.find(([ru]) => ru.toLowerCase() === role.toLowerCase())
+  return found ? `role.${gameId}.${found[1]}` : ""
+}
+
+/** i18n-ключ для ранга игрока: rank.<game>.<slug>, пустая строка если не найден. */
+export function rankL10nKey(gameId: string, rank: string): string {
+  const list = GAME_RANK_SLUGS[gameId]
+  if (!list || !rank) return ""
+  const found = list.find(([ru]) => ru.toLowerCase() === rank.toLowerCase())
+  return found ? `rank.${gameId}.${found[1]}` : ""
+}
+
 export type Player = {
   id: string
   nick: string

@@ -2,7 +2,7 @@
 
 import { Crosshair, Trophy, Clock, Zap, Lock, Star, Crown, Award, MessageCircle, Search } from "lucide-react"
 import type { Player } from "@/lib/data"
-import { games } from "@/lib/data"
+import { games, roleL10nKey, rankL10nKey } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 
 export function PlayerCard({
@@ -20,7 +20,7 @@ export function PlayerCard({
   locked?: boolean
   index?: number
 }) {
-  const { t } = useI18n()
+  const { t, tl } = useI18n()
   const game = games.find((g) => g.id === player.game)
 
   return (
@@ -79,7 +79,7 @@ export function PlayerCard({
             <div className="absolute bottom-3 left-3">
               <h3 className="font-display text-xl font-bold leading-none">{player.nick}</h3>
               <p className="text-sm text-muted-foreground">
-                {player.realName} · {player.rank}
+                {player.realName} · {tl(rankL10nKey(player.game, player.rank), player.rank)}
               </p>
             </div>
           </>
@@ -102,7 +102,7 @@ export function PlayerCard({
       <div className="p-4">
         {/* stats */}
         <div className="grid grid-cols-4 gap-2 text-center">
-          <Stat icon={Crosshair} label={t("player_card.stat_role")} value={locked ? "???" : player.role} />
+          <Stat icon={Crosshair} label={t("player_card.stat_role")} value={locked ? "???" : tl(roleL10nKey(player.game, player.role), player.role)} />
           <Stat icon={Trophy} label={t("player_card.stat_winrate")} value={locked ? "??" : `${player.winrate}%`} />
           <Stat
             icon={Clock}
