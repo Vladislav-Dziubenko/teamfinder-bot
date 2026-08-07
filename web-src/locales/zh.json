@@ -711,5 +711,11 @@
   "consent.accept": "接受并继续",
   "consent.agree_all": "选中两个框以继续",
   "consent.version": "协议版本：v{version}",
-  "welcome_bonus.toast": "🎁 欢迎奖金：500 ⭐、10 个高级案例和 10 个免费个人资料解锁！"
+  "welcome_bonus.toast": "🎁 欢迎奖金：500 ⭐、10 个高级案例和 10 个免费个人资料解锁！",
+  "ban.title": "帐户被禁止",
+  "ban.subtitle": "对应用程序的访问受到审核的限制",
+  "ban.reason_title": "禁令原因",
+  "ban.reason_label": "原因",
+  "ban.no_reason": "未指定",
+  "ban.appeal": "如果您认为此禁令是错误的，请联系项目支持。"
 }

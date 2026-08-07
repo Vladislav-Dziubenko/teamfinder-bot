@@ -16,6 +16,7 @@ import { FriendsTab } from "./friends-tab"
 import { ContactSheet } from "./contact-sheet"
 import { ProfileViewSheet } from "./profile-view-sheet"
 import { ConsentSheet } from "./consent-sheet"
+import { BannedSheet } from "./banned-sheet"
 import { openChatWithPlayer } from "@/lib/chat"
 import { api } from "@/lib/api"
 import { useMe, useNexus, CONSENT_VERSION } from "@/lib/store"
@@ -42,7 +43,7 @@ function TabFallback() {
 function Shell() {
   const { t } = useI18n()
   const me = useMe()
-  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus } = useNexus()
+  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus, banned, banReason } = useNexus()
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -170,10 +171,15 @@ function Shell() {
 
       <ContactSheet player={contact} onClose={() => setContact(null)} />
 
+      {/* Бан аккаунта — полный экран поверх приложения, выше онбординга */}
+      {loaded && banned && (
+        <BannedSheet reason={banReason} />
+      )}
+
       {/* Онбординг: политика конфиденциальности и дисклеймер.
           Показывается только если пользователь ещё не принял актуальную
           версию соглашения; решение хранится на сервере. */}
-      {loaded && consentVersion < CONSENT_VERSION && (
+      {loaded && !banned && consentVersion < CONSENT_VERSION && (
         <ConsentSheet onAccept={acceptConsent} />
       )}
 

@@ -711,5 +711,11 @@
   "consent.accept": "Accepter et continuer",
   "consent.agree_all": "Cochez les deux cases pour continuer",
   "consent.version": "Version du contrat : v{version}",
-  "welcome_bonus.toast": "🎁 Bonus de bienvenue : 500 ⭐, 10 coques premium et 10 déverrouillages de profil gratuits !"
+  "welcome_bonus.toast": "🎁 Bonus de bienvenue : 500 ⭐, 10 coques premium et 10 déverrouillages de profil gratuits !",
+  "ban.title": "Compte banni",
+  "ban.subtitle": "L'accès à l'application est restreint par modération",
+  "ban.reason_title": "Raison de l'interdiction",
+  "ban.reason_label": "Raison",
+  "ban.no_reason": "Non précisé",
+  "ban.appeal": "Si vous pensez que cette interdiction est une erreur, veuillez contacter le support du projet."
 }

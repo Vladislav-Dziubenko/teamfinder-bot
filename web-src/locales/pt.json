@@ -711,5 +711,11 @@
   "consent.accept": "Aceite e continue",
   "consent.agree_all": "Marque ambas as caixas para continuar",
   "consent.version": "Versão do contrato: v{version}",
-  "welcome_bonus.toast": "🎁 Bônus de boas-vindas: 500 ⭐, 10 caixas premium e 10 desbloqueios de perfil gratuitos!"
+  "welcome_bonus.toast": "🎁 Bônus de boas-vindas: 500 ⭐, 10 caixas premium e 10 desbloqueios de perfil gratuitos!",
+  "ban.title": "Conta banida",
+  "ban.subtitle": "O acesso ao aplicativo é restrito por moderação",
+  "ban.reason_title": "Motivo da proibição",
+  "ban.reason_label": "Razão",
+  "ban.no_reason": "Não especificado",
+  "ban.appeal": "Se você acredita que esta proibição é um erro, entre em contato com o suporte do projeto."
 }

@@ -2798,6 +2798,17 @@ class Database:
             )
             return row == 1
 
+    async def get_global_ban(self, user_id: int) -> dict | None:
+        """Возвращает активный бан юзера: reason + created_at, или None."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT reason, created_at FROM global_bans WHERE user_id = $1 LIMIT 1",
+                user_id,
+            )
+            if not row:
+                return None
+            return {"reason": row["reason"] or "", "created_at": row["created_at"] or ""}
+
     async def search_users_with_roles(self, query: str, limit: int = 20) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(

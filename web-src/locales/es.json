@@ -711,5 +711,11 @@
   "consent.accept": "Aceptar y continuar",
   "consent.agree_all": "Marque ambas casillas para continuar",
   "consent.version": "Versión del acuerdo: v{version}",
-  "welcome_bonus.toast": "🎁 Bono de bienvenida: 500 ⭐, 10 estuches premium y 10 desbloqueos de perfiles gratuitos."
+  "welcome_bonus.toast": "🎁 Bono de bienvenida: 500 ⭐, 10 estuches premium y 10 desbloqueos de perfiles gratuitos.",
+  "ban.title": "Cuenta prohibida",
+  "ban.subtitle": "El acceso a la aplicación está restringido por moderación.",
+  "ban.reason_title": "Razón de la prohibición",
+  "ban.reason_label": "Razón",
+  "ban.no_reason": "No especificado",
+  "ban.appeal": "Si cree que esta prohibición es un error, comuníquese con el soporte del proyecto."
 }

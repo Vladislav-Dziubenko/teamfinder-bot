@@ -711,5 +711,11 @@
   "consent.accept": "Přijmout a pokračovat",
   "consent.agree_all": "Chcete-li pokračovat, zaškrtněte obě políčka",
   "consent.version": "Verze smlouvy: v{version}",
-  "welcome_bonus.toast": "🎁 Uvítací bonus: 500 ⭐, 10 prémiových pouzder a 10 bezplatných odemknutí profilu!"
+  "welcome_bonus.toast": "🎁 Uvítací bonus: 500 ⭐, 10 prémiových pouzder a 10 bezplatných odemknutí profilu!",
+  "ban.title": "Účet zakázán",
+  "ban.subtitle": "Přístup k aplikaci je omezen moderováním",
+  "ban.reason_title": "Důvod zákazu",
+  "ban.reason_label": "Důvod",
+  "ban.no_reason": "Neuvedeno",
+  "ban.appeal": "Pokud se domníváte, že tento zákaz je chybou, kontaktujte prosím podporu projektu."
 }

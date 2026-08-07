@@ -711,5 +711,11 @@
   "consent.accept": "Accepteer en ga door",
   "consent.agree_all": "Vink beide vakjes aan om door te gaan",
   "consent.version": "Overeenkomstversie: v{version}",
-  "welcome_bonus.toast": "🎁 Welkomstbonus: 500 ⭐, 10 premium cases en 10 gratis profielontgrendelingen!"
+  "welcome_bonus.toast": "🎁 Welkomstbonus: 500 ⭐, 10 premium cases en 10 gratis profielontgrendelingen!",
+  "ban.title": "Account verboden",
+  "ban.subtitle": "De toegang tot de app is beperkt door middel van moderatie",
+  "ban.reason_title": "Reden van het verbod",
+  "ban.reason_label": "Reden",
+  "ban.no_reason": "Niet gespecificeerd",
+  "ban.appeal": "Als u denkt dat dit verbod een vergissing is, neem dan contact op met de projectondersteuning."
 }

@@ -711,5 +711,11 @@
   "consent.accept": "Elfogadás és folytatás",
   "consent.agree_all": "A folytatáshoz jelölje be mindkét négyzetet",
   "consent.version": "Megállapodás verziója: v{version}",
-  "welcome_bonus.toast": "🎁 Üdvözlő bónusz: 500 ⭐, 10 prémium tok és 10 ingyenes profilfeloldás!"
+  "welcome_bonus.toast": "🎁 Üdvözlő bónusz: 500 ⭐, 10 prémium tok és 10 ingyenes profilfeloldás!",
+  "ban.title": "Fiók tiltva",
+  "ban.subtitle": "Az alkalmazáshoz való hozzáférést moderálás korlátozza",
+  "ban.reason_title": "A tiltás oka",
+  "ban.reason_label": "Ok",
+  "ban.no_reason": "Nincs megadva",
+  "ban.appeal": "Ha úgy gondolja, hogy ez a tiltás tévedés, forduljon a projekt támogatásához."
 }

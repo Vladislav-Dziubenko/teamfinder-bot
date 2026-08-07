@@ -75,6 +75,8 @@ type MeResponse = {
   free_gold_opens?: number
   consent?: number
   welcome_bonus?: boolean
+  banned?: boolean
+  ban_reason?: string
   premium_active: boolean
   promos?: Array<{
     code: string
@@ -150,6 +152,8 @@ type PersistedState = {
   freeGoldOpens: number
   consentVersion: number
   welcomeBonus: boolean
+  banned: boolean
+  banReason: string
 }
 
 function makeReferralCode() {
@@ -311,6 +315,8 @@ function defaultState(): PersistedState {
     freeGoldOpens: 0,
     consentVersion: 0,
     welcomeBonus: false,
+    banned: false,
+    banReason: "",
   }
 }
 
@@ -393,6 +399,8 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     freeGoldOpens: me.free_gold_opens ?? 0,
     consentVersion: me.consent ?? 0,
     welcomeBonus: !!me.welcome_bonus,
+    banned: !!me.banned,
+    banReason: me.ban_reason || "",
   }
 }
 

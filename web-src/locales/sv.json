@@ -711,5 +711,11 @@
   "consent.accept": "Acceptera och fortsätt",
   "consent.agree_all": "Markera båda rutorna för att fortsätta",
   "consent.version": "Avtalsversion: v{version}",
-  "welcome_bonus.toast": "🎁 Välkomstbonus: 500 ⭐, 10 premiumfodral och 10 gratis profilupplåsningar!"
+  "welcome_bonus.toast": "🎁 Välkomstbonus: 500 ⭐, 10 premiumfodral och 10 gratis profilupplåsningar!",
+  "ban.title": "Kontot spärrat",
+  "ban.subtitle": "Åtkomsten till appen är begränsad av moderering",
+  "ban.reason_title": "Anledning till förbudet",
+  "ban.reason_label": "Anledning",
+  "ban.no_reason": "Ej specificerat",
+  "ban.appeal": "Om du tror att detta förbud är ett misstag, kontakta projektsupporten."
 }

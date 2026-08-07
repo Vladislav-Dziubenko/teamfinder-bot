@@ -711,5 +711,11 @@
   "consent.accept": "Accepter og fortsæt",
   "consent.agree_all": "Marker begge felter for at fortsætte",
   "consent.version": "Aftaleversion: v{version}",
-  "welcome_bonus.toast": "🎁 Velkomstbonus: 500 ⭐, 10 premium covers og 10 gratis profiloplåsninger!"
+  "welcome_bonus.toast": "🎁 Velkomstbonus: 500 ⭐, 10 premium covers og 10 gratis profiloplåsninger!",
+  "ban.title": "Konto forbudt",
+  "ban.subtitle": "Adgang til appen er begrænset af moderation",
+  "ban.reason_title": "Årsag til forbuddet",
+  "ban.reason_label": "Årsag",
+  "ban.no_reason": "Ikke specificeret",
+  "ban.appeal": "Hvis du mener, at dette forbud er en fejl, bedes du kontakte projektsupport."
 }

@@ -711,5 +711,11 @@
   "consent.accept": "Nõustu ja jätka",
   "consent.agree_all": "Jätkamiseks märkige mõlemad ruudud",
   "consent.version": "Lepingu versioon: v{version}",
-  "welcome_bonus.toast": "🎁 Tervitusboonus: 500 ⭐, 10 esmaklassilist ümbrist ja 10 tasuta profiili avamist!"
+  "welcome_bonus.toast": "🎁 Tervitusboonus: 500 ⭐, 10 esmaklassilist ümbrist ja 10 tasuta profiili avamist!",
+  "ban.title": "Konto on keelatud",
+  "ban.subtitle": "Juurdepääs rakendusele on modereerimisega piiratud",
+  "ban.reason_title": "Keelu põhjus",
+  "ban.reason_label": "Põhjus",
+  "ban.no_reason": "Määratlemata",
+  "ban.appeal": "Kui arvate, et see keeld on viga, võtke ühendust projekti toega."
 }

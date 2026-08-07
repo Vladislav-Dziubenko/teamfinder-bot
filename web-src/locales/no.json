@@ -711,5 +711,11 @@
   "consent.accept": "Godta og fortsett",
   "consent.agree_all": "Merk av i begge boksene for å fortsette",
   "consent.version": "Avtaleversjon: v{version}",
-  "welcome_bonus.toast": "🎁 Velkomstbonus: 500 ⭐, 10 premium-deksler og 10 gratis profilopplåsninger!"
+  "welcome_bonus.toast": "🎁 Velkomstbonus: 500 ⭐, 10 premium-deksler og 10 gratis profilopplåsninger!",
+  "ban.title": "Konto utestengt",
+  "ban.subtitle": "Tilgang til appen er begrenset av moderering",
+  "ban.reason_title": "Årsak til forbudet",
+  "ban.reason_label": "Grunn",
+  "ban.no_reason": "Ikke spesifisert",
+  "ban.appeal": "Hvis du mener at dette forbudet er en feil, vennligst kontakt prosjektstøtte."
 }

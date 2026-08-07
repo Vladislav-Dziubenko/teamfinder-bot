@@ -711,5 +711,11 @@
   "consent.accept": "동의하고 계속하세요",
   "consent.agree_all": "계속하려면 두 상자를 모두 선택하세요.",
   "consent.version": "계약 버전: v{version}",
-  "welcome_bonus.toast": "🎁 환영 보너스: 500 ⭐, 프리미엄 케이스 10개 및 무료 프로필 잠금 해제 10개!"
+  "welcome_bonus.toast": "🎁 환영 보너스: 500 ⭐, 프리미엄 케이스 10개 및 무료 프로필 잠금 해제 10개!",
+  "ban.title": "계정이 금지되었습니다",
+  "ban.subtitle": "검토로 인해 앱에 대한 액세스가 제한됩니다.",
+  "ban.reason_title": "금지 이유",
+  "ban.reason_label": "이유",
+  "ban.no_reason": "지정되지 않음",
+  "ban.appeal": "이번 금지가 실수라고 생각되면 프로젝트 지원팀에 문의하세요."
 }

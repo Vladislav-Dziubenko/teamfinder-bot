@@ -711,5 +711,11 @@
   "consent.accept": "Akzeptieren und fortfahren",
   "consent.agree_all": "Aktivieren Sie beide Kontrollkästchen, um fortzufahren",
   "consent.version": "Vereinbarungsversion: v{version}",
-  "welcome_bonus.toast": "🎁 Willkommensbonus: 500 ⭐, 10 Premium-Hüllen und 10 kostenlose Profilfreischaltungen!"
+  "welcome_bonus.toast": "🎁 Willkommensbonus: 500 ⭐, 10 Premium-Hüllen und 10 kostenlose Profilfreischaltungen!",
+  "ban.title": "Konto gesperrt",
+  "ban.subtitle": "Der Zugriff auf die App ist durch Moderation eingeschränkt",
+  "ban.reason_title": "Grund für das Verbot",
+  "ban.reason_label": "Grund",
+  "ban.no_reason": "Nicht angegeben",
+  "ban.appeal": "Wenn Sie glauben, dass dieses Verbot ein Fehler ist, wenden Sie sich bitte an den Projektsupport."
 }

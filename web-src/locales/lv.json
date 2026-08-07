@@ -711,5 +711,11 @@
   "consent.accept": "Pieņemiet un turpiniet",
   "consent.agree_all": "Lai turpinātu, atzīmējiet abas izvēles rūtiņas",
   "consent.version": "Līguma versija: v{version}",
-  "welcome_bonus.toast": "🎁 Iepazīšanās bonuss: 500 ⭐, 10 premium futrāļi un 10 bezmaksas profila atbloķēšanas reizes!"
+  "welcome_bonus.toast": "🎁 Iepazīšanās bonuss: 500 ⭐, 10 premium futrāļi un 10 bezmaksas profila atbloķēšanas reizes!",
+  "ban.title": "Konts ir aizliegts",
+  "ban.subtitle": "Piekļuvi lietotnei ierobežo regulēšana",
+  "ban.reason_title": "Aizlieguma iemesls",
+  "ban.reason_label": "Iemesls",
+  "ban.no_reason": "Nav norādīts",
+  "ban.appeal": "Ja uzskatāt, ka šis aizliegums ir kļūda, lūdzu, sazinieties ar projekta atbalsta dienestu."
 }

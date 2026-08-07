@@ -711,5 +711,11 @@
   "consent.accept": "Priimk ir tęsk",
   "consent.agree_all": "Norėdami tęsti, pažymėkite abu langelius",
   "consent.version": "Sutarties versija: v{version}",
-  "welcome_bonus.toast": "🎁 Sveikinimo premija: 500 ⭐, 10 aukščiausios kokybės dėklų ir 10 nemokamų profilių atrakinimo!"
+  "welcome_bonus.toast": "🎁 Sveikinimo premija: 500 ⭐, 10 aukščiausios kokybės dėklų ir 10 nemokamų profilių atrakinimo!",
+  "ban.title": "Paskyra uždrausta",
+  "ban.subtitle": "Prieiga prie programos ribojama moderuojant",
+  "ban.reason_title": "Draudimo priežastis",
+  "ban.reason_label": "Priežastis",
+  "ban.no_reason": "Nenurodyta",
+  "ban.appeal": "Jei manote, kad šis draudimas yra klaida, susisiekite su projekto palaikymo komanda."
 }

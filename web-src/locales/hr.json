@@ -711,5 +711,11 @@
   "consent.accept": "Prihvati i nastavi",
   "consent.agree_all": "Označite oba okvira za nastavak",
   "consent.version": "Verzija ugovora: v{version}",
-  "welcome_bonus.toast": "🎁 Bonus dobrodošlice: 500 ⭐, 10 premium futrola i 10 besplatnih otključavanja profila!"
+  "welcome_bonus.toast": "🎁 Bonus dobrodošlice: 500 ⭐, 10 premium futrola i 10 besplatnih otključavanja profila!",
+  "ban.title": "Račun zabranjen",
+  "ban.subtitle": "Pristup aplikaciji ograničen je moderiranjem",
+  "ban.reason_title": "Razlog zabrane",
+  "ban.reason_label": "razum",
+  "ban.no_reason": "Nije navedeno",
+  "ban.appeal": "Ako smatrate da je ova zabrana pogreška, kontaktirajte podršku projekta."
 }

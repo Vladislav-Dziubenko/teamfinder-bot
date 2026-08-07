@@ -711,5 +711,11 @@
   "consent.accept": "Zaakceptuj i kontynuuj",
   "consent.agree_all": "Zaznacz oba pola, aby kontynuować",
   "consent.version": "Wersja umowy: v{version}",
-  "welcome_bonus.toast": "🎁 Bonus powitalny: 500 ⭐, 10 skrzynek premium i 10 bezpłatnych odblokowań profili!"
+  "welcome_bonus.toast": "🎁 Bonus powitalny: 500 ⭐, 10 skrzynek premium i 10 bezpłatnych odblokowań profili!",
+  "ban.title": "Konto zbanowane",
+  "ban.subtitle": "Dostęp do aplikacji jest ograniczony przez moderację",
+  "ban.reason_title": "Powód zakazu",
+  "ban.reason_label": "Powód",
+  "ban.no_reason": "Nie określono",
+  "ban.appeal": "Jeśli uważasz, że ten zakaz to pomyłka, skontaktuj się z obsługą projektu."
 }

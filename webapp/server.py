@@ -449,6 +449,29 @@ async def auth_middleware(request: web.Request, handler):
     return await handler(request)
 
 
+@web.middleware
+async def ban_middleware(request: web.Request, handler):
+    """Блокирует доступ забаненного ко всем авторизованным эндпоинтам, кроме /api/me.
+
+    /api/me отдаёт статус бана в теле ответа ({"banned": true, "ban_reason"}) —
+    клиент по нему показывает экран «Вы забанены». Все остальные операции
+    (покупки, кейсы, чаты, поиск, рефералки) для забаненного — 403.
+    Бан привязан к user_id, поэтому с другого аккаунта он не обходится.
+    """
+    if request.path.startswith("/api/"):
+        init_data = request.get("init_data")
+        if init_data is not None and request.path != "/api/me":
+            user = init_data.get("user")
+            if user and "id" in user:
+                ban = await request.app["db"].get_global_ban(user["id"])
+                if ban is not None:
+                    return web.json_response(
+                        {"error": "banned", "banned": True, "ban_reason": ban.get("reason", "")},
+                        status=403,
+                    )
+    return await handler(request)
+
+
 async def handle_index(request: web.Request):
     return web.FileResponse(STATIC_DIR / "index.html")
 
@@ -480,12 +503,19 @@ async def handle_me(request: web.Request):
             return web.json_response(cached)
         return web.json_response({"error": "slow down"}, status=429)
 
+    # Бан аккаунта: статус отдаём клиенту в теле ответа (он покажет бан-экран),
+    # бонусы забаненному не начисляются.
+    ban_info = await db.get_global_ban(user["id"])
+    banned = ban_info is not None
+
     # Приветственный бонус — один раз при первом входе в Mini App:
     # 500 ⭐, 10 бесплатных открытий премиум-кейса, 10 бесплатных открытий анкет.
     # Считается до gather, чтобы в ответе оказался уже обновлённый баланс.
     # Антифарм: не больше WELCOME_BONUS_IP_LIMIT выдач с одного IP за 24 часа.
     # Счётчик INCR растёт только при реальной выдаче (после проверки welcome_claimed).
-    if await db.welcome_claimed(user["id"]):
+    if banned:
+        welcome_bonus = False
+    elif await db.welcome_claimed(user["id"]):
         welcome_bonus = False
     elif await counter_incr(f"wbon:{_client_ip(request)}", WELCOME_BONUS_IP_WINDOW) > WELCOME_BONUS_IP_LIMIT:
         welcome_bonus = False
@@ -537,6 +567,8 @@ async def handle_me(request: web.Request):
 
     payload = {
         "user": user,
+        "banned": banned,
+        "ban_reason": (ban_info or {}).get("reason", ""),
         "role": role,
         "is_beta": is_beta,
         "beta_state": beta_state,
@@ -3134,11 +3166,12 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # 2. ip_rate_limit_middleware — per-IP + глобальный RPS на /api/* (до auth, работает и для публичных)
     # 3. error_middleware        — перехватывает все исключения, скрывает стектрейс от клиента
     # 4. auth_middleware         — проверяет X-Telegram-Init-Data, пишет request["init_data"]
-    # 5. active_middleware      — обновляет last_active_at (fire-and-forget) для авторизованных
-    # 6. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
+    # 5. ban_middleware          — режет все эндпоинты забаненному (кроме /api/me, где статус в теле)
+    # 6. active_middleware      — обновляет last_active_at (fire-and-forget) для авторизованных
+    # 7. web_rate_limit_middleware — читает user_id из request["init_data"], выставленного auth
     # Если поменять порядок — rate limiter получит init_data=None и вернёт 500.
-    # Порядок: security → ip_rate_limit → timing → capacity → db_ready → cors → gzip → cache → error → auth → active → rate_limit
-    app = web.Application(middlewares=[security_middleware, ip_rate_limit_middleware, timing_middleware, capacity_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, active_middleware, web_rate_limit_middleware])
+    # Порядок: security → ip_rate_limit → timing → capacity → db_ready → cors → gzip → cache → error → auth → ban → active → rate_limit
+    app = web.Application(middlewares=[security_middleware, ip_rate_limit_middleware, timing_middleware, capacity_middleware, db_ready_middleware, cors_middleware, gzip_middleware, cache_static_middleware, error_middleware, auth_middleware, ban_middleware, active_middleware, web_rate_limit_middleware])
     app["allowed_origins"] = _resolve_allowed_origins(settings)
     app["db"] = db
     app["settings"] = settings

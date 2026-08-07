@@ -711,5 +711,11 @@
   "consent.accept": "Acceptați și continuați",
   "consent.agree_all": "Bifați ambele casete pentru a continua",
   "consent.version": "Versiunea acordului: v{version}",
-  "welcome_bonus.toast": "🎁 Bonus de bun venit: 500 ⭐, 10 huse premium și 10 deblocări gratuite de profil!"
+  "welcome_bonus.toast": "🎁 Bonus de bun venit: 500 ⭐, 10 huse premium și 10 deblocări gratuite de profil!",
+  "ban.title": "Cont interzis",
+  "ban.subtitle": "Accesul la aplicație este restricționat prin moderare",
+  "ban.reason_title": "Motivul interzicerii",
+  "ban.reason_label": "Motivul",
+  "ban.no_reason": "Nu este specificat",
+  "ban.appeal": "Dacă credeți că această interdicție este o greșeală, vă rugăm să contactați asistența pentru proiect."
 }

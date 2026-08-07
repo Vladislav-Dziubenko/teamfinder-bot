@@ -711,5 +711,11 @@
   "consent.accept": "Sprejmi in nadaljuj",
   "consent.agree_all": "Za nadaljevanje označite obe polji",
   "consent.version": "Različica pogodbe: v{version}",
-  "welcome_bonus.toast": "🎁 Bonus dobrodošlice: 500 ⭐, 10 vrhunskih etuijev in 10 brezplačnih odklepanj profila!"
+  "welcome_bonus.toast": "🎁 Bonus dobrodošlice: 500 ⭐, 10 vrhunskih etuijev in 10 brezplačnih odklepanj profila!",
+  "ban.title": "Račun prepovedan",
+  "ban.subtitle": "Dostop do aplikacije je omejen z moderiranjem",
+  "ban.reason_title": "Razlog za prepoved",
+  "ban.reason_label": "Razlog",
+  "ban.no_reason": "Ni določeno",
+  "ban.appeal": "Če menite, da je ta prepoved pomota, se obrnite na podporo projekta."
 }

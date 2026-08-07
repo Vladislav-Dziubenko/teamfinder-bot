@@ -1,0 +1,40 @@
+"use client"
+
+import { Ban, ShieldOff } from "lucide-react"
+import { useI18n } from "@/lib/i18n"
+
+export function BannedSheet({ reason }: { reason?: string }) {
+  const { t } = useI18n()
+
+  return (
+    <div className="fixed inset-0 z-[130] flex flex-col overflow-y-auto bg-background">
+      {/* Тёмная градиентная шапка */}
+      <div className="relative shrink-0 overflow-hidden bg-gradient-to-b from-red-600/25 via-accent/10 to-background px-6 pb-10 pt-14 text-center">
+        <div className="pointer-events-none absolute -top-10 left-1/2 h-44 w-72 -translate-x-1/2 rounded-full bg-red-500/30 blur-3xl" />
+        <div className="relative mx-auto grid size-16 place-items-center rounded-3xl bg-gradient-to-br from-red-500 to-red-700 shadow-[0_10px_40px_-10px_rgba(239,68,68,0.8)]">
+          <Ban className="size-8 text-white" />
+        </div>
+        <h1 className="relative mt-4 font-display text-2xl font-bold">{t("ban.title")}</h1>
+        <p className="relative mx-auto mt-1.5 max-w-xs text-sm text-muted-foreground">{t("ban.subtitle")}</p>
+      </div>
+
+      <div className="flex-1 space-y-4 px-5 pb-8">
+        <div className="rounded-3xl border border-red-500/25 bg-card p-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-red-500/15 text-red-500">
+              <ShieldOff className="size-5" />
+            </span>
+            <h2 className="font-display text-base font-bold">{t("ban.reason_title")}</h2>
+          </div>
+          <p className="mt-2.5 text-[13px] leading-relaxed text-muted-foreground">
+            {reason ? `${t("ban.reason_label")}: ${reason}` : t("ban.no_reason")}
+          </p>
+        </div>
+
+        <div className="rounded-3xl border border-border bg-card p-4">
+          <p className="text-[13px] leading-relaxed text-muted-foreground">{t("ban.appeal")}</p>
+        </div>
+      </div>
+    </div>
+  )
+}

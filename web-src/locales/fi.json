@@ -711,5 +711,11 @@
   "consent.accept": "Hyväksy ja jatka",
   "consent.agree_all": "Valitse molemmat ruudut jatkaaksesi",
   "consent.version": "Sopimusversio: v{version}",
-  "welcome_bonus.toast": "🎁 Tervetuliaisbonus: 500 ⭐, 10 premium-koteloa ja 10 ilmaista profiilin avausta!"
+  "welcome_bonus.toast": "🎁 Tervetuliaisbonus: 500 ⭐, 10 premium-koteloa ja 10 ilmaista profiilin avausta!",
+  "ban.title": "Tili estetty",
+  "ban.subtitle": "Sovelluksen käyttöä rajoittaa valvonta",
+  "ban.reason_title": "Syy kiellolle",
+  "ban.reason_label": "Syy",
+  "ban.no_reason": "Ei määritelty",
+  "ban.appeal": "Jos uskot, että tämä kielto on virhe, ota yhteyttä projektitukeen."
 }
