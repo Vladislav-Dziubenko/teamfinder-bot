@@ -733,5 +733,6 @@
   "role.ban_modal_btn": "Ban",
   "ban.appeal_btn": "Üzenet moderálása",
   "ban.appeal_hint": "Bármilyen üzenetet küldhet a botnak – a moderáció megkapja, és itt válaszol",
-  "ban.appeal_unavailable": "A moderátorral való kapcsolatfelvétel átmenetileg nem érhető el"
+  "ban.appeal_unavailable": "A moderátorral való kapcsolatfelvétel átmenetileg nem érhető el",
+  "role.ban_failed": "A kitiltás sikertelen: {err}"
 }

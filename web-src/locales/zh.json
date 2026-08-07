@@ -733,5 +733,6 @@
   "role.ban_modal_btn": "班",
   "ban.appeal_btn": "消息审核",
   "ban.appeal_hint": "向机器人发送任何消息 - 审核将收到该消息并在此处回复",
-  "ban.appeal_unavailable": "暂时无法联系审核"
+  "ban.appeal_unavailable": "暂时无法联系审核",
+  "role.ban_failed": "禁止失败：{err}"
 }

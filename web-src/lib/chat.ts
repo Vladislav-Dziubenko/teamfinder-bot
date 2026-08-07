@@ -414,18 +414,18 @@ export function useGlobalChat() {
   const banUser = useCallback(async (userId: string, reason = "") => {
     try {
       await api.post("/api/global/ban", { user_id: userId, reason })
-      return true
-    } catch {
-      return false
+      return { ok: true, error: "" }
+    } catch (e: any) {
+      return { ok: false, error: e?.message || "error" }
     }
   }, [])
 
   const unbanUser = useCallback(async (userId: string) => {
     try {
       await api.post("/api/global/unban", { user_id: userId })
-      return true
-    } catch {
-      return false
+      return { ok: true, error: "" }
+    } catch (e: any) {
+      return { ok: false, error: e?.message || "error" }
     }
   }, [])
 

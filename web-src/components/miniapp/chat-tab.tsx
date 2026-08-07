@@ -441,8 +441,15 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
+  const [gErr, setGErr] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!gErr) return
+    const tm = setTimeout(() => setGErr(null), 4000)
+    return () => clearTimeout(tm)
+  }, [gErr])
 
   const myRank = roleRank(meRole)
   const canModerate = myRank >= 1
@@ -490,7 +497,8 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
 
   async function onBan(m: GlobalMessage) {
     setMenuFor(null)
-    await banUser(m.userId)
+    const r = await banUser(m.userId)
+    if (!r.ok) setGErr(r.error)
   }
 
   return (
@@ -526,6 +534,12 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
       )}
 
       {adminOpen && isDev && <AdminPanel userId={me.userId} />}
+
+      {gErr && (
+        <div className="border-b border-destructive/40 bg-destructive/15 px-4 py-2 text-center text-xs font-semibold text-destructive">
+          {gErr}
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
@@ -631,6 +645,17 @@ function AdminPanel({ userId }: { userId: number }) {
   const [banReason, setBanReason] = useState("")
   const [banDuration, setBanDuration] = useState(0)
   const [banBusy, setBanBusy] = useState(false)
+  const [panelMsg, setPanelMsg] = useState<{ text: string; err: boolean } | null>(null)
+
+  useEffect(() => {
+    if (!panelMsg) return
+    const tm = setTimeout(() => setPanelMsg(null), 4000)
+    return () => clearTimeout(tm)
+  }, [panelMsg])
+
+  function showError(e: any, fallback: string) {
+    setPanelMsg({ text: (e?.message || fallback).slice(0, 200), err: true })
+  }
 
   useEffect(() => {
     if (!tgMsg) return
@@ -689,7 +714,9 @@ function AdminPanel({ userId }: { userId: number }) {
     try {
       await api.post("/api/admin/role", { user_id: u.id, role })
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, role } : x)))
-    } catch {}
+    } catch (e: any) {
+      showError(e, "Role change failed")
+    }
     setBusyId(null)
   }
 
@@ -699,7 +726,9 @@ function AdminPanel({ userId }: { userId: number }) {
     try {
       await api.post("/api/admin/role", { user_id: u.id, beta: !u.isBeta })
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, isBeta: !u.isBeta } : x)))
-    } catch {}
+    } catch (e: any) {
+      showError(e, "Beta toggle failed")
+    }
     setBusyId(null)
   }
 
@@ -709,20 +738,25 @@ function AdminPanel({ userId }: { userId: number }) {
     try {
       await api.post("/api/global/unban", { user_id: u.id })
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, banned: false } : x)))
-    } catch {}
+    } catch (e: any) {
+      showError(e, "Unban failed")
+    }
     setBusyId(null)
   }
 
   async function sendBan(u: AdminUser, reason: string, duration: number) {
     if (banBusy) return
     setBanBusy(true)
+    setPanelMsg(null)
     try {
       await api.post("/api/global/ban", { user_id: u.id, reason: reason.trim(), duration })
       setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, banned: true } : x)))
       setBanModal(null)
       setBanReason("")
       setBanDuration(0)
-    } catch {}
+    } catch (e: any) {
+      showError(e, t("role.ban_failed"))
+    }
     setBanBusy(false)
   }
 
@@ -746,6 +780,11 @@ function AdminPanel({ userId }: { userId: number }) {
         />
       </div>
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("role.title")}</p>
+      {panelMsg && (
+        <p className="mb-2 rounded-lg border border-destructive/40 bg-destructive/15 px-2.5 py-1.5 text-[11px] font-semibold text-destructive">
+          {panelMsg.text}
+        </p>
+      )}
       {loading && <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />}
       <div className="space-y-1.5">
         {users.map((u) => (
@@ -847,6 +886,7 @@ function AdminPanel({ userId }: { userId: number }) {
           reason={banReason}
           duration={banDuration}
           busy={banBusy}
+          error={panelMsg?.err ? panelMsg.text : ""}
           onReason={setBanReason}
           onDuration={setBanDuration}
           onCancel={() => setBanModal(null)}
@@ -917,6 +957,7 @@ function BanModal({
   reason,
   duration,
   busy,
+  error,
   onReason,
   onDuration,
   onCancel,
@@ -926,6 +967,7 @@ function BanModal({
   reason: string
   duration: number
   busy: boolean
+  error?: string
   onReason: (v: string) => void
   onDuration: (v: number) => void
   onCancel: () => void
@@ -1019,6 +1061,11 @@ function BanModal({
             </div>
           </div>
 
+          {error && (
+            <p className="rounded-xl border border-destructive/40 bg-destructive/15 px-3 py-2 text-[11px] font-semibold text-destructive">
+              {error}
+            </p>
+          )}
           <div className="flex gap-2 pt-1">
             <button
               type="button"

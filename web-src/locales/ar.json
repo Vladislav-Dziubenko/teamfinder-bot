@@ -733,5 +733,6 @@
   "role.ban_modal_btn": "حظر",
   "ban.appeal_btn": "الإشراف على الرسالة",
   "ban.appeal_hint": "أرسل للروبوت أي رسالة — وسيقوم الإشراف باستلامها والرد هنا",
-  "ban.appeal_unavailable": "الإشراف على الاتصال غير متاح مؤقتًا"
+  "ban.appeal_unavailable": "الإشراف على الاتصال غير متاح مؤقتًا",
+  "role.ban_failed": "فشل الحظر: {err}"
 }

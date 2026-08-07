@@ -733,5 +733,6 @@
   "role.ban_modal_btn": "Ban",
   "ban.appeal_btn": "Moderarea mesajelor",
   "ban.appeal_hint": "Trimiteți botului orice mesaj - moderatorul îl va primi și va răspunde aici",
-  "ban.appeal_unavailable": "Contactarea moderației este temporar indisponibilă"
+  "ban.appeal_unavailable": "Contactarea moderației este temporar indisponibilă",
+  "role.ban_failed": "Ban a eșuat: {err}"
 }

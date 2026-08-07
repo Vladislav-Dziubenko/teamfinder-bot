@@ -733,5 +733,6 @@
   "role.ban_modal_btn": "Interdiction",
   "ban.appeal_btn": "Modération des messages",
   "ban.appeal_hint": "Envoyez n’importe quel message au bot – la modération le recevra et répondra ici",
-  "ban.appeal_unavailable": "Contacter la modération est temporairement indisponible"
+  "ban.appeal_unavailable": "Contacter la modération est temporairement indisponible",
+  "role.ban_failed": "Échec du bannissement : {err}"
 }

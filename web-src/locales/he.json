@@ -733,5 +733,6 @@
   "role.ban_modal_btn": "איסור",
   "ban.appeal_btn": "ניהול הודעות",
   "ban.appeal_hint": "שלח לבוט כל הודעה - המנחה תקבל אותה ותשיב כאן",
-  "ban.appeal_unavailable": "יצירת קשר עם ניהול אינו זמין באופן זמני"
+  "ban.appeal_unavailable": "יצירת קשר עם ניהול אינו זמין באופן זמני",
+  "role.ban_failed": "החסימה נכשלה: {err}"
 }

@@ -733,5 +733,6 @@
   "role.ban_modal_btn": "Zákaz",
   "ban.appeal_btn": "Moderování zpráv",
   "ban.appeal_hint": "Pošlete robotovi jakoukoli zprávu – moderování ji obdrží a odpoví zde",
-  "ban.appeal_unavailable": "Kontaktování moderování je dočasně nedostupné"
+  "ban.appeal_unavailable": "Kontaktování moderování je dočasně nedostupné",
+  "role.ban_failed": "Zákaz se nezdařil: {err}"
 }

@@ -733,5 +733,6 @@
   "role.ban_modal_btn": "Förbud",
   "ban.appeal_btn": "Meddelandemoderering",
   "ban.appeal_hint": "Skicka boten vilket meddelande som helst - moderering tar emot det och svarar här",
-  "ban.appeal_unavailable": "Att kontakta moderering är tillfälligt otillgängligt"
+  "ban.appeal_unavailable": "Att kontakta moderering är tillfälligt otillgängligt",
+  "role.ban_failed": "Förbud misslyckades: {err}"
 }
