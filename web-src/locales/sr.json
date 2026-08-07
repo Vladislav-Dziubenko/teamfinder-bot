@@ -717,5 +717,18 @@
   "ban.reason_title": "Разлог забране",
   "ban.reason_label": "Разлог",
   "ban.no_reason": "Није наведено",
-  "ban.appeal": "Ако верујете да је ова забрана грешка, контактирајте подршку пројекта."
+  "ban.appeal": "Ако верујете да је ова забрана грешка, контактирајте подршку пројекта.",
+  "ban.expires_title": "Трајање забране",
+  "ban.expires_until": "До",
+  "ban.expires_forever": "Трајно",
+  "role.ban_modal_title": "Бан играча",
+  "role.ban_modal_reason": "Разлог",
+  "role.ban_modal_reason_ph": "Нпр. спам у глобалном ћаскању",
+  "role.ban_modal_hint": "Играч ће видети разлог на екрану забране",
+  "role.ban_modal_duration": "Трајање",
+  "role.ban_modal_forever": "Заувек",
+  "role.ban_modal_24h": "24 сата",
+  "role.ban_modal_7d": "7 дана",
+  "role.ban_modal_30d": "30 дана",
+  "role.ban_modal_btn": "Бан"
 }

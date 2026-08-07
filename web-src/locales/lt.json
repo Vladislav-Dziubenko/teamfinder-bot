@@ -717,5 +717,18 @@
   "ban.reason_title": "Draudimo priežastis",
   "ban.reason_label": "Priežastis",
   "ban.no_reason": "Nenurodyta",
-  "ban.appeal": "Jei manote, kad šis draudimas yra klaida, susisiekite su projekto palaikymo komanda."
+  "ban.appeal": "Jei manote, kad šis draudimas yra klaida, susisiekite su projekto palaikymo komanda.",
+  "ban.expires_title": "Draudimo trukmė",
+  "ban.expires_until": "Iki",
+  "ban.expires_forever": "visam laikui",
+  "role.ban_modal_title": "Uždrausti žaidėją",
+  "role.ban_modal_reason": "Priežastis",
+  "role.ban_modal_reason_ph": "Pvz. šlamštas pasauliniame pokalbyje",
+  "role.ban_modal_hint": "Žaidėjas uždraudimo ekrane matys priežastį",
+  "role.ban_modal_duration": "Trukmė",
+  "role.ban_modal_forever": "Amžinai",
+  "role.ban_modal_24h": "24 valandos",
+  "role.ban_modal_7d": "7 dienos",
+  "role.ban_modal_30d": "30 dienų",
+  "role.ban_modal_btn": "Uždrausti"
 }

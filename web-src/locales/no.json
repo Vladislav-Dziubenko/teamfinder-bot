@@ -717,5 +717,18 @@
   "ban.reason_title": "Årsak til forbudet",
   "ban.reason_label": "Grunn",
   "ban.no_reason": "Ikke spesifisert",
-  "ban.appeal": "Hvis du mener at dette forbudet er en feil, vennligst kontakt prosjektstøtte."
+  "ban.appeal": "Hvis du mener at dette forbudet er en feil, vennligst kontakt prosjektstøtte.",
+  "ban.expires_title": "Banens varighet",
+  "ban.expires_until": "Inntil",
+  "ban.expires_forever": "Permanent",
+  "role.ban_modal_title": "Ban spiller",
+  "role.ban_modal_reason": "Grunn",
+  "role.ban_modal_reason_ph": "f.eks. spam i den globale chatten",
+  "role.ban_modal_hint": "Spilleren vil se årsaken på utestengelsesskjermen",
+  "role.ban_modal_duration": "Varighet",
+  "role.ban_modal_forever": "For alltid",
+  "role.ban_modal_24h": "24 timer",
+  "role.ban_modal_7d": "7 dager",
+  "role.ban_modal_30d": "30 dager",
+  "role.ban_modal_btn": "Forbud"
 }

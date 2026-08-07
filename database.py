@@ -794,6 +794,12 @@ class Database:
         except asyncpg.PostgresError as e:
             print(f"Migration warning adding referrals.referral_reward_paid: {e}")
 
+        # expires_at для global_bans — срок бана (пусто = навсегда)
+        try:
+            await conn.execute("ALTER TABLE global_bans ADD COLUMN IF NOT EXISTS expires_at TEXT DEFAULT ''")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning adding global_bans.expires_at: {e}")
+
         if not already_applied:
             if await self._column_exists(conn, "promo_codes", "reward_json"):
                 try:
@@ -2773,14 +2779,14 @@ class Database:
             )
             return {r["user_id"]: bool(r["is_beta"]) for r in rows}
 
-    async def ban_global(self, user_id: int, banned_by: int, reason: str = "") -> None:
+    async def ban_global(self, user_id: int, banned_by: int, reason: str = "", expires_at: str = "") -> None:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
             await conn.execute(
-                """INSERT INTO global_bans (user_id, banned_by, reason, created_at)
-                   VALUES ($1, $2, $3, $4)
-                   ON CONFLICT (user_id) DO UPDATE SET banned_by = $2, reason = $3, created_at = $4""",
-                user_id, banned_by, reason, now,
+                """INSERT INTO global_bans (user_id, banned_by, reason, expires_at, created_at)
+                   VALUES ($1, $2, $3, $4, $5)
+                   ON CONFLICT (user_id) DO UPDATE SET banned_by = $2, reason = $3, expires_at = $4, created_at = $5""",
+                user_id, banned_by, reason, expires_at, now,
             )
 
     async def unban_global(self, user_id: int) -> None:
@@ -2799,15 +2805,28 @@ class Database:
             return row == 1
 
     async def get_global_ban(self, user_id: int) -> dict | None:
-        """Возвращает активный бан юзера: reason + created_at, или None."""
+        """Возвращает активный бан юзера: reason + expires_at + created_at, или None.
+
+        Ленивый авто-разбан: если срок истёк — запись удаляется и бан считается
+        снятым (без фоновых задач).
+        """
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT reason, created_at FROM global_bans WHERE user_id = $1 LIMIT 1",
+                "SELECT reason, expires_at, created_at FROM global_bans WHERE user_id = $1 LIMIT 1",
                 user_id,
             )
             if not row:
                 return None
-            return {"reason": row["reason"] or "", "created_at": row["created_at"] or ""}
+            expires_at = row["expires_at"] or ""
+            if expires_at:
+                try:
+                    expires = datetime.fromisoformat(expires_at)
+                    if datetime.utcnow() >= expires:
+                        await conn.execute("DELETE FROM global_bans WHERE user_id = $1", user_id)
+                        return None
+                except (ValueError, TypeError):
+                    pass
+            return {"reason": row["reason"] or "", "expires_at": expires_at, "created_at": row["created_at"] or ""}
 
     async def search_users_with_roles(self, query: str, limit: int = 20) -> list[dict]:
         async with self.pool.acquire() as conn:

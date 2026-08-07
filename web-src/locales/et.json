@@ -717,5 +717,18 @@
   "ban.reason_title": "Keelu põhjus",
   "ban.reason_label": "Põhjus",
   "ban.no_reason": "Määratlemata",
-  "ban.appeal": "Kui arvate, et see keeld on viga, võtke ühendust projekti toega."
+  "ban.appeal": "Kui arvate, et see keeld on viga, võtke ühendust projekti toega.",
+  "ban.expires_title": "Keelu kestus",
+  "ban.expires_until": "Kuni",
+  "ban.expires_forever": "Püsivalt",
+  "role.ban_modal_title": "Blokeeri mängija",
+  "role.ban_modal_reason": "Põhjus",
+  "role.ban_modal_reason_ph": "Nt. rämpspost globaalses vestluses",
+  "role.ban_modal_hint": "Mängija näeb põhjust keeluekraanil",
+  "role.ban_modal_duration": "Kestus",
+  "role.ban_modal_forever": "Igavesti",
+  "role.ban_modal_24h": "24 tundi",
+  "role.ban_modal_7d": "7 päeva",
+  "role.ban_modal_30d": "30 päeva",
+  "role.ban_modal_btn": "Keela"
 }

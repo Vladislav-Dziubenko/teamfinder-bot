@@ -717,5 +717,18 @@
   "ban.reason_title": "Powód zakazu",
   "ban.reason_label": "Powód",
   "ban.no_reason": "Nie określono",
-  "ban.appeal": "Jeśli uważasz, że ten zakaz to pomyłka, skontaktuj się z obsługą projektu."
+  "ban.appeal": "Jeśli uważasz, że ten zakaz to pomyłka, skontaktuj się z obsługą projektu.",
+  "ban.expires_title": "Czas trwania zakazu",
+  "ban.expires_until": "Aż",
+  "ban.expires_forever": "Na stałe",
+  "role.ban_modal_title": "Zablokuj gracza",
+  "role.ban_modal_reason": "Powód",
+  "role.ban_modal_reason_ph": "Np. spam na czacie globalnym",
+  "role.ban_modal_hint": "Gracz zobaczy przyczynę na ekranie bana",
+  "role.ban_modal_duration": "Czas trwania",
+  "role.ban_modal_forever": "Na zawsze",
+  "role.ban_modal_24h": "24 godziny",
+  "role.ban_modal_7d": "7 dni",
+  "role.ban_modal_30d": "30 dni",
+  "role.ban_modal_btn": "Zakaz"
 }

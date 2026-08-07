@@ -717,5 +717,18 @@
   "ban.reason_title": "Λόγος απαγόρευσης",
   "ban.reason_label": "Λόγος",
   "ban.no_reason": "Δεν διευκρινίζεται",
-  "ban.appeal": "Εάν πιστεύετε ότι αυτή η απαγόρευση είναι λάθος, επικοινωνήστε με την υποστήριξη του έργου."
+  "ban.appeal": "Εάν πιστεύετε ότι αυτή η απαγόρευση είναι λάθος, επικοινωνήστε με την υποστήριξη του έργου.",
+  "ban.expires_title": "Διάρκεια απαγόρευσης",
+  "ban.expires_until": "Μέχρι",
+  "ban.expires_forever": "Μόνιμα",
+  "role.ban_modal_title": "Απαγόρευση παίκτη",
+  "role.ban_modal_reason": "Λόγος",
+  "role.ban_modal_reason_ph": "Π.χ. ανεπιθύμητη αλληλογραφία στην παγκόσμια συνομιλία",
+  "role.ban_modal_hint": "Ο παίκτης θα δει τον λόγο στην οθόνη αποκλεισμού",
+  "role.ban_modal_duration": "Διάρκεια",
+  "role.ban_modal_forever": "Για πάντα",
+  "role.ban_modal_24h": "24 ώρες",
+  "role.ban_modal_7d": "7 ημέρες",
+  "role.ban_modal_30d": "30 ημέρες",
+  "role.ban_modal_btn": "Απαγόρευση"
 }

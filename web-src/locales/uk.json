@@ -717,5 +717,18 @@
   "ban.reason_title": "Причина заборони",
   "ban.reason_label": "Причина",
   "ban.no_reason": "Не вказано",
-  "ban.appeal": "Якщо ви вважаєте цю заборону помилковою, зверніться до служби підтримки проекту."
+  "ban.appeal": "Якщо ви вважаєте цю заборону помилковою, зверніться до служби підтримки проекту.",
+  "ban.expires_title": "Тривалість заборони",
+  "ban.expires_until": "Поки",
+  "ban.expires_forever": "Постійно",
+  "role.ban_modal_title": "Забанити гравця",
+  "role.ban_modal_reason": "Причина",
+  "role.ban_modal_reason_ph": "наприклад спам в глобальному чаті",
+  "role.ban_modal_hint": "Гравець побачить причину на екрані заборони",
+  "role.ban_modal_duration": "Тривалість",
+  "role.ban_modal_forever": "Назавжди",
+  "role.ban_modal_24h": "24 години",
+  "role.ban_modal_7d": "7 днів",
+  "role.ban_modal_30d": "30 днів",
+  "role.ban_modal_btn": "Забанити"
 }

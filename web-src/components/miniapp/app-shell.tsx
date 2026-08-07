@@ -43,7 +43,7 @@ function TabFallback() {
 function Shell() {
   const { t } = useI18n()
   const me = useMe()
-  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus, banned, banReason } = useNexus()
+  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus, banned, banReason, banExpiresAt } = useNexus()
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -173,7 +173,7 @@ function Shell() {
 
       {/* Бан аккаунта — полный экран поверх приложения, выше онбординга */}
       {loaded && banned && (
-        <BannedSheet reason={banReason} />
+        <BannedSheet reason={banReason} expiresAt={banExpiresAt} />
       )}
 
       {/* Онбординг: политика конфиденциальности и дисклеймер.

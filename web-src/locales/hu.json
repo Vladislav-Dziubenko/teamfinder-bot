@@ -717,5 +717,18 @@
   "ban.reason_title": "A tiltás oka",
   "ban.reason_label": "Ok",
   "ban.no_reason": "Nincs megadva",
-  "ban.appeal": "Ha úgy gondolja, hogy ez a tiltás tévedés, forduljon a projekt támogatásához."
+  "ban.appeal": "Ha úgy gondolja, hogy ez a tiltás tévedés, forduljon a projekt támogatásához.",
+  "ban.expires_title": "A tiltás időtartama",
+  "ban.expires_until": "Amíg",
+  "ban.expires_forever": "Véglegesen",
+  "role.ban_modal_title": "Játékos kitiltása",
+  "role.ban_modal_reason": "Ok",
+  "role.ban_modal_reason_ph": "pl. spam a globális chatben",
+  "role.ban_modal_hint": "A játékos látni fogja az okot a kitiltási képernyőn",
+  "role.ban_modal_duration": "Időtartam",
+  "role.ban_modal_forever": "Örökké",
+  "role.ban_modal_24h": "24 óra",
+  "role.ban_modal_7d": "7 nap",
+  "role.ban_modal_30d": "30 nap",
+  "role.ban_modal_btn": "Ban"
 }

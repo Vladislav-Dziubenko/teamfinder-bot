@@ -717,5 +717,18 @@
   "ban.reason_title": "禁令原因",
   "ban.reason_label": "原因",
   "ban.no_reason": "未指定",
-  "ban.appeal": "如果您认为此禁令是错误的，请联系项目支持。"
+  "ban.appeal": "如果您认为此禁令是错误的，请联系项目支持。",
+  "ban.expires_title": "禁令期限",
+  "ban.expires_until": "直到",
+  "ban.expires_forever": "永久地",
+  "role.ban_modal_title": "封禁玩家",
+  "role.ban_modal_reason": "原因",
+  "role.ban_modal_reason_ph": "例如全球聊天中的垃圾邮件",
+  "role.ban_modal_hint": "玩家将在封禁屏幕上看到封禁原因",
+  "role.ban_modal_duration": "持续时间",
+  "role.ban_modal_forever": "永远",
+  "role.ban_modal_24h": "24小时",
+  "role.ban_modal_7d": "7天",
+  "role.ban_modal_30d": "30天",
+  "role.ban_modal_btn": "班"
 }

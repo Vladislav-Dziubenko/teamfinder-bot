@@ -3,8 +3,25 @@
 import { Ban, ShieldOff } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 
-export function BannedSheet({ reason }: { reason?: string }) {
-  const { t } = useI18n()
+export function BannedSheet({ reason, expiresAt }: { reason?: string; expiresAt?: string }) {
+  const { t, lang } = useI18n()
+
+  let until = ""
+  if (expiresAt) {
+    const ts = Date.parse(expiresAt)
+    if (!isNaN(ts)) {
+      try {
+        until = new Date(ts).toLocaleString(lang, {
+          day: "numeric",
+          month: "long",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      } catch {
+        until = new Date(ts).toLocaleString()
+      }
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-[130] flex flex-col overflow-y-auto bg-background">
@@ -28,6 +45,15 @@ export function BannedSheet({ reason }: { reason?: string }) {
           </div>
           <p className="mt-2.5 text-[13px] leading-relaxed text-muted-foreground">
             {reason ? `${t("ban.reason_label")}: ${reason}` : t("ban.no_reason")}
+          </p>
+        </div>
+
+        <div className="rounded-3xl border border-border bg-card p-4">
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-semibold text-foreground">{t("ban.expires_title")}</span>
+          </div>
+          <p className="mt-1.5 text-[13px] leading-relaxed text-foreground">
+            {until ? `${t("ban.expires_until")} ${until}` : t("ban.expires_forever")}
           </p>
         </div>
 

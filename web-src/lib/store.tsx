@@ -77,6 +77,7 @@ type MeResponse = {
   welcome_bonus?: boolean
   banned?: boolean
   ban_reason?: string
+  ban_expires_at?: string
   premium_active: boolean
   promos?: Array<{
     code: string
@@ -154,6 +155,7 @@ type PersistedState = {
   welcomeBonus: boolean
   banned: boolean
   banReason: string
+  banExpiresAt: string
 }
 
 function makeReferralCode() {
@@ -317,6 +319,7 @@ function defaultState(): PersistedState {
     welcomeBonus: false,
     banned: false,
     banReason: "",
+    banExpiresAt: "",
   }
 }
 
@@ -401,6 +404,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     welcomeBonus: !!me.welcome_bonus,
     banned: !!me.banned,
     banReason: me.ban_reason || "",
+    banExpiresAt: me.ban_expires_at || "",
   }
 }
 

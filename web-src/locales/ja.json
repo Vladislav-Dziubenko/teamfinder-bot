@@ -717,5 +717,18 @@
   "ban.reason_title": "禁止の理由",
   "ban.reason_label": "理由",
   "ban.no_reason": "指定なし",
-  "ban.appeal": "この禁止が間違いであると思われる場合は、プロジェクト サポートまでご連絡ください。"
+  "ban.appeal": "この禁止が間違いであると思われる場合は、プロジェクト サポートまでご連絡ください。",
+  "ban.expires_title": "禁止期間",
+  "ban.expires_until": "まで",
+  "ban.expires_forever": "永久に",
+  "role.ban_modal_title": "禁止プレイヤー",
+  "role.ban_modal_reason": "理由",
+  "role.ban_modal_reason_ph": "例：グローバルチャットでのスパム",
+  "role.ban_modal_hint": "プレイヤーは禁止画面で理由を確認できます",
+  "role.ban_modal_duration": "期間",
+  "role.ban_modal_forever": "永遠に",
+  "role.ban_modal_24h": "24時間",
+  "role.ban_modal_7d": "7日間",
+  "role.ban_modal_30d": "30日",
+  "role.ban_modal_btn": "禁止"
 }

@@ -717,5 +717,18 @@
   "ban.reason_title": "Anledning till förbudet",
   "ban.reason_label": "Anledning",
   "ban.no_reason": "Ej specificerat",
-  "ban.appeal": "Om du tror att detta förbud är ett misstag, kontakta projektsupporten."
+  "ban.appeal": "Om du tror att detta förbud är ett misstag, kontakta projektsupporten.",
+  "ban.expires_title": "Banans varaktighet",
+  "ban.expires_until": "Tills",
+  "ban.expires_forever": "Permanent",
+  "role.ban_modal_title": "Ban spelare",
+  "role.ban_modal_reason": "Anledning",
+  "role.ban_modal_reason_ph": "T.ex. spam i den globala chatten",
+  "role.ban_modal_hint": "Spelaren kommer att se orsaken på avstängningsskärmen",
+  "role.ban_modal_duration": "Varaktighet",
+  "role.ban_modal_forever": "För alltid",
+  "role.ban_modal_24h": "24 timmar",
+  "role.ban_modal_7d": "7 dagar",
+  "role.ban_modal_30d": "30 dagar",
+  "role.ban_modal_btn": "Förbud"
 }

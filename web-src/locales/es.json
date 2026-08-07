@@ -717,5 +717,18 @@
   "ban.reason_title": "Razón de la prohibición",
   "ban.reason_label": "Razón",
   "ban.no_reason": "No especificado",
-  "ban.appeal": "Si cree que esta prohibición es un error, comuníquese con el soporte del proyecto."
+  "ban.appeal": "Si cree que esta prohibición es un error, comuníquese con el soporte del proyecto.",
+  "ban.expires_title": "Duración de la prohibición",
+  "ban.expires_until": "hasta",
+  "ban.expires_forever": "Permanentemente",
+  "role.ban_modal_title": "Prohibir jugador",
+  "role.ban_modal_reason": "Razón",
+  "role.ban_modal_reason_ph": "Por ej. spam en el chat global",
+  "role.ban_modal_hint": "El jugador verá el motivo en la pantalla de prohibición.",
+  "role.ban_modal_duration": "Duración",
+  "role.ban_modal_forever": "Para siempre",
+  "role.ban_modal_24h": "24 horas",
+  "role.ban_modal_7d": "7 dias",
+  "role.ban_modal_30d": "30 dias",
+  "role.ban_modal_btn": "Prohibición"
 }

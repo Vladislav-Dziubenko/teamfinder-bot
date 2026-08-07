@@ -717,5 +717,18 @@
   "ban.reason_title": "Yasağın nedeni",
   "ban.reason_label": "Sebep",
   "ban.no_reason": "Belirtilmedi",
-  "ban.appeal": "Bu yasağın bir hata olduğunu düşünüyorsanız lütfen proje desteğiyle iletişime geçin."
+  "ban.appeal": "Bu yasağın bir hata olduğunu düşünüyorsanız lütfen proje desteğiyle iletişime geçin.",
+  "ban.expires_title": "Yasaklanma süresi",
+  "ban.expires_until": "kadar",
+  "ban.expires_forever": "Kalıcı olarak",
+  "role.ban_modal_title": "Oyuncuyu yasakla",
+  "role.ban_modal_reason": "Sebep",
+  "role.ban_modal_reason_ph": "Örn. küresel sohbette spam",
+  "role.ban_modal_hint": "Oyuncu yasağın sebebini yasaklama ekranında görecektir.",
+  "role.ban_modal_duration": "Süre",
+  "role.ban_modal_forever": "sonsuza kadar",
+  "role.ban_modal_24h": "24 saat",
+  "role.ban_modal_7d": "7 gün",
+  "role.ban_modal_30d": "30 gün",
+  "role.ban_modal_btn": "Yasak"
 }

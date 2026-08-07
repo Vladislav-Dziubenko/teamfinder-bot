@@ -717,5 +717,18 @@
   "ban.reason_title": "Grund für das Verbot",
   "ban.reason_label": "Grund",
   "ban.no_reason": "Nicht angegeben",
-  "ban.appeal": "Wenn Sie glauben, dass dieses Verbot ein Fehler ist, wenden Sie sich bitte an den Projektsupport."
+  "ban.appeal": "Wenn Sie glauben, dass dieses Verbot ein Fehler ist, wenden Sie sich bitte an den Projektsupport.",
+  "ban.expires_title": "Dauer des Verbots",
+  "ban.expires_until": "Bis",
+  "ban.expires_forever": "Dauerhaft",
+  "role.ban_modal_title": "Spieler sperren",
+  "role.ban_modal_reason": "Grund",
+  "role.ban_modal_reason_ph": "Z.B. Spam im globalen Chat",
+  "role.ban_modal_hint": "Der Spieler sieht den Grund auf dem Sperrbildschirm",
+  "role.ban_modal_duration": "Dauer",
+  "role.ban_modal_forever": "Für immer",
+  "role.ban_modal_24h": "24 Stunden",
+  "role.ban_modal_7d": "7 Tage",
+  "role.ban_modal_30d": "30 Tage",
+  "role.ban_modal_btn": "Verbot"
 }

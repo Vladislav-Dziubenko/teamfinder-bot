@@ -717,5 +717,18 @@
   "ban.reason_title": "Syy kiellolle",
   "ban.reason_label": "Syy",
   "ban.no_reason": "Ei määritelty",
-  "ban.appeal": "Jos uskot, että tämä kielto on virhe, ota yhteyttä projektitukeen."
+  "ban.appeal": "Jos uskot, että tämä kielto on virhe, ota yhteyttä projektitukeen.",
+  "ban.expires_title": "Kiellon kesto",
+  "ban.expires_until": "Kunnes",
+  "ban.expires_forever": "Pysyvästi",
+  "role.ban_modal_title": "Estä pelaaja",
+  "role.ban_modal_reason": "Syy",
+  "role.ban_modal_reason_ph": "esim. roskapostia maailmanlaajuisessa chatissa",
+  "role.ban_modal_hint": "Pelaaja näkee syyn kieltonäytössä",
+  "role.ban_modal_duration": "Kesto",
+  "role.ban_modal_forever": "Ikuisesti",
+  "role.ban_modal_24h": "24 tuntia",
+  "role.ban_modal_7d": "7 päivää",
+  "role.ban_modal_30d": "30 päivää",
+  "role.ban_modal_btn": "Kielto"
 }

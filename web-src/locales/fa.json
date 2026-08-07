@@ -717,5 +717,18 @@
   "ban.reason_title": "دلیل ممنوعیت",
   "ban.reason_label": "دلیل",
   "ban.no_reason": "مشخص نشده است",
-  "ban.appeal": "اگر فکر می کنید این ممنوعیت یک اشتباه است، لطفا با پشتیبانی پروژه تماس بگیرید."
+  "ban.appeal": "اگر فکر می کنید این ممنوعیت یک اشتباه است، لطفا با پشتیبانی پروژه تماس بگیرید.",
+  "ban.expires_title": "مدت ممنوعیت",
+  "ban.expires_until": "تا اینکه",
+  "ban.expires_forever": "به طور دائم",
+  "role.ban_modal_title": "بازیکن ممنوع",
+  "role.ban_modal_reason": "دلیل",
+  "role.ban_modal_reason_ph": "به عنوان مثال هرزنامه در چت جهانی",
+  "role.ban_modal_hint": "بازیکن دلیل را در صفحه ممنوعیت مشاهده خواهد کرد",
+  "role.ban_modal_duration": "مدت زمان",
+  "role.ban_modal_forever": "برای همیشه",
+  "role.ban_modal_24h": "24 ساعت",
+  "role.ban_modal_7d": "7 روز",
+  "role.ban_modal_30d": "30 روز",
+  "role.ban_modal_btn": "ممنوع کردن"
 }

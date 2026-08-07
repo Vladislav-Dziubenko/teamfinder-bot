@@ -717,5 +717,18 @@
   "ban.reason_title": "Aizlieguma iemesls",
   "ban.reason_label": "Iemesls",
   "ban.no_reason": "Nav norādīts",
-  "ban.appeal": "Ja uzskatāt, ka šis aizliegums ir kļūda, lūdzu, sazinieties ar projekta atbalsta dienestu."
+  "ban.appeal": "Ja uzskatāt, ka šis aizliegums ir kļūda, lūdzu, sazinieties ar projekta atbalsta dienestu.",
+  "ban.expires_title": "Aizlieguma ilgums",
+  "ban.expires_until": "Līdz plkst",
+  "ban.expires_forever": "Pastāvīgi",
+  "role.ban_modal_title": "Aizliegt spēlētāju",
+  "role.ban_modal_reason": "Iemesls",
+  "role.ban_modal_reason_ph": "Piem. surogātpasts globālajā tērzēšanā",
+  "role.ban_modal_hint": "Spēlētājs aizlieguma ekrānā redzēs iemeslu",
+  "role.ban_modal_duration": "Ilgums",
+  "role.ban_modal_forever": "Uz visiem laikiem",
+  "role.ban_modal_24h": "24 stundas",
+  "role.ban_modal_7d": "7 dienas",
+  "role.ban_modal_30d": "30 dienas",
+  "role.ban_modal_btn": "Aizliegt"
 }

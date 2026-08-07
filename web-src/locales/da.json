@@ -717,5 +717,18 @@
   "ban.reason_title": "Årsag til forbuddet",
   "ban.reason_label": "Årsag",
   "ban.no_reason": "Ikke specificeret",
-  "ban.appeal": "Hvis du mener, at dette forbud er en fejl, bedes du kontakte projektsupport."
+  "ban.appeal": "Hvis du mener, at dette forbud er en fejl, bedes du kontakte projektsupport.",
+  "ban.expires_title": "Forbuds varighed",
+  "ban.expires_until": "Indtil",
+  "ban.expires_forever": "Permanent",
+  "role.ban_modal_title": "Forbyd spiller",
+  "role.ban_modal_reason": "Årsag",
+  "role.ban_modal_reason_ph": "F.eks. spam i den globale chat",
+  "role.ban_modal_hint": "Spilleren vil se årsagen på forbudsskærmen",
+  "role.ban_modal_duration": "Varighed",
+  "role.ban_modal_forever": "For evigt",
+  "role.ban_modal_24h": "24 timer",
+  "role.ban_modal_7d": "7 dage",
+  "role.ban_modal_30d": "30 dage",
+  "role.ban_modal_btn": "Forbud"
 }

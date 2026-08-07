@@ -717,5 +717,18 @@
   "ban.reason_title": "سبب الحظر",
   "ban.reason_label": "السبب",
   "ban.no_reason": "غير محدد",
-  "ban.appeal": "إذا كنت تعتقد أن هذا الحظر خطأ، يرجى الاتصال بدعم المشروع."
+  "ban.appeal": "إذا كنت تعتقد أن هذا الحظر خطأ، يرجى الاتصال بدعم المشروع.",
+  "ban.expires_title": "مدة الحظر",
+  "ban.expires_until": "حتى",
+  "ban.expires_forever": "بشكل دائم",
+  "role.ban_modal_title": "حظر اللاعب",
+  "role.ban_modal_reason": "السبب",
+  "role.ban_modal_reason_ph": "على سبيل المثال البريد العشوائي في الدردشة العالمية",
+  "role.ban_modal_hint": "سيرى اللاعب السبب على شاشة الحظر",
+  "role.ban_modal_duration": "المدة",
+  "role.ban_modal_forever": "إلى الأبد",
+  "role.ban_modal_24h": "24 ساعة",
+  "role.ban_modal_7d": "7 أيام",
+  "role.ban_modal_30d": "30 يوما",
+  "role.ban_modal_btn": "حظر"
 }

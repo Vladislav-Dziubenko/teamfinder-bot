@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
-import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star } from "lucide-react"
+import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock } from "lucide-react"
 import {
   useChatMessages,
   useChats,
@@ -627,6 +627,10 @@ function AdminPanel({ userId }: { userId: number }) {
   const [tgBusy, setTgBusy] = useState<number | null>(null)
   const [tgMsg, setTgMsg] = useState<string | null>(null)
   const [confirm, setConfirm] = useState<{ u: AdminUser; action: "role" | "ban"; role?: string } | null>(null)
+  const [banModal, setBanModal] = useState<{ u: AdminUser } | null>(null)
+  const [banReason, setBanReason] = useState("")
+  const [banDuration, setBanDuration] = useState(0)
+  const [banBusy, setBanBusy] = useState(false)
 
   useEffect(() => {
     if (!tgMsg) return
@@ -703,11 +707,23 @@ function AdminPanel({ userId }: { userId: number }) {
     if (busyId) return
     setBusyId(u.id)
     try {
-      if (u.banned) await api.post("/api/global/unban", { user_id: u.id })
-      else await api.post("/api/global/ban", { user_id: u.id })
-      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, banned: !x.banned } : x)))
+      await api.post("/api/global/unban", { user_id: u.id })
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, banned: false } : x)))
     } catch {}
     setBusyId(null)
+  }
+
+  async function sendBan(u: AdminUser, reason: string, duration: number) {
+    if (banBusy) return
+    setBanBusy(true)
+    try {
+      await api.post("/api/global/ban", { user_id: u.id, reason: reason.trim(), duration })
+      setUsers((prev) => prev.map((x) => (x.id === u.id ? { ...x, banned: true } : x)))
+      setBanModal(null)
+      setBanReason("")
+      setBanDuration(0)
+    } catch {}
+    setBanBusy(false)
   }
 
   function confirmAction() {
@@ -807,7 +823,7 @@ function AdminPanel({ userId }: { userId: number }) {
               </button>
               <button
                 type="button"
-                onClick={() => setConfirm({ u, action: "ban" })}
+                onClick={() => (u.banned ? setConfirm({ u, action: "ban" }) : setBanModal({ u }))}
                 className={cn(
                   "rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-colors",
                   u.banned
@@ -825,6 +841,18 @@ function AdminPanel({ userId }: { userId: number }) {
         )}
       </div>
       {confirm && <ConfirmDialog confirm={confirm} onConfirm={confirmAction} onCancel={() => setConfirm(null)} />}
+      {banModal && (
+        <BanModal
+          user={banModal.u}
+          reason={banReason}
+          duration={banDuration}
+          busy={banBusy}
+          onReason={setBanReason}
+          onDuration={setBanDuration}
+          onCancel={() => setBanModal(null)}
+          onConfirm={() => sendBan(banModal.u, banReason, banDuration)}
+        />
+      )}
     </div>
   )
 }
@@ -876,6 +904,139 @@ function ConfirmDialog({
           >
             {t("role.confirm")}
           </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const BAN_DURATIONS = [0, 24 * 3600, 7 * 24 * 3600, 30 * 24 * 3600] as const
+
+function BanModal({
+  user,
+  reason,
+  duration,
+  busy,
+  onReason,
+  onDuration,
+  onCancel,
+  onConfirm,
+}: {
+  user: AdminUser
+  reason: string
+  duration: number
+  busy: boolean
+  onReason: (v: string) => void
+  onDuration: (v: number) => void
+  onCancel: () => void
+  onConfirm: () => void
+}) {
+  const { t } = useI18n()
+  const ready = reason.trim().length > 0 && !busy
+
+  return (
+    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-6">
+      <div className="flex max-h-[92dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-border bg-card shadow-2xl sm:rounded-3xl">
+        {/* Шапка с градиентом */}
+        <div className="relative shrink-0 overflow-hidden bg-gradient-to-b from-destructive/30 via-destructive/10 to-transparent px-5 pb-5 pt-6">
+          <div className="pointer-events-none absolute -top-12 right-0 h-36 w-36 rounded-full bg-destructive/25 blur-3xl" />
+          <div className="relative flex items-center gap-3">
+            <img
+              src={user.avatar || "/placeholder.svg"}
+              alt={user.nick}
+              className="size-12 shrink-0 rounded-2xl border border-destructive/30 object-cover"
+            />
+            <div className="min-w-0 flex-1">
+              <h3 className="font-display text-lg font-bold">{t("role.ban_modal_title")}</h3>
+              <p className="truncate text-sm font-semibold text-foreground">
+                {user.nick || [user.firstName, user.lastName].filter(Boolean).join(" ") || "—"}
+              </p>
+              <p className="truncate text-[11px] text-muted-foreground">ID {user.id}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onCancel}
+              className="grid size-8 shrink-0 place-items-center rounded-full bg-background/60 text-muted-foreground transition-colors hover:text-foreground"
+            >
+              <X className="size-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto px-5 pb-6 pt-3">
+          {/* Причина */}
+          <div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              {t("role.ban_modal_reason")}
+              <span className="text-destructive"> *</span>
+            </label>
+            <div className="relative">
+              <textarea
+                value={reason}
+                onChange={(e) => onReason(e.target.value.slice(0, 200))}
+                placeholder={t("role.ban_modal_reason_ph")}
+                rows={3}
+                className="w-full resize-none rounded-2xl border border-input bg-background px-3.5 py-3 text-sm outline-none placeholder:text-muted-foreground/50 focus:border-destructive/50"
+              />
+              <span className="absolute bottom-2.5 right-3 text-[10px] tabular-nums text-muted-foreground/60">
+                {reason.length}/200
+              </span>
+            </div>
+            <p className="mt-1 text-[10px] text-muted-foreground/70">{t("role.ban_modal_hint")}</p>
+          </div>
+
+          {/* Срок */}
+          <div>
+            <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
+              {t("role.ban_modal_duration")}
+            </label>
+            <div className="grid grid-cols-4 gap-1.5">
+              {BAN_DURATIONS.map((d, i) => {
+                const labels = [
+                  t("role.ban_modal_forever"),
+                  t("role.ban_modal_24h"),
+                  t("role.ban_modal_7d"),
+                  t("role.ban_modal_30d"),
+                ]
+                const active = duration === d
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => onDuration(d)}
+                    className={cn(
+                      "flex flex-col items-center gap-0.5 rounded-2xl border px-2 py-2.5 text-[11px] font-bold leading-tight transition-colors",
+                      active
+                        ? "border-destructive bg-destructive/15 text-destructive"
+                        : "border-border text-muted-foreground hover:bg-muted",
+                    )}
+                  >
+                    {i === 0 ? <Shield className="size-3.5" /> : <Clock className="size-3.5" />}
+                    {labels[i]}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="flex-1 rounded-2xl border border-border bg-secondary/60 py-3 text-sm font-semibold active:scale-[0.98]"
+            >
+              {t("common.cancel")}
+            </button>
+            <button
+              type="button"
+              disabled={!ready}
+              onClick={onConfirm}
+              className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-destructive to-red-700 py-3 text-sm font-bold text-white shadow-[0_10px_30px_-10px_rgba(239,68,68,0.7)] transition-transform active:scale-[0.98] disabled:opacity-40 disabled:shadow-none"
+            >
+              {busy ? <Loader2 className="size-4 animate-spin" /> : <Ban className="size-4" />}
+              {t("role.ban_modal_btn")}
+            </button>
+          </div>
         </div>
       </div>
     </div>

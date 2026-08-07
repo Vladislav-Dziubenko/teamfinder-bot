@@ -717,5 +717,18 @@
   "ban.reason_title": "Motivul interzicerii",
   "ban.reason_label": "Motivul",
   "ban.no_reason": "Nu este specificat",
-  "ban.appeal": "Dacă credeți că această interdicție este o greșeală, vă rugăm să contactați asistența pentru proiect."
+  "ban.appeal": "Dacă credeți că această interdicție este o greșeală, vă rugăm să contactați asistența pentru proiect.",
+  "ban.expires_title": "Durata interzicerii",
+  "ban.expires_until": "Până când",
+  "ban.expires_forever": "Permanent",
+  "role.ban_modal_title": "Ban jucător",
+  "role.ban_modal_reason": "Motivul",
+  "role.ban_modal_reason_ph": "de ex. spam în chatul global",
+  "role.ban_modal_hint": "Jucătorul va vedea motivul pe ecranul de interdicție",
+  "role.ban_modal_duration": "Durata",
+  "role.ban_modal_forever": "Pentru totdeauna",
+  "role.ban_modal_24h": "24 de ore",
+  "role.ban_modal_7d": "7 zile",
+  "role.ban_modal_30d": "30 de zile",
+  "role.ban_modal_btn": "Ban"
 }

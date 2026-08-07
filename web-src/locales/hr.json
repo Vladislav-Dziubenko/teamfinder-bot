@@ -717,5 +717,18 @@
   "ban.reason_title": "Razlog zabrane",
   "ban.reason_label": "razum",
   "ban.no_reason": "Nije navedeno",
-  "ban.appeal": "Ako smatrate da je ova zabrana pogreška, kontaktirajte podršku projekta."
+  "ban.appeal": "Ako smatrate da je ova zabrana pogreška, kontaktirajte podršku projekta.",
+  "ban.expires_title": "Trajanje zabrane",
+  "ban.expires_until": "Sve dok",
+  "ban.expires_forever": "Trajno",
+  "role.ban_modal_title": "Ban igrača",
+  "role.ban_modal_reason": "razum",
+  "role.ban_modal_reason_ph": "npr. spam u globalnom chatu",
+  "role.ban_modal_hint": "Igrač će vidjeti razlog na ekranu zabrane",
+  "role.ban_modal_duration": "Trajanje",
+  "role.ban_modal_forever": "Zauvijek",
+  "role.ban_modal_24h": "24 sata",
+  "role.ban_modal_7d": "7 dana",
+  "role.ban_modal_30d": "30 dana",
+  "role.ban_modal_btn": "zabrana"
 }

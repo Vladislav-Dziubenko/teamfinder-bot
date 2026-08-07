@@ -717,5 +717,18 @@
   "ban.reason_title": "הסיבה לאיסור",
   "ban.reason_label": "סיבה",
   "ban.no_reason": "לא צוין",
-  "ban.appeal": "אם אתה סבור שהאיסור הזה הוא טעות, צור קשר עם תמיכת הפרויקט."
+  "ban.appeal": "אם אתה סבור שהאיסור הזה הוא טעות, צור קשר עם תמיכת הפרויקט.",
+  "ban.expires_title": "משך החסימה",
+  "ban.expires_until": "עד",
+  "ban.expires_forever": "לצמיתות",
+  "role.ban_modal_title": "שחקן איסור",
+  "role.ban_modal_reason": "סיבה",
+  "role.ban_modal_reason_ph": "למשל ספאם בצ'אט העולמי",
+  "role.ban_modal_hint": "השחקן יראה את הסיבה במסך החסימה",
+  "role.ban_modal_duration": "משך זמן",
+  "role.ban_modal_forever": "לנצח",
+  "role.ban_modal_24h": "24 שעות",
+  "role.ban_modal_7d": "7 ימים",
+  "role.ban_modal_30d": "30 ימים",
+  "role.ban_modal_btn": "איסור"
 }

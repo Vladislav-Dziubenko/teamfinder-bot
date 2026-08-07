@@ -717,5 +717,18 @@
   "ban.reason_title": "Причина блокировки",
   "ban.reason_label": "Причина",
   "ban.no_reason": "Не указана",
-  "ban.appeal": "Если вы считаете, что блокировка ошибочна, обратитесь в поддержку проекта."
+  "ban.appeal": "Если вы считаете, что блокировка ошибочна, обратитесь в поддержку проекта.",
+  "ban.expires_title": "Срок блокировки",
+  "ban.expires_until": "До",
+  "ban.expires_forever": "Навсегда",
+  "role.ban_modal_title": "Заблокировать игрока",
+  "role.ban_modal_reason": "Причина",
+  "role.ban_modal_reason_ph": "Например: спам в глобальном чате",
+  "role.ban_modal_hint": "Игрок увидит причину на экране блокировки",
+  "role.ban_modal_duration": "Срок",
+  "role.ban_modal_forever": "Навсегда",
+  "role.ban_modal_24h": "24 часа",
+  "role.ban_modal_7d": "7 дней",
+  "role.ban_modal_30d": "30 дней",
+  "role.ban_modal_btn": "Заблокировать"
 }

@@ -717,5 +717,18 @@
   "ban.reason_title": "Dôvod zákazu",
   "ban.reason_label": "Dôvod",
   "ban.no_reason": "Neuvedené",
-  "ban.appeal": "Ak si myslíte, že tento zákaz je omyl, kontaktujte podporu projektu."
+  "ban.appeal": "Ak si myslíte, že tento zákaz je omyl, kontaktujte podporu projektu.",
+  "ban.expires_title": "Trvanie zákazu",
+  "ban.expires_until": "Až kým",
+  "ban.expires_forever": "Natrvalo",
+  "role.ban_modal_title": "Zakázať hráča",
+  "role.ban_modal_reason": "Dôvod",
+  "role.ban_modal_reason_ph": "napr. spam v globálnom chate",
+  "role.ban_modal_hint": "Hráč uvidí dôvod na obrazovke zákazu",
+  "role.ban_modal_duration": "Trvanie",
+  "role.ban_modal_forever": "navždy",
+  "role.ban_modal_24h": "24 hodín",
+  "role.ban_modal_7d": "7 dní",
+  "role.ban_modal_30d": "30 dní",
+  "role.ban_modal_btn": "Zákaz"
 }

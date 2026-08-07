@@ -717,5 +717,18 @@
   "ban.reason_title": "Razlog za prepoved",
   "ban.reason_label": "Razlog",
   "ban.no_reason": "Ni določeno",
-  "ban.appeal": "Če menite, da je ta prepoved pomota, se obrnite na podporo projekta."
+  "ban.appeal": "Če menite, da je ta prepoved pomota, se obrnite na podporo projekta.",
+  "ban.expires_title": "Trajanje prepovedi",
+  "ban.expires_until": "dokler",
+  "ban.expires_forever": "Za stalno",
+  "role.ban_modal_title": "Izključi igralca",
+  "role.ban_modal_reason": "Razlog",
+  "role.ban_modal_reason_ph": "Npr. vsiljena pošta v globalnem klepetu",
+  "role.ban_modal_hint": "Igralec bo videl razlog na zaslonu za prepoved",
+  "role.ban_modal_duration": "Trajanje",
+  "role.ban_modal_forever": "Za vedno",
+  "role.ban_modal_24h": "24 ur",
+  "role.ban_modal_7d": "7 dni",
+  "role.ban_modal_30d": "30 dni",
+  "role.ban_modal_btn": "prepoved"
 }

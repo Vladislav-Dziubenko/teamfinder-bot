@@ -466,7 +466,7 @@ async def ban_middleware(request: web.Request, handler):
                 ban = await request.app["db"].get_global_ban(user["id"])
                 if ban is not None:
                     return web.json_response(
-                        {"error": "banned", "banned": True, "ban_reason": ban.get("reason", "")},
+                        {"error": "banned", "banned": True, "ban_reason": ban.get("reason", ""), "ban_expires_at": ban.get("expires_at", "")},
                         status=403,
                     )
     return await handler(request)
@@ -569,6 +569,7 @@ async def handle_me(request: web.Request):
         "user": user,
         "banned": banned,
         "ban_reason": (ban_info or {}).get("reason", ""),
+        "ban_expires_at": (ban_info or {}).get("expires_at", ""),
         "role": role,
         "is_beta": is_beta,
         "beta_state": beta_state,
@@ -2369,8 +2370,18 @@ async def handle_global_ban(request: web.Request):
     target_role = await db.get_role(target_id)
     if db.ROLE_RANK.get(target_role, 0) >= db.ROLE_RANK.get(role, 0):
         return web.json_response({"error": "cannot ban same or higher role"}, status=403)
-    await db.ban_global(target_id, user["id"], sanitize(body.get("reason", ""), 200))
-    return web.json_response({"ok": True})
+    reason = sanitize(body.get("reason", ""), 200)
+    if not reason:
+        return web.json_response({"error": "reason required"}, status=400)
+    duration = int(body.get("duration", 0) or 0)
+    allowed_durations = (0, 24 * 3600, 7 * 24 * 3600, 30 * 24 * 3600)
+    if duration not in allowed_durations:
+        return web.json_response({"error": "invalid duration"}, status=400)
+    expires_at = ""
+    if duration > 0:
+        expires_at = (datetime.utcnow() + timedelta(seconds=duration)).isoformat()
+    await db.ban_global(target_id, user["id"], reason, expires_at)
+    return web.json_response({"ok": True, "expires_at": expires_at})
 
 
 async def handle_global_unban(request: web.Request):

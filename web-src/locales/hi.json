@@ -717,5 +717,18 @@
   "ban.reason_title": "प्रतिबंध का कारण",
   "ban.reason_label": "कारण",
   "ban.no_reason": "निर्दिष्ट नहीं",
-  "ban.appeal": "यदि आपको लगता है कि यह प्रतिबंध एक गलती है, तो कृपया परियोजना सहायता से संपर्क करें।"
+  "ban.appeal": "यदि आपको लगता है कि यह प्रतिबंध एक गलती है, तो कृपया परियोजना सहायता से संपर्क करें।",
+  "ban.expires_title": "प्रतिबंध की अवधि",
+  "ban.expires_until": "तक",
+  "ban.expires_forever": "स्थायी रूप से",
+  "role.ban_modal_title": "खिलाड़ी पर प्रतिबंध लगाएं",
+  "role.ban_modal_reason": "कारण",
+  "role.ban_modal_reason_ph": "जैसे वैश्विक चैट में स्पैम",
+  "role.ban_modal_hint": "खिलाड़ी को प्रतिबंध स्क्रीन पर कारण दिखाई देगा",
+  "role.ban_modal_duration": "अवधि",
+  "role.ban_modal_forever": "हमेशा के लिए",
+  "role.ban_modal_24h": "24 घंटे",
+  "role.ban_modal_7d": "7 दिन",
+  "role.ban_modal_30d": "30 दिन",
+  "role.ban_modal_btn": "प्रतिबंध"
 }

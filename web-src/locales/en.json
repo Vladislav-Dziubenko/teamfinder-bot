@@ -717,5 +717,18 @@
   "ban.reason_title": "Reason for the ban",
   "ban.reason_label": "Reason",
   "ban.no_reason": "Not specified",
-  "ban.appeal": "If you believe this ban is a mistake, please contact project support."
+  "ban.appeal": "If you believe this ban is a mistake, please contact project support.",
+  "ban.expires_title": "Ban duration",
+  "ban.expires_until": "Until",
+  "ban.expires_forever": "Permanently",
+  "role.ban_modal_title": "Ban player",
+  "role.ban_modal_reason": "Reason",
+  "role.ban_modal_reason_ph": "E.g. spam in the global chat",
+  "role.ban_modal_hint": "The player will see the reason on the ban screen",
+  "role.ban_modal_duration": "Duration",
+  "role.ban_modal_forever": "Forever",
+  "role.ban_modal_24h": "24 hours",
+  "role.ban_modal_7d": "7 days",
+  "role.ban_modal_30d": "30 days",
+  "role.ban_modal_btn": "Ban"
 }

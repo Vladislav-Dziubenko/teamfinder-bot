@@ -717,5 +717,18 @@
   "ban.reason_title": "Reden van het verbod",
   "ban.reason_label": "Reden",
   "ban.no_reason": "Niet gespecificeerd",
-  "ban.appeal": "Als u denkt dat dit verbod een vergissing is, neem dan contact op met de projectondersteuning."
+  "ban.appeal": "Als u denkt dat dit verbod een vergissing is, neem dan contact op met de projectondersteuning.",
+  "ban.expires_title": "Duur van het verbod",
+  "ban.expires_until": "Tot",
+  "ban.expires_forever": "Permanent",
+  "role.ban_modal_title": "Speler verbieden",
+  "role.ban_modal_reason": "Reden",
+  "role.ban_modal_reason_ph": "Bijvoorbeeld spam in de wereldwijde chat",
+  "role.ban_modal_hint": "De speler ziet de reden op het verbanningsscherm",
+  "role.ban_modal_duration": "Duur",
+  "role.ban_modal_forever": "Voor altijd",
+  "role.ban_modal_24h": "24 uur",
+  "role.ban_modal_7d": "7 dagen",
+  "role.ban_modal_30d": "30 dagen",
+  "role.ban_modal_btn": "Verbod"
 }

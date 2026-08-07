@@ -717,5 +717,18 @@
   "ban.reason_title": "Прычына забароны",
   "ban.reason_label": "Прычына",
   "ban.no_reason": "Не ўдакладняецца",
-  "ban.appeal": "Калі вы лічыце, што гэтая забарона з'яўляецца памылкай, звярніцеся ў службу падтрымкі праекта."
+  "ban.appeal": "Калі вы лічыце, што гэтая забарона з'яўляецца памылкай, звярніцеся ў службу падтрымкі праекта.",
+  "ban.expires_title": "Працягласць забароны",
+  "ban.expires_until": "Пакуль",
+  "ban.expires_forever": "Пастаянна",
+  "role.ban_modal_title": "Забаніць гульца",
+  "role.ban_modal_reason": "Прычына",
+  "role.ban_modal_reason_ph": "напрыклад спам у глабальным чаце",
+  "role.ban_modal_hint": "Гулец убачыць прычыну на экране забароны",
+  "role.ban_modal_duration": "Працягласць",
+  "role.ban_modal_forever": "Назаўжды",
+  "role.ban_modal_24h": "24 гадзіны",
+  "role.ban_modal_7d": "7 дзён",
+  "role.ban_modal_30d": "30 дзён",
+  "role.ban_modal_btn": "Забараніць"
 }
