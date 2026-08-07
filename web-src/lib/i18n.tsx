@@ -94,6 +94,43 @@ const dictionaries: Record<string, Record<string, string>> = {
 const STORAGE_KEY = "nexus-lang"
 const DEFAULT_LANG = "ru"
 
+// Коды языков Telegram/браузера → наши локали (ru, en, es, pt, de, fr, tr, ar,
+// uk, pl, zh, hi, id, it, ja, ko, nl, vi, th, fa, ms, sv, no, da, fi, cs, ro,
+// hu, el, he, ur, bn, ta, tl, az).
+const LANG_ALIASES: Record<string, string> = {
+  "pt-br": "pt", "pt-pt": "pt", "zh-cn": "zh", "zh-tw": "zh", "zh-hans": "zh", "zh-hant": "zh",
+  "en-us": "en", "en-gb": "en", "es-es": "es", "es-mx": "es", "es-ar": "es",
+  "fr-fr": "fr", "de-de": "de", "it-it": "it", "nl-nl": "nl", "sv-se": "sv",
+  "no-no": "no", "da-dk": "da", "fi-fi": "fi", "cs-cz": "cs", "ro-ro": "ro",
+  "hu-hu": "hu", "el-gr": "el", "tr-tr": "tr", "ar-sa": "ar", "he-il": "he",
+  "fa-ir": "fa", "ur-pk": "ur", "bn-bd": "bn", "ta-in": "ta", "tl-ph": "tl",
+  "az-az": "az", "pl-pl": "pl", "uk-ua": "uk", "ru-ru": "ru", "vi-vn": "vi",
+  "th-th": "th", "ms-my": "ms", "id-id": "id", "ja-jp": "ja", "ko-kr": "ko",
+  "hi-in": "hi", "iw": "he", "fil": "tl", "in": "id",
+}
+
+function normalizeLangCode(code?: string | null): string | undefined {
+  if (!code) return undefined
+  const c = code.trim().toLowerCase().replace(/_/g, "-")
+  if (dictionaries[c]) return c
+  if (LANG_ALIASES[c]) return LANG_ALIASES[c]
+  const base = c.split("-")[0]
+  if (dictionaries[base]) return base
+  if (LANG_ALIASES[base]) return LANG_ALIASES[base]
+  return undefined
+}
+
+function detectLang(): string | undefined {
+  try {
+    const u = window.Telegram?.WebApp?.initDataUnsafe?.user
+    const fromTg = normalizeLangCode(u?.language_code)
+    if (fromTg) return fromTg
+    const fromNav = normalizeLangCode(navigator.language)
+    if (fromNav) return fromNav
+  } catch {}
+  return undefined
+}
+
 interface I18nContextValue {
   lang: string
   setLang: (code: string) => void
@@ -114,13 +151,38 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let initial = DEFAULT_LANG
+    let chosen = false
     try {
       const saved = localStorage.getItem(STORAGE_KEY)
-      if (saved && dictionaries[saved]) initial = saved
+      if (saved && dictionaries[saved]) {
+        initial = saved
+        chosen = true
+      }
     } catch {}
+    if (!chosen) {
+      // Автоопределение: язык Telegram (язык клиента игрока) → язык браузера.
+      initial = detectLang() ?? DEFAULT_LANG
+    }
     setLangState(initial)
     setReady(true)
     void api.post("/api/user/language", { lang: initial }).catch(() => {})
+    if (!chosen) {
+      // Если на сервере уже сохранён явный выбор языка (например, игрок менял
+      // язык в другом мини-аппе/бот ранее) — уважаем его поверх автоопределения.
+      void api
+        .get<{ lang?: string }>("/api/user/language")
+        .then((res) => {
+          const serverLang = normalizeLangCode(res?.lang)
+          if (serverLang && serverLang !== initial) {
+            setLangState(serverLang)
+            try {
+              localStorage.setItem(STORAGE_KEY, serverLang)
+            } catch {}
+            void api.post("/api/user/language", { lang: serverLang }).catch(() => {})
+          }
+        })
+        .catch(() => {})
+    }
   }, [])
 
   useEffect(() => {

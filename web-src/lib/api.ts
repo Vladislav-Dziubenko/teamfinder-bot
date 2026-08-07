@@ -4,7 +4,7 @@ declare global {
       WebApp?: {
         initData: string
         initDataUnsafe?: {
-          user?: { id: number; first_name?: string; last_name?: string; username?: string; photo_url?: string }
+          user?: { id: number; first_name?: string; last_name?: string; username?: string; photo_url?: string; language_code?: string }
         }
         openTelegramLink?: (url: string) => void
         openInvoice?: (url: string, callback?: () => void) => void
@@ -39,7 +39,7 @@ export function telegramReady(): void {
   }
 }
 
-export function getInitDataUser(): { id: number; first_name?: string; last_name?: string; username?: string } | null {
+export function getInitDataUser(): { id: number; first_name?: string; last_name?: string; username?: string; language_code?: string } | null {
   if (typeof window === "undefined") return null
   const user = window.Telegram?.WebApp?.initDataUnsafe?.user
   if (user?.id) return user

@@ -518,6 +518,10 @@ async def handle_user_language(request: web.Request):
         return web.json_response({"ok": True, "lang": lang})
 
     lang = await db.get_user_language(user["id"])
+    # "ru" — дефолт БД, неотличим от "язык не выбирался". Не навязываем его
+    # клиенту, чтобы не затирать автоопределение (язык Telegram игрока).
+    if lang and lang.lower() == "ru":
+        return web.json_response({"lang": None})
     return web.json_response({"lang": lang})
 
 
