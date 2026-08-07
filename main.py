@@ -14,7 +14,7 @@ from aiohttp import web
 
 from config import load_settings
 from database import Database
-from handlers import start, profile, search, guides, payments, admin, discord
+from handlers import start, profile, search, guides, payments, admin, discord, appeal
 from middleware import InjectMiddleware, RateLimitMiddleware
 from webapp.server import create_app
 
@@ -55,6 +55,8 @@ async def main():
         dp.include_router(payments.router)
         dp.include_router(admin.router)
         dp.include_router(discord.router)
+        # Последний: апелляции забаненных (без фильтров — только «неизвестный» текст)
+        dp.include_router(appeal.router)
 
         # ---- Шаг 3: создаём приложение, регистрируем роуты ----
         web_app = create_app(db, settings, bot)

@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 घंटे",
   "role.ban_modal_7d": "7 दिन",
   "role.ban_modal_30d": "30 दिन",
-  "role.ban_modal_btn": "प्रतिबंध"
+  "role.ban_modal_btn": "प्रतिबंध",
+  "ban.appeal_btn": "संदेश मॉडरेशन",
+  "ban.appeal_hint": "बॉट को कोई भी संदेश भेजें - मॉडरेशन इसे प्राप्त करेगा और यहां उत्तर देगा"
 }

@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 stundas",
   "role.ban_modal_7d": "7 dienas",
   "role.ban_modal_30d": "30 dienas",
-  "role.ban_modal_btn": "Aizliegt"
+  "role.ban_modal_btn": "Aizliegt",
+  "ban.appeal_btn": "Ziņojumu regulēšana",
+  "ban.appeal_hint": "Nosūtiet robotam jebkuru ziņojumu — moderators to saņems un atbildēs šeit"
 }

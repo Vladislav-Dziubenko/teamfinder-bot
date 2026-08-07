@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 timer",
   "role.ban_modal_7d": "7 dage",
   "role.ban_modal_30d": "30 dage",
-  "role.ban_modal_btn": "Forbud"
+  "role.ban_modal_btn": "Forbud",
+  "ban.appeal_btn": "Beskedmoderering",
+  "ban.appeal_hint": "Send botten en hvilken som helst besked - moderation modtager den og svarer her"
 }

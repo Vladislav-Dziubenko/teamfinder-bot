@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 ساعت",
   "role.ban_modal_7d": "7 روز",
   "role.ban_modal_30d": "30 روز",
-  "role.ban_modal_btn": "ممنوع کردن"
+  "role.ban_modal_btn": "ممنوع کردن",
+  "ban.appeal_btn": "تعدیل پیام",
+  "ban.appeal_hint": "هر پیامی را برای ربات بفرستید - نظارت آن را دریافت کرده و در اینجا پاسخ خواهد داد"
 }

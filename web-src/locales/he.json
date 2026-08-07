@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 שעות",
   "role.ban_modal_7d": "7 ימים",
   "role.ban_modal_30d": "30 ימים",
-  "role.ban_modal_btn": "איסור"
+  "role.ban_modal_btn": "איסור",
+  "ban.appeal_btn": "ניהול הודעות",
+  "ban.appeal_hint": "שלח לבוט כל הודעה - המנחה תקבל אותה ותשיב כאן"
 }

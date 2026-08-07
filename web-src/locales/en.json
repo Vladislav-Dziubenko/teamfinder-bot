@@ -718,6 +718,8 @@
   "ban.reason_label": "Reason",
   "ban.no_reason": "Not specified",
   "ban.appeal": "If you believe this ban is a mistake, please contact project support.",
+  "ban.appeal_btn": "Message moderation",
+  "ban.appeal_hint": "Send the bot any message — moderation will receive it and reply here",
   "ban.expires_title": "Ban duration",
   "ban.expires_until": "Until",
   "ban.expires_forever": "Permanently",

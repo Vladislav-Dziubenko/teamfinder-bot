@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 часа",
   "role.ban_modal_7d": "7 дни",
   "role.ban_modal_30d": "30 дни",
-  "role.ban_modal_btn": "забрана"
+  "role.ban_modal_btn": "забрана",
+  "ban.appeal_btn": "Модериране на съобщения",
+  "ban.appeal_hint": "Изпратете на бота произволно съобщение — модераторът ще го получи и ще отговори тук"
 }

@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 ώρες",
   "role.ban_modal_7d": "7 ημέρες",
   "role.ban_modal_30d": "30 ημέρες",
-  "role.ban_modal_btn": "Απαγόρευση"
+  "role.ban_modal_btn": "Απαγόρευση",
+  "ban.appeal_btn": "Εποπτεία μηνυμάτων",
+  "ban.appeal_hint": "Στείλτε στο bot οποιοδήποτε μήνυμα - η εποπτεία θα το λάβει και θα απαντήσει εδώ"
 }

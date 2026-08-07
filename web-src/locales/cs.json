@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 hodin",
   "role.ban_modal_7d": "7 dní",
   "role.ban_modal_30d": "30 dní",
-  "role.ban_modal_btn": "Zákaz"
+  "role.ban_modal_btn": "Zákaz",
+  "ban.appeal_btn": "Moderování zpráv",
+  "ban.appeal_hint": "Pošlete robotovi jakoukoli zprávu – moderování ji obdrží a odpoví zde"
 }

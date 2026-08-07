@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 гадзіны",
   "role.ban_modal_7d": "7 дзён",
   "role.ban_modal_30d": "30 дзён",
-  "role.ban_modal_btn": "Забараніць"
+  "role.ban_modal_btn": "Забараніць",
+  "ban.appeal_btn": "Мадэрацыя паведамленняў",
+  "ban.appeal_hint": "Адпраўце боту любое паведамленне — мадэрацыя атрымае яго і адкажа тут"
 }

@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 valandos",
   "role.ban_modal_7d": "7 dienos",
   "role.ban_modal_30d": "30 dienų",
-  "role.ban_modal_btn": "Uždrausti"
+  "role.ban_modal_btn": "Uždrausti",
+  "ban.appeal_btn": "Pranešimų moderavimas",
+  "ban.appeal_hint": "Siųskite robotui bet kokį pranešimą – moderatorius jį gaus ir atsakys čia"
 }

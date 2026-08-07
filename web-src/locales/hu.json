@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 óra",
   "role.ban_modal_7d": "7 nap",
   "role.ban_modal_30d": "30 nap",
-  "role.ban_modal_btn": "Ban"
+  "role.ban_modal_btn": "Ban",
+  "ban.appeal_btn": "Üzenet moderálása",
+  "ban.appeal_hint": "Bármilyen üzenetet küldhet a botnak – a moderáció megkapja, és itt válaszol"
 }

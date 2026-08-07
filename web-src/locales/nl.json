@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 uur",
   "role.ban_modal_7d": "7 dagen",
   "role.ban_modal_30d": "30 dagen",
-  "role.ban_modal_btn": "Verbod"
+  "role.ban_modal_btn": "Verbod",
+  "ban.appeal_btn": "Berichtmoderatie",
+  "ban.appeal_hint": "Stuur de bot een bericht: de moderatie zal het ontvangen en hier antwoorden"
 }

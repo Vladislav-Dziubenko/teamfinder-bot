@@ -1,10 +1,15 @@
 "use client"
 
-import { Ban, ShieldOff } from "lucide-react"
+import { Ban, ShieldOff, Send } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
+import { useNexus } from "@/lib/store"
+import { openTelegramLink } from "@/lib/api"
 
 export function BannedSheet({ reason, expiresAt }: { reason?: string; expiresAt?: string }) {
   const { t, lang } = useI18n()
+  const { referralBotUrl } = useNexus()
+
+  const botLink = (referralBotUrl || "https://t.me/NexusTeammatesBot").replace(/\/$/, "") + "?start=appeal"
 
   let until = ""
   if (expiresAt) {
@@ -59,6 +64,15 @@ export function BannedSheet({ reason, expiresAt }: { reason?: string; expiresAt?
 
         <div className="rounded-3xl border border-border bg-card p-4">
           <p className="text-[13px] leading-relaxed text-muted-foreground">{t("ban.appeal")}</p>
+          <button
+            type="button"
+            onClick={() => openTelegramLink(botLink)}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-primary to-accent py-3.5 text-sm font-bold text-primary-foreground shadow-[0_10px_30px_-10px_rgba(124,58,237,0.7)] transition-transform active:scale-[0.98]"
+          >
+            <Send className="size-4" />
+            {t("ban.appeal_btn")}
+          </button>
+          <p className="mt-2 text-center text-[10px] text-muted-foreground/70">{t("ban.appeal_hint")}</p>
         </div>
       </div>
     </div>

@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24小时",
   "role.ban_modal_7d": "7天",
   "role.ban_modal_30d": "30天",
-  "role.ban_modal_btn": "班"
+  "role.ban_modal_btn": "班",
+  "ban.appeal_btn": "消息审核",
+  "ban.appeal_hint": "向机器人发送任何消息 - 审核将收到该消息并在此处回复"
 }

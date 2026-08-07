@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 de ore",
   "role.ban_modal_7d": "7 zile",
   "role.ban_modal_30d": "30 de zile",
-  "role.ban_modal_btn": "Ban"
+  "role.ban_modal_btn": "Ban",
+  "ban.appeal_btn": "Moderarea mesajelor",
+  "ban.appeal_hint": "Trimiteți botului orice mesaj - moderatorul îl va primi și va răspunde aici"
 }

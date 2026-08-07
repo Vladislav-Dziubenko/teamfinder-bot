@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 tuntia",
   "role.ban_modal_7d": "7 päivää",
   "role.ban_modal_30d": "30 päivää",
-  "role.ban_modal_btn": "Kielto"
+  "role.ban_modal_btn": "Kielto",
+  "ban.appeal_btn": "Viestien moderointi",
+  "ban.appeal_hint": "Lähetä botille mikä tahansa viesti – moderaattori vastaanottaa sen ja vastaa tähän"
 }

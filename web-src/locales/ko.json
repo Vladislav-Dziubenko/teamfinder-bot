@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24시간",
   "role.ban_modal_7d": "7일",
   "role.ban_modal_30d": "30일",
-  "role.ban_modal_btn": "금지"
+  "role.ban_modal_btn": "금지",
+  "ban.appeal_btn": "메시지 검토",
+  "ban.appeal_hint": "봇에게 메시지를 보내세요. 중재자가 이를 수신하고 여기에 답장합니다."
 }

@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 сата",
   "role.ban_modal_7d": "7 дана",
   "role.ban_modal_30d": "30 дана",
-  "role.ban_modal_btn": "Бан"
+  "role.ban_modal_btn": "Бан",
+  "ban.appeal_btn": "Модерирање поруке",
+  "ban.appeal_hint": "Пошаљите боту било коју поруку — модератор ће је примити и одговорити овде"
 }

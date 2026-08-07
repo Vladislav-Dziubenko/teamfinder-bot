@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 ساعة",
   "role.ban_modal_7d": "7 أيام",
   "role.ban_modal_30d": "30 يوما",
-  "role.ban_modal_btn": "حظر"
+  "role.ban_modal_btn": "حظر",
+  "ban.appeal_btn": "الإشراف على الرسالة",
+  "ban.appeal_hint": "أرسل للروبوت أي رسالة — وسيقوم الإشراف باستلامها والرد هنا"
 }

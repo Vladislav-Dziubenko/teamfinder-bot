@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 saat",
   "role.ban_modal_7d": "7 gün",
   "role.ban_modal_30d": "30 gün",
-  "role.ban_modal_btn": "Yasak"
+  "role.ban_modal_btn": "Yasak",
+  "ban.appeal_btn": "Mesaj denetimi",
+  "ban.appeal_hint": "Bot'a herhangi bir mesaj gönderin; moderasyon mesajı alacak ve burada yanıtlayacaktır."
 }

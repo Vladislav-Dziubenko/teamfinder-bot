@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 tundi",
   "role.ban_modal_7d": "7 päeva",
   "role.ban_modal_30d": "30 päeva",
-  "role.ban_modal_btn": "Keela"
+  "role.ban_modal_btn": "Keela",
+  "ban.appeal_btn": "Sõnumi modereerimine",
+  "ban.appeal_hint": "Saatke robotile mis tahes sõnum – moderatsioon võtab selle vastu ja vastab siin"
 }

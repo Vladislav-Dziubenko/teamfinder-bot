@@ -730,5 +730,7 @@
   "role.ban_modal_24h": "24 horas",
   "role.ban_modal_7d": "7 dias",
   "role.ban_modal_30d": "30 dias",
-  "role.ban_modal_btn": "Proibição"
+  "role.ban_modal_btn": "Proibição",
+  "ban.appeal_btn": "Moderação de mensagens",
+  "ban.appeal_hint": "Envie qualquer mensagem ao bot - a moderação irá recebê-la e responder aqui"
 }
