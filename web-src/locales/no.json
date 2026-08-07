@@ -699,5 +699,16 @@
   "cases.reveal_top": "Søk øverst",
   "cases.reveal_top1_3d": "Topp-1 · 3 dager",
   "cases.reveal_top23_2d": "Topp 2-3 · 2 dager",
-  "cases.reveal_top_24h": "Topp · 24 timer"
+  "cases.reveal_top_24h": "Topp · 24 timer",
+  "consent.title": "Velkommen til NEXUS",
+  "consent.subtitle": "Før du fortsetter, vennligst les dette korte sammendraget av reglene våre – det tar bare 20 sekunder.",
+  "consent.privacy_title": "Personvern",
+  "consent.privacy_desc": "Vi behandler kun dataene fra Telegram-profilen din som kreves for å kjøre tjenesten: kallenavn, avatar, spillprofil og balanse. Vi deler aldri dataene dine med tredjeparter eller bruker dem til reklame.",
+  "consent.disclaimer_title": "Ansvarsfraskrivelse",
+  "consent.disclaimer_desc": "Tjenesten leveres \"som den er\". Mynter, stjerner og gjenstander er virtuelle in-bot-valutaer uten reell pengeverdi. Administrasjonen er ikke ansvarlig for avbrudd, tap av valuta, forbud eller handlinger fra andre spillere. Ved å bruke tjenesten godtar du dette.",
+  "consent.cb1": "Jeg har lest og godtar personvernreglene og vilkårene for bruk",
+  "consent.cb2": "Jeg forstår at jeg bruker tjenesten frivillig og tar ansvar for mine egne handlinger",
+  "consent.accept": "Godta og fortsett",
+  "consent.agree_all": "Merk av i begge boksene for å fortsette",
+  "consent.version": "Avtaleversjon: v{version}"
 }

@@ -699,5 +699,16 @@
   "cases.reveal_top": "Keresés a tetején",
   "cases.reveal_top1_3d": "Top-1 · 3 nap",
   "cases.reveal_top23_2d": "Legjobb 2-3 · 2 nap",
-  "cases.reveal_top_24h": "Top · 24h"
+  "cases.reveal_top_24h": "Top · 24h",
+  "consent.title": "Üdvözöljük a NEXUS-ban",
+  "consent.subtitle": "Mielőtt folytatná, kérjük, olvassa el szabályaink rövid összefoglalóját – mindössze 20 másodpercet vesz igénybe.",
+  "consent.privacy_title": "Adatvédelem",
+  "consent.privacy_desc": "Csak azokat az adatokat dolgozzuk fel a Telegram-profiljából, amelyek a szolgáltatás futtatásához szükségesek: becenév, avatar, játékprofil és egyenleg. Adatait soha nem osztjuk meg harmadik felekkel, és nem használjuk fel reklámozásra.",
+  "consent.disclaimer_title": "Jogi nyilatkozat",
+  "consent.disclaimer_desc": "A szolgáltatás „ahogy van”. Az érmék, csillagok és tárgyak virtuális in-bot pénznem, valódi pénzérték nélkül. Az adminisztráció nem vállal felelősséget a kimaradásokért, valutavesztésért, kitiltásokért vagy más játékosok cselekedeteiért. A szolgáltatás használatával Ön ezt elfogadja.",
+  "consent.cb1": "Elolvastam és elfogadom az adatvédelmi szabályzatot és a szolgáltatási feltételeket",
+  "consent.cb2": "Tudomásul veszem, hogy a szolgáltatást önként veszem igénybe, és felelősséget vállalok saját tetteimért",
+  "consent.accept": "Elfogadás és folytatás",
+  "consent.agree_all": "A folytatáshoz jelölje be mindkét négyzetet",
+  "consent.version": "Megállapodás verziója: v{version}"
 }

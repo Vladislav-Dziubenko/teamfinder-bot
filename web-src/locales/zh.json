@@ -699,5 +699,16 @@
   "cases.reveal_top": "搜索顶部",
   "cases.reveal_top1_3d": "前 1 · 3 天",
   "cases.reveal_top23_2d": "前 2-3 位 · 2 天",
-  "cases.reveal_top_24h": "顶级·24小时"
+  "cases.reveal_top_24h": "顶级·24小时",
+  "consent.title": "欢迎来到 Nexus",
+  "consent.subtitle": "在继续之前，请阅读我们规则的简短摘要 - 只需 20 秒。",
+  "consent.privacy_title": "隐私",
+  "consent.privacy_desc": "我们仅处理运行服务所需的 Telegram 个人资料中的数据：昵称、头像、游戏个人资料和余额。我们绝不会与第三方分享您的数据或将其用于广告目的。",
+  "consent.disclaimer_title": "免责声明",
+  "consent.disclaimer_desc": "该服务按“原样”提供。金币、星星和物品是虚拟的机器人货币，没有实际的货币价值。管理机构不对中断、货币损失、禁令或其他玩家的行为负责。使用该服务即表示您同意这一点。",
+  "consent.cb1": "我已阅读并接受隐私政策和服务条款",
+  "consent.cb2": "我了解我自愿使用该服务并对自己的行为负责",
+  "consent.accept": "接受并继续",
+  "consent.agree_all": "选中两个框以继续",
+  "consent.version": "协议版本：v{version}"
 }

@@ -699,5 +699,16 @@
   "cases.reveal_top": "Meklēt augšpusē",
   "cases.reveal_top1_3d": "Top-1 · 3 dienas",
   "cases.reveal_top23_2d": "Top 2-3 · 2 dienas",
-  "cases.reveal_top_24h": "Augšā · 24h"
+  "cases.reveal_top_24h": "Augšā · 24h",
+  "consent.title": "Laipni lūdzam NEXUS!",
+  "consent.subtitle": "Pirms turpināt, lūdzu, izlasiet šo īso mūsu noteikumu kopsavilkumu — tas aizņem tikai 20 sekundes.",
+  "consent.privacy_title": "Privātums",
+  "consent.privacy_desc": "Mēs apstrādājam tikai tos datus no jūsu Telegram profila, kas ir nepieciešami pakalpojuma palaišanai: segvārdu, iemiesojumu, spēļu profilu un bilanci. Mēs nekad neizpaužam jūsu datus trešajām personām un neizmantojam tos reklamēšanai.",
+  "consent.disclaimer_title": "Atruna",
+  "consent.disclaimer_desc": "Pakalpojums tiek sniegts \"tāds, kāds ir\". Monētas, zvaigznes un priekšmeti ir virtuāla in-bot valūta bez reālas naudas vērtības. Administrācija nav atbildīga par pārtraukumiem, valūtas zudumu, aizliegumiem vai citu spēlētāju darbībām. Izmantojot pakalpojumu, jūs tam piekrītat.",
+  "consent.cb1": "Esmu izlasījis un piekrītu privātuma politikai un pakalpojumu sniegšanas noteikumiem",
+  "consent.cb2": "Es saprotu, ka pakalpojumu izmantoju brīvprātīgi un uzņemos atbildību par savu rīcību",
+  "consent.accept": "Pieņemiet un turpiniet",
+  "consent.agree_all": "Lai turpinātu, atzīmējiet abas izvēles rūtiņas",
+  "consent.version": "Līguma versija: v{version}"
 }

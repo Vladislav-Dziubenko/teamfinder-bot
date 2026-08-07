@@ -699,5 +699,16 @@
   "cases.reveal_top": "Rechercher en haut",
   "cases.reveal_top1_3d": "Top-1 · 3 jours",
   "cases.reveal_top23_2d": "Haut 2-3 · 2 jours",
-  "cases.reveal_top_24h": "Haut · 24h"
+  "cases.reveal_top_24h": "Haut · 24h",
+  "consent.title": "Bienvenue sur NEXUS",
+  "consent.subtitle": "Avant de continuer, veuillez lire ce bref résumé de nos règles. Cela ne prend que 20 secondes.",
+  "consent.privacy_title": "Confidentialité",
+  "consent.privacy_desc": "Nous traitons uniquement les données de votre profil Telegram nécessaires au fonctionnement du service : pseudo, avatar, profil de jeu et solde. Nous ne partageons jamais vos données avec des tiers et ne les utilisons jamais à des fins publicitaires.",
+  "consent.disclaimer_title": "Avis de non-responsabilité",
+  "consent.disclaimer_desc": "Le service est fourni « tel quel ». Les pièces, les étoiles et les objets sont une monnaie virtuelle intégrée au robot sans valeur monétaire réelle. L'administration n'est pas responsable des pannes, des pertes de devises, des bannissements ou des actions d'autres joueurs. En utilisant le service, vous acceptez cela.",
+  "consent.cb1": "J'ai lu et accepté la politique de confidentialité et les conditions d'utilisation",
+  "consent.cb2": "Je comprends que j'utilise le service volontairement et que j'assume la responsabilité de mes propres actions",
+  "consent.accept": "Accepter et continuer",
+  "consent.agree_all": "Cochez les deux cases pour continuer",
+  "consent.version": "Version du contrat : v{version}"
 }

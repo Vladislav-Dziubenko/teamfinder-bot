@@ -699,5 +699,16 @@
   "cases.reveal_top": "検索トップ",
   "cases.reveal_top1_3d": "トップ1・3日間",
   "cases.reveal_top23_2d": "上位2～3・2日間",
-  "cases.reveal_top_24h": "トップ・24h"
+  "cases.reveal_top_24h": "トップ・24h",
+  "consent.title": "ネクサスへようこそ",
+  "consent.subtitle": "続行する前に、このルールの短い概要をお読みください。所要時間はわずか 20 秒です。",
+  "consent.privacy_title": "プライバシー",
+  "consent.privacy_desc": "当社は、サービスの実行に必要な Telegram プロフィールのデータ (ニックネーム、アバター、ゲーム プロフィール、残高) のみを処理します。当社がお客様のデータを第三者と共有したり、広告に使用したりすることはありません。",
+  "consent.disclaimer_title": "免責事項",
+  "consent.disclaimer_desc": "サービスは「現状のまま」提供されます。コイン、スター、アイテムは、実際の金銭的価値を持たない仮想のボット内通貨です。運営側は、機能停止、通貨の損失、禁止、または他のプレイヤーの行為に対して責任を負いません。サービスを使用すると、これに同意したことになります。",
+  "consent.cb1": "プライバシー ポリシーと利用規約を読み、同意します",
+  "consent.cb2": "私はサービスを自発的に利用し、自分の行動に責任があることを理解しています",
+  "consent.accept": "受け入れて続行します",
+  "consent.agree_all": "続行するには両方のボックスにチェックを入れてください",
+  "consent.version": "契約バージョン: v{version}"
 }

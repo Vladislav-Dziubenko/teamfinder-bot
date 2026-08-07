@@ -15,9 +15,10 @@ import { PromoTab } from "./promo-tab"
 import { FriendsTab } from "./friends-tab"
 import { ContactSheet } from "./contact-sheet"
 import { ProfileViewSheet } from "./profile-view-sheet"
+import { ConsentSheet } from "./consent-sheet"
 import { openChatWithPlayer } from "@/lib/chat"
 import { api } from "@/lib/api"
-import { useMe, useNexus } from "@/lib/store"
+import { useMe, useNexus, CONSENT_VERSION } from "@/lib/store"
 import type { Player, Team } from "@/lib/data"
 
 // Ленивая загрузка тяжёлых вкладок: Three.js (~600KB), Recharts (~400KB)
@@ -41,7 +42,7 @@ function TabFallback() {
 function Shell() {
   const { t } = useI18n()
   const me = useMe()
-  const { serverBusy, setServerBusy } = useNexus()
+  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded } = useNexus()
   const [tab, setTab] = useState<TabId>("home")
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
@@ -159,6 +160,13 @@ function Shell() {
       <BottomNav active={tab} onChange={goTab} />
 
       <ContactSheet player={contact} onClose={() => setContact(null)} />
+
+      {/* Онбординг: политика конфиденциальности и дисклеймер.
+          Показывается только если пользователь ещё не принял актуальную
+          версию соглашения; решение хранится на сервере. */}
+      {loaded && consentVersion < CONSENT_VERSION && (
+        <ConsentSheet onAccept={acceptConsent} />
+      )}
 
       {sharedProfileId && (
         <ProfileViewSheet

@@ -699,5 +699,16 @@
   "cases.reveal_top": "Otsi ülevalt",
   "cases.reveal_top1_3d": "Top-1 · 3 päeva",
   "cases.reveal_top23_2d": "Top 2-3 · 2 päeva",
-  "cases.reveal_top_24h": "Üles · 24h"
+  "cases.reveal_top_24h": "Üles · 24h",
+  "consent.title": "Tere tulemast NEXUSesse",
+  "consent.subtitle": "Enne jätkamist lugege palun meie reeglite lühike kokkuvõte – selleks kulub vaid 20 sekundit.",
+  "consent.privacy_title": "Privaatsus",
+  "consent.privacy_desc": "Töötleme teie Telegrami profiililt ainult neid andmeid, mis on vajalikud teenuse käitamiseks: hüüdnimi, avatari, mänguprofiil ja saldo. Me ei jaga teie andmeid kunagi kolmandate osapooltega ega kasuta neid reklaamimiseks.",
+  "consent.disclaimer_title": "Vastutusest loobumine",
+  "consent.disclaimer_desc": "Teenust osutatakse \"nagu on\". Mündid, tähed ja esemed on virtuaalne roboti valuuta, millel puudub tegelik rahaline väärtus. Administratsioon ei vastuta katkestuste, valuuta kadumise, keeldude ega teiste mängijate tegevuse eest. Teenust kasutades nõustute sellega.",
+  "consent.cb1": "Olen lugenud privaatsuspoliitikat ja teenusetingimusi ning nõustun nendega",
+  "consent.cb2": "Mõistan, et kasutan teenust vabatahtlikult ja vastutan oma tegude eest ise",
+  "consent.accept": "Nõustu ja jätka",
+  "consent.agree_all": "Jätkamiseks märkige mõlemad ruudud",
+  "consent.version": "Lepingu versioon: v{version}"
 }

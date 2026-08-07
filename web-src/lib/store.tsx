@@ -36,6 +36,7 @@ export type ModelState = {
 const DAY_MS = 24 * 60 * 60 * 1000
 const BP_CLAIM_INTERVAL = 2 * DAY_MS
 const FREE_SEARCHES = 5
+export const CONSENT_VERSION = 1
 
 type MeResponse = {
   user: { id: number; username?: string; first_name?: string; level?: number; wins?: number }
@@ -72,6 +73,7 @@ type MeResponse = {
   ad_state?: { watch_count: number; rewarded: number }
   case_cooldowns: Record<string, string | null>
   free_gold_opens?: number
+  consent?: number
   premium_active: boolean
   promos?: Array<{
     code: string
@@ -145,6 +147,7 @@ type PersistedState = {
   modelState: ModelState
   betaBalance: number
   freeGoldOpens: number
+  consentVersion: number
 }
 
 function makeReferralCode() {
@@ -304,6 +307,7 @@ function defaultState(): PersistedState {
     modelState: { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
     betaBalance: 0,
     freeGoldOpens: 0,
+    consentVersion: 0,
   }
 }
 
@@ -384,6 +388,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     modelState: modelState || { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
     betaBalance: me.beta_state?.case_balance ?? 0,
     freeGoldOpens: me.free_gold_opens ?? 0,
+    consentVersion: me.consent ?? 0,
   }
 }
 
@@ -468,6 +473,7 @@ type Nexus = PersistedState & {
   claimAchievement: (id: string, pts: number, cns: number) => Promise<void>
   hasUnlockedPlayer: (id: string) => boolean
   setGames: (games: string[]) => Promise<void>
+  acceptConsent: () => Promise<void>
 }
 
 const NexusContext = createContext<Nexus | null>(null)
@@ -934,6 +940,15 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    const acceptConsent = async () => {
+      try {
+        await api.post("/api/user/consent", { version: CONSENT_VERSION })
+      } catch (e) {
+        console.error("acceptConsent failed", e)
+      }
+      setS((p: PersistedState) => ({ ...p, consentVersion: CONSENT_VERSION }))
+    }
+
     const setGames = async (games: string[]) => {
       setS((p: PersistedState) => ({ ...p, games }))
       try {
@@ -991,6 +1006,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       claimAchievement,
       hasUnlockedPlayer: (id: string) => s.unlockedPlayers.includes(id),
       setGames,
+      acceptConsent,
       serverBusy,
       setServerBusy,
     }

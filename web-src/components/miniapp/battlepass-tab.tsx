@@ -56,7 +56,7 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
     const res = await claimNextBpTier()
     setClaiming(false)
     if (!res.ok) onToast(res.error ?? t("battlepass.claim_failed"))
-    else onToast(t("battlepass.claimed_tier", { level: res.tierLevel }))
+    else onToast(t("battlepass.claimed_tier", { level: res.tierLevel ?? 0 }))
   }
 
   return (

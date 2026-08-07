@@ -469,7 +469,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                       <button
                         key={n}
                         type="button"
-                        disabled={spin || multi !== null || multiBusy !== null}
+                        disabled={!!spin || multi !== null || multiBusy !== null}
                         onClick={() => handleOpenMulti(c, n)}
                         className="flex flex-col items-center justify-center rounded-xl border border-stars/25 bg-stars/5 py-1.5 active:scale-95 disabled:opacity-50"
                       >
@@ -971,7 +971,7 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
 
         {isStars && (
           <p className="mt-2 flex items-center justify-center gap-1 text-sm font-bold text-stars">
-            <Star className="size-4 fill-stars" /> +{formatNum(item.stars)} {t("cases.stars_added")}
+            <Star className="size-4 fill-stars" /> +{formatNum(item.stars ?? 0)} {t("cases.stars_added")}
           </p>
         )}
 

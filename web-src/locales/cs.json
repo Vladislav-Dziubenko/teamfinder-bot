@@ -699,5 +699,16 @@
   "cases.reveal_top": "Hledat nahoře",
   "cases.reveal_top1_3d": "Top-1 · 3 dny",
   "cases.reveal_top23_2d": "Top 2-3 · 2 dny",
-  "cases.reveal_top_24h": "Nahoru · 24h"
+  "cases.reveal_top_24h": "Nahoru · 24h",
+  "consent.title": "Vítejte v NEXUS",
+  "consent.subtitle": "Než budete pokračovat, přečtěte si prosím toto krátké shrnutí našich pravidel — zabere to pouze 20 sekund.",
+  "consent.privacy_title": "soukromí",
+  "consent.privacy_desc": "Zpracováváme pouze údaje z vašeho profilu Telegram, které jsou nezbytné pro provozování služby: přezdívka, avatar, herní profil a zůstatek. Vaše údaje nikdy nesdílíme s třetími stranami ani je nepoužíváme k reklamě.",
+  "consent.disclaimer_title": "Zřeknutí se odpovědnosti",
+  "consent.disclaimer_desc": "Služba je poskytována „tak jak je“. Mince, hvězdy a předměty jsou virtuální měnou robota bez skutečné peněžní hodnoty. Správa neručí za výpadky, ztrátu měny, zákazy nebo akce jiných hráčů. Používáním služby s tím souhlasíte.",
+  "consent.cb1": "Přečetl jsem si a souhlasím se zásadami ochrany osobních údajů a podmínkami služby",
+  "consent.cb2": "Beru na vědomí, že službu využívám dobrovolně a beru odpovědnost za své vlastní činy",
+  "consent.accept": "Přijmout a pokračovat",
+  "consent.agree_all": "Chcete-li pokračovat, zaškrtněte obě políčka",
+  "consent.version": "Verze smlouvy: v{version}"
 }

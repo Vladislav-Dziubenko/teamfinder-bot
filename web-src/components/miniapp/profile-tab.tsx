@@ -140,7 +140,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
     const res = await claimDailyStreak()
     setStreakClaiming(false)
     if (!res.ok) onToast(res.error ?? t("profile.streak_claimed"))
-    else onToast(t("profile.streak_claimed_toast", { day: res.day, coins: res.coins }))
+    else onToast(t("profile.streak_claimed_toast", { day: res.day ?? 0, coins: res.coins ?? 0 }))
   }
 
   return (

@@ -699,5 +699,16 @@
   "cases.reveal_top": "Zoek bovenaan",
   "cases.reveal_top1_3d": "Top-1 · 3 dagen",
   "cases.reveal_top23_2d": "Top 2-3 · 2 dagen",
-  "cases.reveal_top_24h": "Boven · 24 uur"
+  "cases.reveal_top_24h": "Boven · 24 uur",
+  "consent.title": "Welkom bij NEXUS",
+  "consent.subtitle": "Lees voordat u verdergaat eerst deze korte samenvatting van onze regels. Het duurt slechts 20 seconden.",
+  "consent.privacy_title": "Privacy",
+  "consent.privacy_desc": "Wij verwerken alleen de gegevens uit uw Telegram-profiel die nodig zijn om de dienst uit te voeren: nickname, avatar, gameprofiel en saldo. Wij delen uw gegevens nooit met derden en gebruiken deze ook nooit voor reclame.",
+  "consent.disclaimer_title": "Disclaimer",
+  "consent.disclaimer_desc": "De dienst wordt geleverd ‘as is’. Munten, sterren en items zijn virtuele in-bot-valuta zonder echte geldwaarde. De administratie is niet aansprakelijk voor storingen, verlies van valuta, verboden of de acties van andere spelers. Door gebruik te maken van de dienst gaat u hiermee akkoord.",
+  "consent.cb1": "Ik heb het privacybeleid en de servicevoorwaarden gelezen en ga ermee akkoord",
+  "consent.cb2": "Ik begrijp dat ik de dienst vrijwillig gebruik en de verantwoordelijkheid neem voor mijn eigen daden",
+  "consent.accept": "Accepteer en ga door",
+  "consent.agree_all": "Vink beide vakjes aan om door te gaan",
+  "consent.version": "Overeenkomstversie: v{version}"
 }

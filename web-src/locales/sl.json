@@ -699,5 +699,16 @@
   "cases.reveal_top": "Iskanje na vrhu",
   "cases.reveal_top1_3d": "Top-1 · 3 dni",
   "cases.reveal_top23_2d": "Top 2-3 · 2 dni",
-  "cases.reveal_top_24h": "Vrh · 24h"
+  "cases.reveal_top_24h": "Vrh · 24h",
+  "consent.title": "Dobrodošli v NEXUS",
+  "consent.subtitle": "Preden nadaljujete, preberite ta kratek povzetek naših pravil - traja le 20 sekund.",
+  "consent.privacy_title": "Zasebnost",
+  "consent.privacy_desc": "Obdelujemo samo podatke iz vašega profila Telegram, ki so potrebni za izvajanje storitve: vzdevek, avatar, igralni profil in stanje. Vaših podatkov nikoli ne delimo s tretjimi osebami ali jih uporabljamo za oglaševanje.",
+  "consent.disclaimer_title": "Zavrnitev odgovornosti",
+  "consent.disclaimer_desc": "Storitev je na voljo \"takšna kot je\". Kovanci, zvezdice in predmeti so virtualna in-bot valuta brez prave denarne vrednosti. Uprava ni odgovorna za izpade, izgubo valute, prepovedi ali dejanja drugih igralcev. Z uporabo storitve se strinjate s tem.",
+  "consent.cb1": "Prebral sem in sprejemam politiko zasebnosti in pogoje storitve",
+  "consent.cb2": "Razumem, da storitev uporabljam prostovoljno in prevzemam odgovornost za svoja dejanja",
+  "consent.accept": "Sprejmi in nadaljuj",
+  "consent.agree_all": "Za nadaljevanje označite obe polji",
+  "consent.version": "Različica pogodbe: v{version}"
 }

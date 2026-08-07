@@ -38,7 +38,7 @@ let _chats: ChatPreview[] = []
 
 export function useChats(): ChatPreview[] {
   const [chats, setChats] = useState<ChatPreview[]>(_chats)
-  const pollingRef = useRef<ReturnType<typeof setInterval>>()
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -87,7 +87,7 @@ export function useChats(): ChatPreview[] {
     // Пауза при сворачивании вкладки — не опрашиваем сервер в фоне.
     function onVisibility() {
       if (document.hidden) {
-        clearInterval(pollingRef.current)
+        if (pollingRef.current) clearInterval(pollingRef.current)
       } else {
         load()
         pollingRef.current = setInterval(load, 15000)
@@ -96,7 +96,7 @@ export function useChats(): ChatPreview[] {
     document.addEventListener("visibilitychange", onVisibility)
     return () => {
       cancelled = true
-      clearInterval(pollingRef.current)
+      if (pollingRef.current) clearInterval(pollingRef.current)
       document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [])
@@ -138,7 +138,7 @@ export function useChatMessages(chatId: string | null) {
   const [status, setStatus] = useState<ChatStatus>({ muted: false, blocked: false, blockedByOther: false })
   const [typing, setTyping] = useState(false)
   const optimisticIds = useRef<Set<string>>(new Set())
-  const pollingRef = useRef<ReturnType<typeof setInterval>>()
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     if (
@@ -154,9 +154,10 @@ export function useChatMessages(chatId: string | null) {
     setMessages(_msgCache.get(chatId) ?? [])
     setStatus({ muted: false, blocked: false, blockedByOther: false })
     let cancelled = false
+    const cid: string = chatId
     async function fetchMsgs(attempt = 0) {
       try {
-        const data: any = await api.get("/api/chat/" + chatId)
+        const data: any = await api.get("/api/chat/" + cid)
         if (!cancelled) {
           if (data.status) {
             setStatus({
@@ -170,7 +171,7 @@ export function useChatMessages(chatId: string | null) {
           setMessages((prev) => {
             const kept = prev.filter((m) => m.id.startsWith("opt-") && !serverIds.has(m.id))
             const merged = [...serverMsgs, ...kept]
-            _msgCache.set(chatId, merged)
+            _msgCache.set(cid, merged)
             return merged
           })
         }
@@ -187,7 +188,7 @@ export function useChatMessages(chatId: string | null) {
 
     function onVisibility() {
       if (document.hidden) {
-        clearInterval(pollingRef.current)
+        if (pollingRef.current) clearInterval(pollingRef.current)
       } else {
         fetchMsgs()
         pollingRef.current = setInterval(fetchMsgs, 10000)
@@ -196,7 +197,7 @@ export function useChatMessages(chatId: string | null) {
     document.addEventListener("visibilitychange", onVisibility)
     return () => {
       cancelled = true
-      clearInterval(pollingRef.current)
+      if (pollingRef.current) clearInterval(pollingRef.current)
       document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [chatId])
@@ -333,7 +334,7 @@ export function useGlobalChat() {
   const [meRole, setMeRole] = useState<string>("")
   const [meBanned, setMeBanned] = useState(false)
   const [sending, setSending] = useState(false)
-  const pollRef = useRef<ReturnType<typeof setInterval>>()
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -360,7 +361,7 @@ export function useGlobalChat() {
 
     function onVisibility() {
       if (document.hidden) {
-        clearInterval(pollRef.current)
+        if (pollRef.current) clearInterval(pollRef.current)
       } else {
         load()
         pollRef.current = setInterval(load, 10000)
@@ -369,7 +370,7 @@ export function useGlobalChat() {
     document.addEventListener("visibilitychange", onVisibility)
     return () => {
       cancelled = true
-      clearInterval(pollRef.current)
+      if (pollRef.current) clearInterval(pollRef.current)
       document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [])

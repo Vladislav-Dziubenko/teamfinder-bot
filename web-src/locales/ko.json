@@ -699,5 +699,16 @@
   "cases.reveal_top": "검색 상단",
   "cases.reveal_top1_3d": "상위 1개 · 3일",
   "cases.reveal_top23_2d": "인기 2-3 · 2일",
-  "cases.reveal_top_24h": "최고 · 24시간"
+  "cases.reveal_top_24h": "최고 · 24시간",
+  "consent.title": "넥서스에 오신 것을 환영합니다",
+  "consent.subtitle": "계속하기 전에 규칙에 대한 간단한 요약을 읽어보세요. 단 20초 밖에 걸리지 않습니다.",
+  "consent.privacy_title": "개인정보 보호",
+  "consent.privacy_desc": "당사는 서비스 실행에 필요한 귀하의 텔레그램 프로필 데이터(닉네임, 아바타, 게임 프로필 및 잔액)만 처리합니다. 우리는 귀하의 데이터를 제3자와 공유하거나 광고용으로 사용하지 않습니다.",
+  "consent.disclaimer_title": "면책조항",
+  "consent.disclaimer_desc": "서비스는 \"있는 그대로\" 제공됩니다. 코인, 별, 아이템은 실제 금전적 가치가 없는 가상의 로봇 화폐입니다. 운영진은 중단, 통화 손실, 금지 또는 다른 플레이어의 행동에 대해 책임을 지지 않습니다. 서비스를 이용함으로써 귀하는 이에 동의하게 됩니다.",
+  "consent.cb1": "개인정보 보호정책과 서비스 약관을 읽었으며 이에 동의합니다.",
+  "consent.cb2": "나는 자발적으로 서비스를 이용하고 자신의 행동에 책임을 진다는 것을 이해합니다.",
+  "consent.accept": "동의하고 계속하세요",
+  "consent.agree_all": "계속하려면 두 상자를 모두 선택하세요.",
+  "consent.version": "계약 버전: v{version}"
 }

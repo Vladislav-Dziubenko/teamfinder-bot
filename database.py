@@ -500,6 +500,12 @@ class Database:
             pass
 
         try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS consent_version INTEGER DEFAULT 0")
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS consent_at TEXT")
+        except asyncpg.PostgresError:
+            pass
+
+        try:
             await conn.execute("ALTER TABLE team_applications ADD COLUMN IF NOT EXISTS is_premium INTEGER DEFAULT 0")
         except asyncpg.PostgresError:
             pass
@@ -948,6 +954,19 @@ class Database:
             await conn.execute(
                 "INSERT INTO users (user_id, username, first_name, created_at, language) VALUES ($1, '', '', $2, $3) ON CONFLICT (user_id) DO UPDATE SET language = EXCLUDED.language",
                 user_id, datetime.utcnow().isoformat(), lang,
+            )
+
+    async def get_consent(self, user_id: int) -> int:
+        """Версия принятого соглашения (0 — не принимал)."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT consent_version FROM users WHERE user_id = $1", user_id)
+            return int(row["consent_version"] or 0) if row else 0
+
+    async def set_consent(self, user_id: int, version: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE users SET consent_version = $1, consent_at = $2 WHERE user_id = $3",
+                version, datetime.utcnow().isoformat(), user_id,
             )
 
     async def save_profile(self, data: dict) -> None:

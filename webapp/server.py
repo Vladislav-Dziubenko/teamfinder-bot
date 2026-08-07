@@ -117,6 +117,11 @@ WEB_RATE_WINDOW = 60
 ME_RATE_LIMIT = 6       # запросов
 ME_RATE_WINDOW = 60     # секунд (1 запрос в 10с)
 
+# Версия соглашения (онбординг: политика конфиденциальности + дисклеймер).
+# Показываем пользователю один раз; при изменении текста политики версию
+# поднимаем — и те, кто принимал более старую, увидят экран снова.
+CONSENT_VERSION = 1
+
 # ---------------------------------------------------------------------------
 # Rate limiting — публичные /api/ эндпоинты (по IP, без авторизации)
 # Применяется к: /api/leaderboard, /api/teams, /api/teams/{id}/applications
@@ -475,11 +480,14 @@ async def handle_me(request: web.Request):
     if is_beta:
         beta_state = await db.grant_beta_daily(user["id"])
 
+    consent = await db.get_consent(user["id"])
+
     return web.json_response({
         "user": user,
         "role": role,
         "is_beta": is_beta,
         "beta_state": beta_state,
+        "consent": consent,
         "currency": currency,
         "mini_profile": mini_profile if mini_profile else {"games": []},
         "inventory": inventory,
@@ -523,6 +531,37 @@ async def handle_user_language(request: web.Request):
     if lang and lang.lower() == "ru":
         return web.json_response({"lang": None})
     return web.json_response({"lang": lang})
+
+
+async def handle_user_consent(request: web.Request):
+    """Согласие с политикой конфиденциальности и дисклеймером (онбординг).
+
+    GET  -> {"accepted": bool, "version": int}  — принял ли пользователь
+            актуальную версию соглашения.
+    POST -> {"version": int}  — пользователь принял соглашение; сохраняем
+            версию и время. Сервер хранит принятие навсегда, клиент после
+            этого не показывает экран повторно.
+    """
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    await db.ensure_user(user["id"], user.get("username"), user.get("first_name"), user.get("photo_url"), user.get("last_name"))
+
+    if request.method == "POST":
+        try:
+            body = await request.json()
+        except Exception:
+            body = {}
+        try:
+            version = int(body.get("version", 0))
+        except (TypeError, ValueError):
+            version = 0
+        if version < 1 or version > CONSENT_VERSION:
+            return web.json_response({"error": "invalid consent version"}, status=400)
+        await db.set_consent(user["id"], version)
+        return web.json_response({"ok": True, "accepted": True, "version": version})
+
+    version = await db.get_consent(user["id"])
+    return web.json_response({"accepted": version >= CONSENT_VERSION, "version": version})
 
 
 async def handle_user_sync(request: web.Request):
@@ -3023,6 +3062,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/me", handle_me)
     app.router.add_route("GET", "/api/user/language", handle_user_language)
     app.router.add_route("POST", "/api/user/language", handle_user_language)
+    app.router.add_route("GET", "/api/user/consent", handle_user_consent)
+    app.router.add_route("POST", "/api/user/consent", handle_user_consent)
     app.router.add_post("/api/user/sync", handle_user_sync)
     app.router.add_post("/api/profile", handle_save_profile)
     app.router.add_post("/api/profile/hide", handle_hide_profile)

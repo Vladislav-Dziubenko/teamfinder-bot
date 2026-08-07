@@ -161,7 +161,7 @@ export function PlayerCard({
             onClick={() => onUnlock?.(player)}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-stars py-3 text-sm font-bold text-background shadow-[0_0_20px_-6px_var(--stars)] transition-transform active:scale-[0.98]"
           >
-            <Star className="size-4 fill-background" /> {t("player_card.unlock_for", { cost: player.unlockStars })}
+            <Star className="size-4 fill-background" /> {t("player_card.unlock_for", { cost: player.unlockStars ?? 0 })}
           </button>
         ) : (
           <div className="mt-4 flex gap-2">

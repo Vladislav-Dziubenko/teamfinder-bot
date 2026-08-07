@@ -124,7 +124,7 @@ function MatchCard({
   onToast,
 }: {
   match: EsportsMatch
-  onPlace: (m: EsportsMatch, side: "A" | "B", amount: number) => { ok: boolean; error?: string }
+  onPlace: (m: EsportsMatch, side: "A" | "B", amount: number) => Promise<{ ok: boolean; error?: string }>
   onToast?: (m: string) => void
 }) {
   const { t } = useI18n()
