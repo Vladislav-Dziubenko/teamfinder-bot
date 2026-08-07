@@ -43,6 +43,12 @@ async def main():
             token=settings.bot_token,
             default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         )
+        # Кэшируем username бота (нужен для ссылок t.me/<bot> на бан-экране,
+        # реферальных ссылок и direct_app_url). Без get_me() username = None.
+        try:
+            await bot.me()
+        except Exception as e:
+            logging.warning("bot.me() failed: %s", e)
         dp = Dispatcher(storage=MemoryStorage())
 
         dp.update.middleware(RateLimitMiddleware())

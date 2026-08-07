@@ -542,7 +542,17 @@ async def handle_me(request: web.Request):
         db.get_free_gold_opens(user["id"]),
     )
 
-    bot_username = getattr(request.app.get("bot"), "username", None) or "TeamUpMatchBot"
+    # Username бота для ссылок t.me/<bot>. В aiogram он заполняется только
+    # после bot.me() (кэшируется при старте в main.py); здесь — страховка.
+    bot = request.app.get("bot")
+    bot_username = getattr(bot, "username", None) or ""
+    if not bot_username and bot is not None:
+        try:
+            me = await bot.me()
+            bot_username = (me.username or "")
+        except Exception:
+            pass
+    bot_username = bot_username or "TeamUpMatchBot"
     referral_bot_url = f"https://t.me/{bot_username}"
     app_short_name = "nexus"
     direct_app_url = f"https://t.me/{bot_username}/{app_short_name}"
