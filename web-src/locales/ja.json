@@ -732,5 +732,6 @@
   "role.ban_modal_30d": "30日",
   "role.ban_modal_btn": "禁止",
   "ban.appeal_btn": "メッセージの管理",
-  "ban.appeal_hint": "ボットにメッセージを送信します - モデレーションがそれを受信し、ここで返信します"
+  "ban.appeal_hint": "ボットにメッセージを送信します - モデレーションがそれを受信し、ここで返信します",
+  "ban.appeal_unavailable": "モデレーションへの連絡は一時的に利用できません"
 }

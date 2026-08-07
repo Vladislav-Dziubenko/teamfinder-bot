@@ -390,7 +390,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     battlePassTiers: me.battlepass_tiers || [],
     battlePassPriceStars: me.battlepass_price_stars ?? 250,
     battlePassXpPerLevel: me.battlepass_xp_per_level ?? 100,
-    referralBotUrl: me.referral_bot_url || "https://t.me/NexusTeammatesBot",
+        referralBotUrl: me.referral_bot_url || "",
     directAppUrl: me.direct_app_url || "",
     defaultPromoCodes,
     dailyStreakRewards: me.daily_streak_rewards || [],

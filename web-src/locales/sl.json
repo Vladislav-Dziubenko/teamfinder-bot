@@ -732,5 +732,6 @@
   "role.ban_modal_30d": "30 dni",
   "role.ban_modal_btn": "prepoved",
   "ban.appeal_btn": "Moderiranje sporočil",
-  "ban.appeal_hint": "Pošljite botu poljubno sporočilo - moderacija ga bo prejela in odgovorila tukaj"
+  "ban.appeal_hint": "Pošljite botu poljubno sporočilo - moderacija ga bo prejela in odgovorila tukaj",
+  "ban.appeal_unavailable": "Stik z moderiranjem trenutno ni na voljo"
 }

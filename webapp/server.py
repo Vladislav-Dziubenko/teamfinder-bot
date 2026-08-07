@@ -544,6 +544,8 @@ async def handle_me(request: web.Request):
 
     # Username бота для ссылок t.me/<bot>. В aiogram он заполняется только
     # после bot.me() (кэшируется при старте в main.py); здесь — страховка.
+    # Никаких хардкод-фолбэков: если username неизвестен, отдаём пустые
+    # строки, и клиент просто не покажет кнопки со ссылками на t.me.
     bot = request.app.get("bot")
     bot_username = getattr(bot, "username", None) or ""
     if not bot_username and bot is not None:
@@ -552,10 +554,11 @@ async def handle_me(request: web.Request):
             bot_username = (me.username or "")
         except Exception:
             pass
-    bot_username = bot_username or "TeamUpMatchBot"
-    referral_bot_url = f"https://t.me/{bot_username}"
+    if not bot_username:
+        logging.warning("/api/me: bot username unavailable, telegram links disabled")
+    referral_bot_url = f"https://t.me/{bot_username}" if bot_username else ""
     app_short_name = "nexus"
-    direct_app_url = f"https://t.me/{bot_username}/{app_short_name}"
+    direct_app_url = f"https://t.me/{bot_username}/{app_short_name}" if bot_username else ""
 
     promo_data, role = await asyncio.gather(
         db.get_promo_codes_with_redemption(user["id"]),

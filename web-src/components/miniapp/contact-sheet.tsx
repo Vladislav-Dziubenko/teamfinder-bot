@@ -18,7 +18,7 @@ export function ContactSheet({
 }) {
   const { t, tl } = useI18n()
   const { referralBotUrl } = useNexus()
-  const botLink = (referralBotUrl || "https://t.me/NexusTeammatesBot").replace(/\/+$/, "")
+  const botLink = referralBotUrl.replace(/\/+$/, "")
   const [invited, setInvited] = useState(false)
   const [message, setMessage] = useState("")
   const [sent, setSent] = useState(false)
@@ -91,10 +91,10 @@ export function ContactSheet({
 
         {/* Telegram social link */}
         <a
-          href={player.tgUsername ? `https://t.me/${player.tgUsername}` : `${botLink}?start=profile_${player.id}`}
+          href={player.tgUsername ? `https://t.me/${player.tgUsername}` : (botLink ? `${botLink}?start=profile_${player.id}` : undefined)}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-4 flex items-center justify-between rounded-2xl border border-accent/30 bg-accent/10 p-3 transition-transform active:scale-[0.98]"
+          className={botLink || player.tgUsername ? "mt-4 flex items-center justify-between rounded-2xl border border-accent/30 bg-accent/10 p-3 transition-transform active:scale-[0.98]" : "pointer-events-none mt-4 flex items-center justify-between rounded-2xl border border-border bg-secondary/40 p-3 opacity-60"}
         >
           <span className="flex items-center gap-3">
             <span className="grid size-9 place-items-center rounded-xl bg-accent text-accent-foreground">

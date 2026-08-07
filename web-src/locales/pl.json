@@ -732,5 +732,6 @@
   "role.ban_modal_30d": "30 dni",
   "role.ban_modal_btn": "Zakaz",
   "ban.appeal_btn": "Moderowanie wiadomości",
-  "ban.appeal_hint": "Wyślij botowi dowolną wiadomość — moderacja ją otrzyma i odpowie tutaj"
+  "ban.appeal_hint": "Wyślij botowi dowolną wiadomość — moderacja ją otrzyma i odpowie tutaj",
+  "ban.appeal_unavailable": "Kontakt z moderacją jest chwilowo niedostępny"
 }

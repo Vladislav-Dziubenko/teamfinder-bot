@@ -732,5 +732,6 @@
   "role.ban_modal_30d": "30 dias",
   "role.ban_modal_btn": "Prohibición",
   "ban.appeal_btn": "Moderación de mensajes",
-  "ban.appeal_hint": "Envía cualquier mensaje al bot; la moderación lo recibirá y responderá aquí"
+  "ban.appeal_hint": "Envía cualquier mensaje al bot; la moderación lo recibirá y responderá aquí",
+  "ban.appeal_unavailable": "La moderación de contacto no está disponible temporalmente"
 }

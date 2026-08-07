@@ -125,6 +125,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
   }
 
   function copyRef() {
+    if (!referralBotUrl) return
     const link = `${referralBotUrl}?start=${referralCode}`
     navigator.clipboard?.writeText(link).then(
       () => onToast(t("profile.referral_copied")),
@@ -380,7 +381,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
 
         <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-background/40 px-3 py-2.5">
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-            {referralBotUrl}?start={referralCode}
+            {referralBotUrl ? `${referralBotUrl}?start=${referralCode}` : "—"}
           </span>
           <button
             type="button"
@@ -394,6 +395,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
         <button
           type="button"
           onClick={() => {
+            if (!me.referralBotUrl) return
             const link = me.referralBotUrl + "?start=" + me.referralCode
             const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("🎮 Присоединяйся ко мне в TeamFinder!")
             try {
@@ -574,6 +576,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
               <button
                 type="button"
                 onClick={() => {
+                  if (!me.referralBotUrl) return
                   const link = me.referralBotUrl + "?start=profile_" + me.userId
                   navigator.clipboard.writeText(link).catch(() => {})
                   setShowShare(false)
@@ -590,6 +593,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
               <button
                 type="button"
                 onClick={() => {
+                  if (!me.referralBotUrl) return
                   const link = me.referralBotUrl + "?start=profile_" + me.userId
                   setShowShare(false)
                   const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("👋 Загляни в мой профиль в TeamFinder!")
