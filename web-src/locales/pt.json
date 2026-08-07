@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Cartão + mensagem enviada para DM",
   "role.tg_profile_fail": "Falha ao obter perfil",
   "cases.cost_coins": "Moedas {cost} por abertura",
-  "cases.open_coins": "Aberto para {cost} 🪙"
+  "cases.open_coins": "Aberto para {cost}"
 }

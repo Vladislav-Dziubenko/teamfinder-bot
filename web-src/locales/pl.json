@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Karta + wiadomość wysłana na DM",
   "role.tg_profile_fail": "Nie udało się pobrać profilu",
   "cases.cost_coins": "Monety {cost} na otwarcie",
-  "cases.open_coins": "Otwarte na {cost} 🪙"
+  "cases.open_coins": "Otwarte na {cost}"
 }

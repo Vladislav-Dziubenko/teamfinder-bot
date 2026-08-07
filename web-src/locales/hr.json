@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Kartica + poruka poslana u DM",
   "role.tg_profile_fail": "Dohvaćanje profila nije uspjelo",
   "cases.cost_coins": "{cost} kovanica po otvaranju",
-  "cases.open_coins": "Otvoreno za {cost} 🪙"
+  "cases.open_coins": "Otvoreno za {cost}"
 }

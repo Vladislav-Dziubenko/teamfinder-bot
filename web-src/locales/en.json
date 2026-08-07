@@ -488,6 +488,6 @@
   "role.tg_profile_ok_forwarded": "Card + message sent to DM",
   "role.tg_profile_fail": "Failed to get profile",
   "cases.cost_coins": "{cost} coins per open",
-  "cases.open_coins": "Open for {cost} 🪙",
+  "cases.open_coins": "Open for {cost}",
   "cases.need_coins": "Not enough Nexus coins"
 }

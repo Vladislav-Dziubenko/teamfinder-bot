@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Karta + správa odoslaná do DM",
   "role.tg_profile_fail": "Nepodarilo sa získať profil",
   "cases.cost_coins": "{cost} mincí na otvorenie",
-  "cases.open_coins": "Otvorené pre {cost} 🪙"
+  "cases.open_coins": "Otvorené pre {cost}"
 }

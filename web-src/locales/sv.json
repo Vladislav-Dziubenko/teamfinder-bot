@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Kort + meddelande skickat till DM",
   "role.tg_profile_fail": "Det gick inte att hämta profilen",
   "cases.cost_coins": "{cost} mynt per öppning",
-  "cases.open_coins": "Öppet för {cost} 🪙"
+  "cases.open_coins": "Öppet för {cost}"
 }

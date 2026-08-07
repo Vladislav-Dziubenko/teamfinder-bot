@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "DM'ye kart + mesaj gönderildi",
   "role.tg_profile_fail": "Profil alınamadı",
   "cases.cost_coins": "Açılış başına {cost} para",
-  "cases.open_coins": "{cost}'ya açık 🪙"
+  "cases.open_coins": "{cost}'ya açık"
 }

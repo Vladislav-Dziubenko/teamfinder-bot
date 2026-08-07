@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "כרטיס + הודעה נשלחה ל-DM",
   "role.tg_profile_fail": "קבלת הפרופיל נכשלה",
   "cases.cost_coins": "מטבעות {cost} לפתיחה",
-  "cases.open_coins": "פתוח עבור {cost} 🪙"
+  "cases.open_coins": "פתוח עבור {cost}"
 }

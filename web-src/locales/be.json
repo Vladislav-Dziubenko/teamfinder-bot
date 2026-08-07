@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Картка + паведамленне адпраўлена ў DM",
   "role.tg_profile_fail": "Не ўдалося атрымаць профіль",
   "cases.cost_coins": "{cost} манет за адкрыццё",
-  "cases.open_coins": "Адкрыты для {cost} 🪙"
+  "cases.open_coins": "Адкрыты для {cost}"
 }

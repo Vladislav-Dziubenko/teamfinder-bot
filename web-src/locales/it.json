@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Tessera + messaggio inviato al DM",
   "role.tg_profile_fail": "Impossibile ottenere il profilo",
   "cases.cost_coins": "Monete {cost} per apertura",
-  "cases.open_coins": "Aperti per {cost} 🪙"
+  "cases.open_coins": "Aperti per {cost}"
 }

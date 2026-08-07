@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Kaart + sõnum saadetud DM-ile",
   "role.tg_profile_fail": "Profiili hankimine ebaõnnestus",
   "cases.cost_coins": "{cost} münte avatud kohta",
-  "cases.open_coins": "Avatud {cost} jaoks 🪙"
+  "cases.open_coins": "Avatud {cost} jaoks"
 }

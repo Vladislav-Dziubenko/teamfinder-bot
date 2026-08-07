@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "カード+メッセージをDMに送信",
   "role.tg_profile_fail": "プロフィールの取得に失敗しました",
   "cases.cost_coins": "オープンごとに {cost} コイン",
-  "cases.open_coins": "{cost} のためにオープン 🪙"
+  "cases.open_coins": "{cost} のためにオープン"
 }

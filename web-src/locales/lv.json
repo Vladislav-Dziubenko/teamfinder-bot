@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Karte + ziņa nosūtīta uz DM",
   "role.tg_profile_fail": "Neizdevās iegūt profilu",
   "cases.cost_coins": "{cost} monētas vienā atvēršanā",
-  "cases.open_coins": "Atvērts {cost} 🪙"
+  "cases.open_coins": "Atvērts {cost}"
 }

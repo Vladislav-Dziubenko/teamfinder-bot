@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Κάρτα + μήνυμα στάλθηκε σε DM",
   "role.tg_profile_fail": "Αποτυχία λήψης προφίλ",
   "cases.cost_coins": "Κέρματα {cost} ανά άνοιγμα",
-  "cases.open_coins": "Ανοιχτό για {cost} 🪙"
+  "cases.open_coins": "Ανοιχτό για {cost}"
 }

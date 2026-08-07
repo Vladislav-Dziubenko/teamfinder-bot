@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Kortelė + žinutė išsiųsta į DM",
   "role.tg_profile_fail": "Nepavyko gauti profilio",
   "cases.cost_coins": "{cost} monetų per atidarymą",
-  "cases.open_coins": "Atidaryta {cost} 🪙"
+  "cases.open_coins": "Atidaryta {cost}"
 }

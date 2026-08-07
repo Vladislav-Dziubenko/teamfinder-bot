@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Картичка + съобщение изпратено до DM",
   "role.tg_profile_fail": "Неуспешно получаване на профил",
   "cases.cost_coins": "{cost} монети на отваряне",
-  "cases.open_coins": "Отворено за {cost} 🪙"
+  "cases.open_coins": "Отворено за {cost}"
 }

@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Kartica + poslano sporočilo v DM",
   "role.tg_profile_fail": "Profila ni bilo mogoče pridobiti",
   "cases.cost_coins": "{cost} kovancev na odprtje",
-  "cases.open_coins": "Odprto za {cost} 🪙"
+  "cases.open_coins": "Odprto za {cost}"
 }

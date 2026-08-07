@@ -488,6 +488,6 @@
   "role.tg_profile_ok_forwarded": "Карточка + сообщение отправлены в ЛС",
   "role.tg_profile_fail": "Не удалось получить профиль",
   "cases.cost_coins": "{cost} монет за открытие",
-  "cases.open_coins": "Открыть за {cost} 🪙",
+  "cases.open_coins": "Открыть за {cost}",
   "cases.need_coins": "Недостаточно монет Nexus"
 }

@@ -488,5 +488,5 @@
   "role.tg_profile_ok_forwarded": "Karte + Nachricht an DM gesendet",
   "role.tg_profile_fail": "Profil konnte nicht abgerufen werden",
   "cases.cost_coins": "{cost} Münzen pro Öffnung",
-  "cases.open_coins": "Geöffnet für {cost} 🪙"
+  "cases.open_coins": "Geöffnet für {cost}"
 }
