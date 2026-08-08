@@ -439,6 +439,8 @@ class Database:
             ssl=ssl_arg,
             min_size=2,
             max_size=10,
+            command_timeout=30,
+            timeout=15,
         )
         async with self._pool.acquire() as conn:
             await self._init_schema(conn)

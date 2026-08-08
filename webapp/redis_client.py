@@ -12,6 +12,7 @@
 rate-limit/кэш для данного запроса.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -44,8 +45,14 @@ async def init_redis() -> None:
         logger.warning("[redis] REDIS_URL не задан — rate-limit и кэш работают без Redis")
         return
     try:
-        client = aioredis.from_url(url, decode_responses=True)
-        await client.ping()
+        client = aioredis.from_url(
+            url,
+            decode_responses=True,
+            socket_connect_timeout=3.0,
+            socket_timeout=3.0,
+            socket_keepalive=True,
+        )
+        await asyncio.wait_for(client.ping(), timeout=5)
         _redis = client
         logger.info("[redis] Подключение установлено: %s", url.split("@")[-1])
     except Exception as exc:
@@ -96,7 +103,21 @@ async def rate_limit_checks(checks: list[tuple[str, int, int]]) -> list[bool]:
     """
     r = get_redis()
     if r is None:
-        return [await rate_limit_check(k, l, w) for k, l, w in checks]
+        # In-memory fallback — напрямую, БЕЗ повторного вызова rate_limit_check,
+        # иначе бесконечная рекурсия (check -> checks -> check -> ...) и
+        # RecursionError на каждом /api-запросе (а Redis на проде не задан).
+        out = []
+        for key, limit, window in checks:
+            mem_key = f"mem_rate:{key}"
+            now = time()
+            window_start = now - window
+            _fallback_rates[mem_key] = [t for t in _fallback_rates[mem_key] if t > window_start]
+            if len(_fallback_rates[mem_key]) >= limit:
+                out.append(True)
+            else:
+                _fallback_rates[mem_key].append(now)
+                out.append(False)
+        return out
     try:
         now = time()
         pipe = r.pipeline()
@@ -104,7 +125,7 @@ async def rate_limit_checks(checks: list[tuple[str, int, int]]) -> list[bool]:
             pipe.zadd(f"rate:{key}", {str(now): now})
             pipe.zcount(f"rate:{key}", now - window, "+inf")
             pipe.expire(f"rate:{key}", window)
-        results = await pipe.execute()
+        results = await asyncio.wait_for(pipe.execute(), timeout=3.0)
         blocked = []
         for i, (key, limit, window) in enumerate(checks):
             count = results[i * 3 + 1]
@@ -139,9 +160,9 @@ async def counter_incr(key: str, ttl: int) -> int:
     if r is None:
         return 0
     try:
-        val = await r.incr(key)
+        val = await asyncio.wait_for(r.incr(key), timeout=3.0)
         if val == 1:
-            await r.expire(key, ttl)
+            await asyncio.wait_for(r.expire(key, ttl), timeout=3.0)
         return val
     except Exception as exc:
         logger.warning("[redis] counter_incr error key=%s: %s", key, exc)
@@ -158,7 +179,7 @@ async def cache_get(key: str) -> Any | None:
     if r is None:
         return None
     try:
-        raw = await r.get(f"cache:{key}")
+        raw = await asyncio.wait_for(r.get(f"cache:{key}"), timeout=3.0)
         if raw is None:
             return None
         return json.loads(raw)
@@ -173,7 +194,7 @@ async def cache_set(key: str, data: Any, ttl: int = 2) -> None:
     if r is None:
         return
     try:
-        await r.setex(f"cache:{key}", ttl, json.dumps(data))
+        await asyncio.wait_for(r.setex(f"cache:{key}", ttl, json.dumps(data)), timeout=3.0)
     except Exception as exc:
         logger.warning("[redis] cache_set error key=%s: %s", key, exc)
 
@@ -190,8 +211,8 @@ async def cache_delete_pattern(pattern: str) -> None:
         return
     try:
         full_pattern = f"cache:{pattern}"
-        keys = await r.keys(full_pattern)
+        keys = await asyncio.wait_for(r.keys(full_pattern), timeout=3.0)
         if keys:
-            await r.delete(*keys)
+            await asyncio.wait_for(r.delete(*keys), timeout=3.0)
     except Exception as exc:
         logger.warning("[redis] cache_delete_pattern error pattern=%s: %s", pattern, exc)

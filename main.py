@@ -45,8 +45,10 @@ async def main():
         )
         # Кэшируем username бота (нужен для ссылок t.me/<bot> на бан-экране,
         # реферальных ссылок и direct_app_url). Без get_me() username = None.
+        # Таймаут 8с: если Telegram API висит, не затягиваем старт контейнера
+        # (Render отдаёт 502, пока порт не открыт).
         try:
-            await bot.me()
+            await asyncio.wait_for(bot.me(), timeout=8)
         except Exception as e:
             logging.warning("bot.me() failed: %s", e)
         dp = Dispatcher(storage=MemoryStorage())
@@ -85,12 +87,18 @@ async def main():
 
         # ---- Шаг 5: инициализация БД в фоне (не блокирует порт) ----
         async def _init_db():
-            try:
-                await db.connect()
-                web_app["db_ready"] = True
-                logging.info("TIMING db.connect() done  +%.2fs", time.monotonic() - _PROCESS_START)
-            except Exception as e:
-                logging.exception("DB init failed: %s", e)
+            # Ретраи: при деплое Render поднимает контейнер и БД одновременно,
+            # первый connect часто падает (БД ещё не готова). Без ретраев
+            # db_ready навсегда остаётся False и все /api/* отдают 503/502.
+            for attempt in range(1, 31):
+                try:
+                    await db.connect()
+                    web_app["db_ready"] = True
+                    logging.info("TIMING db.connect() done  +%.2fs (attempt %d)", time.monotonic() - _PROCESS_START, attempt)
+                    return
+                except Exception as e:
+                    logging.warning("DB init attempt %d/30 failed: %s", attempt, e)
+                    await asyncio.sleep(5)
 
         asyncio.create_task(_init_db())
 

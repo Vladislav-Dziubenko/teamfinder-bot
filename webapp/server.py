@@ -502,6 +502,18 @@ async def handle_me(request: web.Request):
             return web.json_response(cached)
         return web.json_response({"error": "slow down"}, status=429)
 
+    # Общий предохранитель: /api/me делает ~20 запросов к БД (стартовый load).
+    # Если БД зависла (таймаут внешнего сервиса, обрыв сети) — не даём
+    # прокси (Render) оборвать соединение с 502: отдаём 503 и пусть клиент
+    # ретраит сам. Обёртка ловит любые таймауты внутри хендлера.
+    try:
+        return await asyncio.wait_for(_me_payload(request, db, user), timeout=25)
+    except asyncio.TimeoutError:
+        logging.warning("/api/me: DB took >25s, returning 503 (timeout guard)")
+        return web.json_response({"error": "server busy"}, status=503)
+
+
+async def _me_payload(request: web.Request, db: Database, user: dict):
     # Бан аккаунта: статус отдаём клиенту в теле ответа (он покажет бан-экран),
     # бонусы забаненному не начисляются.
     ban_info = await db.get_global_ban(user["id"])
@@ -549,7 +561,7 @@ async def handle_me(request: web.Request):
     bot_username = getattr(bot, "username", None) or ""
     if not bot_username and bot is not None:
         try:
-            me = await bot.me()
+            me = await asyncio.wait_for(bot.me(), timeout=5)
             bot_username = (me.username or "")
         except Exception:
             pass
