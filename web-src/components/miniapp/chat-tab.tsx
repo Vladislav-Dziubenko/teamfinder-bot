@@ -982,7 +982,7 @@ function BanModal({
   onConfirm: () => void
 }) {
   const { t } = useI18n()
-  const ready = reason.trim().length > 0 && !busy
+  const ready = !busy
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm sm:items-center sm:p-6">
@@ -1018,7 +1018,6 @@ function BanModal({
           <div>
             <label className="mb-1.5 block text-[11px] font-bold uppercase tracking-wide text-muted-foreground">
               {t("role.ban_modal_reason")}
-              <span className="text-destructive"> *</span>
             </label>
             <div className="relative">
               <textarea

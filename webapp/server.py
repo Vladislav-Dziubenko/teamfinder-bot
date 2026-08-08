@@ -2387,7 +2387,7 @@ async def handle_global_ban(request: web.Request):
         return web.json_response({"error": "cannot ban same or higher role"}, status=403)
     reason = sanitize(body.get("reason", ""), 200)
     if not reason:
-        return web.json_response({"error": "reason required"}, status=400)
+        reason = "Без причины"
     duration = int(body.get("duration", 0) or 0)
     allowed_durations = (0, 24 * 3600, 7 * 24 * 3600, 30 * 24 * 3600)
     if duration not in allowed_durations:
