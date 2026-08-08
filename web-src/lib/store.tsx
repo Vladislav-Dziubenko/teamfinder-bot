@@ -263,15 +263,18 @@ function saveCurrency(state: PersistedState): void {
 }
 
 function defaultState(): PersistedState {
-  const saved = loadSavedCurrency()
   return {
     loaded: false,
-    stars: saved?.stars ?? 0,
-    coins: saved?.coins ?? 0,
-    points: saved?.points ?? 0,
+    // ВАЖНО: initial state НЕ читает localStorage и НЕ генерирует случайные
+    // значения — иначе SSR и клиент рендерят разный первый экран
+    // (React hydration error #418, сломанные обработчики кликов).
+    // Сохранённые валюта/пины подгружаются в useEffect после гидратации.
+    stars: 0,
+    coins: 0,
+    points: 0,
     premiumActive: false,
     inventory: [],
-    pinnedKeys: loadSavedPins(),
+    pinnedKeys: [],
     freeSearchesLeft: FREE_SEARCHES,
     unlockedPlayers: [],
     caseCooldown: {},
@@ -287,7 +290,7 @@ function defaultState(): PersistedState {
     bpLastClaimAt: 0,
     promoCodes: [],
     redeemedCodes: [],
-    referralCode: makeReferralCode(),
+    referralCode: "",
     invitedCount: 0,
     referralEarned: 0,
     streakDay: 0,
@@ -505,6 +508,20 @@ export function NexusProvider({ children }: { children: ReactNode }) {
   const refreshing = useRef(false)
 
   useEffect(() => { _setServerBusy = setServerBusy; return () => { _setServerBusy = null } }, [setServerBusy])
+
+  // Сохранённые валюта/пины подгружаются ПОСЛЕ гидратации — initial state
+  // обязан совпадать у SSR и клиента (иначе React #418 и битые клики).
+  useEffect(() => {
+    const saved = loadSavedCurrency()
+    const pins = loadSavedPins()
+    setS((prev) => ({
+      ...prev,
+      stars: saved?.stars ?? prev.stars,
+      coins: saved?.coins ?? prev.coins,
+      points: saved?.points ?? prev.points,
+      pinnedKeys: pins.length ? pins : prev.pinnedKeys,
+    }))
+  }, [])
 
   useEffect(() => {
     telegramReady()
