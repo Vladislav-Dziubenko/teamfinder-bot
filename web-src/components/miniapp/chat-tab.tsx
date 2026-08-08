@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useEffect, useMemo, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock } from "lucide-react"
 import {
   useChatMessages,
@@ -887,20 +888,26 @@ function AdminPanel({ userId }: { userId: number }) {
           <p className="py-3 text-center text-xs text-muted-foreground">{t("role.empty")}</p>
         )}
       </div>
-      {confirm && <ConfirmDialog confirm={confirm} onConfirm={confirmAction} onCancel={() => setConfirm(null)} />}
-      {banModal && (
-        <BanModal
-          user={banModal.u}
-          reason={banReason}
-          duration={banDuration}
-          busy={banBusy}
-          error={panelMsg?.err ? panelMsg.text : ""}
-          onReason={setBanReason}
-          onDuration={setBanDuration}
-          onCancel={() => setBanModal(null)}
-          onConfirm={() => sendBan(banModal.u, banReason, banDuration)}
-        />
-      )}
+      {confirm &&
+        createPortal(
+          <ConfirmDialog confirm={confirm} onConfirm={confirmAction} onCancel={() => setConfirm(null)} />,
+          document.body,
+        )}
+      {banModal &&
+        createPortal(
+          <BanModal
+            user={banModal.u}
+            reason={banReason}
+            duration={banDuration}
+            busy={banBusy}
+            error={panelMsg?.err ? panelMsg.text : ""}
+            onReason={setBanReason}
+            onDuration={setBanDuration}
+            onCancel={() => setBanModal(null)}
+            onConfirm={() => sendBan(banModal.u, banReason, banDuration)}
+          />,
+          document.body,
+        )}
     </div>
   )
 }
