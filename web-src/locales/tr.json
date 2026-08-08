@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Mesaj denetimi",
   "ban.appeal_hint": "Bot'a herhangi bir mesaj gönderin; moderasyon mesajı alacak ve burada yanıtlayacaktır.",
   "ban.appeal_unavailable": "Moderasyonla iletişim geçici olarak kullanılamıyor",
-  "role.ban_failed": "Yasaklama başarısız oldu: {err}"
+  "role.ban_failed": "Yasaklama başarısız oldu: {err}",
+  "role.banned_ok": "Yasaklandı"
 }

@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Pranešimų moderavimas",
   "ban.appeal_hint": "Siųskite robotui bet kokį pranešimą – moderatorius jį gaus ir atsakys čia",
   "ban.appeal_unavailable": "Susisiekti su moderavimu laikinai negalima",
-  "role.ban_failed": "Uždrausti nepavyko: {err}"
+  "role.ban_failed": "Uždrausti nepavyko: {err}",
+  "role.banned_ok": "Uždrausta"
 }

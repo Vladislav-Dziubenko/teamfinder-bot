@@ -649,12 +649,15 @@ function AdminPanel({ userId }: { userId: number }) {
 
   useEffect(() => {
     if (!panelMsg) return
-    const tm = setTimeout(() => setPanelMsg(null), 4000)
+    if (banModal) return
+    const tm = setTimeout(() => setPanelMsg(null), 6000)
     return () => clearTimeout(tm)
-  }, [panelMsg])
+  }, [panelMsg, banModal])
 
   function showError(e: any, fallback: string) {
-    setPanelMsg({ text: (e?.message || fallback).slice(0, 200), err: true })
+    const text = (e?.message || fallback).slice(0, 200)
+    console.error("[admin] action failed:", e)
+    setPanelMsg({ text, err: true })
   }
 
   useEffect(() => {
@@ -754,8 +757,10 @@ function AdminPanel({ userId }: { userId: number }) {
       setBanModal(null)
       setBanReason("")
       setBanDuration(0)
+      setPanelMsg({ text: t("role.banned_ok"), err: false })
     } catch (e: any) {
-      showError(e, t("role.ban_failed"))
+      console.error("[admin] ban failed:", e)
+      setPanelMsg({ text: (e?.message || t("role.ban_failed")).slice(0, 200), err: true })
     }
     setBanBusy(false)
   }
@@ -781,7 +786,10 @@ function AdminPanel({ userId }: { userId: number }) {
       </div>
       <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("role.title")}</p>
       {panelMsg && (
-        <p className="mb-2 rounded-lg border border-destructive/40 bg-destructive/15 px-2.5 py-1.5 text-[11px] font-semibold text-destructive">
+        <p className={cn(
+          "mb-2 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold",
+          panelMsg.err ? "border-destructive/40 bg-destructive/15 text-destructive" : "border-emerald-500/40 bg-emerald-500/15 text-emerald-500",
+        )}>
           {panelMsg.text}
         </p>
       )}

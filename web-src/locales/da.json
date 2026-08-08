@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Beskedmoderering",
   "ban.appeal_hint": "Send botten en hvilken som helst besked - moderation modtager den og svarer her",
   "ban.appeal_unavailable": "Kontakt moderering er midlertidigt utilgængelig",
-  "role.ban_failed": "Forbud mislykkedes: {err}"
+  "role.ban_failed": "Forbud mislykkedes: {err}",
+  "role.banned_ok": "Forbudt"
 }

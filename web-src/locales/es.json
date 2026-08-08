@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Moderación de mensajes",
   "ban.appeal_hint": "Envía cualquier mensaje al bot; la moderación lo recibirá y responderá aquí",
   "ban.appeal_unavailable": "La moderación de contacto no está disponible temporalmente",
-  "role.ban_failed": "Prohibición fallida: {err}"
+  "role.ban_failed": "Prohibición fallida: {err}",
+  "role.banned_ok": "Prohibido"
 }

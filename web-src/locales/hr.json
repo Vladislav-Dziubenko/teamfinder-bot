@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Moderiranje poruka",
   "ban.appeal_hint": "Pošaljite botu bilo koju poruku — moderacija će je primiti i odgovoriti ovdje",
   "ban.appeal_unavailable": "Kontaktiranje moderatora je privremeno nedostupno",
-  "role.ban_failed": "Zabrana nije uspjela: {err}"
+  "role.ban_failed": "Zabrana nije uspjela: {err}",
+  "role.banned_ok": "zabranjeno"
 }

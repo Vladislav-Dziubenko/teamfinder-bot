@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Sõnumi modereerimine",
   "ban.appeal_hint": "Saatke robotile mis tahes sõnum – moderatsioon võtab selle vastu ja vastab siin",
   "ban.appeal_unavailable": "Moderaatoriga ühenduse võtmine pole ajutiselt saadaval",
-  "role.ban_failed": "Keelamine ebaõnnestus: {err}"
+  "role.ban_failed": "Keelamine ebaõnnestus: {err}",
+  "role.banned_ok": "Keelatud"
 }

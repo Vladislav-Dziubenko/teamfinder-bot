@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Ziņojumu regulēšana",
   "ban.appeal_hint": "Nosūtiet robotam jebkuru ziņojumu — moderators to saņems un atbildēs šeit",
   "ban.appeal_unavailable": "Sazināšanās ar regulētāju īslaicīgi nav pieejama",
-  "role.ban_failed": "Aizliegšana neizdevās: {err}"
+  "role.ban_failed": "Aizliegšana neizdevās: {err}",
+  "role.banned_ok": "Aizliegts"
 }

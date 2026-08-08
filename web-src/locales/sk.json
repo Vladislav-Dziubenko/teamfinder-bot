@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Moderovanie správ",
   "ban.appeal_hint": "Pošlite robotovi akúkoľvek správu – moderovanie ju dostane a odpovie tu",
   "ban.appeal_unavailable": "Kontaktovanie moderovania je dočasne nedostupné",
-  "role.ban_failed": "Zákaz zlyhal: {err}"
+  "role.ban_failed": "Zákaz zlyhal: {err}",
+  "role.banned_ok": "Zakázané"
 }

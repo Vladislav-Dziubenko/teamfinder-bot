@@ -734,5 +734,6 @@
   "ban.appeal_btn": "메시지 검토",
   "ban.appeal_hint": "봇에게 메시지를 보내세요. 중재자가 이를 수신하고 여기에 답장합니다.",
   "ban.appeal_unavailable": "중재에 일시적으로 연락할 수 없습니다.",
-  "role.ban_failed": "차단 실패: {err}"
+  "role.ban_failed": "차단 실패: {err}",
+  "role.banned_ok": "금지됨"
 }

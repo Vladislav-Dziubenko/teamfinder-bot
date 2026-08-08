@@ -2371,6 +2371,7 @@ async def handle_global_ban(request: web.Request):
     user = _get_user(request)
     role = await _effective_role(request, db, user["id"])
     if db.ROLE_RANK.get(role, 0) < 2:
+        logging.info("[BAN] admin=%s denied (role=%r too low)", user["id"], role)
         return web.json_response({"error": "forbidden"}, status=403)
     body = await request.json()
     try:
@@ -2378,9 +2379,11 @@ async def handle_global_ban(request: web.Request):
     except (ValueError, TypeError):
         return web.json_response({"error": "invalid user_id"}, status=400)
     if _is_developer(request, target_id):
+        logging.info("[BAN] admin=%s target=%s denied (target is developer)", user["id"], target_id)
         return web.json_response({"error": "cannot ban developer"}, status=403)
     target_role = await db.get_role(target_id)
     if db.ROLE_RANK.get(target_role, 0) >= db.ROLE_RANK.get(role, 0):
+        logging.info("[BAN] admin=%s target=%s denied (target role %r >= mine %r)", user["id"], target_id, target_role, role)
         return web.json_response({"error": "cannot ban same or higher role"}, status=403)
     reason = sanitize(body.get("reason", ""), 200)
     if not reason:
@@ -2393,6 +2396,7 @@ async def handle_global_ban(request: web.Request):
     if duration > 0:
         expires_at = (datetime.utcnow() + timedelta(seconds=duration)).isoformat()
     await db.ban_global(target_id, user["id"], reason, expires_at)
+    logging.info("[BAN] admin=%s target=%s reason=%r duration=%s OK expires=%s", user["id"], target_id, reason, duration, expires_at)
     return web.json_response({"ok": True, "expires_at": expires_at})
 
 

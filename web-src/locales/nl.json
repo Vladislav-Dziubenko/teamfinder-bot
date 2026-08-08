@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Berichtmoderatie",
   "ban.appeal_hint": "Stuur de bot een bericht: de moderatie zal het ontvangen en hier antwoorden",
   "ban.appeal_unavailable": "Contact opnemen met moderatie is tijdelijk niet mogelijk",
-  "role.ban_failed": "Ban mislukt: {err}"
+  "role.ban_failed": "Ban mislukt: {err}",
+  "role.banned_ok": "Verboden"
 }

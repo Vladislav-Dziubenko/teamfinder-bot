@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Moderiranje sporočil",
   "ban.appeal_hint": "Pošljite botu poljubno sporočilo - moderacija ga bo prejela in odgovorila tukaj",
   "ban.appeal_unavailable": "Stik z moderiranjem trenutno ni na voljo",
-  "role.ban_failed": "Prepoved ni uspela: {err}"
+  "role.ban_failed": "Prepoved ni uspela: {err}",
+  "role.banned_ok": "Prepovedano"
 }

@@ -734,5 +734,6 @@
  "role.ban_modal_30d": "30 days",
  "role.ban_modal_btn": "Ban",
  "ban.appeal_unavailable": "Contacting moderation is temporarily unavailable",
- "role.ban_failed": "Ban failed: {err}"
+ "role.ban_failed": "Ban failed: {err}",
+ "role.banned_ok": "Banned"
 }

@@ -734,5 +734,6 @@
   "ban.appeal_btn": "メッセージの管理",
   "ban.appeal_hint": "ボットにメッセージを送信します - モデレーションがそれを受信し、ここで返信します",
   "ban.appeal_unavailable": "モデレーションへの連絡は一時的に利用できません",
-  "role.ban_failed": "禁止に失敗しました: {err}"
+  "role.ban_failed": "禁止に失敗しました: {err}",
+  "role.banned_ok": "禁止"
 }

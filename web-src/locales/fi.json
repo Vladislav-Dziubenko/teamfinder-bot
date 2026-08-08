@@ -734,5 +734,6 @@
   "ban.appeal_btn": "Viestien moderointi",
   "ban.appeal_hint": "Lähetä botille mikä tahansa viesti – moderaattori vastaanottaa sen ja vastaa tähän",
   "ban.appeal_unavailable": "Yhteydenotto moderointiin ei ole tilapäisesti käytettävissä",
-  "role.ban_failed": "Kielto epäonnistui: {err}"
+  "role.ban_failed": "Kielto epäonnistui: {err}",
+  "role.banned_ok": "Kielletty"
 }
