@@ -3,51 +3,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
 import { api } from "@/lib/api"
 
+// Только ru + en загружаются в стартовый бандл (fallback и SSR).
+// Остальные 43 словаря грузятся динамически при выборе языка —
+// это убирает ~1.6 МБ локалей из первого экрана.
 import ru from "@/locales/ru.json"
 import en from "@/locales/en.json"
-import es from "@/locales/es.json"
-import pt from "@/locales/pt.json"
-import de from "@/locales/de.json"
-import fr from "@/locales/fr.json"
-import tr from "@/locales/tr.json"
-import ar from "@/locales/ar.json"
-import uk from "@/locales/uk.json"
-import pl from "@/locales/pl.json"
-import zh from "@/locales/zh.json"
-import hi from "@/locales/hi.json"
-import id from "@/locales/id.json"
-import it from "@/locales/it.json"
-import ja from "@/locales/ja.json"
-import ko from "@/locales/ko.json"
-import nl from "@/locales/nl.json"
-import vi from "@/locales/vi.json"
-import th from "@/locales/th.json"
-import fa from "@/locales/fa.json"
-import ms from "@/locales/ms.json"
-import sv from "@/locales/sv.json"
-import no from "@/locales/no.json"
-import da from "@/locales/da.json"
-import fi from "@/locales/fi.json"
-import cs from "@/locales/cs.json"
-import ro from "@/locales/ro.json"
-import hu from "@/locales/hu.json"
-import el from "@/locales/el.json"
-import he from "@/locales/he.json"
-import ur from "@/locales/ur.json"
-import bn from "@/locales/bn.json"
-import ta from "@/locales/ta.json"
-import tl from "@/locales/tl.json"
-import az from "@/locales/az.json"
-import be from "@/locales/be.json"
-import bg from "@/locales/bg.json"
-import et from "@/locales/et.json"
-import hr from "@/locales/hr.json"
-import lt from "@/locales/lt.json"
-import lv from "@/locales/lv.json"
-import mk from "@/locales/mk.json"
-import sk from "@/locales/sk.json"
-import sl from "@/locales/sl.json"
-import sr from "@/locales/sr.json"
 
 export type LangCode = string
 
@@ -107,8 +67,22 @@ export const LANGUAGES: LanguageOption[] = [
 ]
 
 const dictionaries: Record<string, Record<string, string>> = {
-  ru, en, es, pt, de, fr, tr, ar, uk, pl, zh, hi, id, it, ja, ko, nl, vi, th, fa,
-  ms, sv, no, da, fi, cs, ro, hu, el, he, ur, bn, ta, tl, az, be, bg, et, hr, lt, lv, mk, sk, sl, sr,
+  ru, en,
+}
+
+// Динамические словари (43 языка) — грузятся по требованию и кэшируются.
+const lazyDicts = new Map<string, Promise<Record<string, string> | undefined>>()
+
+function loadDict(code: string): Promise<Record<string, string> | undefined> {
+  if (dictionaries[code]) return Promise.resolve(dictionaries[code])
+  let p = lazyDicts.get(code)
+  if (!p) {
+    p = import(`@/locales/${code}.json`)
+      .then((m) => m.default as Record<string, string>)
+      .catch(() => undefined)
+    lazyDicts.set(code, p)
+  }
+  return p
 }
 
 const STORAGE_KEY = "nexus-lang"
@@ -173,6 +147,7 @@ const I18nContext = createContext<I18nContextValue>({
 export function I18nProvider({ children }: { children: React.ReactNode }) {
   const [lang, setLangState] = useState<string>(DEFAULT_LANG)
   const [ready, setReady] = useState(false)
+  const [extraDicts, setExtraDicts] = useState<Record<string, Record<string, string>>>({})
 
   useEffect(() => {
     let initial = DEFAULT_LANG
@@ -182,6 +157,10 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       if (saved && dictionaries[saved]) {
         initial = saved
         chosen = true
+      } else if (saved) {
+        // Язык сохранён, но словарь ещё не загружен — подхватим его.
+        initial = saved
+        chosen = true
       }
     } catch {}
     if (!chosen) {
@@ -189,6 +168,11 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       initial = detectLang() ?? DEFAULT_LANG
     }
     setLangState(initial)
+    if (!dictionaries[initial]) {
+      void loadDict(initial).then((d) => {
+        if (d) setExtraDicts((prev) => ({ ...prev, [initial]: d }))
+      })
+    }
     setReady(true)
     void api.post("/api/user/language", { lang: initial }).catch(() => {})
     if (!chosen) {
@@ -200,6 +184,11 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
           const serverLang = normalizeLangCode(res?.lang)
           if (serverLang && serverLang !== initial) {
             setLangState(serverLang)
+            if (!dictionaries[serverLang]) {
+              void loadDict(serverLang).then((d) => {
+                if (d) setExtraDicts((prev) => ({ ...prev, [serverLang]: d }))
+              })
+            }
             try {
               localStorage.setItem(STORAGE_KEY, serverLang)
             } catch {}
@@ -220,8 +209,13 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, [lang, ready])
 
   const setLang = useCallback((code: string) => {
-    if (!dictionaries[code]) return
+    if (!dictionaries[code] && !lazyDicts.has(code) && !LANGUAGES.some((l) => l.code === code)) return
     setLangState(code)
+    if (!dictionaries[code]) {
+      void loadDict(code).then((d) => {
+        if (d) setExtraDicts((prev) => ({ ...prev, [code]: d }))
+      })
+    }
     try {
       localStorage.setItem(STORAGE_KEY, code)
     } catch {}
@@ -230,7 +224,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
 
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => {
-      const dict = dictionaries[lang] || dictionaries[DEFAULT_LANG]
+      const dict = extraDicts[lang] || dictionaries[lang] || dictionaries[DEFAULT_LANG]
       let str = dict[key] ?? dictionaries["en"]?.[key] ?? key
       if (str === key && dict[key] === undefined && dictionaries["en"]?.[key] === undefined) {
         console.warn("[i18n] missing key:", key, "lang:", lang)
@@ -242,21 +236,21 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       }
       return str
     },
-    [lang],
+    [lang, extraDicts],
   )
 
   // Перевод серверных текстов (кейсы, предметы, роли и т.п.): берём перевод
   // из словаря, если ключ есть, иначе — оригинальный текст с сервера.
   const tl = useCallback(
     (key: string, fallback: string) => {
-      const dict = dictionaries[lang] || dictionaries[DEFAULT_LANG]
+      const dict = extraDicts[lang] || dictionaries[lang] || dictionaries[DEFAULT_LANG]
       const v = dict[key]
       return v && v !== key ? v : fallback
     },
-    [lang],
+    [lang, extraDicts],
   )
 
-  const value = useMemo(() => ({ lang, setLang, t, tl, ready }), [lang, setLang, t, tl, ready])
+  const value = useMemo(() => ({ lang, setLang, t, tl, ready }), [lang, setLang, t, tl, ready, extraDicts])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
 }

@@ -88,7 +88,7 @@ function Shell() {
   useEffect(() => {
     // Предзагрузка ленивых вкладок в фоне — чтобы первый клик открывал их
     // мгновенно (чанки уже скачаны). Тяжёлые (three.js ~600KB) грузим
-    // позже, чтобы не конкурировать со стартовой загрузкой /api/me.
+    // чуть позже, чтобы не конкурировать со стартовой загрузкой /api/me.
     const id = setTimeout(() => {
       Promise.allSettled([
         import("./chat-tab"),
@@ -100,8 +100,8 @@ function Shell() {
       setTimeout(() => {
         import("./model-tab").catch(() => {})
         import("./battlepass-tab").catch(() => {})
-      }, 3000)
-    }, 800)
+      }, 1200)
+    }, 250)
     return () => clearTimeout(id)
   }, [])
 
