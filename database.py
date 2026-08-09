@@ -912,7 +912,7 @@ class Database:
 
     async def ensure_user(self, user_id: int, username: str | None, first_name: str | None, avatar: str | None = None, last_name: str | None = None) -> None:
         now = datetime.utcnow().isoformat()
-        default_avatar = f"/player-{((user_id % 4) + 1)}.png"
+        default_avatar = f"/player-{((user_id % 4) + 1)}.webp"
         effective_avatar = avatar or default_avatar
         async with self.pool.acquire() as conn:
             await conn.execute(
@@ -925,7 +925,7 @@ class Database:
                 user_id, username or "", first_name or "", last_name or "", now,
             )
             # Создаём mini_app_profiles запись, если её нет (для ника/аватарки в чате и списке друзей).
-            # Реальный photo_url из Telegram должен заменять плейсхолдер /player-N.png,
+            # Реальный photo_url из Telegram должен заменять плейсхолдер /player-N.webp,
             # но не перетирать аватар, загруженный пользователем вручную.
             await conn.execute(
                 """
@@ -2591,7 +2591,7 @@ class Database:
             results = []
             for cid, (other_id, last_text, last_ts, unread) in chat_meta.items():
                 profile = profiles.get(other_id)
-                other_avatar = profile["avatar"] if profile else f"/player-{((other_id % 4) + 1)}.png"
+                other_avatar = profile["avatar"] if profile else f"/player-{((other_id % 4) + 1)}.webp"
                 other_online = profile and profile["last_active_at"] and (datetime.utcnow() - datetime.fromisoformat(profile["last_active_at"])).total_seconds() < 300
                 results.append({
                     "chat_id": cid,

@@ -811,7 +811,7 @@ async def handle_search(request: web.Request):
                 "id": str(r["user_id"]),
                 "user_id": r["user_id"],
                 "nick": r["nick"] or f"User{r['user_id']}",
-                "avatar": r["avatar"] or f"/player-{((r['user_id'] % 4) + 1)}.png",
+                "avatar": r["avatar"] or f"/player-{((r['user_id'] % 4) + 1)}.webp",
                 "game": r["game"] or "unknown",
                 "rank": r["rank"] or "",
                 "role": r["role"] or "",
@@ -856,7 +856,7 @@ async def handle_search(request: web.Request):
                 "id": str(r["user_id"]),
                 "user_id": r["user_id"],
                 "nick": r["nick"] or f"User{r['user_id']}",
-                "avatar": r["avatar"] or f"/player-{((r['user_id'] % 4) + 1)}.png",
+                "avatar": r["avatar"] or f"/player-{((r['user_id'] % 4) + 1)}.webp",
                 "game": r["game"] or "unknown",
                 "rank": r["rank"] or "",
                 "role": r["role"] or "",
@@ -928,7 +928,7 @@ async def handle_search(request: web.Request):
         contact_unlocked = await db.has_unlocked_contact(user["id"], p["id"])
         mini_profile = await db.get_mini_app_profile(p["user_id"])
         nick = mini_profile.get("nick") or p["nickname"] or "Unknown"
-        avatar = mini_profile.get("avatar") or f"/player-{((p['user_id'] % 4) + 1)}.png"
+        avatar = mini_profile.get("avatar") or f"/player-{((p['user_id'] % 4) + 1)}.webp"
         contact = p["contact"] if premium or contact_unlocked else None
         players.append({
             "id": str(p["user_id"]),
@@ -1206,14 +1206,14 @@ CASES_CONFIG = {
         "id": "blue",
         "name": "Nexus Basic case",
         "subtitle": "Бесплатный ежедневный кейс",
-        "image": "/case-blue.png",
+        "image": "/case-blue.webp",
         "gold": False,
         "costStars": 0,
         "free": True,
         "dailyLimit": 1,
         "items": [
-            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков", "image": "/premium-x4.png", "rarity": "epic", "sell": 35, "weight": 12, "grantsPremium": True},
-            {"key": "ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для твоей анкеты. Показывается в профиле, не влияет на геймплей", "image": "/ak47.png", "rarity": "rare", "sell": 15, "weight": 30},
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков",         "image": "/premium-x4.webp", "rarity": "epic", "sell": 35, "weight": 12, "grantsPremium": True},
+            {"key": "ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для твоей анкеты. Показывается в профиле, не влияет на геймплей",         "image": "/ak47.webp", "rarity": "rare", "sell": 15, "weight": 30},
             {"key": "icon-skull", "name": "Череп", "desc": "Декоративная иконка для профиля 💀", "icon": "💀", "rarity": "common", "sell": 10, "weight": 8},
             {"key": "icon-fire", "name": "Пламя", "desc": "Декоративная иконка для профиля 🔥", "icon": "🔥", "rarity": "common", "sell": 10, "weight": 12},
             {"key": "icon-crown", "name": "Корона", "desc": "Декоративная иконка для профиля 👑", "icon": "👑", "rarity": "common", "sell": 10, "weight": 6},
@@ -1226,18 +1226,18 @@ CASES_CONFIG = {
         "id": "jet",
         "name": "Nexus Jet case",
         "subtitle": "Военный кейс · 1200 монет за открытие",
-        "image": "/case-jet.png",
+        "image": "/case-jet.webp",
         "gold": False,
         "costStars": 0,
         "costCoins": 1200,
         "free": False,
         "dailyLimit": 99,
         "items": [
-            {"key": "f16", "name": "F-16 Fighting Falcon", "desc": "15% шанс · +2000 ⭐ · +20 анкет/день · топ в поиске", "image": "/f16.png", "rarity": "legendary", "sell": 0, "weight": 15, "kind": "jet", "bonuses": {"stars": 2000, "searches": 20, "highlight_hours": 24}},
-            {"key": "f15", "name": "F-15 Eagle", "desc": "20% шанс · +5000 монет · +10 анкет · топ 2-3 · бесплатное премиум-открытие", "image": "/f15.png", "rarity": "epic", "sell": 0, "weight": 20, "kind": "jet", "bonuses": {"coins": 5000, "searches": 10, "highlight_hours": 48, "free_gold_opens": 1}},
-            {"key": "f14", "name": "F-14 Tomcat", "desc": "10% шанс · +4000 ⭐ · +50 премиум-открытий · +50 анкет · топ-1 на 3 дня", "image": "/f14.png", "rarity": "legendary", "sell": 0, "weight": 10, "kind": "jet", "bonuses": {"stars": 4000, "free_gold_opens": 50, "searches": 50, "highlight_hours": 72}},
-            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске", "image": "/premium-x4.png", "rarity": "epic", "sell": 35, "weight": 10, "grantsPremium": True},
-            {"key": "ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для профиля", "image": "/ak47.png", "rarity": "rare", "sell": 15, "weight": 8},
+            {"key": "f16", "name": "F-16 Fighting Falcon", "desc": "15% шанс · +2000 ⭐ · +20 анкет/день · топ в поиске",         "image": "/f16.webp", "rarity": "legendary", "sell": 0, "weight": 15, "kind": "jet", "bonuses": {"stars": 2000, "searches": 20, "highlight_hours": 24}},
+            {"key": "f15", "name": "F-15 Eagle", "desc": "20% шанс · +5000 монет · +10 анкет · топ 2-3 · бесплатное премиум-открытие",         "image": "/f15.webp", "rarity": "epic", "sell": 0, "weight": 20, "kind": "jet", "bonuses": {"coins": 5000, "searches": 10, "highlight_hours": 48, "free_gold_opens": 1}},
+            {"key": "f14", "name": "F-14 Tomcat", "desc": "10% шанс · +4000 ⭐ · +50 премиум-открытий · +50 анкет · топ-1 на 3 дня",         "image": "/f14.webp", "rarity": "legendary", "sell": 0, "weight": 10, "kind": "jet", "bonuses": {"stars": 4000, "free_gold_opens": 50, "searches": 50, "highlight_hours": 72}},
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске",         "image": "/premium-x4.webp", "rarity": "epic", "sell": 35, "weight": 10, "grantsPremium": True},
+            {"key": "ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для профиля",         "image": "/ak47.webp", "rarity": "rare", "sell": 15, "weight": 8},
             {"key": "icon-skull", "name": "Череп", "desc": "Декоративная иконка 💀", "icon": "💀", "rarity": "common", "sell": 10, "weight": 6},
             {"key": "icon-fire", "name": "Пламя", "desc": "Декоративная иконка 🔥", "icon": "🔥", "rarity": "common", "sell": 10, "weight": 6},
             {"key": "icon-crown", "name": "Корона", "desc": "Декоративная иконка 👑", "icon": "👑", "rarity": "common", "sell": 10, "weight": 5},
@@ -1250,15 +1250,15 @@ CASES_CONFIG = {
         "id": "gold",
         "name": "Nexus Premium",
         "subtitle": "Золотой премиальный кейс",
-        "image": "/case-gold.png",
+        "image": "/case-gold.webp",
         "gold": True,
         "costStars": 75,
         "free": False,
         "dailyLimit": 99,
         "items": [
-            {"key": "premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастомные фото, свой текст и украшения карточки без ограничений, до 4 открытий кейсов, приоритет в поиске, расширенные анкеты игроков", "image": "/premium-reveal.png", "rarity": "premium", "sell": 100, "weight": 40, "grantsPremium": True},
-            {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус на 1 день: приоритет в поиске тиммейтов, расширенные анкеты игроков, больше результатов в поиске", "image": "/premium-card.png", "rarity": "epic", "sell": 45, "weight": 22, "grantsPremium": True},
-            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков", "image": "/premium-x4.png", "rarity": "epic", "sell": 75, "weight": 20, "grantsPremium": True},
+            {"key": "premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастомные фото, свой текст и украшения карточки без ограничений, до 4 открытий кейсов, приоритет в поиске, расширенные анкеты игроков",         "image": "/premium-reveal.webp", "rarity": "premium", "sell": 100, "weight": 40, "grantsPremium": True},
+            {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус на 1 день: приоритет в поиске тиммейтов, расширенные анкеты игроков, больше результатов в поиске",         "image": "/premium-card.webp", "rarity": "epic", "sell": 45, "weight": 22, "grantsPremium": True},
+            {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков",         "image": "/premium-x4.webp", "rarity": "epic", "sell": 75, "weight": 20, "grantsPremium": True},
             {"key": "stars-150", "name": "150 ⭐", "desc": "150 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 8, "kind": "stars", "stars": 150},
             {"key": "stars-400", "name": "400 ⭐", "desc": "400 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 4, "kind": "stars", "stars": 400},
             {"key": "stars-1200", "name": "1200 ⭐", "desc": "1200 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 1.2, "kind": "stars", "stars": 1200},
@@ -1268,10 +1268,10 @@ CASES_CONFIG = {
 }
 
 COIN_SHOP = [
-    {"key": "buy-premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастом фото/текст, 4 открытия кейсов, приоритет в поиске", "image": "/premium-reveal.png", "price": 100},
-    {"key": "buy-premium-lite", "name": "Премиум", "desc": "Премиум-статус на 1 день: приоритет в поиске, расширенные анкеты игроков", "image": "/premium-card.png", "price": 45},
-    {"key": "buy-ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для профиля", "image": "/ak47.png", "price": 18},
-    {"key": "buy-premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске", "image": "/premium-x4.png", "price": 38},
+    {"key": "buy-premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастом фото/текст, 4 открытия кейсов, приоритет в поиске",         "image": "/premium-reveal.webp", "price": 100},
+    {"key": "buy-premium-lite", "name": "Премиум", "desc": "Премиум-статус на 1 день: приоритет в поиске, расширенные анкеты игроков",         "image": "/premium-card.webp", "price": 45},
+    {"key": "buy-ak47", "name": "Скин AK-47", "desc": "Коллекционный скин-картинка для профиля",         "image": "/ak47.webp", "price": 18},
+    {"key": "buy-premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске",         "image": "/premium-x4.webp", "price": 38},
 ]
 
 QUESTS_CONFIG = [
@@ -1382,6 +1382,7 @@ async def handle_nexus_open_case(request: web.Request):
                 else:
                     # Бета-тестер открывает премиум-кейс за накопленный бесплатный
                     # баланс (до 200/день, копится до 6000) вместо звёзд.
+                    is_beta = await _effective_is_beta(request, db, user["id"])
                     beta_free = body.get("beta_free") or is_beta
                     if beta_free and case_id == "gold":
                         beta_state = await db.get_beta_state(user["id"])

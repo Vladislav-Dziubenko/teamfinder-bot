@@ -79,16 +79,16 @@ BATTLE_PASS_PRICE_STARS = 125
 BATTLE_PASS_XP_PER_LEVEL = 100
 
 BATTLE_PASS_TIERS = [
-    {"level": 1, "xp": 100, "free": {"key": "bp1f", "name": "50 монет", "type": "coins", "amount": 50, "icon": "🪙"}, "premium": {"key": "bp1p", "name": "Скин AK-47", "type": "item", "image": "/ak47.png", "rarity": "rare"}},
+    {"level": 1, "xp": 100, "free": {"key": "bp1f", "name": "50 монет", "type": "coins", "amount": 50, "icon": "🪙"}, "premium": {"key": "bp1p", "name": "Скин AK-47", "type": "item", "image": "/ak47.webp", "rarity": "rare"}},
     {"level": 2, "xp": 200, "free": {"key": "bp2f", "name": "Иконка «Пламя»", "type": "item", "icon": "🔥", "rarity": "common"}, "premium": {"key": "bp2p", "name": "120 монет", "type": "coins", "amount": 120, "icon": "🪙"}},
-    {"level": 3, "xp": 300, "free": None, "premium": {"key": "bp3p", "name": "Премиум средний", "type": "item", "image": "/premium-x4.png", "rarity": "epic"}},
+    {"level": 3, "xp": 300, "free": None, "premium": {"key": "bp3p", "name": "Премиум средний", "type": "item", "image": "/premium-x4.webp", "rarity": "epic"}},
     {"level": 4, "xp": 400, "free": {"key": "bp4f", "name": "25 звёзд", "type": "stars", "amount": 25, "icon": "⭐"}, "premium": {"key": "bp4p", "name": "Украшение «Cyber»", "type": "decoration", "amount": 0, "icon": "✨"}},
-    {"level": 5, "xp": 500, "free": {"key": "bp5f", "name": "Иконка «Корона»", "type": "item", "icon": "👑", "rarity": "common"}, "premium": {"key": "bp5p", "name": "Премиум", "type": "item", "image": "/premium-card.png", "rarity": "epic"}},
+    {"level": 5, "xp": 500, "free": {"key": "bp5f", "name": "Иконка «Корона»", "type": "item", "icon": "👑", "rarity": "common"}, "premium": {"key": "bp5p", "name": "Премиум", "type": "item", "image": "/premium-card.webp", "rarity": "epic"}},
     {"level": 6, "xp": 600, "free": None, "premium": {"key": "bp6p", "name": "200 монет", "type": "coins", "amount": 200, "icon": "🪙"}},
     {"level": 7, "xp": 700, "free": {"key": "bp7f", "name": "35 монет", "type": "coins", "amount": 35, "icon": "🪙"}, "premium": {"key": "bp7p", "name": "Украшение «Blood»", "type": "decoration", "amount": 0, "icon": "✨"}},
     {"level": 8, "xp": 800, "free": {"key": "bp8f", "name": "Иконка «Молния»", "type": "item", "icon": "⚡", "rarity": "common"}, "premium": {"key": "bp8p", "name": "50 звёзд", "type": "stars", "amount": 50, "icon": "⭐"}},
-    {"level": 9, "xp": 900, "free": None, "premium": {"key": "bp9p", "name": "Премиум средний", "type": "item", "image": "/premium-x4.png", "rarity": "epic"}},
-    {"level": 10, "xp": 1000, "free": {"key": "bp10f", "name": "100 монет", "type": "coins", "amount": 100, "icon": "🪙"}, "premium": {"key": "bp10p", "name": "Премиум-анкета", "type": "item", "image": "/premium-reveal.png", "rarity": "premium"}},
+    {"level": 9, "xp": 900, "free": None, "premium": {"key": "bp9p", "name": "Премиум средний", "type": "item", "image": "/premium-x4.webp", "rarity": "epic"}},
+    {"level": 10, "xp": 1000, "free": {"key": "bp10f", "name": "100 монет", "type": "coins", "amount": 100, "icon": "🪙"}, "premium": {"key": "bp10p", "name": "Премиум-анкета", "type": "item", "image": "/premium-reveal.webp", "rarity": "premium"}},
 ]
 
 DAILY_STREAK_REWARDS = [
