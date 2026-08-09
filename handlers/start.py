@@ -16,6 +16,20 @@ async def cmd_start(message: Message, command: CommandObject, db: Database, sett
 
     args = (command.args or "").strip()
 
+    # Кнопка «Написать модерации» на бан-экране ведёт на ?start=appeal.
+    # Забаненному не показываем обычное приветствие и меню — сразу просим
+    # написать апелляцию текстом (её подхватит handlers/appeal.py).
+    # Покрываем и голый /start без параметра — параметр может потеряться
+    # в Telegram WebView, а юзер всё равно должен попасть в апелляцию.
+    if await db.is_globally_banned(user.id) and args in ("appeal", ""):
+        await message.answer(
+            "📨 <b>Вы заблокированы.</b>\n\n"
+            "Если вы считаете блокировку ошибочной — напишите апелляцию "
+            "одним сообщением ниже. Она будет отправлена модерации.\n\n"
+            "Ответ придёт сюда."
+        )
+        return
+
     webapp_url = settings.webapp_url
     if args and webapp_url:
         if args.startswith("profile_"):
