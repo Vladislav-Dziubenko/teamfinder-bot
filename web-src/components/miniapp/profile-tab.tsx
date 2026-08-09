@@ -336,7 +336,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
                 )}
               >
                 <span className="text-[9px] text-muted-foreground">{t("profile.streak_day", { day: r.day })}</span>
-                <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" />
+                <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" />
                 <span className="text-[9px] font-bold">{r.coins}</span>
               </div>
             )
@@ -373,7 +373,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
           </div>
           <div className="rounded-2xl border border-border bg-background/40 p-3 text-center">
             <p className="flex items-center justify-center gap-1 font-display text-xl font-bold leading-none">
-              <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {referralEarned}
+              <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" /> {referralEarned}
             </p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">{t("profile.referral_earned")}</p>
           </div>
@@ -418,7 +418,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
       {!premiumActive && (
         <section className="relative overflow-hidden rounded-3xl border border-stars/40 bg-stars/5 p-4">
           <div className="flex items-center gap-3">
-            <img src="/premium-reveal.png" alt="" className="size-16 shrink-0 object-contain" />
+            <img src="/premium-reveal.webp" alt="" className="size-16 shrink-0 object-contain" />
             <div className="min-w-0">
               <p className="font-display text-base font-bold">{t("profile.premium_title")}</p>
               <p className="text-xs text-muted-foreground text-pretty">
@@ -456,7 +456,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
 
       {/* Currency stats */}
       <section className="grid grid-cols-3 gap-3">
-        <CoinStat img="/nexus-coin.png" value={coins} label={t("profile.stat_coins")} />
+        <CoinStat img="/nexus-coin.webp" value={coins} label={t("profile.stat_coins")} />
         <StarStat value={stars} label={t("profile.stat_stars")} />
         <PointStat value={points} label={t("profile.stat_points")} />
       </section>
@@ -491,7 +491,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
                         +{a.points} <span className="text-[10px] font-medium text-muted-foreground">{t("profile.stat_points")}</span>
                       </p>
                       <p className="flex items-center justify-end gap-1 text-xs font-bold text-foreground">
-                        <img src="/nexus-coin.png" alt="" className="size-3.5 rounded-full" /> +{a.coins}
+                        <img src="/nexus-coin.webp" alt="" className="size-3.5 rounded-full" /> +{a.coins}
                       </p>
                     </div>
                   </div>

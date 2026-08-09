@@ -44,7 +44,7 @@ export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () 
             className="flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-2.5 py-2 text-sm font-semibold text-primary transition-transform active:scale-95"
             aria-label={t("topbar.coins")}
           >
-            <img src="/nexus-coin.png" alt="" className="size-5 rounded-full object-cover" />
+            <img src="/nexus-coin.webp" alt="" className="size-5 rounded-full object-cover" />
             {formatNum(coins)}
           </button>
           {/* Telegram Stars */}

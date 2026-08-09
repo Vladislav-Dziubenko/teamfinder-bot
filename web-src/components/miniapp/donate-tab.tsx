@@ -117,7 +117,7 @@ export function DonateTab() {
       {/* Buy Nexus coins */}
       <section>
         <h2 className="mb-3 flex items-center gap-2 font-display text-lg font-bold">
-          <img src="/nexus-coin.png" alt="" className="size-6 rounded-full object-cover" /> {t("donate.nexus_coins")}
+          <img src="/nexus-coin.webp" alt="" className="size-6 rounded-full object-cover" /> {t("donate.nexus_coins")}
         </h2>
         <div className="grid grid-cols-3 gap-3">
           {coinPacks.map((p) => {
@@ -138,7 +138,7 @@ export function DonateTab() {
                     {p.bonus}
                   </span>
                 )}
-                <img src="/nexus-coin.png" alt="" className="mx-auto size-8 rounded-full object-cover" />
+                <img src="/nexus-coin.webp" alt="" className="mx-auto size-8 rounded-full object-cover" />
                 <p className="mt-1.5 font-display text-lg font-bold leading-none">{loading ? "..." : p.coins}</p>
                 <p className="mt-1 flex items-center justify-center gap-0.5 text-[11px] font-semibold text-stars">
                   {loading ? <Loader2 className="size-3 animate-spin" /> : <Star className="size-3 fill-stars" />}
@@ -265,7 +265,7 @@ export function DonateTab() {
                       </p>
                       <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
                         <span className="flex items-center gap-0.5">
-                          <img src="/nexus-coin.png" alt="" className="size-3 rounded-full" /> {e.coins.toLocaleString("ru")}
+                          <img src="/nexus-coin.webp" alt="" className="size-3 rounded-full" /> {e.coins.toLocaleString("ru")}
                         </span>
                       </p>
                     </div>

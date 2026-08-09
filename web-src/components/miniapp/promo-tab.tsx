@@ -133,7 +133,7 @@ export function PromoTab({ onToast }: { onToast: (m: string) => void }) {
                         <p className="flex items-center gap-2 text-[11px] text-muted-foreground">
                           {c.reward?.coins ? (
                             <span className="flex items-center gap-0.5">
-                              <img src="/nexus-coin.png" alt="" className="size-3 rounded-full" /> {c.reward.coins}
+                              <img src="/nexus-coin.webp" alt="" className="size-3 rounded-full" /> {c.reward.coins}
                             </span>
                           ) : null}
                           {c.reward?.stars ? (
@@ -228,7 +228,7 @@ export function PromoTab({ onToast }: { onToast: (m: string) => void }) {
                     <div className="mt-1.5 flex items-center gap-3 text-[11px] text-muted-foreground">
                       {c.reward?.coins ? (
                         <span className="flex items-center gap-0.5">
-                          <img src="/nexus-coin.png" alt="" className="size-3 rounded-full" /> {c.reward.coins}
+                          <img src="/nexus-coin.webp" alt="" className="size-3 rounded-full" /> {c.reward.coins}
                         </span>
                       ) : null}
                       {c.reward?.stars ? (

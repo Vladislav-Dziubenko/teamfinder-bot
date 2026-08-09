@@ -15,10 +15,10 @@ import { useAdsgram } from "@/lib/use-adsgram"
 const rarityRank: Record<Rarity, number> = { common: 0, rare: 2, epic: 3, premium: 4, legendary: 6 }
 
 const coinShop: { key: string; name: string; desc: string; image: string; price: number }[] = [
-  { key: "buy-premium-card", name: "Премиум-анкета", desc: "Максимальный премиум на 1 день: кастом фото/текст, 4 открытия кейсов, приоритет в поиске", image: "/premium-reveal.png", price: 100 },
-  { key: "buy-premium-lite", name: "Премиум", desc: "Премиум-статус на 1 день: приоритет в поиске, расширенные анкеты игроков", image: "/premium-card.png", price: 45 },
-  { key: "buy-ak47", name: "Скин AK-47", desc: "Коллекционный скин-картинка для профиля", image: "/ak47.png", price: 18 },
-  { key: "buy-premium-medium", name: "Премиум средний", desc: "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске", image: "/premium-x4.png", price: 38 },
+  { key: "buy-premium-card", name: "Премиум-анкета", desc: "Максимальный премиум на 1 день: кастом фото/текст, 4 открытия кейсов, приоритет в поиске", image: "/premium-reveal.webp", price: 100 },
+  { key: "buy-premium-lite", name: "Премиум", desc: "Премиум-статус на 1 день: приоритет в поиске, расширенные анкеты игроков", image: "/premium-card.webp", price: 45 },
+  { key: "buy-ak47", name: "Скин AK-47", desc: "Коллекционный скин-картинка для профиля", image: "/ak47.webp", price: 18 },
+  { key: "buy-premium-medium", name: "Премиум средний", desc: "Премиум на 1 день: до 4 открытий кейсов, приоритет в поиске", image: "/premium-x4.webp", price: 38 },
 ]
 
 function formatCooldown(ms: number) {
@@ -384,7 +384,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars">
                       {c.costCoins && c.costCoins > 0 ? (
                         <>
-                          <img src="/nexus-coin.png" alt="" className="size-3 rounded-full" />
+                          <img src="/nexus-coin.webp" alt="" className="size-3 rounded-full" />
                           {t("cases.cost_coins", { cost: c.costCoins })}
                         </>
                       ) : (
@@ -429,7 +429,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                   <>
                     {c.costCoins && c.costCoins > 0 ? (
                       <>
-                        <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" />
+                        <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" />
                         {t("cases.open_coins", { cost: c.costCoins })}
                       </>
                     ) : (
@@ -523,7 +523,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-display text-lg font-bold">{t("cases.inventory_title")}</h2>
           <span className="flex items-center gap-1 text-xs font-semibold text-primary">
-            <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> {formatNum(coins)}
+            <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" /> {formatNum(coins)}
           </span>
         </div>
         {inventory.length > 0 && (
@@ -638,7 +638,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 {shopBuying === s.key ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
-                  <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" />
+                  <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" />
                 )}
                 {" "}{formatNum(s.price)}
               </button>
@@ -1093,7 +1093,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
 
         {totalJetCoins > 0 && (
           <div className="mx-5 mb-1 flex items-center justify-center gap-1 rounded-2xl border border-primary/30 bg-primary/10 py-2 text-sm font-bold text-primary">
-            <img src="/nexus-coin.png" alt="" className="size-4 rounded-full" /> +{formatNum(totalJetCoins)} монет
+            <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" /> +{formatNum(totalJetCoins)} монет
           </div>
         )}
 

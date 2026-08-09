@@ -93,7 +93,7 @@ export function HomeTab({
   return (
     <div className="space-y-6 px-4 py-5">
       <section className="animate-rise relative overflow-hidden rounded-3xl border border-border">
-        <img src="/hero-arena.png" alt="" className="h-52 w-full object-cover" />
+        <img src="/hero-arena.webp" alt="" className="h-52 w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/10" />
         <div className="absolute inset-x-0 bottom-0 p-5">
           <span className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
