@@ -38,6 +38,16 @@ import bn from "@/locales/bn.json"
 import ta from "@/locales/ta.json"
 import tl from "@/locales/tl.json"
 import az from "@/locales/az.json"
+import be from "@/locales/be.json"
+import bg from "@/locales/bg.json"
+import et from "@/locales/et.json"
+import hr from "@/locales/hr.json"
+import lt from "@/locales/lt.json"
+import lv from "@/locales/lv.json"
+import mk from "@/locales/mk.json"
+import sk from "@/locales/sk.json"
+import sl from "@/locales/sl.json"
+import sr from "@/locales/sr.json"
 
 export type LangCode = string
 
@@ -84,11 +94,21 @@ export const LANGUAGES: LanguageOption[] = [
   { code: "ta", name: "Tamil", nativeName: "தமிழ்" },
   { code: "tl", name: "Filipino", nativeName: "Filipino" },
   { code: "az", name: "Azerbaijani", nativeName: "Azərbaycan" },
+  { code: "be", name: "Belarusian", nativeName: "Беларуская" },
+  { code: "bg", name: "Bulgarian", nativeName: "Български" },
+  { code: "et", name: "Estonian", nativeName: "Eesti" },
+  { code: "hr", name: "Croatian", nativeName: "Hrvatski" },
+  { code: "lt", name: "Lithuanian", nativeName: "Lietuvių" },
+  { code: "lv", name: "Latvian", nativeName: "Latviešu" },
+  { code: "mk", name: "Macedonian", nativeName: "Македонски" },
+  { code: "sk", name: "Slovak", nativeName: "Slovenčina" },
+  { code: "sl", name: "Slovenian", nativeName: "Slovenščina" },
+  { code: "sr", name: "Serbian", nativeName: "Српски" },
 ]
 
 const dictionaries: Record<string, Record<string, string>> = {
   ru, en, es, pt, de, fr, tr, ar, uk, pl, zh, hi, id, it, ja, ko, nl, vi, th, fa,
-  ms, sv, no, da, fi, cs, ro, hu, el, he, ur, bn, ta, tl, az,
+  ms, sv, no, da, fi, cs, ro, hu, el, he, ur, bn, ta, tl, az, be, bg, et, hr, lt, lv, mk, sk, sl, sr,
 }
 
 const STORAGE_KEY = "nexus-lang"
@@ -107,6 +127,9 @@ const LANG_ALIASES: Record<string, string> = {
   "az-az": "az", "pl-pl": "pl", "uk-ua": "uk", "ru-ru": "ru", "vi-vn": "vi",
   "th-th": "th", "ms-my": "ms", "id-id": "id", "ja-jp": "ja", "ko-kr": "ko",
   "hi-in": "hi", "iw": "he", "fil": "tl", "in": "id",
+  "be-by": "be", "bg-bg": "bg", "et-ee": "et", "hr-hr": "hr", "lt-lt": "lt",
+  "lv-lv": "lv", "mk-mk": "mk", "sk-sk": "sk", "sl-si": "sl", "sr-rs": "sr",
+  "sr-cyrl": "sr", "sr-latn": "sr", "srb": "sr",
 }
 
 function normalizeLangCode(code?: string | null): string | undefined {
