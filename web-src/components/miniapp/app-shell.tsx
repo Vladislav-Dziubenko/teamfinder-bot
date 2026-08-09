@@ -17,6 +17,7 @@ import { ContactSheet } from "./contact-sheet"
 import { ProfileViewSheet } from "./profile-view-sheet"
 import { ConsentSheet } from "./consent-sheet"
 import { BannedSheet } from "./banned-sheet"
+import { OnboardingSheet, isOnboardingDone, markOnboardingDone } from "./onboarding"
 import { openChatWithPlayer } from "@/lib/chat"
 import { api } from "@/lib/api"
 import { useMe, useNexus, CONSENT_VERSION } from "@/lib/store"
@@ -50,6 +51,19 @@ function Shell() {
   const [chatOpen, setChatOpen] = useState<{ chatId: string; player: Player } | null>(null)
   const [sharedProfileId, setSharedProfileId] = useState<number | null>(null)
   const [welcomeShown, setWelcomeShown] = useState(false)
+  const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
+
+  // Показ обучающего онбординга один раз: флаг в localStorage.
+  // Читаем в useEffect (не в initial render), чтобы не было SSR-hydration расхождений.
+  useEffect(() => {
+    if (!loaded || banned || consentVersion < CONSENT_VERSION) return
+    setOnboardingDone(isOnboardingDone())
+  }, [loaded, banned, consentVersion])
+
+  const finishOnboarding = () => {
+    markOnboardingDone()
+    setOnboardingDone(true)
+  }
 
   // Приветственный бонус (первый вход): показываем тост с составом награды.
   useEffect(() => {
@@ -181,6 +195,12 @@ function Shell() {
           версию соглашения; решение хранится на сервере. */}
       {loaded && !banned && consentVersion < CONSENT_VERSION && (
         <ConsentSheet onAccept={acceptConsent} />
+      )}
+
+      {/* Обучение: показывается после принятия согласия, один раз за устройство.
+          Кнопка «Пропустить» доступна на первом шаге. */}
+      {loaded && !banned && consentVersion >= CONSENT_VERSION && onboardingDone === false && (
+        <OnboardingSheet onDone={finishOnboarding} onSkip={finishOnboarding} />
       )}
 
       {sharedProfileId && (
