@@ -17,6 +17,7 @@ import { ContactSheet } from "./contact-sheet"
 import { ProfileViewSheet } from "./profile-view-sheet"
 import { ConsentSheet } from "./consent-sheet"
 import { BannedSheet } from "./banned-sheet"
+import { LeaderboardSheet } from "./leaderboard-sheet"
 import { OnboardingSheet, isOnboardingDone, markOnboardingDone } from "./onboarding"
 import { openChatWithPlayer } from "@/lib/chat"
 import { api } from "@/lib/api"
@@ -50,6 +51,7 @@ function Shell() {
   const [toast, setToast] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState<{ chatId: string; player: Player } | null>(null)
   const [sharedProfileId, setSharedProfileId] = useState<number | null>(null)
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false)
   const [welcomeShown, setWelcomeShown] = useState(false)
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
 
@@ -169,7 +171,7 @@ function Shell() {
         {tab === "chat" && (
           <Suspense fallback={<TabFallback />}><ChatTab openChatId={chatOpen?.chatId ?? null} openPlayer={chatOpen?.player} onOpenConsumed={() => setChatOpen(null)} /></Suspense>
         )}
-        {tab === "stats" && <Suspense fallback={<TabFallback />}><StatsTab onOpenLeaderboard={() => setToast(t("stats.leaderboard_placeholder"))} /></Suspense>}
+        {tab === "stats" && <Suspense fallback={<TabFallback />}><StatsTab onOpenLeaderboard={() => setLeaderboardOpen(true)} /></Suspense>}
         {tab === "cases" && <CasesTab onToast={setToast} />}
         {tab === "model" && <Suspense fallback={<TabFallback />}><ModelTab onToast={setToast} /></Suspense>}
         {tab === "battlepass" && <Suspense fallback={<TabFallback />}><BattlePassTab onToast={setToast} /></Suspense>}
@@ -184,6 +186,8 @@ function Shell() {
       <BottomNav active={tab} onChange={goTab} />
 
       <ContactSheet player={contact} onClose={() => setContact(null)} />
+
+      <LeaderboardSheet open={leaderboardOpen} onClose={() => setLeaderboardOpen(false)} />
 
       {/* Бан аккаунта — полный экран поверх приложения, выше онбординга */}
       {loaded && banned && (

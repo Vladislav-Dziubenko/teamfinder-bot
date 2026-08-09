@@ -2981,12 +2981,16 @@ async def handle_stats_rank(request: web.Request):
 async def handle_leaderboard(request: web.Request):
     if _public_rate_limit(request):
         return web.json_response({"error": "rate limit exceeded"}, status=429)
-    cache_key = "leaderboard"
+    try:
+        limit = max(1, min(int(request.query.get("limit", "10")), 100))
+    except (TypeError, ValueError):
+        limit = 10
+    cache_key = f"leaderboard:{limit}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return web.json_response(cached)
     db: Database = request.app["db"]
-    leaderboard = await db.get_leaderboard(limit=10)
+    leaderboard = await db.get_leaderboard(limit=limit)
     data = {"leaderboard": leaderboard}
     await cache_set(cache_key, data, CACHE_TTL)
     return web.json_response(data)
