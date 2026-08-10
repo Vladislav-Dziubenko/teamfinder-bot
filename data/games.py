@@ -89,6 +89,7 @@ BATTLE_PASS_TIERS = [
     {"level": 8, "xp": 800, "free": {"key": "bp8f", "name": "Иконка «Молния»", "type": "item", "icon": "⚡", "rarity": "common"}, "premium": {"key": "bp8p", "name": "50 звёзд", "type": "stars", "amount": 50, "icon": "⭐"}},
     {"level": 9, "xp": 900, "free": None, "premium": {"key": "bp9p", "name": "Премиум средний", "type": "item", "image": "/premium-x4.webp", "rarity": "epic"}},
     {"level": 10, "xp": 1000, "free": {"key": "bp10f", "name": "100 монет", "type": "coins", "amount": 100, "icon": "🪙"}, "premium": {"key": "bp10p", "name": "Премиум-анкета", "type": "item", "image": "/premium-reveal.webp", "rarity": "premium"}},
+    {"level": 11, "xp": 1100, "free": None, "premium": {"key": "bp11p", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Доход: 50-100 ⭐ в день, можно продать", "type": "model", "icon": "💎", "rarity": "legendary"}},
 ]
 
 DAILY_STREAK_REWARDS = [

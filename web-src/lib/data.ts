@@ -556,7 +556,7 @@ export type BattlePassReward = {
   name: string
   icon?: string
   image?: string
-  type: "coins" | "stars" | "item" | "premium" | "decoration"
+  type: "coins" | "stars" | "item" | "premium" | "decoration" | "model"
   amount?: number
   rarity?: Rarity
 }

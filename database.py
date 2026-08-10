@@ -2006,6 +2006,18 @@ class Database:
             )
             if reward.get("rarity") in ("premium", "epic"):
                 await self.set_pro_status(user_id, days=1, conn=conn)
+        elif rtype == "model":
+            # Владение лимитированной 3D-моделью (тираж 20 шт) — без джекпот-бонусов
+            # кейса (роль админа, 10 000 ⭐, пожизненный премиум), только сама модель.
+            token = await self.next_limited_token(conn)
+            if token is not None:
+                await conn.execute(
+                    "INSERT INTO limited_models (model_id, token_id, owner_id, acquired_at) VALUES ($1, $2, $3, $4)",
+                    self.LIMITED_MODEL_ID, token, user_id, datetime.utcnow().isoformat(),
+                )
+            else:
+                # Тираж распродан — компенсация вместо модели.
+                await self._adjust_currency_conn(conn, user_id, coins=1000)
 
     async def claim_battlepass_tier(self, user_id: int, tier: dict, is_premium: bool) -> bool:
         import json
