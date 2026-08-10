@@ -31,6 +31,7 @@ export function MatchTab({
   const [game, setGame] = useState<string>("all")
   const [query, setQuery] = useState("")
   const [applied, setApplied] = useState("")
+  const [onlyDiscord, setOnlyDiscord] = useState(false)
   const [sort, setSort] = useState<SortKey>("match")
   const [extended, setExtended] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -54,7 +55,7 @@ export function MatchTab({
     setHasSearched(true)
     setLoading(true)
     try {
-      const data = await api.get(`/api/search?q=${encodeURIComponent(q)}&game=${encodeURIComponent(game)}`)
+      const data = await api.get(`/api/search?q=${encodeURIComponent(q)}&game=${encodeURIComponent(game)}${onlyDiscord ? "&discord=1" : ""}`)
       setSearchResults({ players: data.players || [], teams: data.teams || [] })
     } catch (e: any) {
       setNotice(e.message || t("common.error"))
@@ -203,23 +204,30 @@ export function MatchTab({
 
       {/* Sort chips (players only) */}
       {mode === "players" && (
-        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
-          <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-muted-foreground">
-            <Zap className="size-3" /> {t("common.search")}:
-          </span>
-          {(
-            [
-              { k: "match", l: t("match.sort_match") },
-              { k: "level", l: t("common.level") },
-              { k: "rank", l: t("profile.rank") },
-              { k: "time", l: t("stats.search_time") },
-            ] as const
-          ).map((s) => (
-            <Chip key={s.k} active={sort === s.k} onClick={() => setSort(s.k)}>
-              {s.l}
+        <>
+          <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+            <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-muted-foreground">
+              <Zap className="size-3" /> {t("common.search")}:
+            </span>
+            {(
+              [
+                { k: "match", l: t("match.sort_match") },
+                { k: "level", l: t("common.level") },
+                { k: "rank", l: t("profile.rank") },
+                { k: "time", l: t("stats.search_time") },
+              ] as const
+            ).map((s) => (
+              <Chip key={s.k} active={sort === s.k} onClick={() => setSort(s.k)}>
+                {s.l}
+              </Chip>
+            ))}
+          </div>
+          <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
+            <Chip active={onlyDiscord} onClick={() => setOnlyDiscord((v) => !v)}>
+              🎧 {t("match.only_discord")}
             </Chip>
-          ))}
-        </div>
+          </div>
+        </>
       )}
 
       {/* List */}

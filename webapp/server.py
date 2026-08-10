@@ -222,7 +222,7 @@ def _calc_searching_minutes(searching_since: str | None) -> int:
 
 _SENTINEL = object()
 
-_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error", "/api/discord/status", "/api/discord/auth", "/api/discord/callback", "/api/discord/unlink", "/api/diag/env")
+_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error", "/api/discord/status", "/api/discord/auth", "/api/discord/callback", "/api/discord/unlink", "/api/discord/daily", "/api/diag/env")
 
 @web.middleware
 async def timing_middleware(request: web.Request, handler):
@@ -780,11 +780,14 @@ async def handle_search(request: web.Request):
     user = _get_user(request)
     query = request.query.get("q", "").strip().lower()
     game_filter = request.query.get("game", "").strip().lower()
+    discord_filter = request.query.get("discord") == "1"
 
     profile = await db.get_profile(user["id"])
     if not profile:
         where = "WHERE p.is_active = 1 AND p.user_id != $1"
         params: list = [user["id"]]
+        if discord_filter:
+            where += " AND EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id)"
         if query:
             where += (
                 " AND (LOWER(COALESCE(mp.nick, '')) LIKE $2"
@@ -797,7 +800,8 @@ async def handle_search(request: web.Request):
             where += " AND p.game = $2"
             params.append(game_filter)
         rows = await db.pool.fetch(
-            f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
+            f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since,
+                EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id) AS has_discord
                 FROM users u
                 JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
                 LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
@@ -827,6 +831,7 @@ async def handle_search(request: web.Request):
                 "online": False,
                 "lastSeen": None,
                 "searching_minutes": _calc_searching_minutes(r["searching_since"]),
+                "has_discord": bool(r["has_discord"]),
             }
             for r in rows
         ]
@@ -835,8 +840,10 @@ async def handle_search(request: web.Request):
 
     # When "all" games with nickname query, search across every game
     if game_filter == "all" and query:
+        d_where = "AND EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id)" if discord_filter else ""
         rows = await db.pool.fetch(
-            """SELECT u.user_id, u.username, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since
+            f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since,
+                EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id) AS has_discord
                FROM users u
                LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
                JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
@@ -845,6 +852,7 @@ async def handle_search(request: web.Request):
                    OR LOWER(COALESCE(p.nickname, '')) LIKE $1
                    OR LOWER(COALESCE(p.role, '')) LIKE $1
                    OR LOWER(COALESCE(p.rank, '')) LIKE $1)
+                 {d_where}
                LIMIT 20""",
             f"%{query}%",
         )
@@ -872,6 +880,7 @@ async def handle_search(request: web.Request):
                 "online": False,
                 "lastSeen": None,
                 "searching_minutes": _calc_searching_minutes(r["searching_since"]),
+                "has_discord": bool(r["has_discord"]),
             }
             for r in rows
         ]
@@ -906,6 +915,14 @@ async def handle_search(request: web.Request):
             or query in c.get("rank", "").lower()
         ]
 
+    if discord_filter:
+        discord_ids = {
+            r["user_id"] for r in await db.pool.fetch("SELECT user_id FROM discord_connections")
+        }
+        candidates = [c for c in candidates if c["user_id"] in discord_ids]
+    else:
+        discord_ids = None
+
     matches = find_matches(profile, candidates, limit=search_limit)
     if not matches and candidates:
         scored = [(c, score_match(profile, c)) for c in candidates]
@@ -930,6 +947,14 @@ async def handle_search(request: web.Request):
         nick = mini_profile.get("nick") or p["nickname"] or "Unknown"
         avatar = mini_profile.get("avatar") or f"/player-{((p['user_id'] % 4) + 1)}.webp"
         contact = p["contact"] if premium or contact_unlocked else None
+        if discord_ids is not None:
+            has_discord = p["user_id"] in discord_ids
+        else:
+            has_discord = bool(
+                await db.pool.fetchval(
+                    "SELECT 1 FROM discord_connections WHERE user_id = $1", p["user_id"]
+                )
+            )
         players.append({
             "id": str(p["user_id"]),
             "user_id": p["user_id"],
@@ -954,6 +979,7 @@ async def handle_search(request: web.Request):
             "lastSeen": None,
             "contact": contact,
             "searching_minutes": _calc_searching_minutes(p.get("searching_since")),
+            "has_discord": bool(has_discord),
         })
 
     await db.increment_user_stat(user["id"], "search_count")
@@ -3127,6 +3153,12 @@ async def handle_discord_callback(request: web.Request):
         "token_expires_at": expires_at,
     })
 
+    # Одноразовая награда за первую связку Discord
+    try:
+        await db.claim_discord_welcome_reward(user_id)
+    except Exception as e:
+        logging.warning(f"[discord.callback] welcome_reward failed: {e}")
+
     logging.info(f"[discord.callback] linked telegram={user_id} discord={discord_user['id']}")
 
     # Redirect to main fallback
@@ -3154,6 +3186,17 @@ async def handle_discord_status(request: web.Request):
         await db.remove_discord_connection(user["id"])
         return web.json_response({"linked": False})
 
+    welcome_claimed = bool(
+        await db.pool.fetchval(
+            "SELECT discord_welcome_at FROM users WHERE user_id = $1", user["id"]
+        )
+    )
+    daily_claimed_at = conn.get("last_daily_claim_at")
+    daily_ready = True
+    if daily_claimed_at:
+        last = datetime.fromisoformat(daily_claimed_at)
+        daily_ready = (datetime.utcnow() - last).total_seconds() >= 24 * 3600
+
     return web.json_response({
         "linked": True,
         "discord_id": conn["discord_id"],
@@ -3161,6 +3204,8 @@ async def handle_discord_status(request: web.Request):
         "global_name": conn["discord_global_name"],
         "avatar_url": conn["discord_avatar"],
         "linked_at": conn["connected_at"],
+        "welcome_claimed": welcome_claimed,
+        "daily_ready": daily_ready,
     })
 
 
@@ -3180,6 +3225,15 @@ async def handle_discord_unlink(request: web.Request):
         await db.remove_discord_connection(user["id"])
 
     return web.json_response({"ok": True})
+
+
+async def handle_discord_daily(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    result = await db.claim_discord_daily_reward(user["id"])
+    return web.json_response(result)
 
 
 async def handle_client_error(request: web.Request):
@@ -3350,6 +3404,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/discord/callback", handle_discord_callback)
     app.router.add_get("/api/discord/status", handle_discord_status)
     app.router.add_post("/api/discord/unlink", handle_discord_unlink)
+    app.router.add_post("/api/discord/daily", handle_discord_daily)
 
     # Диагностика — проверка env + статус webhook
     async def handle_diag_env(request: web.Request) -> web.Response:

@@ -87,6 +87,7 @@ export type Player = {
   unlockStars?: number
   reason?: "donor" | "veteran"
   fav_games?: string
+  has_discord?: boolean
 }
 
 export const players: Player[] = [

@@ -12,6 +12,8 @@ export type DiscordStatus = {
   global_name?: string | null
   avatar_url?: string | null
   linked_at?: string | null
+  welcome_claimed?: boolean
+  daily_ready?: boolean
 }
 
 type AuthResp = { url: string }
@@ -74,6 +76,21 @@ export function useDiscord() {
     }
   }, [refresh])
 
+  const claimDaily = useCallback(async (): Promise<{ ok: boolean; stars?: number }> => {
+    try {
+      setBusy(true)
+      setError(null)
+      const data = await api.post<{ claimed: boolean; stars?: number; reason?: string }>("/api/discord/daily")
+      if (data?.claimed) return { ok: true, stars: data.stars ?? 10 }
+      return { ok: false }
+    } catch (e: any) {
+      setError(e?.message ?? "Не удалось получить награду")
+      return { ok: false }
+    } finally {
+      setBusy(false)
+    }
+  }, [])
+
   useEffect(() => {
     refresh()
     const onVis = () => {
@@ -88,5 +105,5 @@ export function useDiscord() {
     }
   }, [refresh])
 
-  return { status, loading, busy, error, connect, unlink, refresh }
+  return { status, loading, busy, error, connect, unlink, claimDaily, refresh }
 }

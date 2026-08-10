@@ -44,6 +44,16 @@ export function PlayerCard({
           {game?.short}
         </span>
 
+        {/* discord badge */}
+        {player.has_discord && (
+          <span
+            className="absolute left-3 top-11 flex items-center gap-1 rounded-lg border border-border bg-[#5865F2]/90 px-2 py-1 text-[10px] font-bold text-white backdrop-blur"
+            title="Discord connected"
+          >
+            🎧 Discord
+          </span>
+        )}
+
         {/* badge — почему необычный */}
         {player.locked && (
           <span
