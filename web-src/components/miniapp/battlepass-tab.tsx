@@ -1,10 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Crown, Star, Lock, Check, Gift, Clock, Sparkles } from "lucide-react"
 import { rarityMeta, type BattlePassReward } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
-import { useNexus } from "@/lib/store"
+import { BP_CLAIM_INTERVAL, useNexus } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 function formatCountdown(ms: number) {
@@ -22,6 +22,7 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
     bpClaimedCount,
     bpCanClaim,
     bpNextClaimIn,
+    bpLastClaimAt,
     buyBattlePass,
     claimNextBpTier,
     stars,
@@ -30,6 +31,17 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
   } = useNexus()
   const [claiming, setClaiming] = useState(false)
   const [buying, setBuying] = useState(false)
+  const [, setTick] = useState(0)
+
+  // Локальный секундный тикер: отсчёт до следующей награды обновляется
+  // каждую секунду, а не раз в 30с (глобальный now-таймер в сторе).
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 1_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const countdown = bpLastClaimAt ? Math.max(0, bpLastClaimAt + BP_CLAIM_INTERVAL - Date.now()) : 0
+  const nextIn = countdown > 0 ? countdown : bpNextClaimIn
 
   const total = battlePassTiers.length
   const claimed = bpClaimedCount
@@ -154,7 +166,7 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
           </button>
         ) : (
           <p className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-secondary py-3 text-sm font-bold text-muted-foreground tabular-nums">
-            <Clock className="size-4" /> {t("battlepass.next_in", { time: formatCountdown(bpNextClaimIn) })}
+            <Clock className="size-4" /> {t("battlepass.next_in", { time: formatCountdown(nextIn) })}
           </p>
         )}
       </section>

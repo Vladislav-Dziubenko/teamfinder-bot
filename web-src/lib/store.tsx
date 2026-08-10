@@ -34,7 +34,7 @@ export type ModelState = {
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const BP_CLAIM_INTERVAL = 2 * DAY_MS
+export const BP_CLAIM_INTERVAL = 2 * DAY_MS
 const FREE_SEARCHES = 5
 export const CONSENT_VERSION = 1
 
@@ -556,18 +556,29 @@ export function NexusProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // 30с вместо 1с — таймеры (кулдауны, баттлпасс) обновляются
     // достаточно плавно, но не триггерят полный пересчёт контекста каждую секунду.
-    const id = setInterval(() => setNow(Date.now()), 30_000)
+    let id: ReturnType<typeof setInterval> | undefined = undefined
+
+    function startTicker() {
+      if (id !== undefined) clearInterval(id)
+      id = setInterval(() => setNow(Date.now()), 30_000)
+    }
 
     function onVisibility() {
       if (document.hidden) {
-        clearInterval(id)
+        if (id !== undefined) {
+          clearInterval(id)
+          id = undefined
+        }
       } else {
         setNow(Date.now())
+        startTicker()
       }
     }
+
+    startTicker()
     document.addEventListener("visibilitychange", onVisibility)
     return () => {
-      clearInterval(id)
+      if (id !== undefined) clearInterval(id)
       document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [])
