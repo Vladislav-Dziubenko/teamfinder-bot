@@ -18,8 +18,6 @@ import { rarityMeta } from "@/lib/data"
 
 type Period = 1 | 7 | 30
 
-const PERIOD_LABELS: Record<Period, string> = { 1: "День", 7: "Неделя", 30: "Месяц" }
-
 const GAME_ICONS: Record<string, string> = {
   "CS:GO": "🎯",
   "War Thunder": "⚔️",
@@ -42,7 +40,8 @@ type CaseOpenRecord = {
 }
 
 export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void }) {
-  const { t } = useI18n()
+  const { t, tl, lang } = useI18n()
+  const PERIOD_LABELS: Record<Period, string> = { 1: t("stats.day"), 7: t("stats.week"), 30: t("stats.month") }
   const [period, setPeriod] = useState<Period>(30)
   const [stats, setStats] = useState<GeneralStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -81,8 +80,8 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
   return (
     <div className="space-y-4 px-4 py-5">
       <div>
-        <h1 className="font-display text-2xl font-bold">Статистика</h1>
-        <p className="text-sm text-muted-foreground text-pretty">Твоя активность, достижения и место в рейтинге</p>
+        <h1 className="font-display text-2xl font-bold">{t("stats.title")}</h1>
+        <p className="text-sm text-muted-foreground text-pretty">{t("stats.subtitle")}</p>
       </div>
 
       {/* Period selector */}
@@ -103,24 +102,24 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
           <div className="grid grid-cols-2 gap-3">
             <BigStatCard
               icon={Calendar}
-              label="Активных дней"
+              label={t("stats.active_days")}
               value={String(stats.activeDays)}
-              sub={stats.activeDays > 0 ? `${Math.round(stats.totalEvents / Math.max(stats.activeDays, 1))} действий/день` : undefined}
+              sub={stats.activeDays > 0 ? t("stats.actions_per_day", { count: Math.round(stats.totalEvents / Math.max(stats.activeDays, 1)) }) : undefined}
             />
             <BigStatCard
               icon={Search}
-              label="Поисков"
+              label={t("stats.searches_count")}
               value={String(stats.searches)}
               accent
             />
             <BigStatCard
               icon={Package}
-              label="Открытий кейсов"
+              label={t("stats.case_opens")}
               value={String(stats.caseOpens)}
             />
             <BigStatCard
               icon={Users}
-              label="Заявок в тимы"
+              label={t("stats.team_apps")}
               value={String(stats.teamApps)}
               accent
             />
@@ -128,9 +127,9 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
 
           {/* Secondary stats */}
           <div className="grid grid-cols-3 gap-2">
-            <MiniStatCard icon={Eye} label="Реклама" value={String(stats.adWatches)} />
-            <MiniStatCard icon={Gift} label="Рефералы" value={String(stats.referrals)} />
-            <MiniStatCard icon={Trophy} label="Достижения" value={String(stats.totalAchievements)} />
+            <MiniStatCard icon={Eye} label={t("stats.ads")} value={String(stats.adWatches)} />
+            <MiniStatCard icon={Gift} label={t("stats.referrals")} value={String(stats.referrals)} />
+            <MiniStatCard icon={Trophy} label={t("stats.achievements_count")} value={String(stats.totalAchievements)} />
           </div>
 
           {/* Achievements by game */}
@@ -138,7 +137,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
             <section className="rounded-3xl border border-border bg-card p-4">
               <div className="mb-3 flex items-center gap-2">
                 <BarChart3 className="size-4 text-primary" />
-                <h2 className="font-display text-base font-bold">Достижения по играм</h2>
+                <h2 className="font-display text-base font-bold">{t("stats.achievements_by_game")}</h2>
               </div>
               <div className="space-y-2">
                 {Object.entries(stats.achievementsByGame)
@@ -147,9 +146,9 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
                     <div key={game} className="flex items-center gap-3 rounded-xl bg-secondary/30 px-3 py-2">
                       <span className="text-xl">{GAME_ICONS[game] || "🏆"}</span>
                       <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold">{game}</p>
+                        <p className="text-sm font-semibold">{game === "Другое" ? t("common.other") : game}</p>
                         <p className="text-[11px] text-muted-foreground">
-                          {count} {declension(count, "достижение", "достижения", "достижений")}
+                          {count} {declension(count, t("stats.achievement_one"), t("stats.achievement_few"), t("stats.achievement_many"))}
                         </p>
                       </div>
                       <span className="font-display text-lg font-bold text-primary">{count}</span>
@@ -164,14 +163,14 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
             <section className="rounded-3xl border border-border bg-card p-4">
               <div className="mb-3 flex items-center gap-2">
                 <Sparkles className="size-4 text-accent" />
-                <h2 className="font-display text-base font-bold">Откуда активность</h2>
+                <h2 className="font-display text-base font-bold">{t("stats.activity_source")}</h2>
               </div>
               <div className="space-y-1.5">
                 {Object.entries(stats.eventsByType)
                   .sort(([, a], [, b]) => b - a)
                   .map(([event, count]) => (
                     <div key={event} className="flex items-center justify-between rounded-xl px-3 py-2">
-                      <span className="text-sm text-muted-foreground">{eventLabel(event)}</span>
+                      <span className="text-sm text-muted-foreground">{tl(`stats.event_${event}`, eventLabel(event))}</span>
                       <span className="text-sm font-bold">{count}</span>
                     </div>
                   ))}
@@ -184,7 +183,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
             <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-stars/15"><Medal className="size-6 text-stars" /></span>
             <div className="min-w-0 flex-1">
               <p className="font-display text-lg font-bold leading-none">#{rank?.position ?? "—"}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{rank ? `в общем рейтинге · топ ${rank.percentile}% из ${rank.total.toLocaleString("ru-RU")}` : "Рейтинг загружается..."}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{rank ? t("stats.rank", { pct: rank.percentile, total: rank.total.toLocaleString(lang) }) : t("stats.rank_loading")}</p>
             </div>
             <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
           </button>
@@ -194,7 +193,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
             <section className="rounded-3xl border border-border bg-card p-4">
               <div className="mb-3 flex items-center gap-2">
                 <Crown className="size-4 text-stars" />
-                <h2 className="font-display text-base font-bold">Тир-лист скинов</h2>
+                <h2 className="font-display text-base font-bold">{t("stats.tier_list")}</h2>
               </div>
               <div className="space-y-1.5">
                 {tierList.map((it, i) => {
@@ -210,11 +209,11 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold">{it.name}</p>
                         <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: meta.color }}>
-                          {meta.label}
+                          {tl(`rarity.${it.rarity}`, meta.label)}
                         </p>
                       </div>
                       <span className="flex shrink-0 items-center gap-1 font-display text-sm font-bold">
-                        <img src="/nexus-coin.webp" alt="" className="size-3.5 rounded-full" /> {it.sell.toLocaleString("ru-RU")}
+                        <img src="/nexus-coin.webp" alt="" className="size-3.5 rounded-full" /> {it.sell.toLocaleString(lang)}
                       </span>
                     </div>
                   )
@@ -227,12 +226,12 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
           <section>
             <div className="mb-2 flex items-center gap-2">
               <History className="size-4 text-primary" />
-              <h2 className="font-display text-base font-bold">История кейсов</h2>
+              <h2 className="font-display text-base font-bold">{t("stats.cases_history")}</h2>
             </div>
             {history === null ? (
-              <p className="text-sm text-muted-foreground">Загрузка...</p>
+              <p className="text-sm text-muted-foreground">{t("stats.loading")}</p>
             ) : history.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Пока нет открытий</p>
+              <p className="text-sm text-muted-foreground">{t("stats.no_openings")}</p>
             ) : (
               <div className="space-y-2">
                 {history.map((h, i) => {
@@ -245,11 +244,11 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold">{h.item_name}</p>
                         <p className="text-[10px] text-muted-foreground">
-                          {h.case_name} · {formatDate(h.opened_at)}
+                          {h.case_name} · {formatDate(h.opened_at, t, lang)}
                         </p>
                       </div>
                       <span className="shrink-0 text-[10px] font-bold uppercase" style={{ color: meta.color }}>
-                        {meta.label}
+                        {tl(`rarity.${h.rarity}`, meta.label)}
                       </span>
                     </div>
                   )
@@ -260,9 +259,9 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
 
           {/* Recent achievements */}
           <section>
-            <div className="mb-2 flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h2 className="font-display text-base font-bold">Последние достижения</h2></div>
+            <div className="mb-2 flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h2 className="font-display text-base font-bold">{t("stats.achievements_title")}</h2></div>
             <div className="space-y-2">
-              {(!Array.isArray(achievements) || achievements.length === 0) && <p className="text-sm text-muted-foreground">Пока нет достижений</p>}
+              {(!Array.isArray(achievements) || achievements.length === 0) && <p className="text-sm text-muted-foreground">{t("stats.no_achievements")}</p>}
               {Array.isArray(achievements) && achievements.map((a) => (
                 <div key={a.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5">
                   <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary/60 text-xl">{a.icon}</span>
@@ -274,7 +273,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
           </section>
         </>
       ) : (
-        <p className="py-10 text-center text-sm text-muted-foreground">Не удалось загрузить статистику</p>
+        <p className="py-10 text-center text-sm text-muted-foreground">{t("stats.load_failed")}</p>
       )}
     </div>
   )
@@ -332,16 +331,16 @@ function declension(n: number, one: string, few: string, many: string): string {
   return many
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, t: (key: string, vars?: Record<string, string | number>) => string, lang: string): string {
   if (!iso) return ""
   try {
     const d = new Date(iso)
     const now = new Date()
     const diff = now.getTime() - d.getTime()
-    if (diff < 60_000) return "только что"
-    if (diff < 3600_000) return `${Math.floor(diff / 60_000)} мин назад`
-    if (diff < 86_400_000) return `${Math.floor(diff / 3600_000)} ч назад`
-    return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })
+    if (diff < 60_000) return t("stats.time_just_now")
+    if (diff < 3600_000) return t("stats.time_min_ago", { m: Math.floor(diff / 60_000) })
+    if (diff < 86_400_000) return t("stats.time_hour_ago", { h: Math.floor(diff / 3600_000) })
+    return d.toLocaleDateString(lang === "ru" ? "ru-RU" : "en-US", { day: "numeric", month: "short" })
   } catch {
     return iso
   }

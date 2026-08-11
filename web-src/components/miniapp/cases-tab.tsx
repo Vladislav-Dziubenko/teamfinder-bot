@@ -591,7 +591,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-bold">{tl(itemNameKey(item), item.name)}</p>
                       <p className="text-[10px]" style={{ color: rarityMeta[item.rarity].color }}>
-                        {rarityMeta[item.rarity].label} {count > 1 && <span className="text-muted-foreground">×{count}</span>}
+                        {tl(`rarity.${item.rarity}`, rarityMeta[item.rarity].label)} {count > 1 && <span className="text-muted-foreground">×{count}</span>}
                       </p>
                     </div>
                     <button
@@ -1025,7 +1025,7 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
           <X className="size-4" />
         </button>
         <p className="text-xs font-semibold uppercase tracking-widest" style={{ color: meta.color }}>
-          {meta.label}
+          {tl(`rarity.${item.rarity}`, meta.label)}
         </p>
         <div
           className="mx-auto mt-3 size-40 overflow-hidden rounded-3xl border"
@@ -1233,7 +1233,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
                 )}
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-bold">{tl(itemNameKey(item), item.name)}</p>
-                  <p className="text-[10px]" style={{ color }}>{rarityMeta[item.rarity].label}</p>
+                  <p className="text-[10px]" style={{ color }}>{tl(`rarity.${item.rarity}`, rarityMeta[item.rarity].label)}</p>
                 </div>
                 <span className="shrink-0 text-sm font-bold tabular-nums" style={{ color }}>×{count}</span>
               </div>

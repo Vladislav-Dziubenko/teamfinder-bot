@@ -16,7 +16,7 @@ function formatCountdown(ms: number) {
 }
 
 export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
-  const { t } = useI18n()
+  const { t, tl } = useI18n()
   const {
     bpPremium,
     bpClaimedCount,
@@ -264,6 +264,7 @@ function RewardChip({
   claimed: boolean
   premiumLocked?: boolean
 }) {
+  const { tl } = useI18n()
   const isPremium = track === "premium"
 
   if (!reward) {
@@ -303,7 +304,7 @@ function RewardChip({
       <p className="line-clamp-2 text-[9px] font-semibold leading-tight text-balance">{reward.name}</p>
       {reward.rarity && (
         <span className="text-[8px] font-bold" style={{ color: rarityMeta[reward.rarity].color }}>
-          {rarityMeta[reward.rarity].label}
+          {tl(`rarity.${reward.rarity}`, rarityMeta[reward.rarity].label)}
         </span>
       )}
     </div>

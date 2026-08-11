@@ -30,7 +30,7 @@ export function HomeTab({
   onConnect: (p: Player) => void
   onToast: (m: string) => void
 }) {
-  const { t } = useI18n()
+  const { t, tl } = useI18n()
   const { wins, level } = useMe()
   const refresh = useNexus().refresh
   const [quests, setQuests] = useState<Quest[]>([])
@@ -143,8 +143,8 @@ export function HomeTab({
           {quests.map((q) => (
             <section key={q.id} className={`relative overflow-hidden rounded-3xl border p-5 ${q.completed ? "border-stars/40 bg-stars/5" : "border-primary/30 bg-primary/5"}`}>
               <div className="relative z-10">
-                <p className="font-display text-base font-bold text-balance">{q.title}</p>
-                <p className="mt-0.5 text-sm text-muted-foreground">{q.desc}</p>
+                <p className="font-display text-base font-bold text-balance">{tl(`quest.${q.id}.title`, q.title)}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">{tl(`quest.${q.id}.desc`, q.desc)}</p>
                 <p className="mt-1 text-xs text-primary">{t("home.quest_reward", { reward: q.reward })}</p>
                 <div className="mt-3 flex items-center gap-3">
                   <div className="h-2 flex-1 overflow-hidden rounded-full bg-secondary">

@@ -244,8 +244,11 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   const tl = useCallback(
     (key: string, fallback: string) => {
       const dict = extraDicts[lang] || dictionaries[lang] || dictionaries[DEFAULT_LANG]
-      const v = dict[key]
-      return v && v !== key ? v : fallback
+      let v = dict[key]
+      if (v && v !== key) return v
+      v = dictionaries["en"]?.[key]
+      if (v && v !== key) return v
+      return fallback
     },
     [lang, extraDicts],
   )
