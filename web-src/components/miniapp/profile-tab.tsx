@@ -24,10 +24,13 @@ import {
   X,
   Package,
   BookOpen,
+  Moon,
+  Sun,
   Infinity as InfinityIcon,
 } from "lucide-react"
 import { api, openLink } from "@/lib/api"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
+import { useTheme } from "@/lib/theme"
 import { useNexus, useMe } from "@/lib/store"
 import { games, dailyStreakRewards } from "@/lib/data"
 import { formatNum } from "@/lib/format"
@@ -677,6 +680,16 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
 
       {showLang && <LanguageSelector onClose={() => setShowLang(false)} />}
 
+      {/* Theme */}
+      <div className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5">
+        <Sun className="size-5 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{t("theme.title")}</p>
+          <p className="text-xs text-muted-foreground">{t("theme.subtitle")}</p>
+        </div>
+        <ThemeToggle />
+      </div>
+
       {/* Обучение: краткий гид по приложению */}
       <button
         type="button"
@@ -802,6 +815,35 @@ function declension(n: number, one: string, few: string, many: string): string {
   if (mod10 === 1) return one
   if (mod10 >= 2 && mod10 <= 4) return few
   return many
+}
+
+function ThemeToggle() {
+  const { theme, setTheme } = useTheme()
+  const { t } = useI18n()
+  return (
+    <div className="flex shrink-0 items-center gap-1 rounded-xl bg-secondary p-1">
+      <button
+        type="button"
+        onClick={() => setTheme("dark")}
+        className={cn(
+          "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors active:scale-95",
+          theme === "dark" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground",
+        )}
+      >
+        <Moon className="size-3.5" /> {t("theme.dark")}
+      </button>
+      <button
+        type="button"
+        onClick={() => setTheme("light")}
+        className={cn(
+          "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors active:scale-95",
+          theme === "light" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground",
+        )}
+      >
+        <Sun className="size-3.5" /> {t("theme.light")}
+      </button>
+    </div>
+  )
 }
 
 

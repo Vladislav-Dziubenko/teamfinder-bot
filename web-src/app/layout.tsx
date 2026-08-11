@@ -4,6 +4,7 @@ import { Geist, Oswald } from 'next/font/google'
 import Script from 'next/script'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { I18nProvider } from '@/lib/i18n'
+import { ThemeProvider } from '@/lib/theme'
 import './globals.css'
 
 const geist = Geist({
@@ -46,6 +47,7 @@ export default function RootLayout({
         <script
           dangerouslySetInnerHTML={{
             __html: [
+              "try{if(localStorage.getItem('nexus-theme')==='light'){document.documentElement.setAttribute('data-theme','light')}}catch(e){}",
               "var _ab=" + JSON.stringify(API_BASE) + ";",
               "function _ce(msg,stk,cstk){try{var b=new Blob([JSON.stringify({message:msg,stack:stk||'',componentStack:cstk||'',tab:window.__NEXUS_TAB||'unknown',url:location.href})],{type:'application/json'});navigator.sendBeacon(_ab+'/api/client-error',b)}catch(e){}}",
               "window.onerror=function(m,s,l,c,err){_ce(typeof m==='object'&&m?m.message||'':String(m),err&&err.stack?err.stack:'');return false};",
@@ -55,7 +57,9 @@ export default function RootLayout({
         />
         <ErrorBoundary>
           <I18nProvider>
-            {children}
+            <ThemeProvider>
+              {children}
+            </ThemeProvider>
           </I18nProvider>
         </ErrorBoundary>
         {process.env.NODE_ENV === 'production' && <Analytics />}

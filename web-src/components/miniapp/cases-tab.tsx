@@ -918,11 +918,27 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
   async function shareDrop() {
     if (sharing) return
     setSharing(true)
+    const name = tl(itemNameKey(item), item.name)
+    const boxName = tl(caseNameKey(box), box.name)
     try {
       const blob = await api.postBlob("/api/nexus/cases/share-image", {
-        item: { name: tl(itemNameKey(item), item.name), rarity: item.rarity, icon: item.icon, image: item.image },
-        case: { name: tl(caseNameKey(box), box.name) },
+        item: { name, rarity: item.rarity, icon: item.icon, image: item.image },
+        case: { name: boxName },
       })
+      const file = new File([blob], "teamfinder-drop.png", { type: "image/png" })
+      const nav = navigator as Navigator & { share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void> }
+      if (typeof nav.share === "function") {
+        try {
+          await nav.share({
+            files: [file],
+            title: "NEXUS TeamHub",
+            text: `Я выбил ${name} из кейса ${boxName}! 🔥`,
+          })
+          return
+        } catch (e) {
+          if (e instanceof DOMException && e.name === "AbortError") return
+        }
+      }
       const url = URL.createObjectURL(blob)
       const link = document.createElement("a")
       link.href = url
@@ -933,7 +949,7 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
       setTimeout(() => URL.revokeObjectURL(url), 5000)
     } catch {
       // fallback: просто текст в буфер
-      const text = `Я выбил ${tl(itemNameKey(item), item.name)} из кейса ${tl(caseNameKey(box), box.name)} в TeamFinder! 🔥`
+      const text = `Я выбил ${name} из кейса ${boxName} в NEXUS TeamHub! 🔥`
       try {
         await navigator.clipboard.writeText(text)
       } catch {
