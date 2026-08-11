@@ -795,6 +795,15 @@ async def handle_search(request: web.Request):
     game_filter = request.query.get("game", "").strip().lower()
     discord_filter = request.query.get("discord") == "1"
 
+    # Честный прогресс достижений: поиск тиммейтов в конкретной игре
+    # засчитывается в достижение этой игры (см. ACHIEVEMENTS_CONFIG).
+    if game_filter and game_filter != "all":
+        ach_id = _ACHIEVEMENT_BY_SEARCH_KEY.get(game_filter)
+        if ach_id:
+            asyncio.create_task(
+                db.bump_achievement_progress(user["id"], ach_id, _ACHIEVEMENT_TARGET[ach_id])
+            )
+
     profile = await db.get_profile(user["id"])
     if not profile:
         where = "WHERE p.is_active = 1 AND p.user_id != $1"
@@ -1321,10 +1330,15 @@ QUESTS_CONFIG = [
 ]
 
 ACHIEVEMENTS_CONFIG = [
-    {"id": "a1", "game": "CS:GO", "title": "Разминка на 35 минут", "desc": "Сыграй 35 минут в CS:GO", "minutes": 35, "progress": 35, "points": 100, "coins": 15, "withTeammate": False},
-    {"id": "a2", "game": "War Thunder", "title": "Танковый экипаж", "desc": "Сыграй 60 минут в War Thunder в отряде с тиммейтом из бота", "minutes": 60, "progress": 42, "points": 150, "coins": 35, "withTeammate": True},
-    {"id": "a3", "game": "Roblox", "title": "Соседи по Brookhaven", "desc": "Сыграй 120 минут в Roblox Brookhaven с тиммейтом", "minutes": 120, "progress": 30, "points": 220, "coins": 65, "withTeammate": True},
+    {"id": "a1", "game": "CS:GO", "title": "Найди 35 тиммейтов в CS:GO", "desc": "Проведи 35 поисков с тиммейтами в CS:GO", "target": 35, "points": 100, "coins": 15, "search_keys": ["cs2"]},
+    {"id": "a2", "game": "War Thunder", "title": "Найди 60 тиммейтов в War Thunder", "desc": "Проведи 60 поисков с тиммейтами в War Thunder", "target": 60, "points": 150, "coins": 35, "search_keys": ["wt", "wot"]},
+    {"id": "a3", "game": "Roblox", "title": "Найди 120 тиммейтов в Roblox", "desc": "Проведи 120 поисков с тиммейтами в Roblox", "target": 120, "points": 220, "coins": 65, "search_keys": ["roblox"]},
 ]
+
+_ACHIEVEMENT_BY_SEARCH_KEY: dict[str, str] = {
+    key: a["id"] for a in ACHIEVEMENTS_CONFIG for key in a["search_keys"]
+}
+_ACHIEVEMENT_TARGET: dict[str, int] = {a["id"]: a["target"] for a in ACHIEVEMENTS_CONFIG}
 
 
 # Per-user locks to serialize case opens: prevents bursts of concurrent
@@ -2354,6 +2368,7 @@ async def handle_achievements_list(request: web.Request):
     for a in ACHIEVEMENTS_CONFIG:
         item = dict(a)
         row = claimed_map.get(a["id"])
+        item["progress"] = (row["progress"] if row else 0) or 0
         item["claimed"] = bool(row and row["claimed"])
         item["claimedAt"] = (row or {}).get("claimed_at")
         out.append(item)

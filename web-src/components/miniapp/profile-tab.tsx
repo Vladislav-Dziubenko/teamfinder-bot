@@ -45,7 +45,7 @@ type AchievementItem = {
   game: string
   title: string
   desc: string
-  minutes: number
+  target: number
   progress: number
   points: number
   coins: number
@@ -518,9 +518,9 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
         ) : (
           <div className="space-y-3">
             {achievements.map((a) => {
-              const done = a.progress >= a.minutes
+              const done = a.progress >= a.target
               const isClaimed = claimedAchievements.includes(a.id)
-              const pct = Math.min(100, Math.round((a.progress / a.minutes) * 100))
+              const pct = Math.min(100, Math.round((a.progress / a.target) * 100))
               return (
                 <div key={a.id} className="rounded-2xl border border-border bg-card p-4">
                   <div className="flex items-start justify-between gap-2">
@@ -549,7 +549,7 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
                       />
                     </div>
                     <span className="text-[11px] font-semibold text-muted-foreground">
-                      {a.progress}/{a.minutes} мин
+                      {a.progress}/{a.target}
                     </span>
                   </div>
 

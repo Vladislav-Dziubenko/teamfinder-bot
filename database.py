@@ -960,6 +960,28 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Migration warning limited_model_history_seed_v1: {e}")
 
+        # Честный прогресс достижений: колонка progress в user_achievements.
+        # Прогресс начисляется за поиски тиммейтов в конкретной игре (см.
+        # ACHIEVEMENTS_CONFIG в server.py: search_keys -> achievement_id).
+        migration_name = "achievement_progress_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        "ALTER TABLE user_achievements ADD COLUMN IF NOT EXISTS progress INTEGER DEFAULT 0"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning achievement_progress_v1: {e}")
+
         # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
         try:
             await conn.execute("""
@@ -2710,6 +2732,21 @@ class Database:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch("SELECT * FROM user_achievements WHERE user_id = $1", user_id)
             return [dict(r) for r in rows]
+
+    async def bump_achievement_progress(self, user_id: int, achievement_id: str, target: int, amount: int = 1) -> None:
+        """Начисляем прогресс достижения (поиск тиммейта в нужной игре).
+        Заявленные достижения больше не растут; прогресс ограничен target."""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_achievements (user_id, achievement_id, claimed, claimed_at, progress)
+                VALUES ($1, $2, 0, NULL, $3)
+                ON CONFLICT (user_id, achievement_id) DO UPDATE SET
+                    progress = LEAST(user_achievements.progress + EXCLUDED.progress, $4)
+                WHERE user_achievements.claimed = 0
+                """,
+                user_id, achievement_id, min(amount, target), target,
+            )
 
     async def claim_achievement(self, user_id: int, achievement_id: str, points: int, coins: int) -> bool:
         now = datetime.utcnow().isoformat()
