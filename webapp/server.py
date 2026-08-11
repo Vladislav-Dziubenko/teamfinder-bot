@@ -179,7 +179,7 @@ STAR_PACKS: dict[str, dict] = {
     "p1": {"stars": 75, "title": "Буст профиля на 24 часа", "desc": "Твоя анкета выше в поиске — 24 часа"},
     "p2": {"stars": 250, "title": "Значок PRO + приоритет в поиске", "desc": "PRO-бейдж и приоритетный поиск"},
     "p3": {"stars": 500, "title": "PRO на месяц + кастомный ник", "desc": "PRO-подписка 30 дней + кастом"},
-    "p4": {"stars": 1000, "title": "Всё сразу + анимированная рамка", "desc": "Полный пакет NEXUS"},
+    "p4": {"stars": 1000, "title": "Всё сразу + анимированная рамка", "desc": "Полный пакет NEXUS TeamHub"},
 }
 
 
@@ -1505,7 +1505,7 @@ async def handle_nexus_open_case(request: web.Request):
                         )
                         await db.send_global_message(
                             user["id"],
-                            f"выбил Mini Boss bro #{model_token} из кейса NEXUS Premium! Тираж: {claimed_now}/20",
+                            f"выбил Mini Boss bro #{model_token} из кейса NEXUS TeamHub Premium! Тираж: {claimed_now}/20",
                             kind="system",
                             conn=conn,
                         )
@@ -1623,7 +1623,7 @@ async def handle_nexus_share_image(request: web.Request):
         font_small = _font(34)
 
         # Title
-        draw.text((60, 70), "NEXUS CASE", font=_font(36), fill="#6b7280")
+        draw.text((60, 70), "NEXUS TEAMHUB", font=_font(36), fill="#6b7280")
         draw.text((60, 120), case_name, font=font_big, fill="#f3f4f6")
 
         # Card background

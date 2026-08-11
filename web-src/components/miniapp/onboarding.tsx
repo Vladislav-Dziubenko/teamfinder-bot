@@ -1,11 +1,11 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { Swords, Search, Trophy, Package, MessagesSquare, ChevronLeft, ChevronRight, Sparkles } from "lucide-react"
+import { Swords, Search, Trophy, Package, MessagesSquare, ChevronLeft, ChevronRight, Sparkles, LayoutGrid, Home, User } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
-const ONBOARDING_KEY = "nexus.onboarding.v1"
+const ONBOARDING_KEY = "nexus.onboarding.v2"
 
 type Slide = {
   key: string
@@ -20,6 +20,8 @@ const SLIDES: Slide[] = [
   { key: "match", icon: Search, glow: "rgba(6,182,212,0.8)", from: "#06b6d4" },
   { key: "cases", icon: Package, glow: "rgba(245,158,11,0.8)", from: "#f59e0b" },
   { key: "chat", icon: MessagesSquare, glow: "rgba(16,185,129,0.8)", from: "#10b981" },
+  { key: "nav", icon: Home, glow: "rgba(99,102,241,0.8)", from: "#6366f1" },
+  { key: "more", icon: LayoutGrid, glow: "rgba(217,70,239,0.8)", from: "#d946ef" },
 ]
 
 export function isOnboardingDone(): boolean {
@@ -130,6 +132,8 @@ export function OnboardingSheet({ onDone, onSkip }: { onDone: () => void; onSkip
                 {t("onboarding.chat_tip")}
               </p>
             )}
+            {slide.key === "nav" && <NavPreview />}
+            {slide.key === "more" && <MorePreview />}
           </div>
         </div>
 
@@ -179,6 +183,71 @@ export function OnboardingSheet({ onDone, onSkip }: { onDone: () => void; onSkip
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+/** Мини-схема нижней панели: 5 главных кнопок + «Ещё». */
+function NavPreview() {
+  const { t } = useI18n()
+  const items = [
+    { icon: Home, label: t("nav.home") },
+    { icon: Search, label: t("nav.match") },
+    { icon: MessagesSquare, label: t("nav.chat") },
+    { icon: Package, label: t("nav.cases") },
+    { icon: User, label: t("nav.profile") },
+  ]
+  return (
+    <div className="mx-auto mt-5 w-full max-w-[17rem]">
+      <div className="rounded-2xl border border-border bg-card/80 p-2 shadow-xl">
+        <div className="flex items-center justify-between">
+          {items.map(({ icon: Icon, label }) => (
+            <div key={label} className="flex flex-1 flex-col items-center gap-1 py-1">
+              <Icon className="size-4 text-muted-foreground" />
+              <span className="text-[9px] text-muted-foreground">{label}</span>
+            </div>
+          ))}
+          <div className="flex flex-1 flex-col items-center gap-1 py-1">
+            <LayoutGrid className="size-4 text-primary" />
+            <span className="text-[9px] font-bold text-primary">{t("more.title")}</span>
+          </div>
+        </div>
+      </div>
+      <p className="mx-auto mt-3 max-w-[17rem] rounded-2xl border border-indigo-500/30 bg-indigo-500/10 px-4 py-3 text-[12px] leading-relaxed text-indigo-400">
+        {t("onboarding.nav_tip")}
+      </p>
+    </div>
+  )
+}
+
+/** Мини-схема меню «Ещё»: что лежит внутри. */
+function MorePreview() {
+  const { t } = useI18n()
+  const chips = [
+    t("nav.predictions"),
+    t("nav.stats"),
+    t("nav.battlepass"),
+    t("nav.promo"),
+    t("nav.guides"),
+    t("nav.friends"),
+    t("nav.model"),
+    t("nav.review"),
+  ]
+  return (
+    <div className="mx-auto mt-5 w-full max-w-[17rem]">
+      <div className="flex flex-wrap justify-center gap-1.5">
+        {chips.map((c) => (
+          <span
+            key={c}
+            className="rounded-full border border-border bg-card/80 px-3 py-1.5 text-[11px] font-medium text-muted-foreground"
+          >
+            {c}
+          </span>
+        ))}
+      </div>
+      <p className="mx-auto mt-3 max-w-[17rem] rounded-2xl border border-fuchsia-500/30 bg-fuchsia-500/10 px-4 py-3 text-[12px] leading-relaxed text-fuchsia-400">
+        {t("onboarding.more_tip")}
+      </p>
     </div>
   )
 }

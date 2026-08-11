@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n"
 import { NexusProvider } from "@/lib/store"
 import { TopBar } from "./top-bar"
 import { BottomNav, type TabId } from "./bottom-nav"
+import { MoreSheet } from "./more-sheet"
 import { HomeTab } from "./home-tab"
 import { MatchTab } from "./match-tab"
 import { CasesTab } from "./cases-tab"
@@ -53,6 +54,7 @@ function Shell() {
   const me = useMe()
   const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus, banned, banReason, banExpiresAt } = useNexus()
   const [tab, setTab] = useState<TabId>("home")
+  const [moreOpen, setMoreOpen] = useState(false)
   const [contact, setContact] = useState<Player | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [chatOpen, setChatOpen] = useState<{ chatId: string; player: Player } | null>(null)
@@ -153,6 +155,7 @@ function Shell() {
 
   function goTab(t: TabId) {
     setTab(t)
+    setMoreOpen(false)
     if (typeof window !== "undefined") window.__NEXUS_TAB = t
     analytics.page(t)
     document.getElementById("miniapp-scroll")?.scrollTo({ top: 0, behavior: "smooth" })
@@ -191,7 +194,14 @@ function Shell() {
         {tab === "review" && <Suspense fallback={<TabFallback />}><ReviewTab onToast={setToast} /></Suspense>}
       </main>
 
-      <BottomNav active={tab} onChange={goTab} />
+      <BottomNav active={tab} onChange={goTab} onMore={() => setMoreOpen(true)} />
+
+      <MoreSheet
+        open={moreOpen}
+        active={tab}
+        onSelect={goTab}
+        onClose={() => setMoreOpen(false)}
+      />
 
       <ContactSheet player={contact} onClose={() => setContact(null)} />
 

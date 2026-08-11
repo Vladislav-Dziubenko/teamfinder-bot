@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Swords, Package, Trophy, Ticket, User, BarChart3, MessageCircle, TrendingUp, Users, Gem, Star } from "lucide-react"
+import { Home, Swords, MessageCircle, Package, User, LayoutGrid, Trophy, BarChart3, TrendingUp, Ticket, Users, Gem, Star, BookOpen } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useTotalUnread } from "@/lib/chat"
 import { hapticTap } from "@/lib/webapp"
@@ -22,27 +22,35 @@ export type TabId =
   | "model"
   | "review"
 
-const items: { id: TabId; labelKey: string; icon: typeof Home }[] = [
+// Основные вкладки — всегда видны на панели. Остальные — в меню «Ещё».
+export const MAIN_TABS: { id: TabId; labelKey: string; icon: typeof Home }[] = [
   { id: "home", labelKey: "nav.home", icon: Home },
   { id: "match", labelKey: "nav.match", icon: Swords },
-  { id: "predictions", labelKey: "nav.predictions", icon: TrendingUp },
   { id: "chat", labelKey: "nav.chat", icon: MessageCircle },
-  { id: "stats", labelKey: "nav.stats", icon: BarChart3 },
   { id: "cases", labelKey: "nav.cases", icon: Package },
-  { id: "battlepass", labelKey: "nav.battlepass", icon: Trophy },
-  { id: "promo", labelKey: "nav.promo", icon: Ticket },
-  { id: "friends", labelKey: "nav.friends", icon: Users },
-  { id: "model", labelKey: "nav.model", icon: Gem },
-  { id: "review", labelKey: "nav.review", icon: Star },
   { id: "profile", labelKey: "nav.profile", icon: User },
+]
+
+// Вкладки в меню «Ещё»: порядок = порядок отображения в сетке.
+export const MORE_TABS: { id: TabId; labelKey: string; descKey: string; icon: typeof Home }[] = [
+  { id: "predictions", labelKey: "nav.predictions", descKey: "more.desc_predictions", icon: TrendingUp },
+  { id: "stats", labelKey: "nav.stats", descKey: "more.desc_stats", icon: BarChart3 },
+  { id: "battlepass", labelKey: "nav.battlepass", descKey: "more.desc_battlepass", icon: Trophy },
+  { id: "promo", labelKey: "nav.promo", descKey: "more.desc_promo", icon: Ticket },
+  { id: "guides", labelKey: "nav.guides", descKey: "more.desc_guides", icon: BookOpen },
+  { id: "friends", labelKey: "nav.friends", descKey: "more.desc_friends", icon: Users },
+  { id: "model", labelKey: "nav.model", descKey: "more.desc_model", icon: Gem },
+  { id: "review", labelKey: "nav.review", descKey: "more.desc_review", icon: Star },
 ]
 
 export function BottomNav({
   active,
   onChange,
+  onMore,
 }: {
   active: TabId
   onChange: (t: TabId) => void
+  onMore: () => void
 }) {
   const { t } = useI18n()
   const unread = useTotalUnread()
@@ -50,12 +58,12 @@ export function BottomNav({
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md">
       <div className="border-t border-border bg-card/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <ul className="no-scrollbar flex items-stretch gap-0.5 overflow-x-auto px-1">
-          {items.map(({ id, labelKey, icon: Icon }) => {
+        <ul className="flex items-stretch gap-0.5 px-1">
+          {MAIN_TABS.map(({ id, labelKey, icon: Icon }) => {
             const isActive = active === id
             const showBadge = id === "chat" && unread > 0
             return (
-              <li key={id} className="min-w-[3.9rem] flex-1">
+              <li key={id} className="min-w-0 flex-1">
                 <button
                   type="button"
                   onClick={() => {
@@ -95,6 +103,31 @@ export function BottomNav({
               </li>
             )
           })}
+
+          {/* Кнопка «Ещё» — открывает панель с остальными вкладками */}
+          <li className="min-w-0 flex-1">
+            <button
+              type="button"
+              onClick={() => {
+                hapticTap()
+                onMore()
+              }}
+              className="group relative flex w-full flex-col items-center gap-1 py-2.5"
+              aria-label={t("more.title")}
+            >
+              <span className="relative">
+                <LayoutGrid
+                  className={cn(
+                    "size-5 transition-all duration-200 group-active:scale-90",
+                    "text-muted-foreground",
+                  )}
+                />
+              </span>
+              <span className="max-w-full truncate text-[10px] font-medium tracking-wide text-muted-foreground">
+                {t("more.title")}
+              </span>
+            </button>
+          </li>
         </ul>
       </div>
     </nav>

@@ -31,7 +31,7 @@ export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () 
             <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-background" />
           </div>
           <div className="leading-tight">
-            <p className="font-display text-lg font-bold tracking-wide">NEXUS</p>
+            <p className="font-display text-lg font-bold tracking-wide">NEXUS <span className="text-primary">TeamHub</span></p>
             <p className="-mt-1 text-[11px] text-muted-foreground">{t("topbar.tagline")}</p>
           </div>
         </div>

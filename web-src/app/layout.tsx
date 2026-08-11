@@ -18,7 +18,7 @@ const oswald = Oswald({
 })
 
 export const metadata: Metadata = {
-  title: 'NEXUS — киберспорт тиммейты',
+  title: 'NEXUS TeamHub — киберспорт тиммейты',
   description:
     'Telegram Mini App для поиска тиммейтов, команд и гайдов по CS2 и популярным играм',
   generator: 'v0.app',

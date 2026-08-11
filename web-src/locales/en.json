@@ -765,5 +765,22 @@
   "onboarding.chat_title": "Global chat and friends",
   "onboarding.chat_desc": "Write in the global chat, add friends and keep in touch. In the feed of players you can write directly in private.",
   "onboarding.chat_tip": "Tip: be active - your level grows, and with it new features of the bot.",
-  "profile.privacy_policy": "Privacy Policy"
+  "profile.privacy_policy": "Privacy Policy",
+  "nav.guides": "Guides",
+  "more.title": "More",
+  "more.subtitle": "App sections: games, rewards, friends and more",
+  "more.desc_predictions": "Esports bets and PvP battles",
+  "more.desc_stats": "Progress, skin tier list, case history",
+  "more.desc_battlepass": "Seasonal rewards and premium track",
+  "more.desc_promo": "Promo codes and bot gifts",
+  "more.desc_guides": "Game guides and lootboxes",
+  "more.desc_friends": "Friends, invites and requests",
+  "more.desc_model": "Mini Boss 3D model and marketplace",
+  "more.desc_review": "Rate the app and leave a review",
+  "onboarding.nav_title": "Navigation made simple",
+  "onboarding.nav_desc": "Five main sections at the bottom: Home, Search, Chat, Cases and Profile. Everything else lives behind the More button.",
+  "onboarding.nav_tip": "More is the right button at the bottom. Predictions, Stats, Battle Pass, Promo and Guides live there.",
+  "onboarding.more_title": "Sections inside More",
+  "onboarding.more_desc": "Predictions, Stats, Battle Pass, Promo codes, Guides, Friends, Model and reviews are waiting there.",
+  "onboarding.more_tip": "Tap More at the bottom any time — every section in one place."
 }

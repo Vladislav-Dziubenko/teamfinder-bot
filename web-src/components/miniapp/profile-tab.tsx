@@ -688,7 +688,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
         />
       )}
 
-      <p className="pb-2 pt-4 text-center text-xs text-muted-foreground">NEXUS · Telegram Mini App · v1.1</p>
+      <p className="pb-2 pt-4 text-center text-xs text-muted-foreground">NEXUS TeamHub · Telegram Mini App · v1.1</p>
       <button
         type="button"
         onClick={() => openLink("/privacy.html")}
