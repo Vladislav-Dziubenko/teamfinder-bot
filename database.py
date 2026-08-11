@@ -1681,7 +1681,7 @@ class Database:
                     "WHERE model_id = $1 AND token_id = $2 FOR UPDATE",
                     self.LIMITED_MODEL_ID, token_id,
                 )
-                if not row or row["sale_price_stars"] <= 0:
+                if not row or row["sale_price_stars"] <= 0 or row["owner_id"] == 0:
                     return False, "not listed", 0
                 if row["owner_id"] == buyer_id:
                     return False, "own model", 0
@@ -1726,7 +1726,12 @@ class Database:
                 return True, "ok"
 
     async def sell_limited_model(self, owner_id: int, token_id: int) -> tuple[bool, str, int]:
-        """Продажа модели разработчику: владелец получает LIMITED_MODEL_SELL_PRICE звёзд на баланс, модель удаляется."""
+        """Продажа модели разработчику: владелец получает LIMITED_MODEL_SELL_PRICE звёзд на баланс.
+
+        Модель НЕ удаляется, а помечается сгоревшей (owner_id = 0) — иначе
+        COUNT(*) тиража падает и сгоревшие номера переиспользуются
+        (MAX(token_id)+1 выдавал дубликаты токенов).
+        """
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
@@ -1737,7 +1742,8 @@ class Database:
                     return False, "not owner", 0
                 await self._adjust_currency_conn(conn, owner_id, stars=self.LIMITED_MODEL_SELL_PRICE)
                 await conn.execute(
-                    "DELETE FROM limited_models WHERE model_id = $1 AND token_id = $2",
+                    "UPDATE limited_models SET owner_id = 0, sale_price_stars = 0, listed_at = NULL, last_income_at = NULL "
+                    "WHERE model_id = $1 AND token_id = $2",
                     self.LIMITED_MODEL_ID, token_id,
                 )
                 return True, "ok", self.LIMITED_MODEL_SELL_PRICE
@@ -1751,7 +1757,8 @@ class Database:
             async with conn.transaction():
                 rows = await conn.fetch(
                     "SELECT owner_id, token_id FROM limited_models "
-                    "WHERE model_id = $1 AND (last_income_at IS NULL OR SUBSTRING(last_income_at, 1, 10) <> $2) FOR UPDATE",
+                    "WHERE model_id = $1 AND owner_id <> 0 "
+                    "AND (last_income_at IS NULL OR SUBSTRING(last_income_at, 1, 10) <> $2) FOR UPDATE",
                     self.LIMITED_MODEL_ID, today,
                 )
                 for r in rows:
