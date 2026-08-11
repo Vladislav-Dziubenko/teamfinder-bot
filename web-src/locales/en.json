@@ -782,5 +782,7 @@
   "onboarding.nav_tip": "More is the right button at the bottom. Predictions, Stats, Battle Pass, Promo and Guides live there.",
   "onboarding.more_title": "Sections inside More",
   "onboarding.more_desc": "Predictions, Stats, Battle Pass, Promo codes, Guides, Friends, Model and reviews are waiting there.",
-  "onboarding.more_tip": "Tap More at the bottom any time — every section in one place."
+  "onboarding.more_tip": "Tap More at the bottom any time — every section in one place.",
+  "profile.guide_title": "Tutorial",
+  "profile.guide_subtitle": "Quick guide: find teammates, open cases and chat"
 }

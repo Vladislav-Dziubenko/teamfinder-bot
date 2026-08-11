@@ -61,6 +61,7 @@ function Shell() {
   const [sharedProfileId, setSharedProfileId] = useState<number | null>(null)
   const [leaderboardOpen, setLeaderboardOpen] = useState(false)
   const [welcomeShown, setWelcomeShown] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
 
   // Показ обучающего онбординга один раз: флаг в localStorage.
@@ -189,7 +190,7 @@ function Shell() {
         {tab === "promo" && <PromoTab onToast={setToast} />}
         {tab === "guides" && <Suspense fallback={<TabFallback />}><GuidesTab /></Suspense>}
         {tab === "donate" && <DonateTab />}
-        {tab === "profile" && <ProfileTab onGo={goTab} onToast={setToast} />}
+        {tab === "profile" && <ProfileTab onGo={goTab} onToast={setToast} onGuide={() => setGuideOpen(true)} />}
         {tab === "friends" && <FriendsTab onChat={openChat} />}
         {tab === "review" && <Suspense fallback={<TabFallback />}><ReviewTab onToast={setToast} /></Suspense>}
       </main>
@@ -221,8 +222,17 @@ function Shell() {
 
       {/* Обучение: показывается после принятия согласия, один раз за устройство.
           Кнопка «Пропустить» доступна на первом шаге. */}
-      {loaded && !banned && consentVersion >= CONSENT_VERSION && onboardingDone === false && (
-        <OnboardingSheet onDone={finishOnboarding} onSkip={finishOnboarding} />
+      {loaded && !banned && consentVersion >= CONSENT_VERSION && (guideOpen || onboardingDone === false) && (
+        <OnboardingSheet
+          onDone={() => {
+            finishOnboarding()
+            setGuideOpen(false)
+          }}
+          onSkip={() => {
+            finishOnboarding()
+            setGuideOpen(false)
+          }}
+        />
       )}
 
       {sharedProfileId && (

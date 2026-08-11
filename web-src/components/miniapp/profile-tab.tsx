@@ -23,6 +23,7 @@ import {
   Send,
   X,
   Package,
+  BookOpen,
   Infinity as InfinityIcon,
 } from "lucide-react"
 import { api, openLink } from "@/lib/api"
@@ -54,7 +55,7 @@ const decorations = [
   { id: "crimson", label: "Blood", ring: "var(--destructive)", bg: "var(--destructive)" },
 ]
 
-export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onToast: (m: string) => void }) {
+export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => void; onToast: (m: string) => void; onGuide: () => void }) {
   const { t } = useI18n()
   const me = useMe()
   const {
@@ -675,6 +676,20 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
       </button>
 
       {showLang && <LanguageSelector onClose={() => setShowLang(false)} />}
+
+      {/* Обучение: краткий гид по приложению */}
+      <button
+        type="button"
+        onClick={onGuide}
+        className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5 text-left active:bg-secondary"
+      >
+        <BookOpen className="size-5 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{t("profile.guide_title")}</p>
+          <p className="text-xs text-muted-foreground">{t("profile.guide_subtitle")}</p>
+        </div>
+        <ChevronRight className="size-4 text-muted-foreground shrink-0" />
+      </button>
 
       {/* Game picker modal */}
       {showGamePicker && (
