@@ -470,6 +470,7 @@ type Nexus = PersistedState & {
   activatePremium: () => void
   addToInventory: (item: CaseItem) => void
   sellItem: (uid: string) => Promise<void>
+  sellStack: (itemKey: string, count: number) => Promise<{ sold: number; coins: number } | null>
   togglePin: (key: string) => void
   openCase: (caseId: string, count?: number, requestId?: string, viaAd?: boolean) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }>
   refreshModels: () => Promise<void>
@@ -747,6 +748,29 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       } catch (e) {
         console.error("sellItem failed", e)
         await refresh()
+      }
+    }
+
+    const sellStack = async (itemKey: string, count: number): Promise<{ sold: number; coins: number } | null> => {
+      const found = s.inventory.find((i) => i.key === itemKey)
+      if (!found) return null
+      const sellAmount = found.sell ?? 0
+      const ids = s.inventory.filter((i) => i.key === itemKey).slice(0, count).map((i) => i.uid)
+      setS((p) => ({
+        ...p,
+        coins: p.coins + ids.length * sellAmount,
+        inventory: p.inventory.filter((i) => !ids.includes(i.uid)),
+      }))
+      try {
+        const res = (await api.post("/api/nexus/inventory/sell", {
+          item_key: itemKey,
+          count,
+        })) as { sold: number; coins: number }
+        return res
+      } catch (e) {
+        console.error("sellStack failed", e)
+        await refresh()
+        return null
       }
     }
 
@@ -1038,6 +1062,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       activatePremium,
       addToInventory,
       sellItem,
+      sellStack,
       togglePin,
       openCase,
       refreshModels,
@@ -1148,8 +1173,9 @@ export function useInventory() {
     () => ({
       inventory: nexus.inventory,
       sellItem: nexus.sellItem,
+      sellStack: nexus.sellStack,
     }),
-    [nexus.inventory, nexus.sellItem],
+    [nexus.inventory, nexus.sellItem, nexus.sellStack],
   )
 }
 

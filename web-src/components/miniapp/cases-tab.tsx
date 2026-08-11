@@ -64,7 +64,7 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t, tl } = useI18n()
-  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta, loaded, freeGoldOpens } = useNexus()
+  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, sellStack, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta, loaded, freeGoldOpens } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
@@ -616,6 +616,48 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                     <Coins className="size-3.5" /> {t("cases.sell_for", { cost: item.sell })}
                     {count > 1 && <span className="text-[10px] text-muted-foreground">({formatNum(totalSell)} всего)</span>}
                   </button>
+                  {count > 1 && (
+                    <div className="mt-1.5 grid grid-cols-5 gap-1">
+                      <button
+                        type="button"
+                        disabled={count <= 1}
+                        onClick={async () => {
+                          const uid = inventory.find((i) => i.key === item.key)?.uid
+                          if (!uid) return
+                          await sellItem(uid)
+                          onToast(t("cases.sold_for", { cost: item.sell }))
+                        }}
+                        className="rounded-lg border border-border bg-secondary/60 py-1.5 text-[11px] font-bold text-muted-foreground transition-colors active:bg-secondary active:scale-95 disabled:opacity-30"
+                      >
+                        1
+                      </button>
+                      {[50, 100, 500].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          disabled={n > count}
+                          onClick={async () => {
+                            const res = await sellStack(item.key, n)
+                            if (res) onToast(t("cases.sold_for", { cost: res.coins }))
+                          }}
+                          className="rounded-lg border border-border bg-secondary/60 py-1.5 text-[11px] font-bold text-muted-foreground transition-colors active:bg-secondary active:scale-95 disabled:opacity-30"
+                        >
+                          {n}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        disabled={count > 500}
+                        onClick={async () => {
+                          const res = await sellStack(item.key, count)
+                          if (res) onToast(t("cases.sold_for", { cost: res.coins }))
+                        }}
+                        className="rounded-lg border border-primary/30 bg-primary/10 py-1.5 text-[11px] font-bold text-primary transition-colors active:scale-95 disabled:opacity-30"
+                      >
+                        {formatNum(count)}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )
             })}

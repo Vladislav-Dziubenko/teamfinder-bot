@@ -313,6 +313,10 @@ async def error_middleware(request: web.Request, handler):
         return await handler(request)
     except web.HTTPException:
         raise
+    except (ConnectionResetError, ConnectionError):
+        # Клиент оборвал соединение (таймаут/закрыл вкладку) — это не ошибка сервера.
+        logging.info("Connection reset in %s %s", request.method, request.path)
+        return web.Response(status=499)
     except Exception:
         # Полный стектрейс пишется в лог (виден в консоли / Render Log Stream).
         # Пользователю уходит только общее сообщение — без деталей исключения,
@@ -1723,9 +1727,18 @@ async def handle_nexus_inventory(request: web.Request):
 async def handle_nexus_sell(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    body = await request.json()
-    item_id = body.get("item_id")
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
 
+    item_key = body.get("item_key")
+    if isinstance(item_key, str) and item_key:
+        count = int(body.get("count") or 1)
+        sold, coins = await db.sell_inventory_batch(user["id"], item_key, count)
+        return web.json_response({"sold": sold, "coins": coins})
+
+    item_id = body.get("item_id")
     if not item_id or not isinstance(item_id, int):
         return web.json_response({"error": "invalid item_id"}, status=400)
 

@@ -1819,6 +1819,41 @@ class Database:
             )
             return result == "DELETE 1"
 
+    async def sell_inventory_batch(self, user_id: int, item_key: str, count: int) -> tuple[int, int]:
+        """Продаёт до `count` предметов с указанным item_key одной транзакцией.
+
+        Возвращает (проданное количество, суммарные монеты).
+        """
+        count = max(1, min(int(count), 500))
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                deleted = await conn.fetch(
+                    """
+                    DELETE FROM user_inventory
+                    WHERE id IN (
+                        SELECT id FROM user_inventory
+                        WHERE user_id = $1 AND item_key = $2
+                        ORDER BY acquired_at DESC
+                        LIMIT $3
+                    )
+                    RETURNING sell_price
+                    """,
+                    user_id, item_key, count,
+                )
+                total_coins = sum(r["sell_price"] for r in deleted)
+                if total_coins > 0:
+                    await conn.execute(
+                        """
+                        INSERT INTO user_currency (user_id, coins, stars, points, updated_at)
+                        VALUES ($1, $2, 0, 0, $3)
+                        ON CONFLICT (user_id) DO UPDATE SET
+                            coins = user_currency.coins + $2,
+                            updated_at = $3
+                        """,
+                        user_id, total_coins, datetime.utcnow().isoformat(),
+                    )
+                return len(deleted), total_coins
+
     # Quests methods
     # Ежедневные задания: прогресс и флаг completed сбрасываются при смене
     # календарного дня (quest_date хранит день в формате YYYY-MM-DD, UTC).
