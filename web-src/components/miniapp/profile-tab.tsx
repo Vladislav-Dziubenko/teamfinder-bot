@@ -408,7 +408,7 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-xs font-semibold">{step.name}</p>
                       <p className="text-[10px] text-muted-foreground">
-                        {step.invites} {declension(step.invites, "друг", "друга", "друзей")}
+                        {step.invites} {declension(step.invites, t("common.friend_one"), t("common.friend_few"), t("common.friend_many"))}
                       </p>
                     </div>
                     <span

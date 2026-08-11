@@ -562,7 +562,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 </p>
               </div>
             </div>
-            <p className="mt-2 text-[11px] text-[#ffd700]">Доход: 50-100 ⭐ каждый день · крутить во вкладке «Модель»</p>
+            <p className="mt-2 text-[11px] text-[#ffd700]">{t("cases.model_income_hint")}</p>
           </div>
         )}
         {inventory.length === 0 ? (
@@ -1198,7 +1198,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
 
         {totalJetCoins > 0 && (
           <div className="mx-5 mb-1 flex items-center justify-center gap-1 rounded-2xl border border-primary/30 bg-primary/10 py-2 text-sm font-bold text-primary">
-            <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" /> +{formatNum(totalJetCoins)} монет
+            <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" /> {t("cases.jet_coins", { coins: formatNum(totalJetCoins) })}
           </div>
         )}
 
@@ -1206,8 +1206,10 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
           <div className="mx-5 mb-1 rounded-2xl border border-[#4fc3f7]/50 bg-[#4fc3f7]/10 p-3 text-center">
             <p className="text-sm font-bold text-[#4fc3f7]">✈️ {tl(itemNameKey(jetItems[0]), jetItems[0].name)}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">
-              {jetItems.reduce((s, i) => s + (i.bonuses?.free_gold_opens ?? 0), 0)} премиум-открытий ·{" "}
-              {jetItems.reduce((s, i) => s + (i.bonuses?.searches ?? 0), 0)} анкет · топ в поиске
+              {t("cases.jet_bonuses", {
+                opens: jetItems.reduce((s, i) => s + (i.bonuses?.free_gold_opens ?? 0), 0),
+                searches: jetItems.reduce((s, i) => s + (i.bonuses?.searches ?? 0), 0),
+              })}
             </p>
           </div>
         )}
@@ -1215,7 +1217,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
         {jackpots.length > 0 && (
           <div className="mx-5 mb-1 rounded-2xl border border-[#ffd700]/50 bg-[#ffd700]/10 p-3 text-center">
             <p className="text-sm font-bold text-[#ffd700]">{modelState.meta?.icon ?? "💎"} {modelState.meta?.name ?? "Mini Boss bro"} #{jackpots[0].token ?? "?"}</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">10 000 ⭐ · роль · пожизненный премиум · доход 50-100 ⭐/день</p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">{t("cases.jackpot_rewards")}</p>
           </div>
         )}
 
