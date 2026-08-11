@@ -3476,6 +3476,10 @@ class Database:
                     "UPDATE pvp_challenges SET status = 'finished', winner_id = $1 WHERE id = $2",
                     winner_id, challenge_id,
                 )
+                # Реальная статистика: победителю +1 победа, обоим +1 сыгранный матч.
+                for uid in (row["creator_id"], row["opponent_id"]):
+                    await self.increment_user_stat(uid, "games_played", conn=conn)
+                await self.increment_user_stat(winner_id, "wins", conn=conn)
                 return True
 
     async def get_user_stats(self, user_id: int) -> dict:
@@ -3485,22 +3489,24 @@ class Database:
                 return {"search_count": 0, "contact_count": 0, "team_app_count": 0, "games_played": 0, "wins": 0}
             return dict(row)
 
-    async def increment_user_stat(self, user_id: int, stat: str, amount: int = 1) -> None:
+    async def increment_user_stat(self, user_id: int, stat: str, amount: int = 1,
+                                   conn: asyncpg.Connection | None = None) -> None:
         ALLOWED = {"search_count", "contact_count", "team_app_count", "games_played", "wins"}
         if stat not in ALLOWED:
             raise ValueError(f"Invalid stat column: {stat}")
         now = datetime.utcnow().isoformat()
-        async with self.pool.acquire() as conn:
-            await conn.execute(
-                f"""
-                INSERT INTO user_stats (user_id, {stat}, updated_at)
-                VALUES ($1, $2, $3)
-                ON CONFLICT (user_id) DO UPDATE SET
-                    {stat} = user_stats.{stat} + $2,
-                    updated_at = EXCLUDED.updated_at
-                """,
-                user_id, amount, now,
-            )
+        sql = f"""
+            INSERT INTO user_stats (user_id, {stat}, updated_at)
+            VALUES ($1, $2, $3)
+            ON CONFLICT (user_id) DO UPDATE SET
+                {stat} = user_stats.{stat} + $2,
+                updated_at = EXCLUDED.updated_at
+        """
+        if conn is None:
+            async with self.pool.acquire() as conn:
+                await conn.execute(sql, user_id, amount, now)
+        else:
+            await conn.execute(sql, user_id, amount, now)
 
     async def audit_log(self, user_id: int | None, action: str, details: str | None = None, ip: str | None = None) -> None:
         now = datetime.utcnow().isoformat()

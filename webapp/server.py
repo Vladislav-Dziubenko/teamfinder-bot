@@ -539,7 +539,7 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
 
     # Независимые запросы выполняются параллельно — пул max=10,
     # gather использует до 9 коннектов одновременно, остальные ждут.
-    currency, mini_profile, inventory, battlepass, streak, referral, achievements, premium_active, ad_state = await asyncio.gather(
+    currency, mini_profile, inventory, battlepass, streak, referral, achievements, premium_active, ad_state, user_stats = await asyncio.gather(
         db.get_currency(user["id"]),
         db.get_mini_app_profile(user["id"]),
         db.get_inventory(user["id"]),
@@ -549,6 +549,7 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
         db.get_user_achievements(user["id"]),
         db.is_pro(user["id"]),
         db.get_ad_watch_state(user["id"]),
+        db.get_user_stats(user["id"]),
     )
 
     # Кулдауны кейсов и бонусы jet-предметов.
@@ -593,8 +594,15 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
 
     consent = await db.get_consent(user["id"])
 
+    # Реальные данные для главной: уровень = прогресс батл-пасса по XP
+    # (число тиров, чей порог пройден), победы — из user_stats.
+    bp_xp = (battlepass or {}).get("bp_xp", 0) or 0
+    user_payload = dict(user)
+    user_payload["level"] = sum(1 for tier in BATTLE_PASS_TIERS if bp_xp >= (tier.get("xp") or 0))
+    user_payload["wins"] = (user_stats or {}).get("wins", 0)
+
     payload = {
-        "user": user,
+        "user": user_payload,
         "banned": banned,
         "ban_reason": (ban_info or {}).get("reason", ""),
         "ban_expires_at": (ban_info or {}).get("expires_at", ""),
