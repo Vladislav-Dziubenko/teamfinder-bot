@@ -1,11 +1,13 @@
 "use client"
 
-// Telegram Analytics SDK: инициализируется токеном из @BotFather
-// (NEXT_PUBLIC_TELEGRAM_ANALYTICS_TOKEN). Если токена нет — все вызовы
+// Telegram Analytics SDK: токен и appName получаются в TON Builders
+// (builders.ton.org → Analytics) или у @DataChief_bot.
+// В Render env: NEXT_PUBLIC_TELEGRAM_ANALYTICS_TOKEN и
+// NEXT_PUBLIC_TELEGRAM_ANALYTICS_APP_NAME. Пока их нет — все вызовы
 // тихо no-op, ничего не ломается.
 
 type TgAnalytics = {
-  init: (token: string, options?: Record<string, unknown>) => void
+  init: (options: { token: string; appName: string }) => void
   sendEvent: (event: string, data?: Record<string, unknown>) => void
 }
 
@@ -16,6 +18,7 @@ declare global {
 }
 
 const TOKEN = process.env.NEXT_PUBLIC_TELEGRAM_ANALYTICS_TOKEN || ""
+const APP_NAME = process.env.NEXT_PUBLIC_TELEGRAM_ANALYTICS_APP_NAME || ""
 
 let _inited = false
 
@@ -28,7 +31,7 @@ function loadSdk(): Promise<void> {
       return
     }
     const s = document.createElement("script")
-    s.src = "https://telegram.org/js/telegram-analytics.js"
+    s.src = "https://tganalytics.xyz/index.js"
     s.async = true
     s.onload = () => {
       _inited = true
@@ -50,7 +53,7 @@ export function sendAnalytics(event: string, data?: Record<string, unknown>): vo
     if (!_inited) {
       loadSdk().then(() => {
         try {
-          window.TelegramAnalytics?.init(TOKEN)
+          window.TelegramAnalytics?.init({ token: TOKEN, appName: APP_NAME })
           window.TelegramAnalytics?.sendEvent(event, payload)
         } catch {}
       })
