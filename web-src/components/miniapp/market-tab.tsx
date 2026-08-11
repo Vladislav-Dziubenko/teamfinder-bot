@@ -1,14 +1,15 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { Store, Coins, Search, Loader2, X, ShoppingCart, PackageX, Check } from "lucide-react"
+import { Store, Coins, Search, Loader2, X, ShoppingCart, PackageX, Check, Plus, Package } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
-import { useNexus } from "@/lib/store"
+import { useNexus, type InventoryItem } from "@/lib/store"
 import { rarityMeta } from "@/lib/data"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { formatNum } from "@/lib/format"
 import { itemNameKey } from "./cases-tab"
+import { MarketListSheet } from "./market-list-sheet"
 import type { Rarity } from "@/lib/data"
 
 type MarketListing = {
@@ -35,7 +36,7 @@ const RARITY_FILTERS: Rarity[] = ["common", "rare", "epic", "premium", "legendar
 
 export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
   const { t, tl } = useI18n()
-  const { coins, refresh, userId } = useNexus()
+  const { coins, refresh, userId, inventory } = useNexus()
   const [mode, setMode] = useState<"feed" | "mine">("feed")
   const [query, setQuery] = useState("")
   const [rarity, setRarity] = useState("")
@@ -45,6 +46,23 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
   const [buyingId, setBuyingId] = useState<number | null>(null)
   const [confirm, setConfirm] = useState<MarketListing | null>(null)
   const [cancelId, setCancelId] = useState<number | null>(null)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [listItem, setListItem] = useState<InventoryItem | null>(null)
+
+  // Стакаем предметы одного типа для пикера выставления.
+  const stackedInventory = useMemo(() => {
+    const map = new Map<string, { item: InventoryItem; count: number; totalSell: number }>()
+    for (const it of inventory) {
+      const g = map.get(it.key)
+      if (g) {
+        g.count++
+        g.totalSell += it.sell ?? 0
+      } else {
+        map.set(it.key, { item: it, count: 1, totalSell: it.sell ?? 0 })
+      }
+    }
+    return Array.from(map.values()).sort((a, b) => (b.item.sell ?? 0) - (a.item.sell ?? 0))
+  }, [inventory])
 
   const loadFeed = async () => {
     setLoading(true)
@@ -129,9 +147,24 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
           </h1>
           <p className="text-sm text-muted-foreground text-pretty">{t("market.subtitle")}</p>
         </div>
-        <span className="flex shrink-0 items-center gap-1 rounded-xl border border-border bg-card px-2.5 py-1.5 text-sm font-bold">
-          <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" /> {formatNum(coins)}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <span className="flex items-center gap-1 rounded-xl border border-border bg-card px-2.5 py-1.5 text-sm font-bold">
+            <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" /> {formatNum(coins)}
+          </span>
+          <button
+            type="button"
+            onClick={() => {
+              if (stackedInventory.length === 0) {
+                onToast(t("market.no_inventory"))
+                return
+              }
+              setPickerOpen(true)
+            }}
+            className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground transition-transform active:scale-95"
+          >
+            <Plus className="size-3.5" /> {t("market.list_btn")}
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card p-1">
@@ -207,6 +240,19 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
             <div className="rounded-3xl border border-dashed border-border py-12 text-center">
               <PackageX className="mx-auto size-8 text-muted-foreground" />
               <p className="mt-2 text-sm text-muted-foreground">{t("market.empty_feed")}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (stackedInventory.length === 0) {
+                    onToast(t("market.no_inventory"))
+                    return
+                  }
+                  setPickerOpen(true)
+                }}
+                className="mx-auto mt-4 flex items-center gap-1.5 rounded-2xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground active:scale-95"
+              >
+                <Plus className="size-4" /> {t("market.list_btn")}
+              </button>
             </div>
           )}
 
@@ -257,6 +303,19 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
             <div className="rounded-3xl border border-dashed border-border py-12 text-center">
               <PackageX className="mx-auto size-8 text-muted-foreground" />
               <p className="mt-2 text-sm text-muted-foreground">{t("market.empty_mine")}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (stackedInventory.length === 0) {
+                    onToast(t("market.no_inventory"))
+                    return
+                  }
+                  setPickerOpen(true)
+                }}
+                className="mx-auto mt-4 flex items-center gap-1.5 rounded-2xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground active:scale-95"
+              >
+                <Plus className="size-4" /> {t("market.list_btn")}
+              </button>
             </div>
           )}
           <div className="space-y-2">
@@ -346,6 +405,68 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
             </div>
           </div>
         </div>
+      )}
+      {/* Пикер: какой предмет выставить */}
+      {pickerOpen && (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-background/70 backdrop-blur-sm sm:items-center sm:p-6" onClick={() => setPickerOpen(false)}>
+          <div className="max-h-[80vh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-border bg-card p-5 pb-8 shadow-2xl sm:rounded-3xl sm:pb-5" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h3 className="flex items-center gap-2 font-display text-lg font-bold">
+                <Package className="size-5 text-primary" /> {t("market.pick_title")}
+              </h3>
+              <button type="button" onClick={() => setPickerOpen(false)} aria-label={t("common.close")} className="grid size-8 place-items-center rounded-full text-muted-foreground active:scale-90">
+                <X className="size-4" />
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">{t("market.pick_hint")}</p>
+            <div className="mt-3 space-y-2">
+              {stackedInventory.map(({ item, count, totalSell }) => (
+                <button
+                  key={item.uid}
+                  type="button"
+                  onClick={() => {
+                    setPickerOpen(false)
+                    setListItem(item)
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-border bg-secondary/40 p-3 text-left transition-colors active:bg-secondary"
+                >
+                  {item.image ? (
+                    <img src={item.image || "/placeholder.svg"} alt="" className="size-11 rounded-xl object-cover" />
+                  ) : (
+                    <span className="grid size-11 place-items-center rounded-xl bg-secondary text-2xl">{item.icon}</span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold">{tl(itemNameKey(item), item.name)}</p>
+                    <p className="text-[10px]" style={{ color: rarityMeta[item.rarity]?.color }}>
+                      {tl(`rarity.${item.rarity}`, rarityMeta[item.rarity]?.label ?? "")}
+                      {count > 1 ? ` · ×${count}` : ""}
+                    </p>
+                  </div>
+                  <span className="flex shrink-0 items-center gap-1 text-xs font-semibold text-muted-foreground">
+                    <Coins className="size-3.5" /> {formatNum(totalSell)}
+                  </span>
+                </button>
+              ))}
+              {stackedInventory.length === 0 && (
+                <p className="rounded-xl bg-secondary/50 px-3 py-3 text-center text-xs text-muted-foreground">{t("market.no_inventory")}</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Выставление на продажу */}
+      {listItem && (
+        <MarketListSheet
+          item={listItem}
+          onClose={() => setListItem(null)}
+          onToast={(m) => {
+            onToast(m)
+            setListItem(null)
+            if (mode === "feed") loadFeed()
+            else loadMine()
+          }}
+        />
       )}
     </div>
   )
