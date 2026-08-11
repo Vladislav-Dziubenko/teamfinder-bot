@@ -20,7 +20,7 @@ import { ConsentSheet } from "./consent-sheet"
 import { BannedSheet } from "./banned-sheet"
 import { LeaderboardSheet } from "./leaderboard-sheet"
 import { OnboardingSheet, isOnboardingDone, markOnboardingDone } from "./onboarding"
-import { openChatWithPlayer } from "@/lib/chat"
+import { openChatWithPlayer, chatIdForPair, getChatPlayer } from "@/lib/chat"
 import { api } from "@/lib/api"
 import { hapticTap } from "@/lib/webapp"
 import { analytics } from "@/lib/telegram-analytics"
@@ -126,10 +126,15 @@ function Shell() {
     try {
       let id: number | null = null
       let refCode: string | null = null
+      let chatDeep: { a: number; b: number } | null = null
       const wa = (window as any).Telegram?.WebApp
       const sp = wa?.initDataUnsafe?.start_param
       if (sp) {
-        if (sp.startsWith("profile_")) {
+        // deep-link на переписку из Telegram-уведомления: startapp=chat_<a>_<b>
+        const m = sp.match(/^chat_(\d+)_(\d+)$/)
+        if (m) {
+          chatDeep = { a: parseInt(m[1], 10), b: parseInt(m[2], 10) }
+        } else if (sp.startsWith("profile_")) {
           id = parseInt(sp.replace("profile_", ""), 10)
         } else {
           refCode = sp
@@ -145,7 +150,13 @@ function Shell() {
           window.history.replaceState({}, "", newUrl)
         }
       }
-      if (id && !isNaN(id)) setSharedProfileId(id)
+      if (chatDeep) {
+        const chatId = chatIdForPair(chatDeep.a, chatDeep.b)
+        setChatOpen({ chatId, player: (getChatPlayer(chatId) as Player | undefined) ?? ({} as Player) })
+        setTab("chat")
+      } else if (id && !isNaN(id)) {
+        setSharedProfileId(id)
+      }
       if (refCode) {
         api.post("/api/referral/claim", { code: refCode }).then(() => {
           setToast("🎉 Реферальная награда получена!")

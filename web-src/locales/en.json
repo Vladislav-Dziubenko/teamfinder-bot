@@ -420,6 +420,8 @@
   "profile.deco_title": "Card decoration",
   "profile.deco_hint": "· premium / battle pass",
   "profile.showcase": "Showcase: item shown in your profile",
+  "profile.tg_notify_title": "Telegram notifications",
+  "profile.tg_notify_subtitle": "New messages arrive in the bot's chat",
   "profile.level": "Level {level}",
   "profile.rank": "Rank",
   "profile.xp_to_next": "{xp}% to {next}",

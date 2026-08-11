@@ -25,6 +25,8 @@ from urllib.parse import urlencode, quote
 
 from aiohttp import web, ClientSession, ClientTimeout
 
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+
 from config import Settings
 from data.games import (
     GAMES, LOOKING_FOR, PLAYTIME,
@@ -539,7 +541,7 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
 
     # Независимые запросы выполняются параллельно — пул max=10,
     # gather использует до 9 коннектов одновременно, остальные ждут.
-    currency, mini_profile, inventory, battlepass, streak, referral, achievements, premium_active, ad_state, user_stats = await asyncio.gather(
+    currency, mini_profile, inventory, battlepass, streak, referral, achievements, premium_active, ad_state, user_stats, user_prefs = await asyncio.gather(
         db.get_currency(user["id"]),
         db.get_mini_app_profile(user["id"]),
         db.get_inventory(user["id"]),
@@ -550,6 +552,7 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
         db.is_pro(user["id"]),
         db.get_ad_watch_state(user["id"]),
         db.get_user_stats(user["id"]),
+        db.get_user_prefs(user["id"]),
     )
 
     # Кулдауны кейсов и бонусы jet-предметов.
@@ -624,6 +627,7 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
         "case_cooldowns": case_cooldowns,
         "free_gold_opens": free_gold_opens,
         "premium_active": premium_active,
+        "tg_notify": user_prefs.get("tg_notify", True) if user_prefs else True,
         "star_packs": [{"id": k, "stars": v["stars"], "perk": v["desc"], "title": v["title"]} for k, v in STAR_PACKS.items()],
         "battlepass_tiers": BATTLE_PASS_TIERS,
         "referral_reward": REFERRAL_REWARD,
@@ -707,6 +711,17 @@ async def handle_user_sync(request: web.Request):
         (body.get("last_name") or "").strip()[:128] or None,
     )
     return web.json_response({"ok": True})
+
+
+async def handle_tg_notify_pref(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
+    await db.set_tg_notify(user["id"], bool(body.get("enabled", True)))
+    return web.json_response({"ok": True, "tg_notify": bool(body.get("enabled", True))})
 
 
 async def handle_equip_skin(request: web.Request):
@@ -2479,6 +2494,65 @@ async def handle_chat_messages(request: web.Request):
     return web.json_response({"messages": messages, "status": status})
 
 
+async def _notify_tg_new_message(
+    request: web.Request,
+    db: Database,
+    other_id: int,
+    chat_id: str,
+    sender_nick: str,
+    text: str,
+) -> None:
+    """Push в Telegram о новом сообщении в личке.
+
+    Не шлём, если: у бота нет username/токена, получатель недавно был
+    активен в Mini App (он в приложении), замутил чат, отключил
+    уведомления или мы уже уведомляли его в этой переписке недавно.
+    """
+    try:
+        bot = request.app.get("bot")
+        if bot is None or not getattr(bot, "username", None):
+            return
+        prefs = await db.get_user_prefs(other_id)
+        if not prefs.get("tg_notify", True):
+            return
+        # Получатель недавно был в приложении — ему не нужно дублирование.
+        last_active = await db.pool.fetchval(
+            "SELECT last_active_at FROM users WHERE user_id = $1", other_id
+        )
+        if last_active:
+            try:
+                if datetime.utcnow() - datetime.fromisoformat(last_active) < timedelta(seconds=120):
+                    return
+            except (ValueError, TypeError):
+                pass
+        status = await db.get_chat_status(chat_id, other_id)
+        if status.get("muted") or status.get("blocked") or status.get("blocked_by_other"):
+            return
+        # Троттлинг: не чаще 1 пуша в 10 минут по переписке и 1 в 60 секунд всего.
+        if await cache_get(f"tgnot:{chat_id}:{other_id}"):
+            return
+        if await cache_get(f"tgnotg:{other_id}"):
+            return
+        preview = (text or "").strip().replace("\n", " ")[:120]
+        a, b = sorted([other_id, await db.pool.fetchval(
+            "SELECT sender_id FROM chat_messages WHERE chat_id = $1 ORDER BY id DESC LIMIT 1", chat_id
+        ) or other_id])
+        deep = f"https://t.me/{bot.username}?startapp=chat_{a}_{b}"
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💬 Открыть чат", url=deep)]
+        ])
+        ok = await bot.send_message(
+            other_id,
+            f"💬 <b>{sender_nick}</b>: {preview}",
+            reply_markup=markup,
+        )
+        if ok:
+            await cache_set(f"tgnot:{chat_id}:{other_id}", 1, ttl=600)
+            await cache_set(f"tgnotg:{other_id}", 1, ttl=60)
+    except Exception as e:
+        logging.warning("tg notify failed: %s", e)
+
+
 async def handle_chat_send(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -2496,6 +2570,14 @@ async def handle_chat_send(request: web.Request):
     msg = await db.send_message(chat_id, user["id"], text)
     # Сбрасываем кэш сообщений — чтобы poller сразу получил новое сообщение.
     await cache_delete_pattern(f"chat_msgs:{chat_id}")
+    # Telegram-уведомление собеседнику (фоново, без задержки ответа).
+    if status.get("other_id") is not None:
+        sender_nick = ""
+        try:
+            sender_nick = (await db.get_mini_app_profile(user["id"])).get("nick") or f"User{user['id']}"
+        except Exception:
+            pass
+        asyncio.create_task(_notify_tg_new_message(request, db, status["other_id"], chat_id, sender_nick, text))
     return web.json_response({"message": msg})
 
 
@@ -3532,6 +3614,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/profile/hide", handle_hide_profile)
     app.router.add_post("/api/profile/customize", handle_customize_profile)
     app.router.add_post("/api/profile/equip-skin", handle_equip_skin)
+    app.router.add_post("/api/prefs/tg-notify", handle_tg_notify_pref)
     app.router.add_get("/api/search/count", handle_search_count)
     app.router.add_get("/api/online", handle_online)
     app.router.add_post("/api/client-error", handle_client_error)

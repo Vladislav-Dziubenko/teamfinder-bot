@@ -1002,6 +1002,32 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Migration warning equipped_skin_v1: {e}")
 
+        # Telegram-уведомления: глобальный флаг opt-in/opt-out.
+        migration_name = "user_prefs_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS user_prefs (
+                            user_id BIGINT PRIMARY KEY,
+                            tg_notify BOOLEAN NOT NULL DEFAULT TRUE,
+                            updated_at TEXT
+                        )
+                        """
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning user_prefs_v1: {e}")
+
         # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
         try:
             await conn.execute("""
@@ -1996,6 +2022,28 @@ class Database:
                 user_id,
             )
             return [dict(r) for r in rows]
+
+    async def get_user_prefs(self, user_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT tg_notify FROM user_prefs WHERE user_id = $1",
+                user_id,
+            )
+            return {"tg_notify": bool(row["tg_notify"]) if row else True}
+
+    async def set_tg_notify(self, user_id: int, enabled: bool) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_prefs (user_id, tg_notify, updated_at)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    tg_notify = EXCLUDED.tg_notify,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                user_id, enabled, now,
+            )
 
     async def clear_equipped_skin_if_sold(self, user_id: int, item_key: str) -> None:
         """Если проданный предмет был выставлен в анкету — снимаем его с витрины."""

@@ -104,6 +104,7 @@ type MeResponse = {
   ban_reason?: string
   ban_expires_at?: string
   premium_active: boolean
+  tg_notify?: boolean
   promos?: Array<{
     code: string
     reward: { coins: number; stars: number; xp?: number }
@@ -143,6 +144,7 @@ type PersistedState = {
   deco: string
   unlockedDecos: string[]
   skin: string
+  tgNotify: boolean
   bpPremium: boolean
   bpXp: number
   claimedTiers: string[]
@@ -313,6 +315,7 @@ function defaultState(): PersistedState {
     deco: "orange",
     unlockedDecos: ["orange"],
     skin: "",
+    tgNotify: true,
     bpPremium: false,
     bpXp: 0,
     claimedTiers: [],
@@ -401,6 +404,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     deco: mini.deco || "orange",
     unlockedDecos: mini.unlocked_decos || ["orange"],
     skin: mini.equipped_skin || "",
+    tgNotify: me.tg_notify !== false,
     bpPremium: bp.bp_premium || false,
     bpXp: bp.bp_xp || 0,
     claimedTiers: bp.claimed_tiers || [],
@@ -519,6 +523,7 @@ type Nexus = PersistedState & {
   setBio: (v: string) => void
   setDeco: (v: string) => Promise<void>
   equipSkin: (itemKey: string) => Promise<void>
+  toggleTgNotify: (enabled: boolean) => Promise<void>
   saveProfile: () => Promise<void>
   buyBattlePass: () => Promise<boolean>
   claimTier: (key: string) => Promise<{ ok: boolean; error?: string }>
@@ -985,6 +990,14 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         console.error("equipSkin failed", e)
       }
     }
+    const toggleTgNotify = async (enabled: boolean) => {
+      setS((p: PersistedState) => ({ ...p, tgNotify: enabled }))
+      try {
+        await api.post("/api/prefs/tg-notify", { enabled })
+      } catch (e) {
+        console.error("toggleTgNotify failed", e)
+      }
+    }
     const saveProfile = async () => {
       try {
         await api.post("/api/profile/customize", { nick: s.nick, bio: s.bio, avatar: s.avatar, deco: s.deco })
@@ -1139,6 +1152,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       setBio,
       setDeco,
       equipSkin,
+      toggleTgNotify,
       saveProfile,
       buyBattlePass,
       claimTier,
@@ -1175,6 +1189,7 @@ export function useMe() {
       deco: nexus.deco,
       unlockedDecos: nexus.unlockedDecos,
       skin: nexus.skin,
+      tgNotify: nexus.tgNotify,
       stars: nexus.stars,
       coins: nexus.coins,
       points: nexus.points,

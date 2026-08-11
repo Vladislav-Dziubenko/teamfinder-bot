@@ -26,6 +26,7 @@ import {
   BookOpen,
   Moon,
   Sun,
+  Bell,
   Infinity as InfinityIcon,
 } from "lucide-react"
 import { api, openLink } from "@/lib/api"
@@ -93,6 +94,8 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
     wins,
     refresh,
     setGames,
+    tgNotify,
+    toggleTgNotify,
   } = useNexus()
   const { games: userGames } = useMe()
 
@@ -703,6 +706,32 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
           <p className="text-xs text-muted-foreground">{t("theme.subtitle")}</p>
         </div>
         <ThemeToggle />
+      </div>
+
+      {/* Telegram-уведомления: новые сообщения приходят в личку бота */}
+      <div className="flex w-full items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3.5">
+        <Bell className="size-5 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{t("profile.tg_notify_title")}</p>
+          <p className="text-xs text-muted-foreground">{t("profile.tg_notify_subtitle")}</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={tgNotify}
+          onClick={() => toggleTgNotify(!tgNotify)}
+          className={cn(
+            "relative h-7 w-12 shrink-0 rounded-full transition-colors active:scale-95",
+            tgNotify ? "bg-primary" : "bg-secondary",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-1 size-5 rounded-full bg-background shadow transition-all",
+              tgNotify ? "left-6" : "left-1",
+            )}
+          />
+        </button>
       </div>
 
       {/* Обучение: краткий гид по приложению */}
