@@ -265,7 +265,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
               {Array.isArray(achievements) && achievements.map((a) => (
                 <div key={a.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5">
                   <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary/60 text-xl">{a.icon}</span>
-                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{a.title}</p><p className="text-[11px] text-muted-foreground">{a.game}</p></div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{tl(`achievement.${a.id}.title`, a.title)}</p><p className="text-[11px] text-muted-foreground">{a.game}</p></div>
                   <span className="shrink-0 text-[11px] text-muted-foreground">{a.unlockedAt}</span>
                 </div>
               ))}

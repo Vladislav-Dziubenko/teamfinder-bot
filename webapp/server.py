@@ -1320,6 +1320,12 @@ QUESTS_CONFIG = [
     {"id": "do-searches-2", "title": "Сделай 30 поисков", "desc": "Найди тиммейтов 30 раз", "reward": "60 ⭐", "rewardStars": 60, "target": 30},
 ]
 
+ACHIEVEMENTS_CONFIG = [
+    {"id": "a1", "game": "CS:GO", "title": "Разминка на 35 минут", "desc": "Сыграй 35 минут в CS:GO", "minutes": 35, "progress": 35, "points": 100, "coins": 15, "withTeammate": False},
+    {"id": "a2", "game": "War Thunder", "title": "Танковый экипаж", "desc": "Сыграй 60 минут в War Thunder в отряде с тиммейтом из бота", "minutes": 60, "progress": 42, "points": 150, "coins": 35, "withTeammate": True},
+    {"id": "a3", "game": "Roblox", "title": "Соседи по Brookhaven", "desc": "Сыграй 120 минут в Roblox Brookhaven с тиммейтом", "minutes": 120, "progress": 30, "points": 220, "coins": 65, "withTeammate": True},
+]
+
 
 # Per-user locks to serialize case opens: prevents bursts of concurrent
 # transactions on the same user from exhausting the DB pool / entity locks.
@@ -2339,14 +2345,36 @@ async def handle_achievements(request: web.Request):
     return web.json_response({"achievements": rows})
 
 
+async def handle_achievements_list(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    rows = await db.get_user_achievements(user["id"])
+    claimed_map = {r["achievement_id"]: r for r in rows}
+    out = []
+    for a in ACHIEVEMENTS_CONFIG:
+        item = dict(a)
+        row = claimed_map.get(a["id"])
+        item["claimed"] = bool(row and row["claimed"])
+        item["claimedAt"] = (row or {}).get("claimed_at")
+        out.append(item)
+    return web.json_response({"achievements": out})
+
+
 async def handle_achievements_recent(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     rows = await db.get_user_achievements(user["id"])
     claimed = [r for r in rows if r["claimed"]]
     claimed.sort(key=lambda r: r["claimed_at"] or "", reverse=True)
+    conf = {a["id"]: a for a in ACHIEVEMENTS_CONFIG}
     return web.json_response([
-        {"id": r["achievement_id"], "title": r["achievement_id"], "game": "", "icon": "🏆", "unlockedAt": (r["claimed_at"] or "")[:10]}
+        {
+            "id": r["achievement_id"],
+            "title": conf.get(r["achievement_id"], {}).get("title", r["achievement_id"]),
+            "game": conf.get(r["achievement_id"], {}).get("game", ""),
+            "icon": "🏆",
+            "unlockedAt": (r["claimed_at"] or "")[:10],
+        }
         for r in claimed[:10]
     ])
 
@@ -3519,6 +3547,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/referral/claim", handle_referral_claim)
     app.router.add_post("/api/streak/claim", handle_streak_claim)
     app.router.add_get("/api/achievements", handle_achievements)
+    app.router.add_get("/api/achievements/list", handle_achievements_list)
     app.router.add_get("/api/achievements/recent", handle_achievements_recent)
     app.router.add_post("/api/achievements/claim", handle_achievements_claim)
     app.router.add_get("/api/leaderboard", handle_leaderboard)

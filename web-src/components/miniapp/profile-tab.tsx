@@ -59,7 +59,7 @@ const decorations = [
 ]
 
 export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => void; onToast: (m: string) => void; onGuide: () => void }) {
-  const { t } = useI18n()
+  const { t, tl } = useI18n()
   const me = useMe()
   const {
     stars,
@@ -528,8 +528,8 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
                       <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                         {a.game}
                       </span>
-                      <p className="mt-1.5 font-display text-sm font-bold leading-tight text-balance">{a.title}</p>
-                      <p className="text-[11px] text-muted-foreground text-pretty">{a.desc}</p>
+                      <p className="mt-1.5 font-display text-sm font-bold leading-tight text-balance">{tl(`achievement.${a.id}.title`, a.title)}</p>
+                      <p className="text-[11px] text-muted-foreground text-pretty">{tl(`achievement.${a.id}.desc`, a.desc)}</p>
                     </div>
                     <div className="shrink-0 text-right">
                       <p className="flex items-center justify-end gap-0.5 text-xs font-bold text-primary">
