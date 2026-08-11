@@ -982,6 +982,26 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Migration warning achievement_progress_v1: {e}")
 
+        # Витрина скинов: выбранный предмет из инвентаря показывается в анкете.
+        migration_name = "equipped_skin_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        "ALTER TABLE mini_app_profiles ADD COLUMN IF NOT EXISTS equipped_skin TEXT DEFAULT ''"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning equipped_skin_v1: {e}")
+
         # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
         try:
             await conn.execute("""
@@ -1977,6 +1997,13 @@ class Database:
             )
             return [dict(r) for r in rows]
 
+    async def clear_equipped_skin_if_sold(self, user_id: int, item_key: str) -> None:
+        """Если проданный предмет был выставлен в анкету — снимаем его с витрины."""
+        await self.pool.execute(
+            "UPDATE mini_app_profiles SET equipped_skin = '' WHERE user_id = $1 AND equipped_skin = $2",
+            user_id, item_key,
+        )
+
     async def remove_from_inventory(self, item_id: int, user_id: int) -> bool:
         async with self.pool.acquire() as conn:
             result = await conn.execute(
@@ -2017,6 +2044,11 @@ class Database:
                             updated_at = $3
                         """,
                         user_id, total_coins, datetime.utcnow().isoformat(),
+                    )
+                if deleted:
+                    await conn.execute(
+                        "UPDATE mini_app_profiles SET equipped_skin = '' WHERE user_id = $1 AND equipped_skin = $2",
+                        user_id, item_key,
                     )
                 return len(deleted), total_coins
 
@@ -2092,6 +2124,32 @@ class Database:
 
     # ---------- Mini App profile / customization ----------
 
+    async def equip_skin(self, user_id: int, item_key: str) -> bool:
+        """Выставляет предмет из инвентаря в анкету (витрина скинов).
+        Пустой item_key снимает витрину."""
+        item_key = (item_key or "").strip()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                if item_key:
+                    owned = await conn.fetchval(
+                        "SELECT COUNT(*) FROM user_inventory WHERE user_id = $1 AND item_key = $2",
+                        user_id, item_key,
+                    )
+                    if not owned:
+                        return False
+                now = datetime.utcnow().isoformat()
+                await conn.execute(
+                    """
+                    INSERT INTO mini_app_profiles (user_id, avatar, nick, bio, deco, unlocked_decos, games, updated_at, equipped_skin)
+                    VALUES ($1, NULL, NULL, NULL, 'orange', 'orange', '', $2, $3)
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        equipped_skin = EXCLUDED.equipped_skin,
+                        updated_at = EXCLUDED.updated_at
+                    """,
+                    user_id, now, item_key,
+                )
+                return True
+
     async def get_mini_app_profile(self, user_id: int) -> dict:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM mini_app_profiles WHERE user_id = $1", user_id)
@@ -2103,6 +2161,7 @@ class Database:
                     "deco": "orange",
                     "unlocked_decos": ["orange"],
                     "games": [],
+                    "equipped_skin": "",
                 }
             return {
                 "avatar": row["avatar"],
@@ -2111,6 +2170,7 @@ class Database:
                 "deco": row["deco"],
                 "unlocked_decos": row["unlocked_decos"].split(",") if row["unlocked_decos"] else ["orange"],
                 "games": row["games"].split(",") if row["games"] else [],
+                "equipped_skin": row["equipped_skin"] or "",
             }
 
     async def save_mini_app_profile(self, user_id: int, data: dict, conn: asyncpg.Connection | None = None) -> None:

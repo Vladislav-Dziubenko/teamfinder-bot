@@ -2,8 +2,9 @@
 
 import { Crosshair, Trophy, Clock, Zap, Lock, Star, Crown, Award, MessageCircle, Search } from "lucide-react"
 import type { Player } from "@/lib/data"
-import { games, roleL10nKey, rankL10nKey } from "@/lib/data"
+import { games, roleL10nKey, rankL10nKey, caseItemByKey } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
+import { useNexus } from "@/lib/store"
 
 export function PlayerCard({
   player,
@@ -21,6 +22,8 @@ export function PlayerCard({
   index?: number
 }) {
   const { t, tl } = useI18n()
+  const { lootCases } = useNexus()
+  const skinMeta = player.skin ? caseItemByKey(player.skin, lootCases) : undefined
   const game = games.find((g) => g.id === player.game)
 
   return (
@@ -51,6 +54,18 @@ export function PlayerCard({
             title="Discord connected"
           >
             🎧 Discord
+          </span>
+        )}
+
+        {/* витрина скинов: предмет, выставленный игроком */}
+        {skinMeta && (
+          <span className="absolute left-3 top-[4.7rem] flex max-w-[60%] items-center gap-1 truncate rounded-lg border border-border bg-background/70 px-2 py-1 text-[10px] font-bold backdrop-blur">
+            {skinMeta.icon ? (
+              <span className="text-xs leading-none">{skinMeta.icon}</span>
+            ) : skinMeta.image ? (
+              <img src={skinMeta.image} alt="" className="h-3.5 w-3.5 object-cover" />
+            ) : null}
+            <span className="truncate">{skinMeta.name}</span>
           </span>
         )}
 

@@ -32,7 +32,7 @@ import { api, openLink } from "@/lib/api"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
 import { useTheme } from "@/lib/theme"
 import { useNexus, useMe } from "@/lib/store"
-import { games, dailyStreakRewards } from "@/lib/data"
+import { games, dailyStreakRewards, caseItemByKey } from "@/lib/data"
 import { formatNum } from "@/lib/format"
 import type { TabId } from "./bottom-nav"
 import { DiscordSection } from "@/components/miniapp/discord-section"
@@ -61,6 +61,8 @@ const decorations = [
 export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => void; onToast: (m: string) => void; onGuide: () => void }) {
   const { t, tl } = useI18n()
   const me = useMe()
+  const { lootCases } = useNexus()
+  const skinMeta = me.skin ? caseItemByKey(me.skin, lootCases) : undefined
   const {
     stars,
     coins,
@@ -229,6 +231,19 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
                     </span>
                   )
                 })
+              )}
+              {skinMeta && (
+                <span
+                  className="inline-flex max-w-36 items-center gap-1 truncate rounded-full border border-stars/40 bg-stars/10 px-2 py-0.5 text-[11px] font-bold text-stars"
+                  title={t("profile.showcase")}
+                >
+                  {skinMeta.icon ? (
+                    <span className="text-xs leading-none">{skinMeta.icon}</span>
+                  ) : skinMeta.image ? (
+                    <img src={skinMeta.image} alt="" className="size-3.5 rounded-sm object-cover" />
+                  ) : null}
+                  <span className="truncate">{skinMeta.name}</span>
+                </span>
               )}
               <button
                 type="button"

@@ -74,6 +74,7 @@ type MeResponse = {
     deco: string
     unlocked_decos: string[]
     games: string[]
+    equipped_skin?: string
   }
   inventory: Array<{
     id: number
@@ -141,6 +142,7 @@ type PersistedState = {
   bio: string
   deco: string
   unlockedDecos: string[]
+  skin: string
   bpPremium: boolean
   bpXp: number
   claimedTiers: string[]
@@ -310,6 +312,7 @@ function defaultState(): PersistedState {
     bio: "",
     deco: "orange",
     unlockedDecos: ["orange"],
+    skin: "",
     bpPremium: false,
     bpXp: 0,
     claimedTiers: [],
@@ -397,6 +400,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     bio: mini.bio || "",
     deco: mini.deco || "orange",
     unlockedDecos: mini.unlocked_decos || ["orange"],
+    skin: mini.equipped_skin || "",
     bpPremium: bp.bp_premium || false,
     bpXp: bp.bp_xp || 0,
     claimedTiers: bp.claimed_tiers || [],
@@ -514,6 +518,7 @@ type Nexus = PersistedState & {
   setNick: (v: string) => void
   setBio: (v: string) => void
   setDeco: (v: string) => Promise<void>
+  equipSkin: (itemKey: string) => Promise<void>
   saveProfile: () => Promise<void>
   buyBattlePass: () => Promise<boolean>
   claimTier: (key: string) => Promise<{ ok: boolean; error?: string }>
@@ -971,6 +976,15 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         console.error("setDeco failed", e)
       }
     }
+    const equipSkin = async (itemKey: string) => {
+      setS((p: PersistedState) => ({ ...p, skin: itemKey }))
+      try {
+        await api.post("/api/profile/equip-skin", { item_key: itemKey })
+        await refresh()
+      } catch (e) {
+        console.error("equipSkin failed", e)
+      }
+    }
     const saveProfile = async () => {
       try {
         await api.post("/api/profile/customize", { nick: s.nick, bio: s.bio, avatar: s.avatar, deco: s.deco })
@@ -1124,6 +1138,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       setNick,
       setBio,
       setDeco,
+      equipSkin,
       saveProfile,
       buyBattlePass,
       claimTier,
@@ -1159,6 +1174,7 @@ export function useMe() {
       bio: nexus.bio,
       deco: nexus.deco,
       unlockedDecos: nexus.unlockedDecos,
+      skin: nexus.skin,
       stars: nexus.stars,
       coins: nexus.coins,
       points: nexus.points,

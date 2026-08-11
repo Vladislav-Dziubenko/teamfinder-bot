@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
-import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2, Play, Trophy } from "lucide-react"
+import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2, Play, Trophy, Shirt, Check } from "lucide-react"
 import { rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus, type InventoryItem } from "@/lib/store"
@@ -64,7 +64,7 @@ function itemPct(c: LootCase, item: CaseItem) {
 
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t, tl } = useI18n()
-  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, sellStack, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta, loaded, freeGoldOpens } = useNexus()
+  const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, sellStack, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta, loaded, freeGoldOpens, skin, equipSkin } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
@@ -574,6 +574,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
           <div className="grid grid-cols-2 gap-3">
             {sortedStacked.map(({ item, count, totalSell }) => {
               const pinned = pinnedKeys.includes(item.key)
+              const equipped = skin === item.key
               return (
                 <div
                   key={item.key}
@@ -606,6 +607,20 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                       📌
                     </button>
                   </div>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await equipSkin(equipped ? "" : item.key)
+                      onToast(equipped ? t("cases.skin_unequipped") : t("cases.skin_equipped"))
+                    }}
+                    className={cn(
+                      "mt-2.5 flex w-full items-center justify-center gap-1 rounded-xl border py-2 text-xs font-semibold active:scale-95",
+                      equipped ? "border-stars/40 bg-stars/15 text-stars" : "border-border bg-secondary/60 text-muted-foreground",
+                    )}
+                  >
+                    {equipped ? <Check className="size-3.5" /> : <Shirt className="size-3.5" />}
+                    {equipped ? t("cases.skin_unequip_btn") : t("cases.skin_equip_btn")}
+                  </button>
                   <button
                     type="button"
                     onClick={async () => {

@@ -709,6 +709,20 @@ async def handle_user_sync(request: web.Request):
     return web.json_response({"ok": True})
 
 
+async def handle_equip_skin(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
+    item_key = (body.get("item_key") or "").strip()
+    ok = await db.equip_skin(user["id"], item_key)
+    if not ok:
+        return web.json_response({"error": "skin not owned"}, status=400)
+    return web.json_response({"ok": True})
+
+
 async def handle_save_profile(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -822,7 +836,7 @@ async def handle_search(request: web.Request):
             where += " AND p.game = $2"
             params.append(game_filter)
         rows = await db.pool.fetch(
-            f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since,
+            f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, mp.equipped_skin, p.game, p.rank, p.role, p.searching_since,
                 EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id) AS has_discord
                 FROM users u
                 JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
@@ -838,6 +852,7 @@ async def handle_search(request: web.Request):
                 "user_id": r["user_id"],
                 "nick": r["nick"] or f"User{r['user_id']}",
                 "avatar": r["avatar"] or f"/player-{((r['user_id'] % 4) + 1)}.webp",
+                "skin": r["equipped_skin"] or "",
                 "game": r["game"] or "unknown",
                 "rank": r["rank"] or "",
                 "role": r["role"] or "",
@@ -864,7 +879,7 @@ async def handle_search(request: web.Request):
     if game_filter == "all" and query:
         d_where = "AND EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id)" if discord_filter else ""
         rows = await db.pool.fetch(
-            f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, p.game, p.rank, p.role, p.searching_since,
+            f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, mp.equipped_skin, p.game, p.rank, p.role, p.searching_since,
                 EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id) AS has_discord
                FROM users u
                LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
@@ -887,6 +902,7 @@ async def handle_search(request: web.Request):
                 "user_id": r["user_id"],
                 "nick": r["nick"] or f"User{r['user_id']}",
                 "avatar": r["avatar"] or f"/player-{((r['user_id'] % 4) + 1)}.webp",
+                "skin": r["equipped_skin"] or "",
                 "game": r["game"] or "unknown",
                 "rank": r["rank"] or "",
                 "role": r["role"] or "",
@@ -982,6 +998,7 @@ async def handle_search(request: web.Request):
             "user_id": p["user_id"],
             "nick": nick,
             "avatar": avatar,
+            "skin": mini_profile.get("equipped_skin") or "",
             "nickname": p["nickname"] if premium else "🔒 Скрыто",
             "game": p["game"],
             "rank": p["rank"],
@@ -1784,6 +1801,10 @@ async def handle_nexus_sell(request: web.Request):
             )
             if result != "DELETE 1":
                 return web.json_response({"error": "failed to sell"}, status=400)
+            await conn.execute(
+                "UPDATE mini_app_profiles SET equipped_skin = '' WHERE user_id = $1 AND equipped_skin = $2",
+                user["id"], item["item_key"],
+            )
             await conn.execute(
                 """
                 INSERT INTO user_currency (user_id, coins, stars, points, updated_at)
@@ -3510,6 +3531,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/profile", handle_save_profile)
     app.router.add_post("/api/profile/hide", handle_hide_profile)
     app.router.add_post("/api/profile/customize", handle_customize_profile)
+    app.router.add_post("/api/profile/equip-skin", handle_equip_skin)
     app.router.add_get("/api/search/count", handle_search_count)
     app.router.add_get("/api/online", handle_online)
     app.router.add_post("/api/client-error", handle_client_error)

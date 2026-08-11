@@ -88,6 +88,7 @@ export type Player = {
   reason?: "donor" | "veteran"
   fav_games?: string
   has_discord?: boolean
+  skin?: string
 }
 
 export const players: Player[] = [
@@ -403,6 +404,14 @@ export type LootCase = {
   free: boolean
   dailyLimit: number // сколько открытий в день
   items: CaseItem[]
+}
+
+export function caseItemByKey(key: string, lootCases: LootCase[]): CaseItem | undefined {
+  for (const c of lootCases) {
+    const found = c.items.find((i) => i.key === key)
+    if (found) return found
+  }
+  return undefined
 }
 
 // 6 иконок для игроков — по отдельности выбиваются из синего кейса, каждая по 20 монет
