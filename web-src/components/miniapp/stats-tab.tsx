@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   Clock, Search, Package, Users, Trophy, Sparkles,
   Medal, ChevronRight, Loader2, Gamepad2, Eye, Gift,
-  BarChart3, Calendar,
+  BarChart3, Calendar, History, Crown, ArrowDownUp,
 } from "lucide-react"
 import {
   getGeneralStats, useRecentAchievements, useRankInfo,
@@ -12,6 +12,9 @@ import {
 } from "@/lib/stats"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
+import { api } from "@/lib/api"
+import { useNexus } from "@/lib/store"
+import { rarityMeta } from "@/lib/data"
 
 type Period = 1 | 7 | 30
 
@@ -26,11 +29,25 @@ const GAME_ICONS: Record<string, string> = {
   " Fortnite": "🏗️",
 }
 
+type CaseOpenRecord = {
+  case_id: string
+  case_name: string
+  opened_at: string
+  item_key: string
+  item_name: string
+  rarity: string
+  image?: string
+  icon?: string
+  kind?: string
+}
+
 export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void }) {
   const { t } = useI18n()
   const [period, setPeriod] = useState<Period>(30)
   const [stats, setStats] = useState<GeneralStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [history, setHistory] = useState<CaseOpenRecord[] | null>(null)
+  const { lootCases } = useNexus()
 
   const achievements = useRecentAchievements()
   const rank = useRankInfo()
@@ -42,6 +59,24 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [period])
+
+  useEffect(() => {
+    api.get("/api/nexus/cases/history").then((d: any) => setHistory(d.history ?? [])).catch(() => setHistory([]))
+  }, [])
+
+  const tierList = useMemo(() => {
+    const items: { key: string; name: string; rarity: string; sell: number; image?: string; icon?: string; kind?: string }[] = []
+    for (const c of lootCases) {
+      for (const it of c.items ?? []) {
+        if (items.some((x) => x.key === it.key)) continue
+        items.push({ key: it.key, name: it.name, rarity: it.rarity, sell: it.sell ?? 0, image: it.image, icon: it.icon, kind: it.kind })
+      }
+    }
+    return items
+      .filter((i) => (i.sell ?? 0) > 0)
+      .sort((a, b) => b.sell - a.sell)
+      .slice(0, 30)
+  }, [lootCases])
 
   return (
     <div className="space-y-4 px-4 py-5">
@@ -154,6 +189,75 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
             <ChevronRight className="size-5 shrink-0 text-muted-foreground" />
           </button>
 
+          {/* Тир-лист скинов */}
+          {tierList.length > 0 && (
+            <section className="rounded-3xl border border-border bg-card p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <Crown className="size-4 text-stars" />
+                <h2 className="font-display text-base font-bold">Тир-лист скинов</h2>
+              </div>
+              <div className="space-y-1.5">
+                {tierList.map((it, i) => {
+                  const meta = rarityMeta[it.rarity as keyof typeof rarityMeta] ?? rarityMeta.common
+                  return (
+                    <div key={it.key} className="flex items-center gap-3 rounded-xl bg-secondary/30 px-3 py-2">
+                      <span className="w-7 shrink-0 text-center font-display text-xs font-bold text-muted-foreground">
+                        {i + 1}
+                      </span>
+                      <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-background/60">
+                        {it.image ? <img src={it.image} alt="" className="size-6 object-contain" /> : <span className="text-base">{it.icon ?? "🎁"}</span>}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{it.name}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wide" style={{ color: meta.color }}>
+                          {meta.label}
+                        </p>
+                      </div>
+                      <span className="flex shrink-0 items-center gap-1 font-display text-sm font-bold">
+                        <img src="/nexus-coin.webp" alt="" className="size-3.5 rounded-full" /> {it.sell.toLocaleString("ru-RU")}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+          )}
+
+          {/* История открытий кейсов */}
+          <section>
+            <div className="mb-2 flex items-center gap-2">
+              <History className="size-4 text-primary" />
+              <h2 className="font-display text-base font-bold">История кейсов</h2>
+            </div>
+            {history === null ? (
+              <p className="text-sm text-muted-foreground">Загрузка...</p>
+            ) : history.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Пока нет открытий</p>
+            ) : (
+              <div className="space-y-2">
+                {history.map((h, i) => {
+                  const meta = rarityMeta[h.rarity as keyof typeof rarityMeta] ?? rarityMeta.common
+                  return (
+                    <div key={i} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2.5">
+                      <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-secondary/60">
+                        {h.image ? <img src={h.image} alt="" className="size-8 object-contain" /> : <span className="text-lg">{h.icon ?? "🎁"}</span>}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold">{h.item_name}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {h.case_name} · {formatDate(h.opened_at)}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-[10px] font-bold uppercase" style={{ color: meta.color }}>
+                        {meta.label}
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
           {/* Recent achievements */}
           <section>
             <div className="mb-2 flex items-center gap-2"><Sparkles className="size-4 text-primary" /><h2 className="font-display text-base font-bold">Последние достижения</h2></div>
@@ -226,4 +330,19 @@ function declension(n: number, one: string, few: string, many: string): string {
   if (mod10 === 1) return one
   if (mod10 >= 2 && mod10 <= 4) return few
   return many
+}
+
+function formatDate(iso: string): string {
+  if (!iso) return ""
+  try {
+    const d = new Date(iso)
+    const now = new Date()
+    const diff = now.getTime() - d.getTime()
+    if (diff < 60_000) return "только что"
+    if (diff < 3600_000) return `${Math.floor(diff / 60_000)} мин назад`
+    if (diff < 86_400_000) return `${Math.floor(diff / 3600_000)} ч назад`
+    return d.toLocaleDateString("ru-RU", { day: "numeric", month: "short" })
+  } catch {
+    return iso
+  }
 }

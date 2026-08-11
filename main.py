@@ -66,6 +66,10 @@ async def main():
         # Последний: апелляции забаненных (без фильтров — только «неизвестный» текст)
         dp.include_router(appeal.router)
 
+        # Фоновые push-уведомления (тир пасса готов, возврат за бонусом)
+        from handlers.notifier import notifier_loop
+        asyncio.create_task(notifier_loop(bot, db, interval_seconds=1800))
+
         # ---- Шаг 3: создаём приложение, регистрируем роуты ----
         web_app = create_app(db, settings, bot)
         web_app["db_ready"] = False

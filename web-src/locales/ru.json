@@ -150,6 +150,8 @@
   "cases.premium_activated": "Премиум активирован!",
   "cases.sell_hint": "Продать можно за {cost} монет",
   "cases.collect": "Забрать в инвентарь",
+  "cases.share_drop": "Поделиться дропом",
+  "cases.share_loading": "Готовим картинку…",
   "cases.drop_chance_item": "Шанс этого предмета: {pct}",
   "cases.opening": "Открываем",
   "rarity.common": "Обычный",

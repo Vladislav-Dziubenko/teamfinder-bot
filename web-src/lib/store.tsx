@@ -95,6 +95,7 @@ type MeResponse = {
   referral_bot_url: string
   direct_app_url: string
   referral_reward: { coins: number; stars: number }
+  referral_ladder: { invites: number; key: string; name: string; rarity: string; image?: string }[]
   battlepass_price_stars: number
   battlepass_xp_per_level: number
   default_promo_codes: PromoCode[]
@@ -147,6 +148,7 @@ type PersistedState = {
   dailyStreakRewards: { day: number; coins: number }[]
   starPacks: StarPack[]
   referralReward: { coins: number; stars: number }
+  referralLadder: { invites: number; key: string; name: string; rarity: string; image?: string }[]
   games: string[]
   modelState: ModelState
   betaBalance: number
@@ -311,6 +313,7 @@ function defaultState(): PersistedState {
     dailyStreakRewards: [],
     starPacks: [],
     referralReward: { coins: 0, stars: 0 },
+    referralLadder: [],
     games: [],
     userId: 0,
     role: "",
@@ -399,6 +402,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     dailyStreakRewards: me.daily_streak_rewards || [],
     starPacks: me.star_packs || [],
     referralReward: me.referral_reward || { coins: 50, stars: 5 },
+    referralLadder: me.referral_ladder || [],
     games: me.mini_profile?.games || [],
     modelState: modelState || { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
     betaBalance: me.beta_state?.case_balance ?? 0,

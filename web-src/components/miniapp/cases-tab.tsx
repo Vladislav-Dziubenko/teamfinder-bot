@@ -6,6 +6,7 @@ import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Lo
 import { rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus, type InventoryItem } from "@/lib/store"
+import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { tick, win as winSfx, whoosh, setMuted, isMuted, ensureAudio } from "@/lib/sfx"
 import { formatNum } from "@/lib/format"
@@ -908,6 +909,36 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
   const isJet = item.kind === "jet"
   const b = item.bonuses ?? {}
   const isLegendary = item.rarity === "legendary"
+  const [sharing, setSharing] = useState(false)
+
+  async function shareDrop() {
+    if (sharing) return
+    setSharing(true)
+    try {
+      const blob = await api.postBlob("/api/nexus/cases/share-image", {
+        item: { name: tl(itemNameKey(item), item.name), rarity: item.rarity, icon: item.icon, image: item.image },
+        case: { name: tl(caseNameKey(box), box.name) },
+      })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.href = url
+      link.download = "teamfinder-drop.png"
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 5000)
+    } catch {
+      // fallback: просто текст в буфер
+      const text = `Я выбил ${tl(itemNameKey(item), item.name)} из кейса ${tl(caseNameKey(box), box.name)} в TeamFinder! 🔥`
+      try {
+        await navigator.clipboard.writeText(text)
+      } catch {
+        /* noop */
+      }
+    } finally {
+      setSharing(false)
+    }
+  }
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/80 px-6 backdrop-blur-sm">
       {isJackpot && <JackpotBurst onDone={() => {}} />}
@@ -1038,6 +1069,14 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
           )}
         >
           {isJackpot ? t("cases.jackpot_collect") : t("cases.collect")}
+        </button>
+        <button
+          type="button"
+          onClick={shareDrop}
+          disabled={sharing}
+          className="mt-2 w-full rounded-2xl border border-border bg-secondary/50 py-3 text-sm font-semibold text-muted-foreground active:scale-[0.98] disabled:opacity-50"
+        >
+          {sharing ? t("cases.share_loading") : `📤 ${t("cases.share_drop")}`}
         </button>
       </div>
     </div>

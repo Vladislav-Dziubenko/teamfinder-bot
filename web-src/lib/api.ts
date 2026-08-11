@@ -122,6 +122,23 @@ async function request(method: string, path: string, body?: unknown, attempt = 0
 export const api = {
   get: <T = any>(path: string): Promise<T> => request("GET", path) as Promise<T>,
   post: <T = any>(path: string, body?: unknown): Promise<T> => request("POST", path, body) as Promise<T>,
+  postBlob: async (path: string, body?: unknown): Promise<Blob> => {
+    const headers: Record<string, string> = {
+      "X-Telegram-Init-Data": getInitData(),
+      "Content-Type": "application/json",
+    }
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body ?? {}),
+    })
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status}`) as any
+      err.status = res.status
+      throw err
+    }
+    return res.blob()
+  },
 }
 
 export function openTelegramLink(url: string): void {

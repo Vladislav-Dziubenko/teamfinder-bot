@@ -104,6 +104,13 @@ DAILY_STREAK_REWARDS = [
 
 REFERRAL_REWARD = {"coins": 50, "stars": 5}
 
+# Инвайт-лестница: скин за число приглашённых друзей (каждая ступень один раз)
+REFERRAL_LADDER = [
+    {"invites": 1, "key": "ladder-ak47", "name": "Скин AK-47 (инвайт)", "rarity": "rare", "image": "/ak47.webp", "sell": 15},
+    {"invites": 3, "key": "ladder-premium", "name": "Премиум-анкета (инвайт)", "rarity": "premium", "image": "/premium-reveal.webp", "sell": 100},
+    {"invites": 5, "key": "ladder-nexus", "name": "Премиум средний (инвайт)", "rarity": "epic", "image": "/premium-x4.webp", "sell": 75},
+]
+
 # Пакеты монет за Telegram Stars (магазин Nexus)
 COIN_PACKS = [
     {"id": "c1", "coins": 50, "stars": 13},

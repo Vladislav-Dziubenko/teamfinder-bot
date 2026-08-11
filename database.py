@@ -219,6 +219,7 @@ CREATE TABLE IF NOT EXISTS referrals (
     invited_count INTEGER DEFAULT 0,
     referral_earned_coins INTEGER DEFAULT 0,
     referred_by BIGINT,
+    ladder_claimed TEXT DEFAULT '[]',
     updated_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
@@ -237,6 +238,14 @@ CREATE TABLE IF NOT EXISTS user_achievements (
     claimed INTEGER DEFAULT 0,
     claimed_at TEXT,
     PRIMARY KEY (user_id, achievement_id),
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
+CREATE TABLE IF NOT EXISTS user_notifications (
+    user_id BIGINT NOT NULL,
+    kind TEXT NOT NULL,
+    last_sent_at TEXT,
+    PRIMARY KEY (user_id, kind),
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
@@ -716,6 +725,12 @@ class Database:
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_welcome_at TEXT")
         except asyncpg.PostgresError as e:
             print(f"Migration warning for users.discord_welcome_at: {e}")
+
+        # Referral invite ladder: granted skin rewards per invited friend count
+        try:
+            await conn.execute("ALTER TABLE referrals ADD COLUMN IF NOT EXISTS ladder_claimed TEXT DEFAULT '[]'")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning for referrals.ladder_claimed: {e}")
 
         # Data migration: older promo_codes tables used column name `reward` instead of `reward_json`
         if await self._column_exists(conn, "promo_codes", "reward") and await self._column_exists(conn, "promo_codes", "reward_json"):
@@ -1390,6 +1405,25 @@ class Database:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow("SELECT user_id FROM discord_connections WHERE discord_id = $1", str(discord_id))
             return row["user_id"] if row else None
+
+    async def mark_notification_sent(self, user_id: int, kind: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO user_notifications (user_id, kind, last_sent_at)
+                VALUES ($1, $2, $3)
+                ON CONFLICT (user_id, kind) DO UPDATE SET last_sent_at = EXCLUDED.last_sent_at
+                """,
+                user_id, kind, datetime.utcnow().isoformat(),
+            )
+
+    async def get_last_notification(self, user_id: int, kind: str) -> str | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT last_sent_at FROM user_notifications WHERE user_id = $1 AND kind = $2",
+                user_id, kind,
+            )
+            return row["last_sent_at"] if row else None
 
     async def create_oauth_state(self, state: str, telegram_user_id: int) -> None:
         async with self.pool.acquire() as conn:
@@ -2348,6 +2382,47 @@ class Database:
                     stars=referral_reward.get("stars", 0),
                 )
                 return True
+
+    async def claim_referral_ladder(self, user_id: int, ladder: list[dict]) -> dict | None:
+        """Инвайт-лестница: выдаёт скин за достигнутое число приглашённых друзей.
+
+        ladder — список порогов [{invites, key, name, rarity, image, sell}, ...],
+        отсортированный по invites. Каждая ступень выдаётся один раз
+        (хранится в referrals.ladder_claimed как JSON-массив ключей).
+        """
+        import json
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT invited_count, ladder_claimed FROM referrals WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                if not row:
+                    return None
+                claimed = set()
+                try:
+                    claimed = set(json.loads(row["ladder_claimed"] or "[]"))
+                except Exception:
+                    claimed = set()
+                granted = None
+                for step in sorted(ladder, key=lambda s: s["invites"]):
+                    if step["invites"] <= row["invited_count"] and step["key"] not in claimed:
+                        await conn.execute(
+                            """
+                            INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, grants_premium, acquired_at)
+                            VALUES ($1, $2, $3, $4, $5, 0, $6)
+                            """,
+                            user_id, step["key"], step["name"], step["rarity"], step.get("sell", 0), now,
+                        )
+                        claimed.add(step["key"])
+                        granted = step
+                if granted is not None:
+                    await conn.execute(
+                        "UPDATE referrals SET ladder_claimed = $1, updated_at = $2 WHERE user_id = $3",
+                        json.dumps(sorted(claimed)), now, user_id,
+                    )
+                return granted
 
     async def settle_referral_reward(self, referred_user_id: int, referral_reward: dict) -> bool:
         """Выплачивает награду рефереру, если реферал «созрел» (антифрод).

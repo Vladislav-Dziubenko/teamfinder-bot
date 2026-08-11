@@ -78,6 +78,7 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
     referralCode,
     referralBotUrl,
     referralReward,
+    referralLadder,
     simulateInvite,
     streakDay,
     lastStreakAt,
@@ -378,6 +379,46 @@ export function ProfileTab({ onGo, onToast }: { onGo: (tab: TabId) => void; onTo
             <p className="mt-0.5 text-[11px] text-muted-foreground">{t("profile.referral_earned")}</p>
           </div>
         </div>
+
+        {/* Invite ladder: скины за приглашённых друзей */}
+        {referralLadder.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            {[...referralLadder]
+              .sort((a, b) => a.invites - b.invites)
+              .map((step) => {
+                const reached = invitedCount >= step.invites
+                return (
+                  <div
+                    key={step.key}
+                    className={`flex items-center gap-2.5 rounded-2xl border px-3 py-2 ${
+                      reached ? "border-accent/40 bg-accent/10" : "border-border bg-background/30 opacity-60"
+                    }`}
+                  >
+                    <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-secondary/60 text-sm">
+                      {step.image ? (
+                        <img src={step.image} alt="" className="size-6 object-contain" />
+                      ) : (
+                        "🎁"
+                      )}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-semibold">{step.name}</p>
+                      <p className="text-[10px] text-muted-foreground">
+                        {step.invites} {declension(step.invites, "друг", "друга", "друзей")}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 text-[10px] font-bold ${
+                        reached ? "text-accent" : "text-muted-foreground"
+                      }`}
+                    >
+                      {reached ? "✓" : `${invitedCount}/${step.invites}`}
+                    </span>
+                  </div>
+                )
+              })}
+          </div>
+        )}
 
         <div className="mt-3 flex items-center gap-2 rounded-2xl border border-border bg-background/40 px-3 py-2.5">
           <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
@@ -730,6 +771,15 @@ function GamePicker({ selected, onSave, onClose }: { selected: string[]; onSave:
       </div>
     </div>
   )
+}
+
+function declension(n: number, one: string, few: string, many: string): string {
+  const mod10 = n % 10
+  const mod100 = n % 100
+  if (mod100 >= 11 && mod100 <= 19) return many
+  if (mod10 === 1) return one
+  if (mod10 >= 2 && mod10 <= 4) return few
+  return many
 }
 
 

@@ -29,7 +29,7 @@ from config import Settings
 from data.games import (
     GAMES, LOOKING_FOR, PLAYTIME,
     BATTLE_PASS_TIERS, BATTLE_PASS_XP_PER_LEVEL, BATTLE_PASS_PRICE_STARS,
-    DAILY_STREAK_REWARDS, REFERRAL_REWARD, COIN_PACKS, DEFAULT_PROMO_CODES,
+    DAILY_STREAK_REWARDS, REFERRAL_REWARD, REFERRAL_LADDER, COIN_PACKS, DEFAULT_PROMO_CODES,
 )
 from data.guides import GUIDES
 from database import Database
@@ -615,6 +615,7 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
         "star_packs": [{"id": k, "stars": v["stars"], "perk": v["desc"], "title": v["title"]} for k, v in STAR_PACKS.items()],
         "battlepass_tiers": BATTLE_PASS_TIERS,
         "referral_reward": REFERRAL_REWARD,
+        "referral_ladder": REFERRAL_LADDER,
         "referral_bot_url": referral_bot_url,
         "direct_app_url": direct_app_url,
         "promos": promo_data["codes"],
@@ -1574,6 +1575,135 @@ async def handle_nexus_open_case(request: web.Request):
     })
 
 
+async def handle_nexus_share_image(request: web.Request):
+    """Генерирует PNG-карточку дропа для шеринга в соцсети."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    item = body.get("item") or {}
+    case = body.get("case") or {}
+
+    item_name = item.get("name") or "Награда"
+    rarity = item.get("rarity") or "common"
+    icon = item.get("icon") or "🎁"
+    image = item.get("image")
+    case_name = case.get("name") or "Nexus case"
+
+    rarity_colors = {
+        "common": "#9ca3af",
+        "rare": "#38bdf8",
+        "epic": "#a855f7",
+        "premium": "#eab308",
+        "legendary": "#ffd700",
+    }
+    color = rarity_colors.get(rarity, "#9ca3af")
+
+    try:
+        from PIL import Image, ImageDraw, ImageFont
+
+        W, H = 1080, 1350
+        img = Image.new("RGB", (W, H), (10, 10, 16))
+        draw = ImageDraw.Draw(img)
+
+        def _font(size: int) -> ImageFont.ImageFont:
+            for candidate in (
+                "C:\\Windows\\Fonts\\segoeui.ttf",
+                "C:\\Windows\\Fonts\\arial.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+            ):
+                try:
+                    return ImageFont.truetype(candidate, size)
+                except Exception:
+                    continue
+            return ImageFont.load_default()
+
+        font_big = _font(64)
+        font_mid = _font(44)
+        font_small = _font(34)
+
+        # Title
+        draw.text((60, 70), "NEXUS CASE", font=_font(36), fill="#6b7280")
+        draw.text((60, 120), case_name, font=font_big, fill="#f3f4f6")
+
+        # Card background
+        card = Image.new("RGBA", (W - 120, 620), (24, 24, 34, 255))
+        card_draw = ImageDraw.Draw(card)
+        card_draw.rounded_rectangle([0, 0, card.width, card.height], radius=40, fill=(24, 24, 34, 255), outline=color, width=6)
+        img.paste(card, (60, 260), card)
+
+        # Item image or emoji
+        item_img = None
+        if image:
+            try:
+                base = Path(__file__).parent / "static"
+                p = base / image.lstrip("/")
+                if p.exists():
+                    item_img = Image.open(p).convert("RGBA")
+                    ratio = min(480 / item_img.width, 480 / item_img.height)
+                    item_img = item_img.resize((int(item_img.width * ratio), int(item_img.height * ratio)))
+            except Exception:
+                item_img = None
+        if item_img:
+            img.paste(item_img, (W // 2 - item_img.width // 2, 330), item_img)
+        else:
+            draw.text((W // 2 - 120, 430), icon, font=_font(220), anchor="mm")
+
+        # Item name
+        draw.text((60, 980), item_name, font=font_big, fill="#ffffff", anchor="mm")
+
+        # Rarity
+        draw.text((60, 1100), rarity.upper(), font=font_mid, fill=color, anchor="mm")
+
+        # Footer
+        draw.text((60, 1220), "TeamFinder · найди тиммейтов", font=font_small, fill="#9ca3af", anchor="mm")
+
+        import io
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        buf.seek(0)
+        return web.Response(body=buf.getvalue(), content_type="image/png")
+    except Exception as e:
+        logging.warning(f"[share_image] failed: {e}")
+        return web.json_response({"error": "image generation failed"}, status=500)
+
+
+async def handle_nexus_cases_history(request: web.Request):
+    """История открытий юзера (последние 20) с именами предметов."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    rows = await db.pool.fetch(
+        """
+        SELECT co.case_id, co.opened_at, co.item_key
+        FROM case_opens co
+        WHERE co.user_id = $1
+        ORDER BY co.opened_at DESC, co.id DESC
+        LIMIT 20
+        """,
+        user["id"],
+    )
+    items_map: dict[str, dict] = {}
+    for cfg in CASES_CONFIG.values():
+        for it in cfg["items"]:
+            items_map[it["key"]] = it
+    history = []
+    for r in rows:
+        item = items_map.get(r["item_key"]) or {}
+        case = CASES_CONFIG.get(r["case_id"]) or {}
+        history.append({
+            "case_id": r["case_id"],
+            "case_name": case.get("name") or "Nexus",
+            "opened_at": r["opened_at"],
+            "item_key": r["item_key"],
+            "item_name": item.get("name") or r["item_key"],
+            "rarity": item.get("rarity") or "common",
+            "image": item.get("image"),
+            "icon": item.get("icon"),
+            "kind": item.get("kind", "inventory"),
+        })
+    return web.json_response({"history": history})
+
+
 async def handle_nexus_inventory(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -2146,7 +2276,14 @@ async def handle_referral_claim(request: web.Request):
     if not ok:
         return web.json_response({"error": "referral reward already claimed"}, status=400)
 
-    return web.json_response({"ok": True, "reward": REFERRAL_REWARD})
+    # Инвайт-лестница: скин за приглашённых друзей (выдаёт ступень, если достигнут порог)
+    granted = None
+    try:
+        granted = await db.claim_referral_ladder(referrer_user_id, REFERRAL_LADDER)
+    except Exception as e:
+        logging.warning(f"[referral] ladder claim failed: {e}")
+
+    return web.json_response({"ok": True, "reward": REFERRAL_REWARD, "ladder_granted": granted})
 
 
 async def handle_streak_claim(request: web.Request):
@@ -3313,6 +3450,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/nexus/balance", handle_nexus_balance)
     app.router.add_get("/api/nexus/cases", handle_nexus_cases)
     app.router.add_post("/api/nexus/cases/open", handle_nexus_open_case)
+    app.router.add_get("/api/nexus/cases/history", handle_nexus_cases_history)
+    app.router.add_post("/api/nexus/cases/share-image", handle_nexus_share_image)
     app.router.add_get("/api/nexus/inventory", handle_nexus_inventory)
     app.router.add_post("/api/nexus/inventory/sell", handle_nexus_sell)
     app.router.add_get("/api/nexus/quests", handle_nexus_quests)

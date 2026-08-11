@@ -156,6 +156,8 @@
   "cases.premium_activated": "Premium activated!",
   "cases.sell_hint": "Can be sold for {cost} coins",
   "cases.collect": "Collect to inventory",
+  "cases.share_drop": "Share drop",
+  "cases.share_loading": "Preparing image…",
   "cases.drop_chance_item": "This item chance: {pct}",
   "cases.opening": "Opening",
   "rarity.common": "Common",
