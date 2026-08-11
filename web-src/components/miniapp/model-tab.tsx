@@ -1,12 +1,20 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Gem, Send, Star, Loader2, Wallet, Crown, RefreshCw } from "lucide-react"
+import { Gem, Send, Star, Loader2, Wallet, Crown, RefreshCw, History, EyeOff } from "lucide-react"
 import { useNexus } from "@/lib/store"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
-function ModelViewer() {
+function fmtDateTime(iso: string, lang: string): string {
+  try {
+    return new Date(iso).toLocaleString(lang, { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+  } catch {
+    return iso
+  }
+}
+
+function ModelViewer({ src = "/nexus-model.glb" }: { src?: string }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [ready, setReady] = useState(false)
 
@@ -51,7 +59,7 @@ function ModelViewer() {
 
       const loader = new GLTFLoader()
       loader.load(
-        "/nexus-model.glb",
+        src,
         (gltf: any) => {
           if (disposed) return
           model = gltf.scene
@@ -111,14 +119,17 @@ function ModelViewer() {
 }
 
 export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
-  const { t } = useI18n()
-  const { modelState, stars, listModel, unlistModel, buyModel, transferModel, sellModel, refreshModels } = useNexus()
+  const { t, lang } = useI18n()
+  const { modelState, modelHistory, stars, listModel, unlistModel, buyModel, transferModel, sellModel, refreshModels, refreshModelHistory } = useNexus()
   const [listing, setListing] = useState<number | null>(null)
   const [price, setPrice] = useState("")
   const [transfer, setTransfer] = useState<number | null>(null)
   const [transferId, setTransferId] = useState("")
   const [busy, setBusy] = useState(false)
   const [tonBusy, setTonBusy] = useState(false)
+
+  const meta = modelState.meta ?? { name: "Mini Boss bro", icon: "💎", desc: "", glb: "/nexus-model.glb" }
+  const soldOut = modelState.remaining === 0
 
   async function submitList(token: number) {
     const p = parseInt(price, 10)
@@ -157,6 +168,8 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
 
   const mine = modelState.mine ?? []
   const market = modelState.market ?? []
+  const noOwn = mine.length === 0
+  const hidden = soldOut && noOwn
 
   return (
     <div className="space-y-5 px-4 py-5">
@@ -167,7 +180,10 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
         </div>
         <button
           type="button"
-          onClick={() => refreshModels()}
+          onClick={() => {
+            void refreshModels()
+            void refreshModelHistory()
+          }}
           aria-label={t("model_tab.refresh")}
           className="grid size-10 place-items-center rounded-2xl border border-border bg-secondary text-muted-foreground active:scale-90"
         >
@@ -175,7 +191,15 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
         </button>
       </div>
 
-      <ModelViewer />
+      {hidden ? (
+        <div className="flex flex-col items-center gap-2 rounded-3xl border border-dashed border-border py-10 text-center">
+          <EyeOff className="size-8 text-muted-foreground" />
+          <p className="text-sm font-semibold">{t("model_tab.sold_out_others")}</p>
+          <p className="text-xs text-muted-foreground">{t("model_tab.sold_out_others_note")}</p>
+        </div>
+      ) : (
+        <ModelViewer src={meta.glb} />
+      )}
 
       <div className="rounded-2xl border border-[#ffd700]/30 bg-[#ffd700]/5 px-4 py-3">
         <div className="flex items-center justify-between">
@@ -198,7 +222,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
         </p>
       </div>
 
-      {mine.length === 0 && (
+      {!hidden && mine.length === 0 && (
         <div className="rounded-3xl border border-dashed border-border py-8 text-center">
           <Gem className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-2 text-sm text-muted-foreground">
@@ -207,7 +231,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
         </div>
       )}
 
-      {mine.length > 0 && (
+      {!hidden && mine.length > 0 && (
         <section>
           <h2 className="mb-2 font-display text-lg font-bold">{t("model_tab.my_models")}</h2>
           <div className="space-y-3">
@@ -325,7 +349,7 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
         </section>
       )}
 
-      {market.length > 0 && (
+      {!hidden && market.length > 0 && (
         <section>
           <h2 className="mb-2 font-display text-lg font-bold">{t("model_tab.marketplace")}</h2>
           <div className="space-y-3">
@@ -355,6 +379,82 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                 >
                   <Star className="size-3.5 fill-black" /> {m.sale_price_stars}
                 </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {modelHistory.length > 0 && (
+        <section>
+          <h2 className="mb-2 flex items-center gap-2 font-display text-lg font-bold">
+            <History className="size-5 text-[#ffd700]" /> {t("model_tab.history")}
+          </h2>
+          <div className="space-y-3">
+            {modelHistory.map((m) => (
+              <div key={m.model_id} className="rounded-2xl border border-border bg-card p-3">
+                <div className="flex items-center gap-2">
+                  <span className="grid size-9 place-items-center rounded-xl bg-[#ffd700]/10 text-lg">{m.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-bold">{m.name}</p>
+                    <p className="text-[11px] text-muted-foreground">
+                      {t("model_tab.limited_mint", { claimed: m.claimed, supply: m.supply })}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="rounded-xl bg-secondary/60 px-2 py-1.5">
+                    <p className="text-muted-foreground">{t("model_tab.released")}</p>
+                    <p className="mt-0.5 font-semibold">
+                      {fmtDateTime(m.events.find((e) => e.event_type === "release")?.created_at ?? m.events[m.events.length - 1]?.created_at ?? "", lang)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-secondary/60 px-2 py-1.5">
+                    <p className="text-muted-foreground">{t("model_tab.last_claim")}</p>
+                    <p className="mt-0.5 font-semibold">
+                      {m.events.find((e) => e.event_type === "claimed") ? fmtDateTime(m.events.find((e) => e.event_type === "claimed")!.created_at, lang) : "—"}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2.5 space-y-1.5">
+                  {m.events.length === 0 ? (
+                    <p className="py-2 text-center text-xs text-muted-foreground">{t("model_tab.no_events")}</p>
+                  ) : (
+                    m.events.map((e) => {
+                      const who = e.nick || t("model_tab.anonymous")
+                      const whoText =
+                        e.event_type === "claimed"
+                          ? t("model_tab.event_claimed", { who })
+                          : e.event_type === "bought"
+                            ? t("model_tab.event_bought", { who, price: Number(e.details || 0).toLocaleString(lang) })
+                            : e.event_type === "transfer"
+                              ? t("model_tab.event_transfer", { who })
+                              : e.event_type === "burned"
+                                ? t("model_tab.event_burned", { who, price: Number(e.details || 0).toLocaleString(lang) })
+                                : null
+                      return (
+                        <div key={e.id} className="flex items-center gap-2 rounded-xl bg-background/50 px-2.5 py-1.5">
+                          <span className="text-sm">
+                            {e.event_type === "release" ? "🗓️" : e.event_type === "claimed" ? "🎉" : e.event_type === "bought" ? "💸" : e.event_type === "transfer" ? "🔁" : e.event_type === "burned" ? "🔥" : "•"}
+                          </span>
+                          <p className="min-w-0 flex-1 truncate text-xs">
+                            {e.event_type === "release" ? (
+                              <span className="font-semibold">{t("model_tab.event_release")}</span>
+                            ) : (
+                              <>
+                                <span className="font-semibold">{whoText}</span>
+                                {e.token_id != null && (
+                                  <span className="ml-1 text-muted-foreground">#{e.token_id}</span>
+                                )}
+                              </>
+                            )}
+                          </p>
+                          <span className="shrink-0 text-[10px] tabular-nums text-muted-foreground">{fmtDateTime(e.created_at, lang)}</span>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
               </div>
             ))}
           </div>

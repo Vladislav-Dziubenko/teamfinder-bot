@@ -32,6 +32,29 @@ export type ModelState = {
   claimed: number
   remaining: number
   supply: number
+  meta?: { name: string; icon: string; desc: string; glb: string }
+}
+
+export type ModelEvent = {
+  id?: number
+  token_id: number | null
+  user_id: number | null
+  nick: string
+  event_type: string
+  details: string
+  created_at: string
+}
+
+export type ModelHistoryEntry = {
+  model_id: string
+  name: string
+  icon: string
+  desc: string
+  glb: string
+  supply: number
+  claimed: number
+  remaining: number
+  events: ModelEvent[]
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -152,6 +175,7 @@ type PersistedState = {
   referralLadder: { invites: number; key: string; name: string; rarity: string; image?: string }[]
   games: string[]
   modelState: ModelState
+  modelHistory: ModelHistoryEntry[]
   betaBalance: number
   freeGoldOpens: number
   consentVersion: number
@@ -320,6 +344,7 @@ function defaultState(): PersistedState {
     role: "",
     isBeta: false,
     modelState: { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
+    modelHistory: [],
     betaBalance: 0,
     freeGoldOpens: 0,
     consentVersion: 0,
@@ -406,6 +431,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     referralLadder: me.referral_ladder || [],
     games: me.mini_profile?.games || [],
     modelState: modelState || { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
+    modelHistory: [],
     betaBalance: me.beta_state?.case_balance ?? 0,
     freeGoldOpens: me.free_gold_opens ?? 0,
     consentVersion: me.consent ?? 0,
@@ -474,6 +500,7 @@ type Nexus = PersistedState & {
   togglePin: (key: string) => void
   openCase: (caseId: string, count?: number, requestId?: string, viaAd?: boolean) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }>
   refreshModels: () => Promise<void>
+  refreshModelHistory: () => Promise<void>
   recordAdWatch: () => Promise<{ ok: boolean; watch_count?: number; reward_stars?: number; error?: string }>
   listModel: (tokenId: number, price: number) => Promise<{ ok: boolean; error?: string }>
   unlistModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
@@ -606,6 +633,13 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       const next = mapMeToState(me as MeResponse, modelState as ModelState, loadSavedPins())
       setS(next)
       saveCurrency(next)
+      // История серий — отдельно: сбой здесь не должен ломать стартовую загрузку.
+      void api
+        .get<{ models?: ModelHistoryEntry[] }>("/api/nexus/model/history")
+        .then((h) => {
+          if (h?.models) setS((p: PersistedState) => ({ ...p, modelHistory: h.models as ModelHistoryEntry[] }))
+        })
+        .catch(() => {})
     } catch (e) {
       console.error("Failed to refresh Nexus state", e)
     } finally {
@@ -619,6 +653,15 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       setS((p: PersistedState) => ({ ...p, modelState: state }))
     } catch (e) {
       console.error("Failed to refresh model state", e)
+    }
+  }, [])
+
+  const refreshModelHistory = useCallback(async () => {
+    try {
+      const res = (await api.get("/api/nexus/model/history")) as { models?: ModelHistoryEntry[] }
+      if (res?.models) setS((p: PersistedState) => ({ ...p, modelHistory: res.models as ModelHistoryEntry[] }))
+    } catch (e) {
+      console.error("Failed to refresh model history", e)
     }
   }, [])
 
@@ -855,6 +898,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       try {
         await api.post("/api/nexus/model/transfer", { token_id: tokenId, to_user_id: toUserId })
         await refreshModels()
+        await refreshModelHistory()
         return { ok: true }
       } catch (e: any) {
         return { ok: false, error: e.message || "Не удалось передать модель" }
@@ -1066,6 +1110,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       togglePin,
       openCase,
       refreshModels,
+      refreshModelHistory,
       recordAdWatch,
       listModel,
       unlistModel,
@@ -1094,7 +1139,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       serverBusy,
       setServerBusy,
     }
-  }, [s, now, refresh, refreshModels, serverBusy, setServerBusy])
+  }, [s, now, refresh, refreshModels, refreshModelHistory, serverBusy, setServerBusy])
 
   return <NexusContext.Provider value={value}>{children}</NexusContext.Provider>
 }

@@ -342,7 +342,10 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
           const cooldown = c.free ? caseReadyInT(c.id) : 0
           const onCooldown = cooldown > 0
           const isSpin = spin?.box.id === c.id
-          const chances = caseChances(c)
+          const chances = caseChances(c).filter(
+            // Модель выпадает только пока есть свободные экземпляры тиража.
+            ({ item }) => !(modelState.remaining === 0 && item.kind === "model"),
+          )
           return (
             <section
               key={c.id}
@@ -551,9 +554,9 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         {modelState.mine.length > 0 && (
           <div className="mb-3 rounded-2xl border border-[#ffd700]/40 bg-[#ffd700]/5 p-3">
             <div className="flex items-center gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#ffd700]/15 text-xl">💎</span>
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-[#ffd700]/15 text-xl">{modelState.meta?.icon ?? "💎"}</span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold">Mini Boss bro</p>
+                <p className="truncate text-sm font-bold">{modelState.meta?.name ?? "Mini Boss bro"}</p>
                 <p className="text-[11px]" style={{ color: rarityMeta.legendary.color }}>
                   {rarityMeta.legendary.label} · #{modelState.mine[0].token_id}
                 </p>
@@ -1147,6 +1150,7 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
 
 function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseItem[]; onClose: () => void }) {
   const { t, tl } = useI18n()
+  const { modelState } = useNexus()
   const totalStars = items.filter((i) => i.kind === "stars").reduce((s, i) => s + (i.stars ?? 0), 0)
   const totalJetStars = items.filter((i) => i.kind === "jet").reduce((s, i) => s + (i.bonuses?.stars ?? 0), 0)
   const totalJetCoins = items.filter((i) => i.kind === "jet").reduce((s, i) => s + (i.bonuses?.coins ?? 0), 0)
@@ -1210,7 +1214,7 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
 
         {jackpots.length > 0 && (
           <div className="mx-5 mb-1 rounded-2xl border border-[#ffd700]/50 bg-[#ffd700]/10 p-3 text-center">
-            <p className="text-sm font-bold text-[#ffd700]">💎 Mini Boss bro #{jackpots[0].token ?? "?"}</p>
+            <p className="text-sm font-bold text-[#ffd700]">{modelState.meta?.icon ?? "💎"} {modelState.meta?.name ?? "Mini Boss bro"} #{jackpots[0].token ?? "?"}</p>
             <p className="mt-0.5 text-[11px] text-muted-foreground">10 000 ⭐ · роль · пожизненный премиум · доход 50-100 ⭐/день</p>
           </div>
         )}

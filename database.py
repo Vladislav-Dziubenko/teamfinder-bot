@@ -367,6 +367,21 @@ CREATE TABLE IF NOT EXISTS limited_models (
     PRIMARY KEY (model_id, token_id)
 );
 
+-- Публичная история серий лимитированных 3D-моделей: кто, когда и какой
+-- экземпляр (#token) выбил, купил, передал или продал. Ряд 'release'
+-- фиксирует дату появления серии (создаётся миграцией).
+CREATE TABLE IF NOT EXISTS limited_model_events (
+    id SERIAL PRIMARY KEY,
+    model_id TEXT NOT NULL,
+    token_id INTEGER,
+    user_id BIGINT,
+    nick TEXT DEFAULT '',
+    event_type TEXT NOT NULL,
+    details TEXT DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_limited_model_events_model ON limited_model_events (model_id, created_at);
+
 CREATE TABLE IF NOT EXISTS case_open_requests (
     request_id TEXT PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -908,6 +923,42 @@ class Database:
                 )
             except asyncpg.PostgresError as e:
                 print(f"Migration warning legacy_nexus_model_cleanup_v2: {e}")
+
+        # История серий 3D-моделей: для каждой известной серии создаём событие
+        # 'release' с датой появления. Для существующих серий это дата первого
+        # выпадения (MIN(acquired_at)), для новых — текущий момент.
+        migration_name = "limited_model_history_seed_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    for model_id in self.LIMITED_MODELS:
+                        exists = await conn.fetchval(
+                            "SELECT 1 FROM limited_model_events WHERE model_id = $1 AND event_type = 'release' LIMIT 1",
+                            model_id,
+                        )
+                        if exists:
+                            continue
+                        first = await conn.fetchval(
+                            "SELECT MIN(acquired_at) FROM limited_models WHERE model_id = $1",
+                            model_id,
+                        )
+                        released = first or datetime.utcnow().isoformat()
+                        await conn.execute(
+                            "INSERT INTO limited_model_events (model_id, token_id, user_id, nick, event_type, details, created_at) "
+                            "VALUES ($1, NULL, NULL, '', 'release', '', $2)",
+                            model_id, released,
+                        )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning limited_model_history_seed_v1: {e}")
 
         # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
         try:
@@ -1592,6 +1643,15 @@ class Database:
     # Лимитированная 3D-модель из золотого кейса. Тираж ограничен
     # LIMITED_MODEL_SUPPLY экземплярами, владение/продажа/передача — внутренняя
     # система (реальный ончейн-TON подключается отдельным этапом).
+    # Реестр серий: сюда добавляются будущие 3D-модели (name/icon/glb).
+    LIMITED_MODELS = {
+        "nexus-model": {
+            "name": "Mini Boss bro",
+            "icon": "💎",
+            "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день",
+            "glb": "/nexus-model.glb",
+        },
+    }
     LIMITED_MODEL_ID = "nexus-model"
     LIMITED_MODEL_SUPPLY = 20
     LIMITED_MODEL_WIN_STARS = 10000
@@ -1618,6 +1678,22 @@ class Database:
         )
         return mx + 1
 
+    async def _log_model_event(self, conn: asyncpg.Connection, model_id: str, token_id: int | None,
+                               user_id: int | None, event_type: str, details: str = "") -> None:
+        """Публичное событие в истории серии: nick берём из анкеты на момент события."""
+        nick = ""
+        if user_id:
+            nick = await conn.fetchval(
+                "SELECT COALESCE(nick, '') FROM mini_app_profiles WHERE user_id = $1",
+                user_id,
+            )
+            nick = nick or ""
+        await conn.execute(
+            "INSERT INTO limited_model_events (model_id, token_id, user_id, nick, event_type, details, created_at) "
+            "VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            model_id, token_id, user_id, nick, event_type, details, datetime.utcnow().isoformat(),
+        )
+
     async def grant_limited_model(self, conn: asyncpg.Connection, user_id: int, token_id: int, dev_id: int | None) -> str:
         """Внутри текущей транзакции: владение моделью + 10 000 ⭐ + роль модератор/админ + пожизненный премиум.
         Возвращает выданную роль."""
@@ -1626,6 +1702,7 @@ class Database:
             "INSERT INTO limited_models (model_id, token_id, owner_id, acquired_at) VALUES ($1, $2, $3, $4)",
             self.LIMITED_MODEL_ID, token_id, user_id, now,
         )
+        await self._log_model_event(conn, self.LIMITED_MODEL_ID, token_id, user_id, "claimed")
         await self._adjust_currency_conn(conn, user_id, stars=self.LIMITED_MODEL_WIN_STARS)
         role = random.choice(["moderator", "admin"])
         await conn.execute(
@@ -1660,13 +1737,44 @@ class Database:
                 "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
                 self.LIMITED_MODEL_ID,
             )
+            meta = self.LIMITED_MODELS.get(self.LIMITED_MODEL_ID, {})
             return {
                 "mine": [dict(r) for r in mine_rows],
                 "market": [dict(r) for r in market_rows],
                 "claimed": claimed,
                 "remaining": max(0, self.LIMITED_MODEL_SUPPLY - claimed),
                 "supply": self.LIMITED_MODEL_SUPPLY,
+                "meta": meta,
             }
+
+    async def get_limited_model_history(self) -> list[dict]:
+        """Публичная история всех серий 3D-моделей: событие релиза, выбивания,
+        покупки, передачи и сжигания. Служит и реестром для будущих моделей."""
+        async with self.pool.acquire() as conn:
+            out = []
+            for model_id, meta in self.LIMITED_MODELS.items():
+                claimed = await conn.fetchval(
+                    "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
+                    model_id,
+                )
+                events = await conn.fetch(
+                    "SELECT id, token_id, user_id, nick, event_type, details, created_at "
+                    "FROM limited_model_events WHERE model_id = $1 "
+                    "ORDER BY created_at DESC, id DESC",
+                    model_id,
+                )
+                out.append({
+                    "model_id": model_id,
+                    "name": meta["name"],
+                    "icon": meta["icon"],
+                    "desc": meta["desc"],
+                    "glb": meta["glb"],
+                    "supply": self.LIMITED_MODEL_SUPPLY,
+                    "claimed": claimed,
+                    "remaining": max(0, self.LIMITED_MODEL_SUPPLY - claimed),
+                    "events": [dict(e) for e in events],
+                })
+            return out
 
     async def list_limited_model(self, owner_id: int, token_id: int, price: int) -> bool:
         if price <= 0:
@@ -1723,6 +1831,7 @@ class Database:
                     "WHERE model_id = $3 AND token_id = $4",
                     buyer_id, now, self.LIMITED_MODEL_ID, token_id,
                 )
+                await self._log_model_event(conn, self.LIMITED_MODEL_ID, token_id, buyer_id, "bought", str(price))
                 return True, "ok", price
 
     async def transfer_limited_model(self, from_id: int, to_id: int, token_id: int, dev_id: int | None) -> tuple[bool, str]:
@@ -1747,6 +1856,7 @@ class Database:
                     "WHERE model_id = $3 AND token_id = $4",
                     to_id, now, self.LIMITED_MODEL_ID, token_id,
                 )
+                await self._log_model_event(conn, self.LIMITED_MODEL_ID, token_id, to_id, "transfer")
                 return True, "ok"
 
     async def sell_limited_model(self, owner_id: int, token_id: int) -> tuple[bool, str, int]:
@@ -1770,6 +1880,7 @@ class Database:
                     "WHERE model_id = $1 AND token_id = $2",
                     self.LIMITED_MODEL_ID, token_id,
                 )
+                await self._log_model_event(conn, self.LIMITED_MODEL_ID, token_id, owner_id, "burned", str(self.LIMITED_MODEL_SELL_PRICE))
                 return True, "ok", self.LIMITED_MODEL_SELL_PRICE
 
     async def pay_limited_model_income(self) -> int:
