@@ -14,6 +14,8 @@ import {
 } from "@/lib/chat"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
 import { api } from "@/lib/api"
+import { hapticImpact, hapticTap } from "@/lib/webapp"
+import { analytics } from "@/lib/telegram-analytics"
 import { cn } from "@/lib/utils"
 import { RoleBadge, roleRank } from "@/components/miniapp/role-badge"
 import { StarSendSheet } from "@/components/miniapp/star-send-sheet"
@@ -285,6 +287,8 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
 
   function submit() {
     if (!draft.trim()) return
+    hapticImpact()
+    analytics.chatSend()
     sendMessage(draft)
     setDraft("")
   }

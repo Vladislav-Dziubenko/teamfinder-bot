@@ -11,6 +11,7 @@ import {
   type StarPack,
 } from "@/lib/data"
 import { api, telegramReady, openInvoice, syncTelegramProfile } from "@/lib/api"
+import { initWebApp } from "@/lib/webapp"
 import { parseIsoTs } from "@/lib/chat"
 
 export type InventoryItem = CaseItem & { uid: string; id?: number }
@@ -528,6 +529,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    initWebApp()
     telegramReady()
     // Профиль Telegram (имя, username) — на бэкенд при каждом запуске.
     syncTelegramProfile()

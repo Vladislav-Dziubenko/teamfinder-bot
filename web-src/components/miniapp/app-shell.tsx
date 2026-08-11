@@ -21,6 +21,8 @@ import { LeaderboardSheet } from "./leaderboard-sheet"
 import { OnboardingSheet, isOnboardingDone, markOnboardingDone } from "./onboarding"
 import { openChatWithPlayer } from "@/lib/chat"
 import { api } from "@/lib/api"
+import { hapticTap } from "@/lib/webapp"
+import { analytics } from "@/lib/telegram-analytics"
 import { useMe, useNexus, CONSENT_VERSION } from "@/lib/store"
 import type { Player, Team } from "@/lib/data"
 
@@ -36,8 +38,12 @@ const ReviewTab = lazy(() => import("./review-tab").then((m) => ({ default: m.Re
 
 function TabFallback() {
   return (
-    <div className="flex items-center justify-center py-20">
-      <Loader2 className="size-6 animate-spin text-muted-foreground" />
+    <div className="animate-pulse space-y-3 px-4 py-5" aria-busy="true">
+      <div className="h-28 rounded-3xl bg-card/70" />
+      <div className="h-16 rounded-2xl bg-card/50" />
+      <div className="h-16 rounded-2xl bg-card/50" />
+      <div className="h-24 rounded-2xl bg-card/70" />
+      <div className="h-16 rounded-2xl bg-card/50" />
     </div>
   )
 }
@@ -148,6 +154,7 @@ function Shell() {
   function goTab(t: TabId) {
     setTab(t)
     if (typeof window !== "undefined") window.__NEXUS_TAB = t
+    analytics.page(t)
     document.getElementById("miniapp-scroll")?.scrollTo({ top: 0, behavior: "smooth" })
   }
 
@@ -156,12 +163,13 @@ function Shell() {
   }
 
   function openChat(player: Player) {
+    hapticTap()
     setChatOpen({ chatId: openChatWithPlayer(me.userId, player.id), player })
     goTab("chat")
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background">
+    <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background md:shadow-[0_0_90px_-25px_color-mix(in_oklch,var(--primary)_45%,transparent)]">
       <TopBar onStars={() => goTab("donate")} onCoins={() => goTab("cases")} />
 
       <main id="miniapp-scroll" className="flex-1 overflow-y-auto pb-24">

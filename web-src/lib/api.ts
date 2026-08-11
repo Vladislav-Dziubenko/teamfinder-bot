@@ -1,17 +1,8 @@
+import type { TelegramWebApp } from "./webapp"
+
 declare global {
   interface Window {
-    Telegram?: {
-      WebApp?: {
-        initData: string
-        initDataUnsafe?: {
-          user?: { id: number; first_name?: string; last_name?: string; username?: string; photo_url?: string; language_code?: string }
-        }
-        openTelegramLink?: (url: string) => void
-        openInvoice?: (url: string, callback?: () => void) => void
-        shareURL?: (url: string, text?: string) => void
-        ready: () => void
-      }
-    }
+    Telegram?: { WebApp?: TelegramWebApp }
   }
 }
 

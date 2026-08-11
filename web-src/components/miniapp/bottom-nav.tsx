@@ -3,6 +3,7 @@
 import { Home, Swords, Package, Trophy, Ticket, User, BarChart3, MessageCircle, TrendingUp, Users, Gem, Star } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useTotalUnread } from "@/lib/chat"
+import { hapticTap } from "@/lib/webapp"
 import { cn } from "@/lib/utils"
 
 export type TabId =
@@ -57,7 +58,10 @@ export function BottomNav({
               <li key={id} className="min-w-[3.9rem] flex-1">
                 <button
                   type="button"
-                  onClick={() => onChange(id)}
+                  onClick={() => {
+                    if (!isActive) hapticTap()
+                    onChange(id)
+                  }}
                   className="group relative flex w-full flex-col items-center gap-1 py-2.5"
                   aria-current={isActive ? "page" : undefined}
                 >

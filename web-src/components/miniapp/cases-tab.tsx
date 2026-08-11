@@ -12,6 +12,8 @@ import { tick, win as winSfx, whoosh, setMuted, isMuted, ensureAudio } from "@/l
 import { formatNum } from "@/lib/format"
 import { TopUpSheet } from "./top-up-sheet"
 import { useAdsgram } from "@/lib/use-adsgram"
+import { hapticImpact } from "@/lib/webapp"
+import { analytics } from "@/lib/telegram-analytics"
 
 const rarityRank: Record<Rarity, number> = { common: 0, rare: 2, epic: 3, premium: 4, legendary: 6 }
 
@@ -191,6 +193,8 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       }
     }
     setSpin({ box: c, winner: null })
+    hapticImpact()
+    analytics.caseOpen(c.id, Boolean(c.free))
     const res = await openCase(c.id)
     if (!res.ok) {
       setSpin(null)

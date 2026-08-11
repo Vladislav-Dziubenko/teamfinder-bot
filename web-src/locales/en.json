@@ -764,5 +764,6 @@
   "onboarding.cases_desc": "Complete quests and open cases every day: coins and stars drop from them. Exchange coins for keys, stars for exclusive items.",
   "onboarding.chat_title": "Global chat and friends",
   "onboarding.chat_desc": "Write in the global chat, add friends and keep in touch. In the feed of players you can write directly in private.",
-  "onboarding.chat_tip": "Tip: be active - your level grows, and with it new features of the bot."
+  "onboarding.chat_tip": "Tip: be active - your level grows, and with it new features of the bot.",
+  "profile.privacy_policy": "Privacy Policy"
 }

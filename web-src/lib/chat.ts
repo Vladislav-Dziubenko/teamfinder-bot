@@ -73,6 +73,7 @@ export function useChats(): ChatPreview[] {
         })
         setChats(list)
         _chats = list
+        preloadTopChat(list)
       } catch (e: any) {
         if (e?.status === 503 && attempt < 10 && !cancelled) {
           await new Promise((r) => setTimeout(r, 1000 + attempt * 500))
@@ -126,6 +127,26 @@ function mapMsg(m: any): ChatMessage {
 }
 
 const _msgCache = new Map<string, ChatMessage[]>()
+
+const _prefetchedChats = new Set<string>()
+
+/**
+ * Тёплый кэш: после загрузки списка чатов сразу качаем сообщения самого
+ * свежего диалога (и периодически — следующего), чтобы открытие чата
+ * происходило мгновенно, без спиннера.
+ */
+function preloadTopChat(list: ChatPreview[]): void {
+  const top = [...list].sort((a, b) => b.lastTs - a.lastTs).find((c) => !_prefetchedChats.has(c.id))
+  if (!top || _msgCache.has(top.id)) return
+  _prefetchedChats.add(top.id)
+  api
+    .get("/api/chat/" + top.id)
+    .then((data: any) => {
+      const msgs: ChatMessage[] = (data?.messages ?? []).map(mapMsg)
+      if (msgs.length) _msgCache.set(top.id, msgs)
+    })
+    .catch(() => _prefetchedChats.delete(top.id))
+}
 
 export type ChatStatus = {
   muted: boolean

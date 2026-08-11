@@ -186,3 +186,15 @@
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Desktop: приложение — узкая колонка по центру; вокруг — мягкая
+   киберспортивная подсветка, чтобы большой экран не выглядел пустым. */
+@media (min-width: 768px) {
+  body {
+    background-image:
+      radial-gradient(55rem 38rem at 12% 8%, color-mix(in oklch, var(--primary) 12%, transparent), transparent 60%),
+      radial-gradient(45rem 32rem at 88% 92%, color-mix(in oklch, var(--accent) 9%, transparent), transparent 60%),
+      radial-gradient(30rem 24rem at 80% 12%, color-mix(in oklch, var(--stars) 6%, transparent), transparent 60%);
+    background-attachment: fixed;
+  }
+}
