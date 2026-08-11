@@ -1067,6 +1067,49 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Migration warning market_listings_v1: {e}")
 
+        # Сессии «Играть вместе»: таймер на N минут, кто угодно может вступить.
+        migration_name = "game_sessions_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS game_sessions (
+                            id BIGSERIAL PRIMARY KEY,
+                            creator_id BIGINT NOT NULL,
+                            game TEXT NOT NULL,
+                            title TEXT NOT NULL DEFAULT '',
+                            status TEXT NOT NULL DEFAULT 'active',
+                            created_at TEXT NOT NULL,
+                            expires_at TEXT NOT NULL
+                        )
+                        """
+                    )
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS game_session_players (
+                            session_id BIGINT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+                            user_id BIGINT NOT NULL,
+                            joined_at TEXT NOT NULL,
+                            PRIMARY KEY (session_id, user_id)
+                        )
+                        """
+                    )
+                    await conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_game_sessions_active ON game_sessions (status, expires_at)"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning game_sessions_v1: {e}")
+
         # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
         try:
             await conn.execute("""
@@ -2220,6 +2263,131 @@ class Database:
                 user_id, limit,
             )
             return [dict(r) for r in rows]
+
+    async def create_game_session(self, user_id: int, game: str, minutes: int = 30) -> dict | None:
+        """Создаёт сессию «Играть вместе» и добавляет создателя участником."""
+        minutes = max(15, min(int(minutes), 120))
+        now = datetime.utcnow()
+        expires = now + timedelta(minutes=minutes)
+        now_iso, exp_iso = now.isoformat(), expires.isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "INSERT INTO game_sessions (creator_id, game, title, status, created_at, expires_at) VALUES ($1, $2, '', 'active', $3, $4) RETURNING id",
+                    user_id, game, now_iso, exp_iso,
+                )
+                await conn.execute(
+                    "INSERT INTO game_session_players (session_id, user_id, joined_at) VALUES ($1, $2, $3)",
+                    row["id"], user_id, now_iso,
+                )
+                return {
+                    "id": row["id"],
+                    "creator_id": user_id,
+                    "game": game,
+                    "status": "active",
+                    "created_at": now_iso,
+                    "expires_at": exp_iso,
+                }
+
+    async def get_active_game_sessions(self, game: str = "") -> list[dict]:
+        """Все активные сессии с участниками. Протухшие помечаются expired."""
+        now = datetime.utcnow()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "UPDATE game_sessions SET status = 'expired' WHERE status = 'active' AND expires_at < $1",
+                    now.isoformat(),
+                )
+                if game:
+                    rows = await conn.fetch(
+                        """
+                        SELECT s.*,
+                               COALESCE((SELECT COUNT(*) FROM game_session_players p WHERE p.session_id = s.id), 0) AS players_count,
+                               COALESCE((
+                                   SELECT json_agg(json_build_object(
+                                       'user_id', p.user_id,
+                                       'nick', COALESCE(mp.nick, 'User' || p.user_id::text),
+                                       'avatar', mp.avatar
+                                   ) ORDER BY p.joined_at)
+                                   FROM game_session_players p
+                                   LEFT JOIN mini_app_profiles mp ON mp.user_id = p.user_id
+                                   WHERE p.session_id = s.id
+                               ), '[]'::json) AS players
+                        FROM game_sessions s
+                        WHERE s.status = 'active' AND s.game = $1
+                        ORDER BY s.expires_at ASC
+                        """,
+                        game,
+                    )
+                else:
+                    rows = await conn.fetch(
+                        """
+                        SELECT s.*,
+                               COALESCE((SELECT COUNT(*) FROM game_session_players p WHERE p.session_id = s.id), 0) AS players_count,
+                               COALESCE((
+                                   SELECT json_agg(json_build_object(
+                                       'user_id', p.user_id,
+                                       'nick', COALESCE(mp.nick, 'User' || p.user_id::text),
+                                       'avatar', mp.avatar
+                                   ) ORDER BY p.joined_at)
+                                   FROM game_session_players p
+                                   LEFT JOIN mini_app_profiles mp ON mp.user_id = p.user_id
+                                   WHERE p.session_id = s.id
+                               ), '[]'::json) AS players
+                        FROM game_sessions s
+                        WHERE s.status = 'active'
+                        ORDER BY s.expires_at ASC
+                        """
+                    )
+            result = []
+            for r in rows:
+                d = dict(r)
+                d["players"] = r["players"] or []
+                result.append(d)
+            return result
+
+    async def join_game_session(self, session_id: int, user_id: int) -> tuple[bool, str, dict | None]:
+        """Вступает в активную сессию. Максимум 6 участников."""
+        now = datetime.utcnow()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "UPDATE game_sessions SET status = 'expired' WHERE id = $1 AND status = 'active' AND expires_at < $2",
+                    session_id, now.isoformat(),
+                )
+                row = await conn.fetchrow(
+                    "SELECT * FROM game_sessions WHERE id = $1", session_id,
+                )
+                if not row or row["status"] != "active":
+                    return False, "not found", None
+                count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM game_session_players WHERE session_id = $1", session_id,
+                )
+                if count >= 6:
+                    return False, "full", None
+                await conn.execute(
+                    "INSERT INTO game_session_players (session_id, user_id, joined_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
+                    session_id, user_id, now.isoformat(),
+                )
+                return True, "", dict(row)
+
+    async def leave_game_session(self, session_id: int, user_id: int) -> bool:
+        """Покидает сессию; создатель отменяет её целиком."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                await conn.execute(
+                    "DELETE FROM game_session_players WHERE session_id = $1 AND user_id = $2",
+                    session_id, user_id,
+                )
+                creator = await conn.fetchval(
+                    "SELECT creator_id FROM game_sessions WHERE id = $1", session_id,
+                )
+                if creator == user_id:
+                    await conn.execute(
+                        "UPDATE game_sessions SET status = 'cancelled' WHERE id = $1", session_id,
+                    )
+                    return True
+                return True
 
     async def get_user_prefs(self, user_id: int) -> dict:
         async with self.pool.acquire() as conn:

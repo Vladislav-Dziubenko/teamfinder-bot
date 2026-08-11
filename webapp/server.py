@@ -25,7 +25,7 @@ from urllib.parse import urlencode, quote
 
 from aiohttp import web, ClientSession, ClientTimeout
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from config import Settings
 from data.games import (
@@ -1910,6 +1910,107 @@ async def handle_market_buy(request: web.Request):
     return web.json_response({"ok": True})
 
 
+async def handle_sessions_list(request: web.Request):
+    db: Database = request.app["db"]
+    _get_user(request)
+    game = (request.query.get("game") or "").strip()[:20]
+    sessions = await db.get_active_game_sessions(game=game)
+    return web.json_response({"sessions": sessions})
+
+
+async def handle_sessions_create(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
+    game = (body.get("game") or "").strip()
+    if game not in GAMES:
+        return web.json_response({"error": "unknown game"}, status=400)
+    try:
+        minutes = int(body.get("minutes", 30))
+    except (TypeError, ValueError):
+        minutes = 30
+    session = await db.create_game_session(user["id"], game, minutes)
+    return web.json_response({"session": session})
+
+
+async def handle_sessions_join(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        session_id = int(request.match_info["session_id"])
+    except (ValueError, KeyError):
+        return web.json_response({"error": "invalid session_id"}, status=400)
+    ok, err, session = await db.join_game_session(session_id, user["id"])
+    if not ok:
+        return web.json_response({"error": err}, status=400)
+    # Push в Telegram создателю, если он не в приложении (фоном, не блокируем).
+    try:
+        sender_nick = ""
+        try:
+            sender_nick = (await db.get_mini_app_profile(user["id"])).get("nick") or f"User{user['id']}"
+        except Exception:
+            pass
+        asyncio.create_task(_notify_tg_session_join(request, db, session, sender_nick))
+    except Exception as e:
+        logging.warning("session join notify failed: %s", e)
+    return web.json_response({"ok": True})
+
+
+async def handle_sessions_leave(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        session_id = int(request.match_info["session_id"])
+    except (ValueError, KeyError):
+        return web.json_response({"error": "invalid session_id"}, status=400)
+    await db.leave_game_session(session_id, user["id"])
+    return web.json_response({"ok": True})
+
+
+async def _notify_tg_session_join(request: web.Request, db: Database, session: dict, sender_nick: str) -> None:
+    """Push создателю сессии, что к нему присоединились (когда он не в приложении)."""
+    try:
+        bot = request.app.get("bot")
+        if bot is None or not getattr(bot, "username", None):
+            return
+        creator_id = session.get("creator_id")
+        if not creator_id:
+            return
+        prefs = await db.get_user_prefs(creator_id)
+        if not prefs.get("tg_notify", True):
+            return
+        last_active = await db.pool.fetchval(
+            "SELECT last_active_at FROM users WHERE user_id = $1", creator_id
+        )
+        if last_active:
+            try:
+                if datetime.utcnow() - datetime.fromisoformat(last_active) < timedelta(seconds=120):
+                    return
+            except (ValueError, TypeError):
+                pass
+        if await cache_get(f"tgsess:{session['id']}:{creator_id}"):
+            return
+        game = GAMES.get(session.get("game"), {})
+        emoji = game.get("emoji", "🎮")
+        title = game.get("title", session.get("game", ""))
+        settings: Settings = request.app["settings"]
+        markup = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🚀 Открыть TeamFinder", web_app=WebAppInfo(url=settings.webapp_url))]
+        ])
+        await bot.send_message(
+            creator_id,
+            f"{emoji} <b>{sender_nick}</b> присоединился к твоей сессии «{title}»!\n\n"
+            f"Собери команду, пока таймер не истёк 👇",
+            reply_markup=markup,
+        )
+        await cache_set(f"tgsess:{session['id']}:{creator_id}", 1, ttl=600)
+    except Exception as e:
+        logging.warning("tg session join notify failed: %s", e)
+
+
 async def handle_nexus_quests(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -3719,6 +3820,10 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/market/cancel", handle_market_cancel)
     app.router.add_post("/api/market/buy", handle_market_buy)
     app.router.add_get("/api/nexus/quests", handle_nexus_quests)
+    app.router.add_get("/api/sessions", handle_sessions_list)
+    app.router.add_post("/api/sessions", handle_sessions_create)
+    app.router.add_post("/api/sessions/{session_id}/join", handle_sessions_join)
+    app.router.add_post("/api/sessions/{session_id}/leave", handle_sessions_leave)
     app.router.add_post("/api/nexus/quests/claim", handle_nexus_claim_quest_reward)
     app.router.add_get("/api/nexus/shop", handle_nexus_shop)
     app.router.add_post("/api/nexus/shop/buy", handle_nexus_buy)
