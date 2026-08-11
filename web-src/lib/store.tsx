@@ -578,15 +578,16 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     let cancelled = false
     async function load(attempt = 0) {
       try {
-        const me = (await api.get("/api/me")) as MeResponse
+        const [me, modelState] = await Promise.all([
+          api.get("/api/me"),
+          api.get("/api/nexus/model/state"),
+        ])
         if (!cancelled) {
-          const next = mapMeToState(me, undefined, loadSavedPins())
+          const next = mapMeToState(me as MeResponse, modelState as ModelState, loadSavedPins())
           setS(next)
           saveCurrency(next)
         }
       } catch (e: any) {
-        // Ретраим на любые 5xx, 429 и сетевые таймауты — чтобы при временном
-        // перегрузе сервера баланс не «залипал» на нуле (стартовое значение).
         const retriable = e?.status === 429 || (e?.status && e.status >= 500) || e?.timeout
         if (retriable && attempt < 10) {
           await new Promise((r) => setTimeout(r, 1000 + attempt * 500))
