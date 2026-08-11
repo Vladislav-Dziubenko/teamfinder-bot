@@ -24,9 +24,11 @@ let lastSearchCount: number | null = null
 export function HomeTab({
   onGo,
   onConnect,
+  onToast,
 }: {
   onGo: (t: TabId) => void
   onConnect: (p: Player) => void
+  onToast: (m: string) => void
 }) {
   const { t } = useI18n()
   const { wins, level } = useMe()
@@ -74,9 +76,12 @@ export function HomeTab({
     setClaiming(q.id)
     try {
       await api.post("/api/nexus/quests/claim", { quest_id: q.id })
+      onToast(t("home.quest_claimed", { reward: q.reward }))
       await refresh()
       setQuests((prev) => prev.map((x) => (x.id === q.id ? { ...x, completed: true } : x)))
-    } catch {}
+    } catch {
+      onToast(t("home.quest_not_ready"))
+    }
     setClaiming(null)
   }
 

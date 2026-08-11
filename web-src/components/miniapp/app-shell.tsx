@@ -177,7 +177,7 @@ function Shell() {
       <TopBar onStars={() => goTab("donate")} onCoins={() => goTab("cases")} />
 
       <main id="miniapp-scroll" className="flex-1 overflow-y-auto pb-24">
-        {tab === "home" && <HomeTab onGo={goTab} onConnect={setContact} />}
+        {tab === "home" && <HomeTab onGo={goTab} onConnect={setContact} onToast={setToast} />}
         {tab === "match" && <MatchTab onConnect={setContact} onJoinTeam={joinTeam} onChat={openChat} />}
         {tab === "predictions" && <Suspense fallback={<TabFallback />}><PredictionsTab onToast={setToast} /></Suspense>}
         {tab === "chat" && (

@@ -1,10 +1,12 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import { X } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { MORE_TABS, type TabId } from "./bottom-nav"
 import { hapticTap } from "@/lib/webapp"
+
+const CLOSE_THRESHOLD = 110
 
 export function MoreSheet({
   open,
@@ -18,9 +20,13 @@ export function MoreSheet({
   onClose: () => void
 }) {
   const { t } = useI18n()
+  const startY = useRef<number | null>(null)
+  const [dragY, setDragY] = useState(0)
+  const [dragging, setDragging] = useState(false)
 
   useEffect(() => {
     if (!open) return
+    setDragY(0)
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose()
     }
@@ -30,6 +36,31 @@ export function MoreSheet({
 
   if (!open) return null
 
+  function onTouchStart(e: React.TouchEvent) {
+    if (e.touches.length !== 1) return
+    startY.current = e.touches[0].clientY
+    setDragging(true)
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    if (startY.current === null) return
+    const dy = e.touches[0].clientY - startY.current
+    if (dy > 0) setDragY(dy)
+  }
+
+  function onTouchEnd() {
+    if (startY.current === null) return
+    const wasDragging = dragY > 0
+    if (dragY > CLOSE_THRESHOLD) {
+      onClose()
+    } else if (wasDragging) {
+      hapticTap()
+    }
+    startY.current = null
+    setDragY(0)
+    setDragging(false)
+  }
+
   return (
     <div className="fixed inset-0 z-[70] flex flex-col justify-end">
       <button
@@ -38,7 +69,17 @@ export function MoreSheet({
         onClick={onClose}
         className="absolute inset-0 bg-background/70 backdrop-blur-sm"
       />
-      <div className="relative mx-auto w-full max-w-md rounded-t-3xl border-t border-border bg-card p-5 pb-8 animate-rise">
+      <div
+        className="relative mx-auto w-full max-w-md rounded-t-3xl border-t border-border bg-card p-5 pb-8 animate-rise"
+        style={{
+          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: dragging ? "none" : "transform 0.25s ease-out",
+        }}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onTouchCancel={onTouchEnd}
+      >
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-muted-foreground/40" />
         <button
           type="button"

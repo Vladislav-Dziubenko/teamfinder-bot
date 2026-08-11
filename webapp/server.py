@@ -858,8 +858,8 @@ async def handle_search(request: web.Request):
             f"%{query}%",
         )
         await db.increment_user_stat(user["id"], "search_count")
-        asyncio.create_task(db.update_quest_progress(user["id"], "do-searches", 1))
-        asyncio.create_task(db.update_quest_progress(user["id"], "do-searches-2", 1))
+        await db.update_quest_progress(user["id"], "do-searches", 1)
+        await db.update_quest_progress(user["id"], "do-searches-2", 1)
         players = [
             {
                 "id": str(r["user_id"]),
@@ -984,8 +984,8 @@ async def handle_search(request: web.Request):
         })
 
     await db.increment_user_stat(user["id"], "search_count")
-    asyncio.create_task(db.update_quest_progress(user["id"], "do-searches", 1))
-    asyncio.create_task(db.update_quest_progress(user["id"], "do-searches-2", 1))
+    await db.update_quest_progress(user["id"], "do-searches", 1)
+    await db.update_quest_progress(user["id"], "do-searches-2", 1)
     asyncio.create_task(db.update_searching_since(user["id"]))
 
     return web.json_response({"premium": premium, "is_pro": is_pro, "game": game_to_search, "players": players, "teams": []})
@@ -1564,9 +1564,11 @@ async def handle_nexus_open_case(request: web.Request):
                         now,
                     )
 
-    # Track quest progress: case opened
-    asyncio.create_task(db.update_quest_progress(user["id"], "open-cases", count))
-    asyncio.create_task(db.update_quest_progress(user["id"], "open-cases-2", count))
+    # Track quest progress: case opened (await — прогресс должен быть в БД
+    # уже к моменту ответа, иначе «Забрать награду» сразу после открытия
+    # вернёт «quest not completed»).
+    await db.update_quest_progress(user["id"], "open-cases", count)
+    await db.update_quest_progress(user["id"], "open-cases-2", count)
 
     return web.json_response({
         "item": rolled_items[0],
@@ -2720,9 +2722,6 @@ async def handle_review_my(request: web.Request):
 async def handle_reviews_list(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    role = await _effective_role(request, db, user["id"])
-    if db.ROLE_RANK.get(role, 0) < 2:
-        return web.json_response({"error": "forbidden"}, status=403)
     review = await db.get_my_review(user["id"])
     all_reviews = await db.get_reviews(100)
     return web.json_response({"reviews": all_reviews, "my": review})

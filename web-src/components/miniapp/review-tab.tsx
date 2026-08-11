@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Star, MessageCircleHeart, ThumbsUp, ThumbsDown, Loader2, Lock } from "lucide-react"
+import { Star, MessageCircleHeart, ThumbsUp, ThumbsDown, Loader2 } from "lucide-react"
 import { api } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
@@ -60,26 +60,22 @@ export function ReviewTab({ onToast }: { onToast: (m: string) => void }) {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      if (isAdmin) {
-        const data = (await api.get("/api/nexus/reviews")) as { reviews: Review[]; my?: Review | null }
-        setReviews(data?.reviews ?? [])
-        setMy(data?.my ?? null)
-      } else {
-        const data = (await api.get("/api/nexus/review/my")) as { review: Review | null }
-        setMy(data?.review ?? null)
-        if (data?.review) {
-          setRating(data.review.rating ?? 0)
-          setText(data.review.text ?? "")
-          setPros(data.review.pros ?? "")
-          setCons(data.review.cons ?? "")
-        }
+      const data = (await api.get("/api/nexus/reviews")) as { reviews: Review[]; my?: Review | null }
+      setReviews(data?.reviews ?? [])
+      const myReview = data?.my ?? null
+      setMy(myReview)
+      if (myReview) {
+        setRating(myReview.rating ?? 0)
+        setText(myReview.text ?? "")
+        setPros(myReview.pros ?? "")
+        setCons(myReview.cons ?? "")
       }
     } catch (e) {
       console.error("Failed to load review", e)
     } finally {
       setLoading(false)
     }
-  }, [isAdmin])
+  }, [])
 
   useEffect(() => {
     load()
@@ -166,49 +162,47 @@ export function ReviewTab({ onToast }: { onToast: (m: string) => void }) {
         </button>
       </section>
 
-      {/* Список отзывов (виден разработчику / админу) */}
-      {isAdmin && (
-        <section>
-          <h2 className="mb-2 flex items-center gap-1.5 font-display text-base font-bold">
-            <Lock className="size-4" /> {t("review.manage_title")}
-          </h2>
-          <p className="mb-3 text-xs text-muted-foreground">{t("review.manage_hint")}</p>
-          {loading && <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />}
-          <div className="space-y-3">
-            {reviews.length === 0 && !loading && (
-              <div className="rounded-3xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
-                {t("review.empty")}
-              </div>
-            )}
-            {reviews.map((r) => (
-              <div key={r.id} className="rounded-2xl border border-border bg-card p-3">
-                <div className="flex items-center gap-2">
-                  <span className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary text-xs font-bold">
-                    {r.nick ? r.nick.slice(0, 1).toUpperCase() : "?"}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-bold">{r.nick || `ID ${r.user_id}`}</p>
-                    <p className="flex items-center gap-0.5 text-[11px]">
-                      <Star className="size-3 fill-stars text-stars" /> {r.rating}/5
-                    </p>
-                  </div>
+      {/* Список отзывов — видят все игроки */}
+      <section>
+        <h2 className="mb-2 flex items-center gap-1.5 font-display text-base font-bold">
+          <MessageCircleHeart className="size-4 text-primary" /> {t("review.list_title")}
+        </h2>
+        {isAdmin && <p className="mb-3 text-xs text-muted-foreground">{t("review.manage_hint")}</p>}
+        {loading && <Loader2 className="mx-auto size-5 animate-spin text-muted-foreground" />}
+        <div className="space-y-3">
+          {reviews.length === 0 && !loading && (
+            <div className="rounded-3xl border border-dashed border-border py-8 text-center text-sm text-muted-foreground">
+              {t("review.empty")}
+            </div>
+          )}
+          {reviews.map((r) => (
+            <div key={r.id} className="rounded-2xl border border-border bg-card p-3">
+              <div className="flex items-center gap-2">
+                <span className="grid size-8 shrink-0 place-items-center rounded-full bg-secondary text-xs font-bold">
+                  {r.nick ? r.nick.slice(0, 1).toUpperCase() : "?"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold">{r.nick || `ID ${r.user_id}`}</p>
+                  <p className="flex items-center gap-0.5 text-[11px]">
+                    <Star className="size-3 fill-stars text-stars" /> {r.rating}/5
+                  </p>
                 </div>
-                {r.pros && (
-                  <p className="mt-2 flex items-start gap-1.5 text-xs text-emerald-400">
-                    <ThumbsUp className="mt-0.5 size-3.5 shrink-0" /> {r.pros}
-                  </p>
-                )}
-                {r.cons && (
-                  <p className="mt-1 flex items-start gap-1.5 text-xs text-destructive">
-                    <ThumbsDown className="mt-0.5 size-3.5 shrink-0" /> {r.cons}
-                  </p>
-                )}
-                {r.text && <p className="mt-1.5 text-sm text-muted-foreground text-pretty">{r.text}</p>}
               </div>
-            ))}
-          </div>
-        </section>
-      )}
+              {r.pros && (
+                <p className="mt-2 flex items-start gap-1.5 text-xs text-emerald-400">
+                  <ThumbsUp className="mt-0.5 size-3.5 shrink-0" /> {r.pros}
+                </p>
+              )}
+              {r.cons && (
+                <p className="mt-1 flex items-start gap-1.5 text-xs text-destructive">
+                  <ThumbsDown className="mt-0.5 size-3.5 shrink-0" /> {r.cons}
+                </p>
+              )}
+              {r.text && <p className="mt-1.5 text-sm text-muted-foreground text-pretty">{r.text}</p>}
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   )
 }

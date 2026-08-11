@@ -31,8 +31,13 @@ export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () 
             <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-background" />
           </div>
           <div className="leading-tight">
-            <p className="font-display text-lg font-bold tracking-wide">NEXUS <span className="text-primary">TeamHub</span></p>
-            <p className="-mt-1 text-[11px] text-muted-foreground">{t("topbar.tagline")}</p>
+            <div className="flex items-baseline gap-1.5">
+              <p className="font-display text-lg font-bold tracking-wide">NEXUS</p>
+              <span className="rounded-md bg-primary/15 px-1.5 py-0.5 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-primary">
+                TeamHub
+              </span>
+            </div>
+            <p className="-mt-0.5 text-[11px] text-muted-foreground">{t("topbar.tagline")}</p>
           </div>
         </div>
 
