@@ -11,11 +11,13 @@ webapp/static/ (index.html/style.css) своими, сохранив вызов�
 """
 
 import gzip
+import hashlib
 import html
 import json
 import logging
 import random
 import re
+import secrets
 import asyncio
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -1281,6 +1283,10 @@ async def handle_user_applications(request: web.Request):
 
 
 # Nexus Mini App API endpoints
+# Provably-fair: серверный сид ротируется каждые N открытий; старый сид после
+# ротации раскрывается, и клиент может пересчитать свои прошлые роллы.
+FAIR_ROTATE_EVERY = 2000
+
 CASES_CONFIG = {
     "blue": {
         "id": "blue",
@@ -1435,16 +1441,21 @@ async def handle_nexus_open_case(request: web.Request):
     if count > 1 and case_config["free"]:
         return web.json_response({"error": "multi open not allowed for free case"}, status=400)
 
-    def _roll_normal_item(items: list[dict]) -> dict:
+    def _fair_pick(server_seed: str, client_seed: str, nonce: int, items: list[dict]) -> tuple[dict, int, int]:
+        # Детерминированный ролл: результат выводится из sha256(seed:client:nonce),
+        # клиент повторяет те же вычисления в web-src/lib/crypto.ts и проверяет дроп.
+        digest = hashlib.sha256(f"{server_seed}:{client_seed}:{nonce}".encode("utf-8")).digest()
+        roll_value = int.from_bytes(digest[:8], "big")
+        jackpot_value = int.from_bytes(digest[8:16], "big") % 1000
         normal = [i for i in items if not i.get("jackpot")]
         total_weight = sum(i["weight"] for i in normal)
-        rand = random.uniform(0, total_weight)
+        pick = roll_value % total_weight
         current = 0
         for item in normal:
             current += item["weight"]
-            if rand <= current:
-                return item
-        return normal[0]
+            if pick < current:
+                return item, pick, jackpot_value
+        return normal[-1], pick, jackpot_value
 
     # Everything below runs inside one DB transaction to keep currency/items consistent.
     # Per-user lock serializes opens from the same user so rapid clicks can't spawn
@@ -1521,12 +1532,35 @@ async def handle_nexus_open_case(request: web.Request):
                 jet_bonuses_batch: list[dict] = []
                 now = datetime.utcnow().isoformat()
 
-                for _ in range(count):
+                # Provably-fair: берём активный сид (FOR UPDATE — сериализует
+                # параллельные открытия у разных юзеров на этой строке).
+                seed_row = await conn.fetchrow(
+                    "SELECT * FROM provably_fair_seeds WHERE rotated_at IS NULL ORDER BY id DESC LIMIT 1 FOR UPDATE"
+                )
+                if seed_row is None:
+                    new_seed = secrets.token_hex(32)
+                    seed_row = await conn.fetchrow(
+                        """
+                        INSERT INTO provably_fair_seeds (server_seed, seed_hash, created_at)
+                        VALUES ($1, $2, $3) RETURNING *
+                        """,
+                        new_seed,
+                        hashlib.sha256(new_seed.encode("utf-8")).hexdigest(),
+                        now,
+                    )
+                server_seed = seed_row["server_seed"]
+                seed_version = seed_row["id"]
+                seed_hash = seed_row["seed_hash"]
+                client_seed = secrets.token_hex(16)
+                nonce_start = seed_row["nonce"]
+
+                for idx in range(count):
                     # Джекпот-ролл (0.1%) — лимитированная 3D-модель, если тираж не распродан.
-                    rolled_item = _roll_normal_item(case_config["items"])
+                    nonce_i = nonce_start + idx + 1
+                    rolled_item, pick, jackpot_value = _fair_pick(server_seed, client_seed, nonce_i, case_config["items"])
                     model_token = None
                     granted_role = None
-                    if jackpot_item and random.random() < 0.001:
+                    if jackpot_item and jackpot_value == 0:
                         token = await db.next_limited_token(conn)
                         if token is not None:
                             rolled_item = jackpot_item
@@ -1603,18 +1637,50 @@ async def handle_nexus_open_case(request: web.Request):
 
                 if rolled_items:
                     keys_sql = ", ".join(
-                        f"({user['id']}, ${i*3+1}, ${i*3+2}, ${i*3+3})"
+                        f"({user['id']}, ${i*7+1}, ${i*7+2}, ${i*7+3}, ${i*7+4}, ${i*7+5}, ${i*7+6}, ${i*7+7})"
                         for i in range(len(rolled_items))
                     )
                     open_params: list = []
-                    for it in rolled_items:
-                        open_params += [case_id, now, it["key"]]
+                    for it, nonce_i in zip(rolled_items, range(nonce_start + 1, nonce_start + count + 1)):
+                        open_params += [case_id, now, it["key"], client_seed, nonce_i, seed_version, seed_hash]
                     await conn.execute(
-                        f"INSERT INTO case_opens (user_id, case_id, opened_at, item_key) VALUES {keys_sql}",
+                        f"INSERT INTO case_opens (user_id, case_id, opened_at, item_key, client_seed, nonce, seed_version, seed_hash) VALUES {keys_sql}",
                         *open_params,
                     )
 
+                # Продвигаем nonce и при необходимости ротируем сид: старый сид
+                # раскрывается (revealed_seed), новые открытия идут на новом сиде.
+                await conn.execute(
+                    "UPDATE provably_fair_seeds SET nonce = $1 WHERE id = $2",
+                    nonce_start + count, seed_version,
+                )
+                if nonce_start + count >= FAIR_ROTATE_EVERY:
+                    old_seed = server_seed
+                    await conn.execute(
+                        "UPDATE provably_fair_seeds SET rotated_at = $1 WHERE id = $2",
+                        now, seed_version,
+                    )
+                    new_seed = secrets.token_hex(32)
+                    await conn.execute(
+                        "INSERT INTO provably_fair_seeds (server_seed, seed_hash, created_at) VALUES ($1, $2, $3)",
+                        new_seed,
+                        hashlib.sha256(new_seed.encode("utf-8")).hexdigest(),
+                        now,
+                    )
+                    await conn.execute(
+                        "UPDATE case_opens SET revealed_seed = $1 WHERE seed_version = $2",
+                        old_seed, seed_version,
+                    )
+
                 await db.add_battlepass_xp(user["id"], 20 * count, conn)
+
+                fair_proof = {
+                    "seed_version": seed_version,
+                    "seed_hash": seed_hash,
+                    "client_seed": client_seed,
+                    "nonces": list(range(nonce_start + 1, nonce_start + count + 1)),
+                    "rotate_every": FAIR_ROTATE_EVERY,
+                }
 
                 if request_id:
                     await conn.execute(
@@ -1624,6 +1690,7 @@ async def handle_nexus_open_case(request: web.Request):
                             "item": rolled_items[0],
                             "items": rolled_items if count > 1 else None,
                             "last_open_at": datetime.utcnow().isoformat(),
+                            "fair": fair_proof,
                         }),
                         now,
                     )
@@ -1638,6 +1705,7 @@ async def handle_nexus_open_case(request: web.Request):
         "item": rolled_items[0],
         "items": rolled_items if count > 1 else None,
         "last_open_at": datetime.utcnow().isoformat(),
+        "fair": fair_proof,
     })
 
 
@@ -1747,7 +1815,8 @@ async def handle_nexus_cases_history(request: web.Request):
     user = _get_user(request)
     rows = await db.pool.fetch(
         """
-        SELECT co.case_id, co.opened_at, co.item_key
+        SELECT co.case_id, co.opened_at, co.item_key,
+               co.client_seed, co.nonce, co.seed_version, co.seed_hash, co.revealed_seed
         FROM case_opens co
         WHERE co.user_id = $1
         ORDER BY co.opened_at DESC, co.id DESC
@@ -1763,7 +1832,7 @@ async def handle_nexus_cases_history(request: web.Request):
     for r in rows:
         item = items_map.get(r["item_key"]) or {}
         case = CASES_CONFIG.get(r["case_id"]) or {}
-        history.append({
+        entry = {
             "case_id": r["case_id"],
             "case_name": case.get("name") or "Nexus",
             "opened_at": r["opened_at"],
@@ -1773,8 +1842,40 @@ async def handle_nexus_cases_history(request: web.Request):
             "image": item.get("image"),
             "icon": item.get("icon"),
             "kind": item.get("kind", "inventory"),
-        })
+        }
+        # Provably-fair proof: пусто у открытий, сделанных до введения фичи.
+        if r["client_seed"] and r["nonce"] is not None:
+            entry["proof"] = {
+                "seed_version": r["seed_version"],
+                "seed_hash": r["seed_hash"],
+                "client_seed": r["client_seed"],
+                "nonce": r["nonce"],
+                "revealed_seed": r["revealed_seed"],
+            }
+        history.append(entry)
     return web.json_response({"history": history})
+
+
+async def handle_nexus_cases_fair(request: web.Request):
+    """Текущий коммитмент сида и недавно раскрытые сиды для верификации."""
+    db: Database = request.app["db"]
+    _get_user(request)
+    row = await db.pool.fetchrow(
+        "SELECT id, seed_hash, nonce, created_at FROM provably_fair_seeds WHERE rotated_at IS NULL ORDER BY id DESC LIMIT 1"
+    )
+    revealed = await db.pool.fetch(
+        "SELECT id, seed_hash, rotated_at FROM provably_fair_seeds WHERE rotated_at IS NOT NULL ORDER BY id DESC LIMIT 5"
+    )
+    return web.json_response({
+        "seed_version": row["id"] if row else None,
+        "seed_hash": row["seed_hash"] if row else None,
+        "nonce": row["nonce"] if row else 0,
+        "rotate_every": FAIR_ROTATE_EVERY,
+        "revealed": [
+            {"seed_version": r["id"], "seed_hash": r["seed_hash"], "rotated_at": r["rotated_at"]}
+            for r in revealed
+        ],
+    })
 
 
 async def handle_nexus_inventory(request: web.Request):
@@ -3811,6 +3912,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/nexus/cases", handle_nexus_cases)
     app.router.add_post("/api/nexus/cases/open", handle_nexus_open_case)
     app.router.add_get("/api/nexus/cases/history", handle_nexus_cases_history)
+    app.router.add_get("/api/nexus/cases/fair", handle_nexus_cases_fair)
     app.router.add_post("/api/nexus/cases/share-image", handle_nexus_share_image)
     app.router.add_get("/api/nexus/inventory", handle_nexus_inventory)
     app.router.add_post("/api/nexus/inventory/sell", handle_nexus_sell)

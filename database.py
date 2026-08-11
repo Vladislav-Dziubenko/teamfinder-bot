@@ -1,4 +1,6 @@
+import hashlib
 import random
+import secrets
 
 import asyncpg
 from datetime import datetime, timedelta
@@ -1109,6 +1111,63 @@ class Database:
                 )
             except asyncpg.PostgresError as e:
                 print(f"Migration warning game_sessions_v1: {e}")
+
+        # Provably-fair кейсы: серверный сид + SHA-256 коммитмент, каждый ролл
+        # детерминированно выводится из sha256(server_seed:client_seed:nonce),
+        # клиент может пересчитать и проверить (см. webapp/server.py и fair-sheet.tsx).
+        migration_name = "provably_fair_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS provably_fair_seeds (
+                            id BIGSERIAL PRIMARY KEY,
+                            server_seed TEXT NOT NULL,
+                            seed_hash TEXT NOT NULL,
+                            nonce BIGINT NOT NULL DEFAULT 0,
+                            created_at TEXT NOT NULL,
+                            rotated_at TEXT
+                        )
+                        """
+                    )
+                    await conn.execute(
+                        "ALTER TABLE case_opens ADD COLUMN IF NOT EXISTS client_seed TEXT"
+                    )
+                    await conn.execute(
+                        "ALTER TABLE case_opens ADD COLUMN IF NOT EXISTS nonce BIGINT"
+                    )
+                    await conn.execute(
+                        "ALTER TABLE case_opens ADD COLUMN IF NOT EXISTS seed_version BIGINT"
+                    )
+                    await conn.execute(
+                        "ALTER TABLE case_opens ADD COLUMN IF NOT EXISTS seed_hash TEXT"
+                    )
+                    await conn.execute(
+                        "ALTER TABLE case_opens ADD COLUMN IF NOT EXISTS revealed_seed TEXT"
+                    )
+                    has_active = await conn.fetchval(
+                        "SELECT COUNT(*) FROM provably_fair_seeds WHERE rotated_at IS NULL"
+                    )
+                    if not has_active:
+                        server_seed = secrets.token_hex(32)
+                        await conn.execute(
+                            "INSERT INTO provably_fair_seeds (server_seed, seed_hash, created_at) VALUES ($1, $2, $3)",
+                            server_seed,
+                            hashlib.sha256(server_seed.encode("utf-8")).hexdigest(),
+                            datetime.utcnow().isoformat(),
+                        )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning provably_fair_v1: {e}")
 
         # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
         try:

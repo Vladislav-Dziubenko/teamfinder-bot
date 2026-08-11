@@ -14,7 +14,10 @@ import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 import { api } from "@/lib/api"
 import { useNexus } from "@/lib/store"
-import { rarityMeta } from "@/lib/data"
+import { rarityMeta, type LootCase } from "@/lib/data"
+import { ShieldCheck, ShieldX } from "lucide-react"
+import { FairSheet, type FairEntry } from "./fair-sheet"
+import type { FairProof } from "@/lib/crypto"
 
 type Period = 1 | 7 | 30
 
@@ -37,6 +40,7 @@ type CaseOpenRecord = {
   image?: string
   icon?: string
   kind?: string
+  proof?: FairProof
 }
 
 export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void }) {
@@ -46,6 +50,7 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
   const [stats, setStats] = useState<GeneralStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [history, setHistory] = useState<CaseOpenRecord[] | null>(null)
+  const [fairEntry, setFairEntry] = useState<{ entry: FairEntry; box: LootCase; proof: FairProof } | null>(null)
   const { lootCases } = useNexus()
 
   const achievements = useRecentAchievements()
@@ -250,12 +255,40 @@ export function StatsTab({ onOpenLeaderboard }: { onOpenLeaderboard?: () => void
                       <span className="shrink-0 text-[10px] font-bold uppercase" style={{ color: meta.color }}>
                         {tl(`rarity.${h.rarity}`, meta.label)}
                       </span>
+                      {h.proof && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const box = lootCases.find((c) => c.id === h.case_id)
+                            if (!box || !h.proof) return
+                            setFairEntry({ entry: { itemKey: h.item_key, itemName: h.item_name, nonce: h.proof.nonce ?? 0 }, box, proof: h.proof })
+                          }}
+                          aria-label={t("fair.verify_btn")}
+                          className={cn(
+                            "grid size-8 shrink-0 place-items-center rounded-xl border transition-colors active:scale-90",
+                            h.proof.revealed_seed
+                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                              : "border-border bg-secondary/60 text-muted-foreground",
+                          )}
+                        >
+                          {h.proof.revealed_seed ? <ShieldCheck className="size-4" /> : <ShieldX className="size-4" />}
+                        </button>
+                      )}
                     </div>
                   )
                 })}
               </div>
             )}
           </section>
+
+          {fairEntry && (
+            <FairSheet
+              entries={[fairEntry.entry]}
+              box={fairEntry.box}
+              proof={fairEntry.proof}
+              onClose={() => setFairEntry(null)}
+            />
+          )}
 
           {/* Recent achievements */}
           <section>

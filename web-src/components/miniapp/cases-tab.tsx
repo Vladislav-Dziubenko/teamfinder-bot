@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
-import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2, Play, Trophy, Shirt, Check } from "lucide-react"
+import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2, Play, Trophy, Shirt, Check, ShieldCheck } from "lucide-react"
 import { rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus, type InventoryItem } from "@/lib/store"
@@ -12,6 +12,8 @@ import { tick, win as winSfx, whoosh, setMuted, isMuted, ensureAudio } from "@/l
 import { formatNum } from "@/lib/format"
 import { TopUpSheet } from "./top-up-sheet"
 import { MarketListSheet } from "./market-list-sheet"
+import { FairSheet, type FairEntry } from "./fair-sheet"
+import type { FairProof } from "@/lib/crypto"
 import { useAdsgram } from "@/lib/use-adsgram"
 import { hapticImpact } from "@/lib/webapp"
 import { analytics } from "@/lib/telegram-analytics"
@@ -66,8 +68,8 @@ function itemPct(c: LootCase, item: CaseItem) {
 export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const { t, tl } = useI18n()
   const { stars, coins, inventory, pinnedKeys, caseReadyIn, caseCooldown, openCase, sellItem, sellStack, togglePin, buyShopItem, lootCases, refresh, modelState, recordAdWatch, adWatchCount, adRewarded, betaBalance, isBeta, loaded, freeGoldOpens, skin, equipSkin } = useNexus()
-  const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
-  const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
+  const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase; fair?: FairProof } | null>(null)
+  const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null; fair?: FairProof } | null>(null)
   const [sound, setSound] = useState(true)
   const [sortMode, setSortMode] = useState<"value" | "rarity">("value")
   const [listItem, setListItem] = useState<InventoryItem | null>(null)
@@ -168,7 +170,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         onToast(res.error ?? t("common.error"))
         return
       }
-      if (res.item) setSpin((p) => (p ? { box: p.box, winner: res.item! } : p))
+      if (res.item) setSpin((p) => (p ? { box: p.box, winner: res.item!, fair: res.fair } : p))
     } finally {
       openBusyRef.current = false
       setAdBusy(false)
@@ -202,12 +204,12 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       setSpin(null)
       onToast(res.error ?? t("common.error"))
     } else if (res.item) {
-      setSpin((p) => (p ? { box: p.box, winner: res.item! } : p))
+      setSpin((p) => (p ? { box: p.box, winner: res.item!, fair: res.fair } : p))
     }
     openBusyRef.current = false
   }
 
-  const [multi, setMulti] = useState<{ box: LootCase; items: CaseItem[] } | null>(null)
+  const [multi, setMulti] = useState<{ box: LootCase; items: CaseItem[]; fair?: FairProof } | null>(null)
   const [multiBusy, setMultiBusy] = useState<number | null>(null)
   const [topUp, setTopUp] = useState<{ box: LootCase; count: number; isMulti: boolean } | null>(null)
   const handleOpenRef = useRef(handleOpen)
@@ -257,7 +259,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         onToast(res.error ?? t("common.error"))
         return
       }
-      if (res.items) setMulti({ box: c, items: res.items })
+      if (res.items) setMulti({ box: c, items: res.items, fair: res.fair })
     } finally {
       openBusyRef.current = false
       setMultiBusy(null)
@@ -265,6 +267,14 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   }
 
   const [shopBuying, setShopBuying] = useState<string | null>(null)
+
+  // Provably-fair: публичный коммитмент активного сида + недавно раскрытые.
+  const [fairInfo, setFairInfo] = useState<{ seed_version: number; seed_hash: string; nonce: number; rotate_every: number } | null>(null)
+  useEffect(() => {
+    api.get("/api/nexus/cases/fair").then((d: any) => {
+      if (d?.seed_hash) setFairInfo(d)
+    }).catch(() => {})
+  }, [])
 
   async function buyFromShop(key: string, name: string) {
     if (shopBuying) return
@@ -299,6 +309,16 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
           {sound ? <Volume2 className="size-5" /> : <VolumeX className="size-5" />}
         </button>
       </div>
+
+      {/* Provably-fair: сид привязан к коммитменту, проверка в истории открытий */}
+      {fairInfo && (
+        <div className="flex items-center gap-2 rounded-2xl border border-emerald-500/25 bg-emerald-500/5 px-3 py-2">
+          <ShieldCheck className="size-4 shrink-0 text-emerald-400" />
+          <p className="min-w-0 flex-1 truncate text-[11px] text-muted-foreground">
+            {t("fair.banner", { v: fairInfo.seed_version, n: fairInfo.rotate_every })}
+          </p>
+        </div>
+      )}
 
       {/* Рекламное достижение: 15 просмотров → +20 ⭐ */}
       {adRewarded === 0 && (
@@ -728,7 +748,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
           box={spin.box}
           winner={spin.winner}
           onDone={() => {
-            setReveal({ item: spin.winner!, box: spin.box })
+            setReveal({ item: spin.winner!, box: spin.box, fair: spin.fair })
             setSpin(null)
           }}
         />
@@ -739,6 +759,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         <RevealModal
           item={reveal.item}
           box={reveal.box}
+          fair={reveal.fair}
           onClose={() => {
             setReveal(null)
             refresh()
@@ -747,7 +768,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       )}
 
       {/* Multi reveal modal */}
-      {multi && <MultiRevealModal box={multi.box} items={multi.items} onClose={() => { setMulti(null); refresh() }} />}
+      {multi && <MultiRevealModal box={multi.box} items={multi.items} fair={multi.fair} onClose={() => { setMulti(null); refresh() }} />}
 
       {/* Недостаточно звёзд -> пополнение (оплата картой через Telegram Stars) */}
       {topUp && (
@@ -977,7 +998,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
   )
 }
 
-function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; onClose: () => void }) {
+function RevealModal({ item, box, fair, onClose }: { item: CaseItem; box: LootCase; fair?: FairProof; onClose: () => void }) {
   const { t, tl } = useI18n()
   const meta = rarityMeta[item.rarity]
   const pct = itemPct(box, item)
@@ -987,6 +1008,7 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
   const b = item.bonuses ?? {}
   const isLegendary = item.rarity === "legendary"
   const [sharing, setSharing] = useState(false)
+  const [fairOpen, setFairOpen] = useState(false)
 
   async function shareDrop() {
     if (sharing) return
@@ -1163,6 +1185,15 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
         >
           {isJackpot ? t("cases.jackpot_collect") : t("cases.collect")}
         </button>
+        {fair && fair.nonces && fair.nonces.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setFairOpen(true)}
+            className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 py-3 text-sm font-semibold text-emerald-400 active:scale-[0.98]"
+          >
+            <ShieldCheck className="size-4" /> {t("fair.verify_btn")}
+          </button>
+        )}
         <button
           type="button"
           onClick={shareDrop}
@@ -1172,13 +1203,23 @@ function RevealModal({ item, box, onClose }: { item: CaseItem; box: LootCase; on
           {sharing ? t("cases.share_loading") : `📤 ${t("cases.share_drop")}`}
         </button>
       </div>
+
+      {fairOpen && fair && (
+        <FairSheet
+          entries={[{ itemKey: item.key, itemName: tl(itemNameKey(item), item.name), nonce: fair.nonces ? fair.nonces[0] : 0 }]}
+          box={box}
+          proof={fair}
+          onClose={() => setFairOpen(false)}
+        />
+      )}
     </div>
   )
 }
 
-function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseItem[]; onClose: () => void }) {
+function MultiRevealModal({ box, items, fair, onClose }: { box: LootCase; items: CaseItem[]; fair?: FairProof; onClose: () => void }) {
   const { t, tl } = useI18n()
   const { modelState } = useNexus()
+  const [fairOpen, setFairOpen] = useState(false)
   const totalStars = items.filter((i) => i.kind === "stars").reduce((s, i) => s + (i.stars ?? 0), 0)
   const totalJetStars = items.filter((i) => i.kind === "jet").reduce((s, i) => s + (i.bonuses?.stars ?? 0), 0)
   const totalJetCoins = items.filter((i) => i.kind === "jet").reduce((s, i) => s + (i.bonuses?.coins ?? 0), 0)
@@ -1277,8 +1318,26 @@ function MultiRevealModal({ box, items, onClose }: { box: LootCase; items: CaseI
           >
             {t("cases.collect")}
           </button>
+          {fair && fair.nonces && fair.nonces.length === items.length && (
+            <button
+              type="button"
+              onClick={() => setFairOpen(true)}
+              className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 py-3 text-sm font-semibold text-emerald-400 active:scale-[0.98]"
+            >
+              <ShieldCheck className="size-4" /> {t("fair.verify_btn")}
+            </button>
+          )}
         </div>
       </div>
+
+      {fairOpen && fair && (
+        <FairSheet
+          entries={items.map((it, i) => ({ itemKey: it.key, itemName: tl(itemNameKey(it), it.name), nonce: fair.nonces ? fair.nonces[i] : i + 1 }))}
+          box={box}
+          proof={fair}
+          onClose={() => setFairOpen(false)}
+        />
+      )}
     </div>
   )
 }

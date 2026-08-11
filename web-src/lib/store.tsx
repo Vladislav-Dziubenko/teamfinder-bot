@@ -13,6 +13,7 @@ import {
 import { api, telegramReady, openInvoice, syncTelegramProfile } from "@/lib/api"
 import { initWebApp } from "@/lib/webapp"
 import { parseIsoTs } from "@/lib/chat"
+import type { FairProof } from "@/lib/crypto"
 
 export type InventoryItem = CaseItem & { uid: string; id?: number }
 
@@ -506,7 +507,7 @@ type Nexus = PersistedState & {
   sellItem: (uid: string) => Promise<void>
   sellStack: (itemKey: string, count: number) => Promise<{ sold: number; coins: number } | null>
   togglePin: (key: string) => void
-  openCase: (caseId: string, count?: number, requestId?: string, viaAd?: boolean) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }>
+  openCase: (caseId: string, count?: number, requestId?: string, viaAd?: boolean) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; fair?: FairProof; error?: string }>
   refreshModels: () => Promise<void>
   refreshModelHistory: () => Promise<void>
   recordAdWatch: () => Promise<{ ok: boolean; watch_count?: number; reward_stars?: number; error?: string }>
@@ -837,7 +838,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       })
     }
 
-    const openCase = async (caseId: string, count = 1, requestId?: string, viaAd = false): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; error?: string }> => {
+    const openCase = async (caseId: string, count = 1, requestId?: string, viaAd = false): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; fair?: FairProof; error?: string }> => {
       const c = s.lootCases.find((x) => x.id === caseId)
       if (!c) return { ok: false, error: "Кейс не найден" }
       const isBeta = s.isBeta
@@ -864,9 +865,9 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         }
         refresh()
         if (Array.isArray(data.items) && data.items.length > 0) {
-          return { ok: true, items: data.items as CaseItem[], item: data.items[0] as CaseItem }
+          return { ok: true, items: data.items as CaseItem[], item: data.items[0] as CaseItem, fair: data.fair as FairProof | undefined }
         }
-        return { ok: true, item: data.item as CaseItem }
+        return { ok: true, item: data.item as CaseItem, fair: data.fair as FairProof | undefined }
       } catch (e: any) {
         await refresh()
         console.error("Error opening case:", e)
