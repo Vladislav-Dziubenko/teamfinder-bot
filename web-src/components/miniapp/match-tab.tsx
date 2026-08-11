@@ -9,6 +9,7 @@ import { useNexus } from "@/lib/store"
 import { api } from "@/lib/api"
 import { PlayerCard } from "./player-card"
 import { TeamCard } from "./team-card"
+import { ReviewSheet } from "./review-sheet"
 import { cn } from "@/lib/utils"
 
 type SortKey = "match" | "level" | "rank" | "time"
@@ -38,6 +39,7 @@ export function MatchTab({
   const [searchResults, setSearchResults] = useState<{ players: Player[]; teams: Team[] } | null>(null)
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
+  const [reviewPlayer, setReviewPlayer] = useState<Player | null>(null)
 
   const rankOrder = ["Global Elite", "Legendary Eagle Master", "Legendary Eagle", "Immortal 2", "Ascendant 1", "Divine 3"]
 
@@ -252,6 +254,7 @@ export function MatchTab({
                 player={p}
                 onConnect={onConnect}
                 onChat={onChat}
+                onReview={setReviewPlayer}
                 onUnlock={async (pl) => {
                   const ok = await unlockPlayer(pl.id, pl.unlockStars ?? 0)
                   if (!ok) setNotice(t("match.error_not_enough_stars"))
@@ -269,6 +272,14 @@ export function MatchTab({
             <TeamCard key={t.id} team={t} onJoin={onJoinTeam} index={i} />
           ))}
         </div>
+      )}
+
+      {reviewPlayer && (
+        <ReviewSheet
+          player={reviewPlayer}
+          onClose={() => setReviewPlayer(null)}
+          onToast={(m) => setNotice(m)}
+        />
       )}
     </div>
   )

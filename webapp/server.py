@@ -854,7 +854,9 @@ async def handle_search(request: web.Request):
             params.append(game_filter)
         rows = await db.pool.fetch(
             f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, mp.equipped_skin, p.game, p.rank, p.role, p.searching_since,
-                EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id) AS has_discord
+                EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id) AS has_discord,
+                (SELECT ROUND(AVG(rating)::numeric, 1)::float FROM player_reviews pr WHERE pr.reviewed_user_id = u.user_id) AS rating_avg,
+                (SELECT COUNT(*) FROM player_reviews pr WHERE pr.reviewed_user_id = u.user_id) AS rating_count
                 FROM users u
                 JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
                 LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
@@ -886,6 +888,8 @@ async def handle_search(request: web.Request):
                 "lastSeen": None,
                 "searching_minutes": _calc_searching_minutes(r["searching_since"]),
                 "has_discord": bool(r["has_discord"]),
+                "rating_avg": r["rating_avg"],
+                "rating_count": r["rating_count"] or 0,
             }
             for r in rows
         ]
@@ -897,7 +901,9 @@ async def handle_search(request: web.Request):
         d_where = "AND EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id)" if discord_filter else ""
         rows = await db.pool.fetch(
             f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, mp.equipped_skin, p.game, p.rank, p.role, p.searching_since,
-                EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id) AS has_discord
+                EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id) AS has_discord,
+                (SELECT ROUND(AVG(rating)::numeric, 1)::float FROM player_reviews pr WHERE pr.reviewed_user_id = u.user_id) AS rating_avg,
+                (SELECT COUNT(*) FROM player_reviews pr WHERE pr.reviewed_user_id = u.user_id) AS rating_count
                FROM users u
                LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
                JOIN profiles p ON p.user_id = u.user_id AND p.is_active = 1
@@ -936,6 +942,8 @@ async def handle_search(request: web.Request):
                 "lastSeen": None,
                 "searching_minutes": _calc_searching_minutes(r["searching_since"]),
                 "has_discord": bool(r["has_discord"]),
+                "rating_avg": r["rating_avg"],
+                "rating_count": r["rating_count"] or 0,
             }
             for r in rows
         ]
@@ -996,6 +1004,17 @@ async def handle_search(request: web.Request):
             usernames = {r["user_id"]: (r["username"] or "") for r in urows}
         except Exception:
             usernames = {}
+    # Оценки игроков: средний рейтинг и число отзывов одной выборкой.
+    ratings: dict[int, tuple[float | None, int]] = {}
+    if matched_ids:
+        rrows = await db.pool.fetch(
+            """SELECT reviewed_user_id AS uid, ROUND(AVG(rating)::numeric, 1) AS avg, COUNT(*) AS cnt
+               FROM player_reviews
+               WHERE reviewed_user_id = ANY($1::bigint[])
+               GROUP BY reviewed_user_id""",
+            matched_ids,
+        )
+        ratings = {r["uid"]: (float(r["avg"]) if r["avg"] is not None else None, r["cnt"]) for r in rrows}
     for p, score in matches:
         contact_unlocked = await db.has_unlocked_contact(user["id"], p["id"])
         mini_profile = await db.get_mini_app_profile(p["user_id"])
@@ -1036,6 +1055,8 @@ async def handle_search(request: web.Request):
             "contact": contact,
             "searching_minutes": _calc_searching_minutes(p.get("searching_since")),
             "has_discord": bool(has_discord),
+            "rating_avg": ratings.get(p["user_id"], (None, 0))[0],
+            "rating_count": ratings.get(p["user_id"], (None, 0))[1],
         })
 
     await db.increment_user_stat(user["id"], "search_count")
@@ -1876,6 +1897,78 @@ async def handle_nexus_cases_fair(request: web.Request):
             for r in revealed
         ],
     })
+
+
+async def handle_review_submit(request: web.Request):
+    """Оценка игрока 1-5 + комментарий; повторная оценка перезаписывает прошлую."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    body = await request.json()
+    to_user_id = body.get("to_user_id")
+    rating = body.get("rating")
+    comment = (body.get("comment") or "").strip()[:500]
+    if not isinstance(to_user_id, int) or not isinstance(rating, int) or rating < 1 or rating > 5:
+        return web.json_response({"error": "invalid review"}, status=400)
+    if to_user_id == user["id"]:
+        return web.json_response({"error": "cannot review yourself"}, status=400)
+    exists = await db.pool.fetchval("SELECT 1 FROM users WHERE user_id = $1", to_user_id)
+    if not exists:
+        return web.json_response({"error": "user not found"}, status=404)
+    await db.upsert_review(user["id"], to_user_id, rating, comment)
+    avg, cnt, _ = await db.get_player_reviews(to_user_id)
+    return web.json_response({"ok": True, "rating_avg": avg, "rating_count": cnt})
+
+
+async def handle_reviews_list(request: web.Request):
+    """Отзывы игрока: средний рейтинг + список + мой отзыв (если есть)."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        target_id = int(request.match_info.get("user_id", ""))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid user"}, status=400)
+    if target_id <= 0:
+        return web.json_response({"error": "invalid user"}, status=400)
+    avg, cnt, reviews = await db.get_player_reviews(target_id)
+    mine = None
+    if target_id != user["id"]:
+        mine = await db.get_my_review_for(user["id"], target_id)
+    return web.json_response({
+        "user_id": target_id,
+        "rating_avg": avg,
+        "rating_count": cnt,
+        "reviews": reviews,
+        "mine": mine,
+    })
+
+
+async def handle_my_reviews(request: web.Request):
+    """Отзывы, написанные мной."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    rows = await db.pool.fetch(
+        """
+        SELECT pr.rating, pr.comment, pr.created_at, pr.reviewed_user_id,
+               mp.nick AS nick, mp.avatar AS avatar
+        FROM player_reviews pr
+        LEFT JOIN mini_app_profiles mp ON mp.user_id = pr.reviewed_user_id
+        WHERE pr.reviewer_id = $1
+        ORDER BY pr.updated_at DESC
+        """,
+        user["id"],
+    )
+    reviews = [
+        {
+            "to_user_id": r["reviewed_user_id"],
+            "nick": r["nick"] or f"User{r['reviewed_user_id']}",
+            "avatar": r["avatar"] or f"/player-{((r['reviewed_user_id'] % 4) + 1)}.webp",
+            "rating": r["rating"],
+            "comment": r["comment"] or "",
+            "created_at": r["created_at"],
+        }
+        for r in rows
+    ]
+    return web.json_response({"reviews": reviews})
 
 
 async def handle_nexus_inventory(request: web.Request):
@@ -3913,6 +4006,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/nexus/cases/open", handle_nexus_open_case)
     app.router.add_get("/api/nexus/cases/history", handle_nexus_cases_history)
     app.router.add_get("/api/nexus/cases/fair", handle_nexus_cases_fair)
+    app.router.add_post("/api/reviews", handle_review_submit)
+    app.router.add_get("/api/reviews/mine", handle_my_reviews)
+    app.router.add_get("/api/reviews/{user_id}", handle_reviews_list)
     app.router.add_post("/api/nexus/cases/share-image", handle_nexus_share_image)
     app.router.add_get("/api/nexus/inventory", handle_nexus_inventory)
     app.router.add_post("/api/nexus/inventory/sell", handle_nexus_sell)

@@ -1,16 +1,18 @@
 "use client"
 
-import { Crosshair, Trophy, Clock, Zap, Lock, Star, Crown, Award, MessageCircle, Search } from "lucide-react"
+import { Crosshair, Trophy, Clock, Zap, Lock, Star, Crown, Award, MessageCircle, Search, Shield } from "lucide-react"
 import type { Player } from "@/lib/data"
 import { games, roleL10nKey, rankL10nKey, caseItemByKey } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
+import { cn } from "@/lib/utils"
 
 export function PlayerCard({
   player,
   onConnect,
   onChat,
   onUnlock,
+  onReview,
   locked = false,
   index = 0,
 }: {
@@ -18,6 +20,7 @@ export function PlayerCard({
   onConnect: (p: Player) => void
   onChat?: (p: Player) => void
   onUnlock?: (p: Player) => void
+  onReview?: (p: Player) => void
   locked?: boolean
   index?: number
 }) {
@@ -161,6 +164,17 @@ export function PlayerCard({
           </div>
         )}
 
+        {/* рейтинг от других игроков */}
+        {!locked && (player.rating_count ?? 0) > 0 && (
+          <div className="mt-2 flex items-center gap-1.5 text-xs">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Star key={i} className={cn("size-3.5", i <= Math.round(player.rating_avg ?? 0) ? "fill-stars text-stars" : "text-muted-foreground/40")} />
+            ))}
+            <span className="font-bold">{player.rating_avg}</span>
+            <span className="text-muted-foreground">({player.rating_count})</span>
+          </div>
+        )}
+
         {/* favorite games */}
         {player.fav_games && (
           <div className="mt-2 flex flex-wrap gap-1.5">
@@ -205,6 +219,16 @@ export function PlayerCard({
                 className="grid size-12 shrink-0 place-items-center rounded-2xl border border-border bg-secondary/60 text-accent transition-transform active:scale-[0.95]"
               >
                 <MessageCircle className="size-5" />
+              </button>
+            )}
+            {onReview && (
+              <button
+                type="button"
+                onClick={() => onReview(player)}
+                aria-label={t("review.title")}
+                className="grid size-12 shrink-0 place-items-center rounded-2xl border border-stars/40 bg-stars/10 text-stars transition-transform active:scale-[0.95]"
+              >
+                <Shield className="size-5" />
               </button>
             )}
           </div>

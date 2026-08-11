@@ -1169,6 +1169,42 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Migration warning provably_fair_v1: {e}")
 
+        # Оценки игроков: рейтинг 1-5 + комментарий, одна оценка на пару
+        # (переоценка обновляет прошлую).
+        migration_name = "player_reviews_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS player_reviews (
+                            id BIGSERIAL PRIMARY KEY,
+                            reviewer_id BIGINT NOT NULL,
+                            reviewed_user_id BIGINT NOT NULL,
+                            rating INTEGER NOT NULL,
+                            comment TEXT NOT NULL DEFAULT '',
+                            game TEXT NOT NULL DEFAULT '',
+                            created_at TEXT NOT NULL,
+                            updated_at TEXT NOT NULL,
+                            UNIQUE (reviewer_id, reviewed_user_id)
+                        )
+                        """
+                    )
+                    await conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_player_reviews_reviewed ON player_reviews (reviewed_user_id)"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning player_reviews_v1: {e}")
+
         # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
         try:
             await conn.execute("""
@@ -2114,6 +2150,64 @@ class Database:
                     )
                     paid += 1
         return paid
+
+    # Player reviews (ratings after games)
+    async def upsert_review(self, reviewer_id: int, reviewed_user_id: int, rating: int, comment: str, game: str = "") -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO player_reviews (reviewer_id, reviewed_user_id, rating, comment, game, created_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $6)
+                ON CONFLICT (reviewer_id, reviewed_user_id)
+                DO UPDATE SET rating = EXCLUDED.rating, comment = EXCLUDED.comment,
+                              game = EXCLUDED.game, updated_at = EXCLUDED.updated_at
+                """,
+                reviewer_id, reviewed_user_id, rating, comment, game, now,
+            )
+
+    async def get_player_reviews(self, user_id: int) -> tuple[float | None, int, list[dict]]:
+        async with self.pool.acquire() as conn:
+            agg = await conn.fetchrow(
+                "SELECT COUNT(*) AS cnt, ROUND(AVG(rating)::numeric, 1) AS avg FROM player_reviews WHERE reviewed_user_id = $1",
+                user_id,
+            )
+            rows = await conn.fetch(
+                """
+                SELECT pr.rating, pr.comment, pr.game, pr.created_at, pr.reviewer_id,
+                       mp.nick AS reviewer_nick, mp.avatar AS reviewer_avatar
+                FROM player_reviews pr
+                LEFT JOIN mini_app_profiles mp ON mp.user_id = pr.reviewer_id
+                WHERE pr.reviewed_user_id = $1
+                ORDER BY pr.updated_at DESC
+                """,
+                user_id,
+            )
+        cnt = agg["cnt"] or 0
+        avg = float(agg["avg"]) if agg["avg"] is not None else None
+        reviews = [
+            {
+                "rating": r["rating"],
+                "comment": r["comment"] or "",
+                "game": r["game"] or "",
+                "created_at": r["created_at"],
+                "reviewer_id": r["reviewer_id"],
+                "reviewer_nick": r["reviewer_nick"] or f"User{r['reviewer_id']}",
+                "reviewer_avatar": r["reviewer_avatar"] or f"/player-{((r['reviewer_id'] % 4) + 1)}.webp",
+            }
+            for r in rows
+        ]
+        return avg, cnt, reviews
+
+    async def get_my_review_for(self, reviewer_id: int, reviewed_user_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            r = await conn.fetchrow(
+                "SELECT rating, comment, game FROM player_reviews WHERE reviewer_id = $1 AND reviewed_user_id = $2",
+                reviewer_id, reviewed_user_id,
+            )
+        if not r:
+            return None
+        return {"rating": r["rating"], "comment": r["comment"] or "", "game": r["game"] or ""}
 
     # Case methods
     async def get_case_opens_today(self, user_id: int, case_id: str) -> int:

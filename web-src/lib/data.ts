@@ -66,6 +66,7 @@ export function rankL10nKey(gameId: string, rank: string): string {
 
 export type Player = {
   id: string
+  user_id?: number
   nick: string
   realName: string
   avatar: string
@@ -89,6 +90,8 @@ export type Player = {
   fav_games?: string
   has_discord?: boolean
   skin?: string
+  rating_avg?: number
+  rating_count?: number
 }
 
 export const players: Player[] = [
