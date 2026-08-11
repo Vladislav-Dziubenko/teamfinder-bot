@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { ShieldCheck, ShieldX, Loader2, X } from "lucide-react"
+import { ShieldCheck, ShieldX, Loader2, X, Hourglass } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { verifyCaseProof, type FairProof, type CaseItemForVerify } from "@/lib/crypto"
 import type { LootCase } from "@/lib/data"
@@ -27,22 +27,32 @@ export function FairSheet({ entries, box, proof, onClose }: {
   const { t } = useI18n()
   const [status, setStatus] = useState<"idle" | "checking" | "done">("idle")
   const [results, setResults] = useState<{ ok: boolean; hashOk: boolean; verifiable: boolean }[]>([])
+  const [error, setError] = useState<string | null>(null)
   const items: CaseItemForVerify[] = (box.items ?? []).map((i) => ({ key: i.key, weight: i.weight, jackpot: Boolean(i.jackpot) }))
 
   useEffect(() => {
     setStatus("idle")
     setResults([])
+    setError(null)
   }, [entries, box, proof])
 
   async function run() {
+    if (status === "checking") return
     setStatus("checking")
-    const out: { ok: boolean; hashOk: boolean; verifiable: boolean }[] = []
-    for (const e of entries) {
-      const r = await verifyCaseProof({ ...proof, nonce: e.nonce }, items, e.itemKey)
-      out.push({ ok: r.rollOk, hashOk: r.hashOk, verifiable: r.verifiable })
+    setError(null)
+    try {
+      const out: { ok: boolean; hashOk: boolean; verifiable: boolean }[] = []
+      for (const e of entries) {
+        const r = await verifyCaseProof({ ...proof, nonce: e.nonce }, items, e.itemKey)
+        out.push({ ok: r.rollOk, hashOk: r.hashOk, verifiable: r.verifiable })
+      }
+      setResults(out)
+    } catch {
+      setError(t("fair.check_failed"))
+      setResults([])
+    } finally {
+      setStatus("done")
     }
-    setResults(out)
-    setStatus("done")
   }
 
   const revealed = Boolean(proof?.revealed_seed)
@@ -69,9 +79,19 @@ export function FairSheet({ entries, box, proof, onClose }: {
               <div key={i} className="flex items-center gap-3 rounded-2xl border border-border bg-secondary/40 px-3 py-2.5">
                 <span className={cn(
                   "grid size-8 shrink-0 place-items-center rounded-xl",
-                  r ? (r.ok ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400") : "bg-secondary text-muted-foreground",
+                  r
+                    ? r.verifiable
+                      ? (r.ok ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400")
+                      : "bg-secondary/60 text-muted-foreground"
+                    : "bg-secondary text-muted-foreground",
                 )}>
-                  {!r ? <span className="text-xs font-bold">#{i + 1}</span> : r.ok ? <ShieldCheck className="size-4" /> : <ShieldX className="size-4" />}
+                  {!r ? (
+                    <span className="text-xs font-bold">#{i + 1}</span>
+                  ) : r.verifiable ? (
+                    r.ok ? <ShieldCheck className="size-4" /> : <ShieldX className="size-4" />
+                  ) : (
+                    <Hourglass className="size-4" />
+                  )}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-semibold">{e.itemName}</p>
@@ -90,7 +110,7 @@ export function FairSheet({ entries, box, proof, onClose }: {
         <button
           type="button"
           onClick={run}
-          disabled={status === "checking" || !revealed}
+          disabled={status === "checking"}
           className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground active:scale-[0.98] disabled:opacity-50"
         >
           {status === "checking" ? <Loader2 className="size-4 animate-spin" /> : <ShieldCheck className="size-4" />}
@@ -99,6 +119,9 @@ export function FairSheet({ entries, box, proof, onClose }: {
 
         {status === "done" && !revealed && (
           <p className="mt-3 rounded-xl bg-secondary/60 px-3 py-2.5 text-center text-xs text-muted-foreground">{t("fair.not_ready", { n: proof?.rotate_every ?? 2000 })}</p>
+        )}
+        {error && (
+          <p className="mt-3 rounded-xl bg-red-500/10 px-3 py-2.5 text-center text-xs font-semibold text-red-400">{error}</p>
         )}
 
         {status === "done" && revealed && allOk && (

@@ -760,6 +760,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
           item={reveal.item}
           box={reveal.box}
           fair={reveal.fair}
+          onToast={onToast}
           onClose={() => {
             setReveal(null)
             refresh()
@@ -998,7 +999,7 @@ function CaseSpinner({ box, winner, onDone }: { box: LootCase; winner: CaseItem 
   )
 }
 
-function RevealModal({ item, box, fair, onClose }: { item: CaseItem; box: LootCase; fair?: FairProof; onClose: () => void }) {
+function RevealModal({ item, box, fair, onToast, onClose }: { item: CaseItem; box: LootCase; fair?: FairProof; onToast: (m: string) => void; onClose: () => void }) {
   const { t, tl } = useI18n()
   const meta = rarityMeta[item.rarity]
   const pct = itemPct(box, item)
@@ -1015,6 +1016,7 @@ function RevealModal({ item, box, fair, onClose }: { item: CaseItem; box: LootCa
     setSharing(true)
     const name = tl(itemNameKey(item), item.name)
     const boxName = tl(caseNameKey(box), box.name)
+    const shareText = `Я выбил ${name} из кейса ${boxName} в NEXUS TeamHub! 🔥`
     try {
       const blob = await api.postBlob("/api/nexus/cases/share-image", {
         item: { name, rarity: item.rarity, icon: item.icon, image: item.image },
@@ -1022,33 +1024,56 @@ function RevealModal({ item, box, fair, onClose }: { item: CaseItem; box: LootCa
       })
       const file = new File([blob], "teamfinder-drop.png", { type: "image/png" })
       const nav = navigator as Navigator & { share?: (data: { files?: File[]; title?: string; text?: string }) => Promise<void> }
+      // В Telegram WebView Web Share API обычно недоступен — идём в обходы.
       if (typeof nav.share === "function") {
         try {
-          await nav.share({
-            files: [file],
-            title: "NEXUS TeamHub",
-            text: `Я выбил ${name} из кейса ${boxName}! 🔥`,
-          })
+          await nav.share({ files: [file], title: "NEXUS TeamHub", text: shareText })
           return
         } catch (e) {
           if (e instanceof DOMException && e.name === "AbortError") return
+          // NotAllowedError/DataError и т.п. — пробуем обходные пути ниже
         }
       }
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement("a")
-      link.href = url
-      link.download = "teamfinder-drop.png"
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      setTimeout(() => URL.revokeObjectURL(url), 5000)
-    } catch {
-      // fallback: просто текст в буфер
-      const text = `Я выбил ${name} из кейса ${boxName} в NEXUS TeamHub! 🔥`
+      // Обход 1: скопировать картинку в буфер обмена
+      const ClipItem = (window as any).ClipboardItem
+      if (ClipItem) {
+        try {
+          await navigator.clipboard.write([new ClipItem({ "image/png": blob })])
+          onToast(t("cases.share_copied"))
+          return
+        } catch {
+          /* падаем в обход 2 */
+        }
+      }
+      // Обход 2: скачать изображение
       try {
-        await navigator.clipboard.writeText(text)
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement("a")
+        link.href = url
+        link.download = "teamfinder-drop.png"
+        document.body.appendChild(link)
+        link.click()
+        link.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 5000)
+        onToast(t("cases.share_downloaded"))
+        return
       } catch {
-        /* noop */
+        /* падаем в обход 3 */
+      }
+      // Обход 3: текст в буфер
+      try {
+        await navigator.clipboard.writeText(shareText)
+        onToast(t("cases.share_text_copied"))
+      } catch {
+        onToast(t("cases.share_failed"))
+      }
+    } catch {
+      // Картинку не удалось сгенерировать — хотя бы текст
+      try {
+        await navigator.clipboard.writeText(shareText)
+        onToast(t("cases.share_text_copied"))
+      } catch {
+        onToast(t("cases.share_failed"))
       }
     } finally {
       setSharing(false)
