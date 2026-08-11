@@ -885,6 +885,30 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Migration warning legacy_nexus_model_to_limited: {e}")
 
+        # Legacy-остатки: первая миграция переносила строки в limited_models
+        # только пока тираж не был заполнен — после break неохваченные строки
+        # оставались в user_inventory навсегда (миграция уже помечена
+        # применённой). Такие строки не имеют токена: модели не существует,
+        # чистим мусор, чтобы в инвентаре не висел «Mini Boss bro» за 0 монет.
+        migration_name = "legacy_nexus_model_cleanup_v2"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        "DELETE FROM user_inventory WHERE item_key = 'nexus-model'"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning legacy_nexus_model_cleanup_v2: {e}")
+
         # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
         try:
             await conn.execute("""
@@ -1813,7 +1837,9 @@ class Database:
     async def get_inventory(self, user_id: int) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT * FROM user_inventory WHERE user_id = $1 ORDER BY acquired_at DESC",
+                # Модели живут в limited_models (вкладка «Модель»): строки-призраки
+                # из user_inventory не показываем и не даём продать их за 0.
+                "SELECT * FROM user_inventory WHERE user_id = $1 AND item_key <> 'nexus-model' ORDER BY acquired_at DESC",
                 user_id,
             )
             return [dict(r) for r in rows]
@@ -1839,7 +1865,7 @@ class Database:
                     DELETE FROM user_inventory
                     WHERE id IN (
                         SELECT id FROM user_inventory
-                        WHERE user_id = $1 AND item_key = $2
+                        WHERE user_id = $1 AND item_key = $2 AND item_key <> 'nexus-model'
                         ORDER BY acquired_at DESC
                         LIMIT $3
                     )

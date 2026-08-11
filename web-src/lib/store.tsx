@@ -186,7 +186,7 @@ function enrichInventoryItem(
     name: row.item_name,
     desc: reg.desc || "Предмет",
     rarity: row.item_rarity as Rarity,
-    sell: row.sell_price,
+    sell: row.sell_price || reg.sell || 0,
     grantsPremium: !!row.grants_premium,
     id: row.id,
     uid: `${row.id}-${row.item_key}`,
