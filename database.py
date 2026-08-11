@@ -447,8 +447,8 @@ class Database:
         self._pool = await asyncpg.create_pool(
             self.database_url,
             ssl=ssl_arg,
-            min_size=2,
-            max_size=10,
+            min_size=1,
+            max_size=5,
             command_timeout=30,
             timeout=15,
         )

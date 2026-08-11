@@ -10,6 +10,13 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  // Render free: build-машина ~512 MB RAM. Один воркер без тредов —
+  // не даём `next build` разгонять параллельные процессы до OOM.
+  experimental: {
+    cpus: 1,
+    workerThreads: false,
+    memoryBasedWorkersCount: false,
+  },
 }
 
 export default nextConfig

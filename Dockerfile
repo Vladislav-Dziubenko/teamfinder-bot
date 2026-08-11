@@ -2,6 +2,10 @@
 FROM node:20-alpine AS frontend
 WORKDIR /app/web-src
 
+# Render free: build-машина ~512 MB. Без этого Node аллоцирует heap
+# 1.5–2 GB и next build убивается по памяти (exit 137 / OOM).
+ENV NODE_OPTIONS=--max-old-space-size=384
+
 COPY web-src/package.json web-src/package-lock.json ./
 RUN npm ci
 
