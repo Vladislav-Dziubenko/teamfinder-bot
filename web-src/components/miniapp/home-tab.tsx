@@ -122,7 +122,7 @@ export function HomeTab({
 
       <section className="grid grid-cols-2 gap-3">
         <MiniStat icon={Trophy} value={wins ?? "—"} label={t("stats.wins")} tint="var(--primary)" />
-        <MiniStat icon={Flame} value={level ? `LVL ${level}` : "—"} label={t("common.level")} tint="var(--stars)" />
+        <MiniStat icon={Flame} value={level != null ? `LVL ${level}` : "—"} label={t("common.level")} tint="var(--stars)" />
       </section>
 
       <section className="grid grid-cols-3 gap-3">
