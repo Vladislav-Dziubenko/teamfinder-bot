@@ -1579,8 +1579,7 @@ async def handle_nexus_open_case(request: web.Request):
 
 async def handle_nexus_share_image(request: web.Request):
     """Генерирует PNG-карточку дропа для шеринга в соцсети."""
-    db: Database = request.app["db"]
-    user = _get_user(request)
+    _get_user(request)
     body = await request.json()
     item = body.get("item") or {}
     case = body.get("case") or {}
@@ -1591,17 +1590,25 @@ async def handle_nexus_share_image(request: web.Request):
     image = item.get("image")
     case_name = case.get("name") or "Nexus case"
 
-    rarity_colors = {
-        "common": "#9ca3af",
-        "rare": "#38bdf8",
-        "epic": "#a855f7",
-        "premium": "#eab308",
-        "legendary": "#ffd700",
-    }
-    color = rarity_colors.get(rarity, "#9ca3af")
+    png = await asyncio.to_thread(_render_share_image, item_name, rarity, icon, image, case_name)
+    if png is None:
+        return web.json_response({"error": "image generation failed"}, status=500)
+    return web.Response(body=png, content_type="image/png")
 
+
+def _render_share_image(item_name: str, rarity: str, icon: str, image: str | None, case_name: str) -> bytes | None:
+    """Синхронная Pillow-генерация — выполняется в потоке, чтобы не блокировать event loop."""
     try:
         from PIL import Image, ImageDraw, ImageFont
+
+        rarity_colors = {
+            "common": "#9ca3af",
+            "rare": "#38bdf8",
+            "epic": "#a855f7",
+            "premium": "#eab308",
+            "legendary": "#ffd700",
+        }
+        color = rarity_colors.get(rarity, "#9ca3af")
 
         W, H = 1080, 1350
         img = Image.new("RGB", (W, H), (10, 10, 16))
@@ -1664,10 +1671,10 @@ async def handle_nexus_share_image(request: web.Request):
         buf = io.BytesIO()
         img.save(buf, format="PNG")
         buf.seek(0)
-        return web.Response(body=buf.getvalue(), content_type="image/png")
+        return buf.getvalue()
     except Exception as e:
         logging.warning(f"[share_image] failed: {e}")
-        return web.json_response({"error": "image generation failed"}, status=500)
+        return None
 
 
 async def handle_nexus_cases_history(request: web.Request):
