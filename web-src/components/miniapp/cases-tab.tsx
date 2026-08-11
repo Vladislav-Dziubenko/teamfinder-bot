@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils"
 import { tick, win as winSfx, whoosh, setMuted, isMuted, ensureAudio } from "@/lib/sfx"
 import { formatNum } from "@/lib/format"
 import { TopUpSheet } from "./top-up-sheet"
+import { MarketListSheet } from "./market-list-sheet"
 import { useAdsgram } from "@/lib/use-adsgram"
 import { hapticImpact } from "@/lib/webapp"
 import { analytics } from "@/lib/telegram-analytics"
@@ -69,6 +70,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   const [spin, setSpin] = useState<{ box: LootCase; winner: CaseItem | null } | null>(null)
   const [sound, setSound] = useState(true)
   const [sortMode, setSortMode] = useState<"value" | "rarity">("value")
+  const [listItem, setListItem] = useState<InventoryItem | null>(null)
   const [adBusy, setAdBusy] = useState(false)
   // Локальный тикер: счётчик кулдауна тикает каждую секунду,
   // а не раз в 30с (store всё равно тикает медленно).
@@ -597,6 +599,14 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                     </div>
                     <button
                       type="button"
+                      onClick={() => setListItem(item)}
+                      aria-label={t("market.list_btn")}
+                      className="grid size-7 shrink-0 place-items-center rounded-lg text-xs text-muted-foreground active:scale-90"
+                    >
+                      📈
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => togglePin(item.key)}
                       aria-label={pinned ? t("cases.unpin") : t("cases.pin")}
                       className={cn(
@@ -749,6 +759,9 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
           onToast={onToast}
         />
       )}
+
+      {/* Маркет: выставление предмета на продажу */}
+      {listItem && <MarketListSheet item={listItem} onClose={() => setListItem(null)} onToast={onToast} />}
     </div>
   )
 }

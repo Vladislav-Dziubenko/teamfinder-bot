@@ -1833,6 +1833,83 @@ async def handle_nexus_sell(request: web.Request):
     return web.json_response({"sold": True, "coins": item["sell_price"]})
 
 
+# Снапшот картинок предметов из кейсов — для лотов маркета.
+_MARKET_ITEM_META: dict[str, dict] = {}
+for _c in CASES_CONFIG.values():
+    for _i in _c.get("items", []):
+        _MARKET_ITEM_META[_i["key"]] = {"image": _i.get("image", ""), "icon": _i.get("icon", "")}
+
+
+async def handle_market_listings(request: web.Request):
+    db: Database = request.app["db"]
+    _get_user(request)
+    query = (request.query.get("q") or "").strip()[:40]
+    rarity = (request.query.get("rarity") or "").strip()[:20]
+    listings = await db.get_market_listings(query=query, rarity=rarity, limit=50)
+    return web.json_response({"listings": listings})
+
+
+async def handle_market_mine(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    listings = await db.get_my_market_listings(user["id"])
+    return web.json_response({"listings": listings})
+
+
+async def handle_market_list(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
+    inventory_id = body.get("inventory_id")
+    price = body.get("price_coins")
+    if not isinstance(inventory_id, int) or not isinstance(price, int):
+        return web.json_response({"error": "invalid payload"}, status=400)
+    if price < 1 or price > 1_000_000:
+        return web.json_response({"error": "price out of range"}, status=400)
+    item = next((i for i in await db.get_inventory(user["id"]) if i["id"] == inventory_id), None)
+    if not item:
+        return web.json_response({"error": "item not found"}, status=400)
+    meta = _MARKET_ITEM_META.get(item["item_key"], {})
+    ok = await db.list_market_item(user["id"], inventory_id, price, meta)
+    if not ok:
+        return web.json_response({"error": "item not found"}, status=400)
+    return web.json_response({"ok": True})
+
+
+async def handle_market_cancel(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
+    listing_id = body.get("listing_id")
+    if not isinstance(listing_id, int):
+        return web.json_response({"error": "invalid listing_id"}, status=400)
+    if not await db.cancel_market_listing(user["id"], listing_id):
+        return web.json_response({"error": "listing not found"}, status=400)
+    return web.json_response({"ok": True})
+
+
+async def handle_market_buy(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
+    listing_id = body.get("listing_id")
+    if not isinstance(listing_id, int):
+        return web.json_response({"error": "invalid listing_id"}, status=400)
+    ok, err = await db.buy_market_listing(listing_id, user["id"])
+    if not ok:
+        return web.json_response({"error": err}, status=400)
+    return web.json_response({"ok": True})
+
+
 async def handle_nexus_quests(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -3636,6 +3713,11 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/nexus/cases/share-image", handle_nexus_share_image)
     app.router.add_get("/api/nexus/inventory", handle_nexus_inventory)
     app.router.add_post("/api/nexus/inventory/sell", handle_nexus_sell)
+    app.router.add_get("/api/market/listings", handle_market_listings)
+    app.router.add_get("/api/market/mine", handle_market_mine)
+    app.router.add_post("/api/market/list", handle_market_list)
+    app.router.add_post("/api/market/cancel", handle_market_cancel)
+    app.router.add_post("/api/market/buy", handle_market_buy)
     app.router.add_get("/api/nexus/quests", handle_nexus_quests)
     app.router.add_post("/api/nexus/quests/claim", handle_nexus_claim_quest_reward)
     app.router.add_get("/api/nexus/shop", handle_nexus_shop)

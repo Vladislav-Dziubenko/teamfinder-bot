@@ -36,6 +36,7 @@ const PredictionsTab = lazy(() => import("./predictions-tab").then((m) => ({ def
 const ChatTab = lazy(() => import("./chat-tab").then((m) => ({ default: m.ChatTab })))
 const GuidesTab = lazy(() => import("./guides-tab").then((m) => ({ default: m.GuidesTab })))
 const ReviewTab = lazy(() => import("./review-tab").then((m) => ({ default: m.ReviewTab })))
+const MarketTab = lazy(() => import("./market-tab").then((m) => ({ default: m.MarketTab })))
 
 function TabFallback() {
   return (
@@ -204,6 +205,7 @@ function Shell() {
         {tab === "profile" && <ProfileTab onGo={goTab} onToast={setToast} onGuide={() => setGuideOpen(true)} />}
         {tab === "friends" && <FriendsTab onChat={openChat} />}
         {tab === "review" && <Suspense fallback={<TabFallback />}><ReviewTab onToast={setToast} /></Suspense>}
+        {tab === "market" && <Suspense fallback={<TabFallback />}><MarketTab onToast={setToast} /></Suspense>}
       </main>
 
       <BottomNav active={tab} onChange={goTab} onMore={() => setMoreOpen(true)} />

@@ -1028,6 +1028,45 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Migration warning user_prefs_v1: {e}")
 
+        # Маркетплейс: игроки выставляют предметы инвентаря на продажу за монеты.
+        migration_name = "market_listings_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS market_listings (
+                            id BIGSERIAL PRIMARY KEY,
+                            seller_id BIGINT NOT NULL,
+                            item_key TEXT NOT NULL,
+                            item_name TEXT NOT NULL,
+                            item_rarity TEXT NOT NULL,
+                            image TEXT NOT NULL DEFAULT '',
+                            icon TEXT NOT NULL DEFAULT '',
+                            sell_price INTEGER NOT NULL,
+                            price_coins INTEGER NOT NULL,
+                            status TEXT NOT NULL DEFAULT 'active',
+                            buyer_id BIGINT,
+                            created_at TEXT NOT NULL,
+                            sold_at TEXT
+                        )
+                        """
+                    )
+                    await conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_market_listings_active ON market_listings (status, created_at DESC)"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning market_listings_v1: {e}")
+
         # Normalize old asymmetric dm-{id} chat_ids to symmetric dm-{a}-{b}
         try:
             await conn.execute("""
@@ -2020,6 +2059,165 @@ class Database:
                 # из user_inventory не показываем и не даём продать их за 0.
                 "SELECT * FROM user_inventory WHERE user_id = $1 AND item_key <> 'nexus-model' ORDER BY acquired_at DESC",
                 user_id,
+            )
+            return [dict(r) for r in rows]
+
+    async def list_market_item(self, user_id: int, inventory_id: int, price_coins: int, meta: dict) -> bool:
+        """Выставляет предмет на маркет: строка инвентаря удаляется, снапшот
+        уходит в лот. Возвращает False, если предмет не найден у юзера."""
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    """
+                    DELETE FROM user_inventory
+                    WHERE id = $1 AND user_id = $2 AND item_key <> 'nexus-model'
+                    RETURNING item_key, item_name, item_rarity, sell_price
+                    """,
+                    inventory_id, user_id,
+                )
+                if not row:
+                    return False
+                await conn.execute(
+                    """
+                    INSERT INTO market_listings
+                        (seller_id, item_key, item_name, item_rarity, image, icon, sell_price, price_coins, status, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'active', $9)
+                    """,
+                    user_id, row["item_key"], row["item_name"], row["item_rarity"],
+                    meta.get("image", ""), meta.get("icon", ""),
+                    row["sell_price"], price_coins, now,
+                )
+                # Если предмет был на витрине — снимаем (он больше не в инвентаре).
+                await conn.execute(
+                    "UPDATE mini_app_profiles SET equipped_skin = '' WHERE user_id = $1 AND equipped_skin = $2",
+                    user_id, row["item_key"],
+                )
+                return True
+
+    async def cancel_market_listing(self, user_id: int, listing_id: int) -> bool:
+        """Снимает лот и возвращает предмет в инвентарь."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT * FROM market_listings WHERE id = $1 AND seller_id = $2 AND status = 'active' FOR UPDATE",
+                    listing_id, user_id,
+                )
+                if not row:
+                    return False
+                await conn.execute(
+                    """
+                    INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, acquired_at)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    """,
+                    user_id, row["item_key"], row["item_name"], row["item_rarity"],
+                    row["sell_price"], datetime.utcnow().isoformat(),
+                )
+                await conn.execute(
+                    "UPDATE market_listings SET status = 'cancelled' WHERE id = $1",
+                    listing_id,
+                )
+                return True
+
+    async def buy_market_listing(self, listing_id: int, buyer_id: int) -> tuple[bool, str]:
+        """Покупка лота. Атомарно: байер платит цену, продавец получает
+        цену минус 5% комиссии, предмет переходит байеру.
+
+        Возвращает (ok, error_message).
+        """
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT * FROM market_listings WHERE id = $1 AND status = 'active' FOR UPDATE",
+                    listing_id,
+                )
+                if not row:
+                    return False, "not found"
+                if row["seller_id"] == buyer_id:
+                    return False, "self buy"
+                balance = await conn.fetchrow(
+                    "SELECT coins FROM user_currency WHERE user_id = $1", buyer_id
+                )
+                coins = balance["coins"] if balance else 0
+                if coins < row["price_coins"]:
+                    return False, "not enough coins"
+                now = datetime.utcnow().isoformat()
+                await conn.execute(
+                    """
+                    INSERT INTO user_currency (user_id, coins, stars, points, updated_at)
+                    VALUES ($1, -$2, 0, 0, $3)
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        coins = user_currency.coins - $2,
+                        updated_at = $3
+                    """,
+                    buyer_id, row["price_coins"], now,
+                )
+                seller_gain = max(1, int(row["price_coins"] * 0.95))
+                await conn.execute(
+                    """
+                    INSERT INTO user_currency (user_id, coins, stars, points, updated_at)
+                    VALUES ($1, $2, 0, 0, $3)
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        coins = user_currency.coins + $2,
+                        updated_at = $3
+                    """,
+                    row["seller_id"], seller_gain, now,
+                )
+                await conn.execute(
+                    """
+                    INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, acquired_at)
+                    VALUES ($1, $2, $3, $4, $5, $6)
+                    """,
+                    buyer_id, row["item_key"], row["item_name"], row["item_rarity"],
+                    row["sell_price"], now,
+                )
+                await conn.execute(
+                    "UPDATE market_listings SET status = 'sold', buyer_id = $2, sold_at = $3 WHERE id = $1",
+                    listing_id, buyer_id, now,
+                )
+                return True, ""
+
+    async def get_market_listings(self, query: str = "", rarity: str = "", limit: int = 50) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            where = ["m.status = 'active'"]
+            params: list = []
+            if query:
+                params.append(f"%{query}%")
+                where.append("LOWER(m.item_name) LIKE LOWER($%d)" % len(params))
+            if rarity:
+                params.append(rarity)
+                where.append("m.item_rarity = $%d" % len(params))
+            rows = await conn.fetch(
+                f"""
+                SELECT m.id, m.seller_id, m.item_key, m.item_name, m.item_rarity, m.image, m.icon,
+                       m.price_coins, m.sell_price, m.created_at,
+                       COALESCE(mp.nick, '') AS seller_nick, mp.avatar AS seller_avatar,
+                       u.username AS seller_username
+                FROM market_listings m
+                LEFT JOIN mini_app_profiles mp ON mp.user_id = m.seller_id
+                LEFT JOIN users u ON u.user_id = m.seller_id
+                WHERE {' AND '.join(where)}
+                ORDER BY m.created_at DESC
+                LIMIT $%d
+                """ % (len(params) + 1),
+                *params, limit,
+            )
+            return [dict(r) for r in rows]
+
+    async def get_my_market_listings(self, user_id: int, limit: int = 100) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT m.id, m.seller_id, m.item_key, m.item_name, m.item_rarity, m.image, m.icon,
+                       m.price_coins, m.sell_price, m.status, m.buyer_id, m.created_at, m.sold_at,
+                       COALESCE(mp.nick, '') AS buyer_nick
+                FROM market_listings m
+                LEFT JOIN mini_app_profiles mp ON mp.user_id = m.buyer_id
+                WHERE m.seller_id = $1
+                ORDER BY m.created_at DESC
+                LIMIT $2
+                """,
+                user_id, limit,
             )
             return [dict(r) for r in rows]
 
