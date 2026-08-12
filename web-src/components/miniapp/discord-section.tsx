@@ -7,7 +7,7 @@ import { useNexus } from "@/lib/store"
 
 export function DiscordSection() {
   const { t } = useI18n()
-  const { status, loading, busy, error, connect, unlink, claimDaily, claimQuest, syncProfile, refresh: refreshStatus } = useDiscord()
+  const { status, loading, busy, error, connect, unlink, claimDaily, claimQuest, syncProfile, claimInvite, refresh: refreshStatus } = useDiscord()
   const { refresh: refreshMe } = useNexus()
 
   const linked = !!status?.linked
@@ -16,6 +16,10 @@ export function DiscordSection() {
   const questDone = questCount >= questTarget
   const questClaimed = !!status?.quest_claimed_at
   const questBonus = status?.quest_bonus ?? 50
+  const inviteUrl = status?.invite_url ?? ""
+  const inviteClaimed = !!status?.invite_claimed_at
+  const inviteBonus = status?.invite_bonus ?? 30
+  const hasInvite = !!inviteUrl
 
   async function onClaimDaily() {
     const res = await claimDaily()
@@ -36,6 +40,18 @@ export function DiscordSection() {
   async function onSyncProfile() {
     const ok = await syncProfile()
     if (ok) {
+      await refreshStatus()
+      await refreshMe()
+    }
+  }
+
+  async function onShareInvite() {
+    if (!hasInvite) return
+    try {
+      await navigator.clipboard?.writeText(inviteUrl)
+    } catch {}
+    const res = await claimInvite()
+    if (res.ok) {
       await refreshStatus()
       await refreshMe()
     }
@@ -197,6 +213,39 @@ export function DiscordSection() {
               </div>
             </div>
           </div>
+
+          {hasInvite && (
+            <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-neutral-800">
+                    <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-white">
+                      {t("discord.invite_title")}
+                    </div>
+                    <div className="text-[10px] text-neutral-400">
+                      {t("discord.invite_desc", { bonus: inviteBonus })}
+                    </div>
+                  </div>
+                </div>
+                {inviteClaimed ? (
+                  <span className="shrink-0 text-[10px] font-semibold text-neutral-500">
+                    {t("discord.invite_claimed")}
+                  </span>
+                ) : (
+                  <button
+                    onClick={onShareInvite}
+                    disabled={busy}
+                    className="shrink-0 rounded-lg bg-amber-400 px-2.5 py-1.5 text-[10px] font-bold text-black hover:bg-amber-300 disabled:opacity-50"
+                  >
+                    {busy ? "…" : t("discord.invite_claim", { bonus: inviteBonus })}
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <>

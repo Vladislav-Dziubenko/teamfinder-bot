@@ -18,6 +18,9 @@ export type DiscordStatus = {
   quest_claimed_at?: string | null
   quest_target?: number
   quest_bonus?: number
+  invite_url?: string
+  invite_claimed_at?: string | null
+  invite_bonus?: number
 }
 
 type AuthResp = { url: string }
@@ -134,6 +137,24 @@ export function useDiscord() {
     }
   }, [refresh])
 
+  const claimInvite = useCallback(async (): Promise<{ ok: boolean; stars?: number }> => {
+    try {
+      setBusy(true)
+      setError(null)
+      const data = await api.post<{ ok: boolean; stars?: number }>("/api/discord/invite-claim")
+      if (data?.ok) {
+        await refresh()
+        return { ok: true, stars: data.stars ?? 0 }
+      }
+      return { ok: false }
+    } catch (e: any) {
+      setError(e?.message ?? "Не удалось получить награду")
+      return { ok: false }
+    } finally {
+      setBusy(false)
+    }
+  }, [refresh])
+
   useEffect(() => {
     refresh()
     const onVis = () => {
@@ -148,5 +169,5 @@ export function useDiscord() {
     }
   }, [refresh])
 
-  return { status, loading, busy, error, connect, unlink, claimDaily, claimQuest, syncProfile, refresh }
+  return { status, loading, busy, error, connect, unlink, claimDaily, claimQuest, syncProfile, claimInvite, refresh }
 }

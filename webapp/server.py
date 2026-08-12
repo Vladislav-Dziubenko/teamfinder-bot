@@ -1410,6 +1410,7 @@ ACHIEVEMENTS_CONFIG = [
 # получил N ежедневных Discord-наград.
 DISCORD_QUEST_TARGET = 7
 DISCORD_QUEST_BONUS_STARS = 50
+DISCORD_INVITE_BONUS_STARS = 30
 
 _ACHIEVEMENT_BY_SEARCH_KEY: dict[str, str] = {
     key: a["id"] for a in ACHIEVEMENTS_CONFIG for key in a["search_keys"]
@@ -3968,6 +3969,9 @@ async def handle_discord_status(request: web.Request):
         "quest_claimed_at": conn.get("quest_claimed_at"),
         "quest_target": DISCORD_QUEST_TARGET,
         "quest_bonus": DISCORD_QUEST_BONUS_STARS,
+        "invite_url": request.app["settings"].discord_invite_url or "",
+        "invite_claimed_at": conn.get("invite_claimed_at"),
+        "invite_bonus": DISCORD_INVITE_BONUS_STARS,
     })
 
 
@@ -4004,6 +4008,17 @@ async def handle_discord_quest_claim(request: web.Request):
     if not user:
         return web.json_response({"error": "unauthorized"}, status=401)
     result = await db.claim_discord_quest_reward(user["id"], DISCORD_QUEST_TARGET, DISCORD_QUEST_BONUS_STARS)
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=400)
+    return web.json_response({"ok": True, **result})
+
+
+async def handle_discord_invite_claim(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    result = await db.claim_discord_invite_reward(user["id"], DISCORD_INVITE_BONUS_STARS)
     if "error" in result:
         return web.json_response({"error": result["error"]}, status=400)
     return web.json_response({"ok": True, **result})
@@ -4211,6 +4226,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/discord/daily", handle_discord_daily)
     app.router.add_post("/api/discord/quest-claim", handle_discord_quest_claim)
     app.router.add_post("/api/discord/sync-profile", handle_discord_sync_profile)
+    app.router.add_post("/api/discord/invite-claim", handle_discord_invite_claim)
 
     # Диагностика — проверка env + статус webhook
     async def handle_diag_env(request: web.Request) -> web.Response:

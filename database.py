@@ -733,6 +733,7 @@ class Database:
             ("last_daily_claim_at", "TEXT"),
             ("daily_claims_count", "INTEGER NOT NULL DEFAULT 0"),
             ("quest_claimed_at", "TEXT"),
+            ("invite_claimed_at", "TEXT"),
         ]:
             try:
                 await conn.execute(f"ALTER TABLE discord_connections ADD COLUMN IF NOT EXISTS {col} {col_type}")
@@ -1684,6 +1685,29 @@ class Database:
                     nick, avatar, datetime.utcnow().isoformat(), user_id,
                 )
                 return {"ok": True, "nick": nick, "avatar": avatar}
+
+    async def claim_discord_invite_reward(self, user_id: int, bonus_stars: int) -> dict:
+        """Одноразовая награда за шеринг инвайта в Discord-сервер (бот не нужен —
+        факт копирования ссылки). Выдаётся ровно один раз."""
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT invite_claimed_at FROM discord_connections WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                if not row:
+                    return {"error": "not_linked"}
+                if row["invite_claimed_at"]:
+                    return {"error": "already_claimed"}
+                ok = await self._adjust_currency_conn(conn, user_id, stars=bonus_stars)
+                if not ok:
+                    return {"error": "no_user"}
+                await conn.execute(
+                    "UPDATE discord_connections SET invite_claimed_at = $1, updated_at = $1 WHERE user_id = $2",
+                    now, user_id,
+                )
+                return {"ok": True, "stars": bonus_stars}
 
     async def get_discord_connection(self, user_id: int) -> dict | None:
         async with self.pool.acquire() as conn:

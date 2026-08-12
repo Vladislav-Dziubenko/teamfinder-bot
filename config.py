@@ -27,6 +27,7 @@ class Settings:
     discord_client_secret: str
     discord_redirect_uri: str
     discord_bot_token: str
+    discord_invite_url: str
 
 
 def _parse_admin_ids(raw: str) -> set[int]:
@@ -88,4 +89,5 @@ def load_settings() -> Settings:
         discord_client_secret=os.getenv("DISCORD_CLIENT_SECRET", "").strip(),
         discord_redirect_uri=os.getenv("DISCORD_REDIRECT_URI", "").strip(),
         discord_bot_token=os.getenv("DISCORD_BOT_TOKEN", "").strip(),
+        discord_invite_url=os.getenv("DISCORD_INVITE_URL", "").strip(),
     )
