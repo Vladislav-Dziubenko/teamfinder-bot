@@ -381,6 +381,16 @@ async def handle_me(request: web.Request):
     ]
     results = await asyncio.gather(*tasks)
 
+    # Ограничиваем инвентарь до 100 последних предметов для уменьшения трафика
+    inventory = results[2]
+    if len(inventory) > 100:
+        inventory = sorted(inventory, key=lambda x: x.get("acquired_at", ""), reverse=True)[:100]
+
+    # Ограничиваем достижения до 50 для уменьшения трафика
+    achievements = results[6]
+    if len(achievements) > 50:
+        achievements = sorted(achievements, key=lambda x: x.get("claimed_at", "") or "", reverse=True)[:50]
+
     case_cooldowns = {}
     for case_id in CASES_CONFIG:
         last_open = await db.get_last_case_open(user["id"], case_id)
@@ -395,11 +405,11 @@ async def handle_me(request: web.Request):
         "user": user,
         "currency": results[0],
         "mini_profile": results[1] if results[1] else {"games": []},
-        "inventory": results[2],
+        "inventory": inventory,
         "battlepass": results[3],
         "streak": results[4],
         "referral": results[5],
-        "achievements": results[6],
+        "achievements": achievements,
         "cases": list(CASES_CONFIG.values()),
         "case_cooldowns": case_cooldowns,
         "premium_active": results[7],
@@ -1065,9 +1075,13 @@ async def handle_nexus_quests(request: web.Request):
         p = progress_by_quest.get(q["id"])
         if p:
             entry["progress"] = p["progress_minutes"]
-            entry["completed"] = bool(p["completed"])
+            # completed=1 в БД означает "награда уже забрана"
+            entry["claimed"] = bool(p["completed"])
+            # completed на фронте = прогресс достигнут И награда ещё не забрана
+            entry["completed"] = p["progress_minutes"] >= q["target"] and not bool(p["completed"])
         else:
             entry["progress"] = 0
+            entry["claimed"] = False
             entry["completed"] = False
         entry["target"] = q["target"]
         quests.append(entry)

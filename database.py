@@ -1151,8 +1151,8 @@ class Database:
                 VALUES ($1, $2, $3, 0, $4)
                 ON CONFLICT (user_id, quest_id) DO UPDATE SET
                     progress_minutes = user_quests.progress_minutes + $3,
-                    completed = 0,
                     updated_at = $4
+                WHERE user_quests.completed = 0
                 """,
                 user_id, quest_id, minutes, datetime.utcnow().isoformat(),
             )
@@ -1765,7 +1765,7 @@ class Database:
             )
             return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": text, "created_at": now}
 
-    async def get_chat_messages(self, chat_id: str, limit: int = 5000) -> list[dict]:
+    async def get_chat_messages(self, chat_id: str, limit: int = 100) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 "SELECT id, chat_id, sender_id, text, created_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
@@ -1773,16 +1773,18 @@ class Database:
             )
             return [dict(r) for r in reversed(rows)]
 
-    async def get_user_chats(self, user_id: int) -> list[dict]:
+    async def get_user_chats(self, user_id: int, limit: int = 50) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """SELECT DISTINCT chat_id FROM chat_messages
                    WHERE sender_id = $1
                       OR chat_id LIKE $2
-                      OR chat_id LIKE $3""",
+                      OR chat_id LIKE $3
+                   LIMIT $4""",
                 user_id,
                 f"dm-{user_id}-%",
                 f"dm-%-{user_id}",
+                limit,
             )
             all_ids = set(r["chat_id"] for r in rows)
             results = []
@@ -1888,7 +1890,7 @@ class Database:
                 )
                 return r1 != "DELETE 0" or r2 != "DELETE 0"
 
-    async def get_friends(self, user_id: int) -> list[dict]:
+    async def get_friends(self, user_id: int, limit: int = 100) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """SELECT uf.friend_id, mp.nick, mp.avatar,
@@ -1896,8 +1898,9 @@ class Database:
                    FROM user_friends uf
                    LEFT JOIN mini_app_profiles mp ON mp.user_id = uf.friend_id
                    WHERE uf.user_id = $1 AND uf.status = 'accepted'
-                   ORDER BY uf.updated_at DESC""",
-                user_id, (datetime.utcnow() - timedelta(minutes=5)).isoformat(),
+                   ORDER BY uf.updated_at DESC
+                   LIMIT $3""",
+                user_id, (datetime.utcnow() - timedelta(minutes=5)).isoformat(), limit,
             )
             return [dict(r) for r in rows]
 
