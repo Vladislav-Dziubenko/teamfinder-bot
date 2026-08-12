@@ -5,3 +5,4 @@ aiohttp>=3.13.4
 cryptography>=42.0.0
 redis[asyncio]==5.2.1
 Pillow>=10.0.0
+discord.py>=2.4.0

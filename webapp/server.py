@@ -3918,6 +3918,22 @@ async def handle_discord_callback(request: web.Request):
     except Exception as e:
         logging.warning(f"[discord.callback] welcome_reward failed: {e}")
 
+    # Выдать роль «верифицирован» в Discord-сервере (если бот запущен)
+    discord_bot = request.app.get("discord_bot")
+    if discord_bot:
+        try:
+            await discord_bot.assign_verified_role(int(discord_user["id"]))
+        except Exception as e:
+            logging.warning(f"[discord.callback] verified role failed: {e}")
+        # Пуш в канал о новой привязке
+        try:
+            nick = discord_user.get("global_name") or discord_user.get("username") or "игрок"
+            await discord_bot.post_to_channel(
+                f"🔗 **{nick}** привязал Discord к Nexus!"
+            )
+        except Exception as e:
+            logging.warning(f"[discord.callback] channel push failed: {e}")
+
     logging.info(f"[discord.callback] linked telegram={user_id} discord={discord_user['id']}")
 
     # Redirect to main fallback

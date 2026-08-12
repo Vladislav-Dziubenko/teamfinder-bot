@@ -46,7 +46,7 @@ async def _can_send(db: Database, user_id: int, kind: str) -> bool:
     return datetime.utcnow() - last_dt >= MIN_SEND_INTERVAL
 
 
-async def _notify_battlepass_ready(bot: Bot, db: Database) -> None:
+async def _notify_battlepass_ready(bot: Bot, db: Database, discord_bot=None) -> None:
     """Юзер с XP хватающим на следующий тир и прошедшим кулдауном."""
     from data.games import BATTLE_PASS_TIERS
 
@@ -95,7 +95,7 @@ async def _notify_battlepass_ready(bot: Bot, db: Database) -> None:
             await db.mark_notification_sent(r["user_id"], "bp-ready")
 
 
-async def _notify_return_bonus(bot: Bot, db: Database) -> None:
+async def _notify_return_bonus(bot: Bot, db: Database, discord_bot=None) -> None:
     """Не заходил 3+ дня + активная Discord-связь → вернись за +10 ⭐."""
     now = datetime.utcnow()
     cutoff = (now - RETURN_INACTIVE).isoformat()
@@ -130,15 +130,16 @@ async def _notify_return_bonus(bot: Bot, db: Database) -> None:
             await db.mark_notification_sent(r["user_id"], "return-bonus")
 
 
-async def notifier_loop(bot: Bot, db: Database, interval_seconds: int = 1800) -> None:
-    """Цикл фоновых уведомлений. Запускать как asyncio.create_task."""
+async def notifier_loop(bot: Bot, db: Database, interval_seconds: int = 1800, discord_bot=None) -> None:
+    """Цикл фоновых уведомлений. Запускать как asyncio.create_task.
+    discord_bot — опциональный TeamFinderDiscordBot для пуша в Discord-канал."""
     while True:
         try:
-            await _notify_battlepass_ready(bot, db)
+            await _notify_battlepass_ready(bot, db, discord_bot)
         except Exception as e:
             logger.warning("notify battlepass pass failed: %s", e)
         try:
-            await _notify_return_bonus(bot, db)
+            await _notify_return_bonus(bot, db, discord_bot)
         except Exception as e:
             logger.warning("notify return pass failed: %s", e)
         await asyncio.sleep(interval_seconds)

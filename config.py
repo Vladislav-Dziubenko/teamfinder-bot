@@ -28,6 +28,9 @@ class Settings:
     discord_redirect_uri: str
     discord_bot_token: str
     discord_invite_url: str
+    discord_guild_id: int
+    discord_channel_id: int
+    discord_verified_role_id: int
 
 
 def _parse_admin_ids(raw: str) -> set[int]:
@@ -90,4 +93,7 @@ def load_settings() -> Settings:
         discord_redirect_uri=os.getenv("DISCORD_REDIRECT_URI", "").strip(),
         discord_bot_token=os.getenv("DISCORD_BOT_TOKEN", "").strip(),
         discord_invite_url=os.getenv("DISCORD_INVITE_URL", "").strip(),
+        discord_guild_id=int(os.getenv("DISCORD_GUILD_ID", "0")),
+        discord_channel_id=int(os.getenv("DISCORD_CHANNEL_ID", "0")),
+        discord_verified_role_id=int(os.getenv("DISCORD_VERIFIED_ROLE_ID", "0")),
     )
