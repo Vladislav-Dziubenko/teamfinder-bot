@@ -66,6 +66,15 @@ async def main():
         # Последний: апелляции забаненных (без фильтров — только «неизвестный» текст)
         dp.include_router(appeal.router)
 
+        # ---- Шаг 3: создаём приложение, регистрируем роуты ----
+        web_app = create_app(db, settings, bot)
+        web_app["db_ready"] = False
+
+        # Генерируем секретный путь для webhook (зависит только от токена бота)
+        webhook_secret = hashlib.sha256(settings.bot_token.encode()).hexdigest()
+        web_app["dp"] = dp
+        web_app["webhook_secret"] = webhook_secret
+
         # ---- Discord бот (gateway): авто-роль + пуш в канал ----
         from webapp.discord_bot import start_discord_bot
         discord_bot = await start_discord_bot(
@@ -79,15 +88,6 @@ async def main():
         # Фоновые push-уведомления (тир пасса готов, возврат за бонусом)
         from handlers.notifier import notifier_loop
         asyncio.create_task(notifier_loop(bot, db, interval_seconds=1800, discord_bot=discord_bot))
-
-        # ---- Шаг 3: создаём приложение, регистрируем роуты ----
-        web_app = create_app(db, settings, bot)
-        web_app["db_ready"] = False
-
-        # Генерируем секретный путь для webhook (зависит только от токена бота)
-        webhook_secret = hashlib.sha256(settings.bot_token.encode()).hexdigest()
-        web_app["dp"] = dp
-        web_app["webhook_secret"] = webhook_secret
 
         # ---- Шаг 4: открываем порт МГНОВЕННО (без БД) ----
         port = int(os.getenv("PORT", settings.webapp_port))
