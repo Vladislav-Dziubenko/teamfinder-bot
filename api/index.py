@@ -115,12 +115,24 @@ def handler(request, context=None):
             # Обрабатываем через aiohttp app
             response = await web_app._handle(req)
             
-            # Читаем body
+            # Читаем body в зависимости от типа ответа
             response_body = b""
-            if response.body:
+            
+            # FileResponse, StreamResponse и другие
+            if hasattr(response, '_body') and response._body:
+                response_body = response._body
+            elif hasattr(response, 'body') and response.body:
                 response_body = response.body
-            elif hasattr(response, '_body'):
-                response_body = response._body or b""
+            elif hasattr(response, 'text') and response.text:
+                response_body = response.text.encode('utf-8')
+            
+            # Если тело всё ещё пустое, пробуем прочитать как stream
+            if not response_body and hasattr(response, 'body_length') and response.body_length:
+                try:
+                    # Для StreamResponse читаем через prepare/write
+                    response_body = b""
+                except:
+                    pass
             
             return {
                 "statusCode": response.status,
