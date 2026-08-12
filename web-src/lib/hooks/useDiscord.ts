@@ -116,6 +116,24 @@ export function useDiscord() {
     }
   }, [refresh])
 
+  const syncProfile = useCallback(async (): Promise<boolean> => {
+    try {
+      setBusy(true)
+      setError(null)
+      const data = await api.post<{ ok: boolean }>("/api/discord/sync-profile")
+      if (data?.ok) {
+        await refresh()
+        return true
+      }
+      return false
+    } catch (e: any) {
+      setError(e?.message ?? "Не удалось применить профиль")
+      return false
+    } finally {
+      setBusy(false)
+    }
+  }, [refresh])
+
   useEffect(() => {
     refresh()
     const onVis = () => {
@@ -130,5 +148,5 @@ export function useDiscord() {
     }
   }, [refresh])
 
-  return { status, loading, busy, error, connect, unlink, claimDaily, claimQuest, refresh }
+  return { status, loading, busy, error, connect, unlink, claimDaily, claimQuest, syncProfile, refresh }
 }

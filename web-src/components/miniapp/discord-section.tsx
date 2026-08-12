@@ -7,7 +7,7 @@ import { useNexus } from "@/lib/store"
 
 export function DiscordSection() {
   const { t } = useI18n()
-  const { status, loading, busy, error, connect, unlink, claimDaily, claimQuest, refresh: refreshStatus } = useDiscord()
+  const { status, loading, busy, error, connect, unlink, claimDaily, claimQuest, syncProfile, refresh: refreshStatus } = useDiscord()
   const { refresh: refreshMe } = useNexus()
 
   const linked = !!status?.linked
@@ -28,6 +28,14 @@ export function DiscordSection() {
   async function onClaimQuest() {
     const res = await claimQuest()
     if (res.ok) {
+      await refreshStatus()
+      await refreshMe()
+    }
+  }
+
+  async function onSyncProfile() {
+    const ok = await syncProfile()
+    if (ok) {
       await refreshStatus()
       await refreshMe()
     }
@@ -75,14 +83,22 @@ export function DiscordSection() {
                 )}
               </div>
             </div>
+              <button
+                onClick={unlink}
+                disabled={busy}
+                className="text-xs px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white disabled:opacity-50"
+              >
+                {busy ? "…" : t("profile.discord_unlink")}
+              </button>
+            </div>
+
             <button
-              onClick={unlink}
+              onClick={onSyncProfile}
               disabled={busy}
-              className="text-xs px-3 py-2 rounded-lg bg-neutral-800 hover:bg-neutral-700 text-white disabled:opacity-50"
+              className="w-full rounded-lg bg-neutral-800 hover:bg-neutral-700 px-3 py-2 text-[11px] font-medium text-white disabled:opacity-50"
             >
-              {busy ? "…" : t("profile.discord_unlink")}
+              {busy ? "…" : t("discord.use_profile")}
             </button>
-          </div>
 
           <div className="rounded-xl border border-neutral-800 bg-neutral-950/60 p-3">
             <div className="text-[11px] font-semibold text-neutral-300">

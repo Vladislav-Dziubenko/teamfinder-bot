@@ -1665,6 +1665,26 @@ class Database:
                         new_nick, new_avatar, datetime.utcnow().isoformat(), user_id,
                     )
 
+    async def import_discord_profile(self, user_id: int) -> dict:
+        """Явный импорт ника/аватара из Discord в профиль Nexus по действию юзера
+        (перезаписывает текущие nick/avatar — это осознанный выбор)."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT discord_global_name, discord_username, discord_avatar "
+                    "FROM discord_connections WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                if not row:
+                    return {"error": "not_linked"}
+                nick = row["discord_global_name"] or row["discord_username"]
+                avatar = row["discord_avatar"]
+                await conn.execute(
+                    "UPDATE mini_app_profiles SET nick = $1, avatar = $2, updated_at = $3 WHERE user_id = $4",
+                    nick, avatar, datetime.utcnow().isoformat(), user_id,
+                )
+                return {"ok": True, "nick": nick, "avatar": avatar}
+
     async def get_discord_connection(self, user_id: int) -> dict | None:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM discord_connections WHERE user_id = $1", user_id)

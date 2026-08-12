@@ -473,6 +473,7 @@
   "discord.quest_desc": "Claim {count} daily rewards → +{bonus} ⭐",
   "discord.quest_claim": "Claim +{bonus} ⭐",
   "discord.quest_claimed": "Quest done",
+  "discord.use_profile": "Use Discord nick & avatar",
   "discord.daily_first_claim": "Claimable 24h after linking",
   "discord.opening": "Opening Discord…",
   "profile.discord_title": "Discord",

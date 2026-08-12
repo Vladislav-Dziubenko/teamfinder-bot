@@ -4001,6 +4001,17 @@ async def handle_discord_quest_claim(request: web.Request):
     return web.json_response({"ok": True, **result})
 
 
+async def handle_discord_sync_profile(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    result = await db.import_discord_profile(user["id"])
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=400)
+    return web.json_response({"ok": True, **result})
+
+
 async def handle_client_error(request: web.Request):
     try:
         body = await request.json()
@@ -4191,6 +4202,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/discord/unlink", handle_discord_unlink)
     app.router.add_post("/api/discord/daily", handle_discord_daily)
     app.router.add_post("/api/discord/quest-claim", handle_discord_quest_claim)
+    app.router.add_post("/api/discord/sync-profile", handle_discord_sync_profile)
 
     # Диагностика — проверка env + статус webhook
     async def handle_diag_env(request: web.Request) -> web.Response:

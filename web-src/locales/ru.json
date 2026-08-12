@@ -472,6 +472,7 @@
   "discord.quest_desc": "Забери {count} ежедневных наград → +{bonus} ⭐",
   "discord.quest_claim": "Забрать +{bonus} ⭐",
   "discord.quest_claimed": "Квест выполнен",
+  "discord.use_profile": "Взять ник и аватар из Discord",
   "discord.daily_first_claim": "Награду можно забрать через 24ч после привязки",
   "discord.opening": "Открываем Discord…",
   "profile.discord_title": "Discord",
