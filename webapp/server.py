@@ -1402,6 +1402,8 @@ ACHIEVEMENTS_CONFIG = [
     {"id": "a3", "game": "Roblox", "title": "Найди 120 тиммейтов в Roblox", "desc": "Проведи 120 поисков с тиммейтами в Roblox", "target": 120, "points": 220, "coins": 65, "search_keys": ["roblox"]},
     {"id": "a4", "game": "Nexus", "title": "Открой 50 кейсов в Nexus", "desc": "Открой суммарно 50 кейсов в любое время", "target": 50, "points": 150, "coins": 40, "search_keys": []},
     {"id": "a5", "game": "Nexus", "title": "Посмотри 20 реклам", "desc": "Заработай звёзды, посмотрев рекламу 20 раз", "target": 20, "points": 80, "coins": 25, "search_keys": []},
+    {"id": "a6", "game": "Nexus", "title": "Пригласи 5 друзей", "desc": "Пригласи 5 друзей по рефералке Nexus", "target": 5, "points": 120, "coins": 30, "search_keys": []},
+    {"id": "a7", "game": "Nexus", "title": "Достигни 10 уровня", "desc": "Прокачай профиль Nexus до 10 уровня", "target": 10, "points": 200, "coins": 50, "search_keys": []},
 ]
 
 # Лёгкий кумулятивный квест Discord (без бота): забрать бонус, когда юзер
@@ -2799,11 +2801,17 @@ async def handle_achievements_list(request: web.Request):
     user = _get_user(request)
     rows = await db.get_user_achievements(user["id"])
     claimed_map = {r["achievement_id"]: r for r in rows}
+    # Прогресс для ачивок, основанных на данных профиля (без отдельного счётчика).
+    sources = await db.get_achievement_sources(user["id"])
+    data_progress = {
+        "a6": sources.get("invited_count", 0),
+        "a7": sources.get("level", 0),
+    }
     out = []
     for a in ACHIEVEMENTS_CONFIG:
         item = dict(a)
         row = claimed_map.get(a["id"])
-        item["progress"] = (row["progress"] if row else 0) or 0
+        item["progress"] = data_progress.get(a["id"], (row["progress"] if row else 0) or 0)
         item["claimed"] = bool(row and row["claimed"])
         item["claimedAt"] = (row or {}).get("claimed_at")
         out.append(item)

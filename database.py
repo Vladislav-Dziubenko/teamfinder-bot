@@ -3495,6 +3495,18 @@ class Database:
             rows = await conn.fetch("SELECT * FROM user_achievements WHERE user_id = $1", user_id)
             return [dict(r) for r in rows]
 
+    async def get_achievement_sources(self, user_id: int) -> dict:
+        """Данные профиля, на основе которых считается прогресс ачивок a6/a7:
+        уровень и число приглашённых по рефералке."""
+        async with self.pool.acquire() as conn:
+            level = await conn.fetchval("SELECT level FROM users WHERE user_id = $1", user_id) or 0
+            invited = 0
+            try:
+                invited = await conn.fetchval("SELECT invited_count FROM referrals WHERE user_id = $1", user_id) or 0
+            except Exception:
+                invited = 0
+            return {"level": level, "invited_count": invited}
+
     async def bump_achievement_progress(self, user_id: int, achievement_id: str, target: int, amount: int = 1) -> None:
         """Начисляем прогресс достижения (поиск тиммейта в нужной игре).
         Заявленные достижения больше не растут; прогресс ограничен target."""
