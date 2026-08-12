@@ -14,6 +14,10 @@ export type DiscordStatus = {
   linked_at?: string | null
   welcome_claimed?: boolean
   daily_ready?: boolean
+  daily_claims_count?: number
+  quest_claimed_at?: string | null
+  quest_target?: number
+  quest_bonus?: number
 }
 
 type AuthResp = { url: string }
@@ -81,7 +85,10 @@ export function useDiscord() {
       setBusy(true)
       setError(null)
       const data = await api.post<{ claimed: boolean; stars?: number; reason?: string }>("/api/discord/daily")
-      if (data?.claimed) return { ok: true, stars: data.stars ?? 10 }
+      if (data?.claimed) {
+        await refresh()
+        return { ok: true, stars: data.stars ?? 10 }
+      }
       return { ok: false }
     } catch (e: any) {
       setError(e?.message ?? "Не удалось получить награду")
@@ -89,7 +96,25 @@ export function useDiscord() {
     } finally {
       setBusy(false)
     }
-  }, [])
+  }, [refresh])
+
+  const claimQuest = useCallback(async (): Promise<{ ok: boolean; stars?: number }> => {
+    try {
+      setBusy(true)
+      setError(null)
+      const data = await api.post<{ ok: boolean; stars?: number }>("/api/discord/quest-claim")
+      if (data?.ok) {
+        await refresh()
+        return { ok: true, stars: data.stars ?? 0 }
+      }
+      return { ok: false }
+    } catch (e: any) {
+      setError(e?.message ?? "Не удалось получить награду")
+      return { ok: false }
+    } finally {
+      setBusy(false)
+    }
+  }, [refresh])
 
   useEffect(() => {
     refresh()
@@ -105,5 +130,5 @@ export function useDiscord() {
     }
   }, [refresh])
 
-  return { status, loading, busy, error, connect, unlink, claimDaily, refresh }
+  return { status, loading, busy, error, connect, unlink, claimDaily, claimQuest, refresh }
 }

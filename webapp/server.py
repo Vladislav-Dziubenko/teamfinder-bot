@@ -1404,6 +1404,11 @@ ACHIEVEMENTS_CONFIG = [
     {"id": "a5", "game": "Nexus", "title": "Посмотри 20 реклам", "desc": "Заработай звёзды, посмотрев рекламу 20 раз", "target": 20, "points": 80, "coins": 25, "search_keys": []},
 ]
 
+# Лёгкий кумулятивный квест Discord (без бота): забрать бонус, когда юзер
+# получил N ежедневных Discord-наград.
+DISCORD_QUEST_TARGET = 7
+DISCORD_QUEST_BONUS_STARS = 50
+
 _ACHIEVEMENT_BY_SEARCH_KEY: dict[str, str] = {
     key: a["id"] for a in ACHIEVEMENTS_CONFIG for key in a["search_keys"]
 }
@@ -3941,6 +3946,10 @@ async def handle_discord_status(request: web.Request):
         "linked_at": conn["connected_at"],
         "welcome_claimed": welcome_claimed,
         "daily_ready": daily_ready,
+        "daily_claims_count": conn.get("daily_claims_count") or 0,
+        "quest_claimed_at": conn.get("quest_claimed_at"),
+        "quest_target": DISCORD_QUEST_TARGET,
+        "quest_bonus": DISCORD_QUEST_BONUS_STARS,
     })
 
 
@@ -3969,6 +3978,17 @@ async def handle_discord_daily(request: web.Request):
         return web.json_response({"error": "unauthorized"}, status=401)
     result = await db.claim_discord_daily_reward(user["id"])
     return web.json_response(result)
+
+
+async def handle_discord_quest_claim(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    result = await db.claim_discord_quest_reward(user["id"], DISCORD_QUEST_TARGET, DISCORD_QUEST_BONUS_STARS)
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=400)
+    return web.json_response({"ok": True, **result})
 
 
 async def handle_client_error(request: web.Request):
@@ -4160,6 +4180,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/discord/status", handle_discord_status)
     app.router.add_post("/api/discord/unlink", handle_discord_unlink)
     app.router.add_post("/api/discord/daily", handle_discord_daily)
+    app.router.add_post("/api/discord/quest-claim", handle_discord_quest_claim)
 
     # Диагностика — проверка env + статус webhook
     async def handle_diag_env(request: web.Request) -> web.Response:

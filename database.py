@@ -731,6 +731,8 @@ class Database:
             ("access_token_enc", "TEXT"),
             ("refresh_token_enc", "TEXT"),
             ("last_daily_claim_at", "TEXT"),
+            ("daily_claims_count", "INTEGER NOT NULL DEFAULT 0"),
+            ("quest_claimed_at", "TEXT"),
         ]:
             try:
                 await conn.execute(f"ALTER TABLE discord_connections ADD COLUMN IF NOT EXISTS {col} {col_type}")
@@ -1693,13 +1695,15 @@ class Database:
                 return {"claimed": True}
 
     async def claim_discord_daily_reward(self, user_id: int) -> dict:
-        """Ежедневная награда за активную связку Discord: +10 ⭐ раз в 24ч."""
+        """Ежедневная награда за активную связку Discord: +10 ⭐ раз в 24ч.
+        Параллельно считаем число полученных daily-наград (daily_claims_count) —
+        на его основе в профиле висит кумулятивный квест Discord."""
         now = datetime.utcnow()
         now_iso = now.isoformat()
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
-                    "SELECT last_daily_claim_at FROM discord_connections WHERE user_id = $1 FOR UPDATE",
+                    "SELECT last_daily_claim_at, daily_claims_count FROM discord_connections WHERE user_id = $1 FOR UPDATE",
                     user_id,
                 )
                 if not row:
@@ -1713,13 +1717,41 @@ class Database:
                             "next_in_ms": max(0, int(24 * 3600 * 1000 - (now - last).total_seconds() * 1000)),
                         }
                 await conn.execute(
-                    "UPDATE discord_connections SET last_daily_claim_at = $1, updated_at = $1 WHERE user_id = $2",
+                    "UPDATE discord_connections SET last_daily_claim_at = $1, updated_at = $1, "
+                    "daily_claims_count = daily_claims_count + 1 WHERE user_id = $2",
                     now_iso, user_id,
                 )
                 ok = await self._adjust_currency_conn(conn, user_id, stars=10)
                 if not ok:
                     return {"claimed": False, "reason": "no_user"}
-                return {"claimed": True, "stars": 10}
+                new_count = (row["daily_claims_count"] or 0) + 1
+                return {"claimed": True, "stars": 10, "daily_claims_count": new_count}
+
+    async def claim_discord_quest_reward(self, user_id: int, target: int, bonus_stars: int) -> dict:
+        """Кумулятивный квест Discord: забрать бонус, когда набрано N daily-наград.
+        Атомарно (FOR UPDATE) — бонус выдаётся ровно один раз."""
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT daily_claims_count, quest_claimed_at FROM discord_connections "
+                    "WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                if not row:
+                    return {"error": "not_linked"}
+                if (row["daily_claims_count"] or 0) < target:
+                    return {"error": "not_ready"}
+                if row["quest_claimed_at"]:
+                    return {"error": "already_claimed"}
+                ok = await self._adjust_currency_conn(conn, user_id, stars=bonus_stars)
+                if not ok:
+                    return {"error": "no_user"}
+                await conn.execute(
+                    "UPDATE discord_connections SET quest_claimed_at = $1, updated_at = $1 WHERE user_id = $2",
+                    now, user_id,
+                )
+                return {"ok": True, "stars": bonus_stars}
 
     async def find_user_by_discord_id(self, discord_id: int) -> int | None:
         async with self.pool.acquire() as conn:

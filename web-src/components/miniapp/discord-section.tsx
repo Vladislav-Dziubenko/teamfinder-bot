@@ -7,13 +7,26 @@ import { useNexus } from "@/lib/store"
 
 export function DiscordSection() {
   const { t } = useI18n()
-  const { status, loading, busy, error, connect, unlink, claimDaily, refresh: refreshStatus } = useDiscord()
+  const { status, loading, busy, error, connect, unlink, claimDaily, claimQuest, refresh: refreshStatus } = useDiscord()
   const { refresh: refreshMe } = useNexus()
 
   const linked = !!status?.linked
+  const questTarget = status?.quest_target ?? 7
+  const questCount = status?.daily_claims_count ?? 0
+  const questDone = questCount >= questTarget
+  const questClaimed = !!status?.quest_claimed_at
+  const questBonus = status?.quest_bonus ?? 50
 
   async function onClaimDaily() {
     const res = await claimDaily()
+    if (res.ok) {
+      await refreshStatus()
+      await refreshMe()
+    }
+  }
+
+  async function onClaimQuest() {
+    const res = await claimQuest()
     if (res.ok) {
       await refreshStatus()
       await refreshMe()
@@ -124,6 +137,45 @@ export function DiscordSection() {
                 ) : (
                   <span className="shrink-0 text-[10px] font-semibold text-neutral-500">
                     {t("discord.daily_claimed")}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="grid size-7 shrink-0 place-items-center rounded-lg bg-neutral-800">
+                    <Star className="size-3.5 fill-amber-400 text-amber-400" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-xs font-medium text-white">
+                      {t("discord.quest_title")}
+                    </div>
+                    <div className="text-[10px] text-neutral-400">
+                      {t("discord.quest_desc", { count: questTarget, bonus: questBonus })}
+                    </div>
+                    <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-neutral-800">
+                      <div
+                        className="h-full rounded-full bg-amber-400"
+                        style={{ width: `${Math.min(100, Math.round((questCount / questTarget) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+                {questClaimed ? (
+                  <span className="shrink-0 text-[10px] font-semibold text-neutral-500">
+                    {t("discord.quest_claimed")}
+                  </span>
+                ) : questDone ? (
+                  <button
+                    onClick={onClaimQuest}
+                    disabled={busy}
+                    className="shrink-0 rounded-lg bg-amber-400 px-2.5 py-1.5 text-[10px] font-bold text-black hover:bg-amber-300 disabled:opacity-50"
+                  >
+                    {busy ? "…" : t("discord.quest_claim", { bonus: questBonus })}
+                  </button>
+                ) : (
+                  <span className="shrink-0 text-[10px] font-semibold text-neutral-500">
+                    {questCount}/{questTarget}
                   </span>
                 )}
               </div>
