@@ -58,8 +58,7 @@ export function HomeTab({
         if (!cancelled) setLoading(false)
       }
     }
-    load()
-    const poll = setInterval(async () => {
+    async function refreshOnline() {
       try {
         const countData = await api.get("/api/online")
         if (!cancelled) {
@@ -67,8 +66,22 @@ export function HomeTab({
           lastSearchCount = countData.online ?? 0
         }
       } catch {}
-    }, 10_000)
-    return () => { cancelled = true; clearInterval(poll) }
+    }
+    load()
+    // Число в поиске обновляется почти мгновенно: лёгкий полл раз в 3с + рефреш
+    // сразу при возврате на вкладку/фокусе окна (игрок зашёл → видим сразу).
+    const poll = setInterval(refreshOnline, 3_000)
+    const onVisible = () => {
+      if (typeof document !== "undefined" && document.visibilityState === "visible") refreshOnline()
+    }
+    if (typeof document !== "undefined") document.addEventListener("visibilitychange", onVisible)
+    if (typeof window !== "undefined") window.addEventListener("focus", refreshOnline)
+    return () => {
+      cancelled = true
+      clearInterval(poll)
+      if (typeof document !== "undefined") document.removeEventListener("visibilitychange", onVisible)
+      if (typeof window !== "undefined") window.removeEventListener("focus", refreshOnline)
+    }
   }, [t])
 
   async function claimQuest(q: Quest) {
@@ -77,12 +90,37 @@ export function HomeTab({
     try {
       await api.post("/api/nexus/quests/claim", { quest_id: q.id })
       onToast(t("home.quest_claimed", { reward: q.reward }))
-      await refresh()
+      // Не ждём тяжёлый /api/me — помечаем локально сразу, а профиль
+      // перезапрашиваем в фоне (звёзды подтянутся чуть позже).
       setQuests((prev) => prev.map((x) => (x.id === q.id ? { ...x, completed: true } : x)))
+      refresh().catch(() => {})
     } catch {
       onToast(t("home.quest_not_ready"))
     }
     setClaiming(null)
+  }
+
+  const claimable = quests.filter((q) => !q.completed && q.progress >= q.target)
+  const [claimingAll, setClaimingAll] = useState(false)
+
+  async function claimAll() {
+    if (claimingAll) return
+    setClaimingAll(true)
+    try {
+      const data = await api.post("/api/nexus/quests/claim-all", {})
+      const n = data.claimed ?? 0
+      const total = data.stars ?? 0
+      if (n > 0) {
+        onToast(t("home.quest_claimed_all", { count: n, reward: `${total} ⭐` }))
+        setQuests((prev) => prev.map((x) => (x.progress >= x.target ? { ...x, completed: true } : x)))
+      } else {
+        onToast(t("home.quest_not_ready"))
+      }
+      refresh().catch(() => {})
+    } catch {
+      onToast(t("home.quest_not_ready"))
+    }
+    setClaimingAll(false)
   }
 
   const daily = quests[0]
@@ -138,8 +176,20 @@ export function HomeTab({
           <div className="size-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
         </section>
       ) : quests.length > 0 ? (
-        <div className="space-y-3">
-          <span className="text-xs font-medium uppercase tracking-widest text-primary">{t("home.quest_title")}</span>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-medium uppercase tracking-widest text-primary">{t("home.quest_title")}</span>
+              {claimable.length > 0 && (
+                <button
+                  type="button"
+                  onClick={claimAll}
+                  disabled={claimingAll}
+                  className="rounded-full bg-stars/15 px-3 py-1 text-[11px] font-bold text-stars active:scale-95 disabled:opacity-60"
+                >
+                  {claimingAll ? "..." : t("home.claim_all")}
+                </button>
+              )}
+            </div>
           {quests.map((q) => (
             <section key={q.id} className={`relative overflow-hidden rounded-3xl border p-5 ${q.completed ? "border-stars/40 bg-stars/5" : "border-primary/30 bg-primary/5"}`}>
               <div className="relative z-10">

@@ -811,12 +811,20 @@ async def handle_search_count(request: web.Request):
 
 
 async def handle_online(request: web.Request):
+    # Кэшируем тяжёлый COUNT на 1с — клиент поллит раз в 3с, поэтому кэш
+    # почти всегда попадает и не грузит БД, а число обновляется практически
+    # мгновенно при входе/выходе игрока из поиска.
+    cached = await cache_get("online_count")
+    if cached is not None:
+        return web.json_response({"online": cached.get("online", 0)})
     db: Database = request.app["db"]
     online_count = await db.pool.fetchval(
         "SELECT COUNT(*) FROM profiles WHERE is_active = 1 AND searching_since IS NOT NULL AND searching_since > $1",
         (datetime.utcnow() - timedelta(minutes=15)).isoformat(),
     )
-    return web.json_response({"online": online_count or 0})
+    value = online_count or 0
+    await cache_set("online_count", {"online": value}, 1)
+    return web.json_response({"online": value})
 
 
 async def handle_search(request: web.Request):
@@ -1392,6 +1400,8 @@ ACHIEVEMENTS_CONFIG = [
     {"id": "a1", "game": "CS:GO", "title": "Найди 35 тиммейтов в CS:GO", "desc": "Проведи 35 поисков с тиммейтами в CS:GO", "target": 35, "points": 100, "coins": 15, "search_keys": ["cs2"]},
     {"id": "a2", "game": "War Thunder", "title": "Найди 60 тиммейтов в War Thunder", "desc": "Проведи 60 поисков с тиммейтами в War Thunder", "target": 60, "points": 150, "coins": 35, "search_keys": ["wt", "wot"]},
     {"id": "a3", "game": "Roblox", "title": "Найди 120 тиммейтов в Roblox", "desc": "Проведи 120 поисков с тиммейтами в Roblox", "target": 120, "points": 220, "coins": 65, "search_keys": ["roblox"]},
+    {"id": "a4", "game": "Nexus", "title": "Открой 50 кейсов в Nexus", "desc": "Открой суммарно 50 кейсов в любое время", "target": 50, "points": 150, "coins": 40, "search_keys": []},
+    {"id": "a5", "game": "Nexus", "title": "Посмотри 20 реклам", "desc": "Заработай звёзды, посмотрев рекламу 20 раз", "target": 20, "points": 80, "coins": 25, "search_keys": []},
 ]
 
 _ACHIEVEMENT_BY_SEARCH_KEY: dict[str, str] = {
@@ -1721,6 +1731,9 @@ async def handle_nexus_open_case(request: web.Request):
     # вернёт «quest not completed»).
     await db.update_quest_progress(user["id"], "open-cases", count)
     await db.update_quest_progress(user["id"], "open-cases-2", count)
+
+    # Достижение «50 кейсов»: суммарный счётчик открытий (не сбрасывается по дням).
+    asyncio.create_task(db.bump_achievement_progress(user["id"], "a4", 50, count))
 
     return web.json_response({
         "item": rolled_items[0],
@@ -2235,15 +2248,22 @@ async def handle_nexus_claim_quest_reward(request: web.Request):
     quest_config = next((q for q in QUESTS_CONFIG if q["id"] == quest_id), None)
     if not quest_config:
         return web.json_response({"error": "unknown quest"}, status=400)
-    progress = await db.get_all_quests_progress(user["id"])
-    prog = next((p for p in progress if p["quest_id"] == quest_id), None)
-    if not prog or prog["progress_minutes"] < quest_config["target"]:
-        return web.json_response({"error": "quest not completed"}, status=400)
-    if prog["completed"]:
-        return web.json_response({"error": "already claimed"}, status=400)
-    await db.adjust_currency(user["id"], stars=quest_config["rewardStars"])
-    await db.complete_quest(user["id"], prog["id"])
-    return web.json_response({"ok": True, "stars": quest_config["rewardStars"]})
+    # Атомарно в рамках транзакции (FOR UPDATE на строке квеста + валюте),
+    # чтобы параллельные запросы не выдали награду дважды.
+    result = await db.claim_quest_atomic(
+        user["id"], quest_id, quest_config["target"], quest_config["rewardStars"]
+    )
+    if "error" in result:
+        return web.json_response({"error": result["error"]}, status=400)
+    return web.json_response({"ok": True, "stars": result["stars"]})
+
+
+async def handle_nexus_claim_all_quests(request: web.Request):
+    """Забрать сразу все готовые задания дня одним атомарным запросом."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    result = await db.claim_all_ready_quests(user["id"], QUESTS_CONFIG)
+    return web.json_response({"ok": True, **result})
 
 
 async def handle_nexus_shop(request: web.Request):
@@ -2263,6 +2283,8 @@ async def handle_nexus_ad_watch(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     state = await db.record_ad_watch(user["id"])
+    # Достижение «20 реклам»: суммарный счётчик просмотров.
+    asyncio.create_task(db.bump_achievement_progress(user["id"], "a5", 20, 1))
     return web.json_response(state)
 
 
@@ -4047,6 +4069,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/sessions/{session_id}/join", handle_sessions_join)
     app.router.add_post("/api/sessions/{session_id}/leave", handle_sessions_leave)
     app.router.add_post("/api/nexus/quests/claim", handle_nexus_claim_quest_reward)
+    app.router.add_post("/api/nexus/quests/claim-all", handle_nexus_claim_all_quests)
     app.router.add_get("/api/nexus/shop", handle_nexus_shop)
     app.router.add_post("/api/nexus/shop/buy", handle_nexus_buy)
     app.router.add_post("/api/nexus/exchange", handle_nexus_exchange)

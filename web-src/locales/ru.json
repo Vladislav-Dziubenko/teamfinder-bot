@@ -129,6 +129,10 @@
   "achievement.a2.desc": "Проведи 60 поисков с тиммейтами в War Thunder",
   "achievement.a3.title": "Найди 120 тиммейтов в Roblox",
   "achievement.a3.desc": "Проведи 120 поисков с тиммейтами в Roblox",
+  "achievement.a4.title": "Открой 50 кейсов в Nexus",
+  "achievement.a4.desc": "Открой суммарно 50 кейсов в любое время",
+  "achievement.a5.title": "Посмотри 20 реклам",
+  "achievement.a5.desc": "Заработай звёзды, посмотрев рекламу 20 раз",
   "match.title": "Поиск тиммейтов",
   "match.subtitle": "Найди пару по своей игре, рангу и вайбу.",
   "match.cta_search": "Найти тиммейтов",
@@ -482,6 +486,7 @@
   "profile.achievement_claimed": "Награда получена",
   "profile.achievement_claim": "Забрать награду",
   "profile.achievement_progress": "В процессе…",
+  "profile.achievement_new": "НОВОЕ",
   "profile.achievement_claimed_toast": "Награда получена: +{pts} баллов, +{coins} монет",
   "profile.achievement_unlock": "{progress}/{target} мин",
   "profile.row_games": "Мои игры и роли",
@@ -958,5 +963,7 @@
   "profile.guide_subtitle": "Краткий гид: как искать тиммейтов, открывать кейсы и общаться",
   "review.list_title": "Отзывы игроков",
   "home.quest_claimed": "Награда получена: {reward}",
-  "home.quest_not_ready": "Задание ещё не выполнено — прогресс чуть позже"
+  "home.quest_not_ready": "Задание ещё не выполнено — прогресс чуть позже",
+  "home.claim_all": "Забрать всё",
+  "home.quest_claimed_all": "Получено наград: {count} (+{reward})"
 }

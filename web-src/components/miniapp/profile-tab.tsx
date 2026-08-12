@@ -543,9 +543,14 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
                 <div key={a.id} className="rounded-2xl border border-border bg-card p-4">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                      <span className="mr-1.5 rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
                         {a.game}
                       </span>
+                      {done && !isClaimed && (
+                        <span className="rounded-full bg-accent/15 px-2 py-0.5 text-[10px] font-bold text-accent">
+                          {t("profile.achievement_new")}
+                        </span>
+                      )}
                       <p className="mt-1.5 font-display text-sm font-bold leading-tight text-balance">{tl(`achievement.${a.id}.title`, a.title)}</p>
                       <p className="text-[11px] text-muted-foreground text-pretty">{tl(`achievement.${a.id}.desc`, a.desc)}</p>
                     </div>

@@ -135,6 +135,10 @@
   "achievement.a2.desc": "Run 60 searches for teammates in War Thunder",
   "achievement.a3.title": "Find 120 teammates in Roblox",
   "achievement.a3.desc": "Run 120 searches for teammates in Roblox",
+  "achievement.a4.title": "Open 50 cases in Nexus",
+  "achievement.a4.desc": "Open a total of 50 cases at any time",
+  "achievement.a5.title": "Watch 20 ads",
+  "achievement.a5.desc": "Earn stars by watching 20 ads",
   "match.title": "Find teammates",
   "match.subtitle": "Find a match by game, rank and vibe.",
   "match.cta_search": "Find teammates",
@@ -483,6 +487,7 @@
   "profile.achievement_claimed": "Reward received",
   "profile.achievement_claim": "Claim reward",
   "profile.achievement_progress": "In progress…",
+  "profile.achievement_new": "NEW",
   "profile.achievement_claimed_toast": "Reward received: +{pts} points, +{coins} coins",
   "profile.achievement_unlock": "{progress}/{target} min",
   "profile.row_games": "My games & roles",
@@ -959,5 +964,7 @@
   "profile.guide_subtitle": "Quick guide: find teammates, open cases and chat",
   "review.list_title": "Player reviews",
   "home.quest_claimed": "Reward claimed: {reward}",
-  "home.quest_not_ready": "Quest is not finished yet — progress will sync shortly"
+  "home.quest_not_ready": "Quest is not finished yet — progress will sync shortly",
+  "home.claim_all": "Claim all",
+  "home.quest_claimed_all": "Rewards claimed: {count} (+{reward})"
 }

@@ -2668,6 +2668,68 @@ class Database:
             )
             return result == "UPDATE 1"
 
+    async def claim_quest_atomic(self, user_id: int, quest_id: str, target: int, reward_stars: int) -> dict:
+        """Атомарно забирает награду за одно задание. Блокирует строку квеста
+        (FOR UPDATE), проверяет прогресс и флаг completed, начисляет звёзды и
+        помечает задание выполненным в рамках одной транзакции — так параллельные
+        запросы не выдадут награду дважды."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT id, progress_minutes, completed FROM user_quests "
+                    "WHERE user_id = $1 AND quest_id = $2 FOR UPDATE",
+                    user_id, quest_id,
+                )
+                if not row or (row["progress_minutes"] or 0) < target:
+                    return {"error": "quest not completed"}
+                if row["completed"]:
+                    return {"error": "already claimed"}
+                await self._adjust_currency_conn(conn, user_id, stars=reward_stars)
+                await conn.execute(
+                    "UPDATE user_quests SET completed = 1, updated_at = $1 WHERE id = $2",
+                    datetime.utcnow().isoformat(), row["id"],
+                )
+                return {"ok": True, "stars": reward_stars}
+
+    async def claim_all_ready_quests(self, user_id: int, quests_config: list[dict]) -> dict:
+        """Атомарно забирает награды за все готовые (progress >= target) и ещё не
+        полученные задания дня. Сбрасывает прогресс прошлых дней, суммирует звёзды
+        и помечает задания выполненными в одной транзакции."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                today = datetime.utcnow().strftime("%Y-%m-%d")
+                await conn.execute(
+                    "UPDATE user_quests SET progress_minutes = 0, completed = 0, quest_date = $2 "
+                    "WHERE user_id = $1 AND quest_date <> $2",
+                    user_id, today,
+                )
+                rows = await conn.fetch(
+                    "SELECT id, quest_id, progress_minutes, completed FROM user_quests "
+                    "WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                by_qid = {r["quest_id"]: r for r in rows}
+                total_stars = 0
+                claimed = 0
+                for q in quests_config:
+                    prog = by_qid.get(q["id"])
+                    if not prog or (prog["progress_minutes"] or 0) < q["target"] or prog["completed"]:
+                        continue
+                    total_stars += q["rewardStars"]
+                    claimed += 1
+                if total_stars == 0:
+                    return {"stars": 0, "claimed": 0}
+                await self._adjust_currency_conn(conn, user_id, stars=total_stars)
+                for q in quests_config:
+                    prog = by_qid.get(q["id"])
+                    if not prog or (prog["progress_minutes"] or 0) < q["target"] or prog["completed"]:
+                        continue
+                    await conn.execute(
+                        "UPDATE user_quests SET completed = 1, updated_at = $1 WHERE id = $2",
+                        datetime.utcnow().isoformat(), prog["id"],
+                    )
+                return {"stars": total_stars, "claimed": claimed}
+
     # Leaderboard method
     async def get_leaderboard(self, limit: int = 10) -> list[dict]:
         async with self.pool.acquire() as conn:
