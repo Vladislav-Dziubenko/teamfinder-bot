@@ -40,9 +40,25 @@ def _parse_admin_ids(raw: str) -> set[int]:
 
 def _normalize_database_url(raw: str) -> str:
     """Render отдаёт postgres:// — asyncpg ожидает postgresql://."""
+    from urllib.parse import urlparse, urlunparse, quote
+    
     url = raw.strip()
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://") :]
+    
+    # URL-энкодим пароль если есть спецсимволы
+    try:
+        parsed = urlparse(url)
+        if parsed.password and '#' in parsed.password:
+            # Заменяем пароль на закодированный
+            encoded_password = quote(parsed.password, safe='')
+            netloc = f"{parsed.username}:{encoded_password}@{parsed.hostname}"
+            if parsed.port:
+                netloc += f":{parsed.port}"
+            url = urlunparse((parsed.scheme, netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+    except Exception:
+        pass  # Если не получилось распарсить, оставляем как есть
+    
     return url
 
 
