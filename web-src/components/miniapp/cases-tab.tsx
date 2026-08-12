@@ -348,12 +348,6 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
       {/* Cases */}
       <div className="space-y-4">
-        {!loaded && (
-          <div className="rounded-3xl border border-dashed border-border py-8 text-center">
-            <Loader2 className="mx-auto size-7 animate-spin text-muted-foreground" />
-            <p className="mt-2 text-sm text-muted-foreground">{t("cases.loading")}</p>
-          </div>
-        )}
         {loaded && lootCases.length === 0 && (
           <div className="rounded-3xl border border-dashed border-border py-8 text-center">
             <Package className="mx-auto size-7 text-muted-foreground" />

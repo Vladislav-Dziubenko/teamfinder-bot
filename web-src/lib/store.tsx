@@ -9,6 +9,7 @@ import {
   type PromoCode,
   type Rarity,
   type StarPack,
+  lootCases as clientLootCases,
 } from "@/lib/data"
 import { api, telegramReady, openInvoice, syncTelegramProfile } from "@/lib/api"
 import { initWebApp } from "@/lib/webapp"
@@ -335,7 +336,7 @@ function defaultState(): PersistedState {
     lastQuestAt: 0,
     level: 0,
     wins: 0,
-    lootCases: [],
+    lootCases: clientLootCases,
     battlePassTiers: [],
     battlePassPriceStars: 0,
     battlePassXpPerLevel: 0,
@@ -371,7 +372,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
   const streak = me.streak || {}
   const ref = me.referral || {}
   const achievements = me.achievements || []
-  const lootCases = me.cases || []
+  const lootCases = me.cases || clientLootCases
   const registry = buildItemRegistry(lootCases)
 
   const defaultPromoCodes = me.default_promo_codes || []
