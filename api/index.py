@@ -68,12 +68,17 @@ def get_app():
     return _app
 
 
+# Vercel entry point - must be named 'app' or 'handler'
+def app(environ, start_response):
+    """WSGI application for Vercel"""
+    return handler(environ, start_response)
+
 def handler(request, context=None):
     """
     Vercel Serverless Function handler для API
     """
     try:
-        app = get_app()
+        web_app = get_app()
         
         # Конвертируем Vercel request в aiohttp request
         if isinstance(request, dict):
@@ -95,7 +100,7 @@ def handler(request, context=None):
         
         async def _handle():
             # Находим нужный handler в app.router
-            for route in app.router.routes():
+            for route in web_app.router.routes():
                 match = route.match(path)
                 if match:
                     # Создаём запрос
@@ -103,7 +108,7 @@ def handler(request, context=None):
                         method=method,
                         url=path + (f"?{query_string}" if query_string else ""),
                         headers=headers,
-                        app=app,
+                        app=web_app,
                         payload=None,
                         protocol=None,
                         transport=None,

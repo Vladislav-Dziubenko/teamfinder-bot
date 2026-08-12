@@ -110,6 +110,11 @@ async def handle_webhook(request_body: dict, secret_from_path: str):
         }
 
 
+# Vercel entry point
+def app(environ, start_response):
+    """WSGI application for Vercel"""
+    return handler(environ, start_response)
+
 def handler(request, context=None):
     """
     Vercel Serverless Function handler
