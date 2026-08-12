@@ -3478,12 +3478,19 @@ class Database:
                 now, chat_id, user_id,
             )
 
-    async def get_chat_messages(self, chat_id: str, limit: int = 5000) -> list[dict]:
+    async def get_chat_messages(self, chat_id: str, limit: int = 5000, before_id: int | None = None) -> list[dict]:
+        """Get messages, optionally paginated before a specific message ID."""
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch(
-                "SELECT id, chat_id, sender_id, text, created_at, read_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
-                chat_id, limit,
-            )
+            if before_id is not None:
+                rows = await conn.fetch(
+                    "SELECT id, chat_id, sender_id, text, created_at, read_at FROM chat_messages WHERE chat_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT $3",
+                    chat_id, before_id, limit,
+                )
+            else:
+                rows = await conn.fetch(
+                    "SELECT id, chat_id, sender_id, text, created_at, read_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
+                    chat_id, limit,
+                )
             return [dict(r) for r in reversed(rows)]
 
     async def get_chat_status(self, chat_id: str, user_id: int) -> dict:

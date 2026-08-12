@@ -2851,19 +2851,30 @@ async def handle_chat_messages(request: web.Request):
     if not await db.can_access_chat(chat_id, user["id"]):
         return web.json_response({"error": "forbidden"}, status=403)
     await db.mark_chat_read(chat_id, user["id"])
-    # Кэшируем сообщения на 3с — убирает дублирующие SQL при поллинге.
-    cache_key = f"chat_msgs:{chat_id}"
-    cached = await cache_get(cache_key)
-    if cached is not None:
-        messages = cached.get("messages", [])
+
+    # Пагинация: before_id — загрузить старые сообщения до этого ID.
+    # Без before_id — первая страница (последние 50 сообщений), кэшируем на 3с.
+    before_id_raw = request.query.get("before_id")
+    before_id = int(before_id_raw) if before_id_raw and before_id_raw.isdigit() else None
+    limit = 50 if before_id is None else 100
+
+    if before_id is None:
+        # Кэшируем только первую страницу
+        cache_key = f"chat_msgs:{chat_id}"
+        cached = await cache_get(cache_key)
+        if cached is not None:
+            messages = cached.get("messages", [])
+        else:
+            messages = await db.get_chat_messages(chat_id, limit=limit)
+            await cache_set(cache_key, {"messages": messages}, 3)
     else:
-        messages = await db.get_chat_messages(chat_id)
-        await cache_set(cache_key, {"messages": messages}, 3)
+        messages = await db.get_chat_messages(chat_id, limit=limit, before_id=before_id)
+
     for msg in messages:
         if msg.get("sender_id") == user["id"]:
             msg["sender_id"] = "me"
     status = await db.get_chat_status(chat_id, user["id"])
-    return web.json_response({"messages": messages, "status": status})
+    return web.json_response({"messages": messages, "status": status, "has_more": len(messages) == limit})
 
 
 async def _notify_tg_new_message(

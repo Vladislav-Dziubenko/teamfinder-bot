@@ -342,6 +342,8 @@
   "chat.emoji": "Смайлик",
   "chat.sticker": "Стикер",
   "chat.stickers_title": "Стикеры",
+  "chat.load_earlier": "Загрузить ранние",
+  "chat.loading_earlier": "Загрузка…",
   "role.developer": "Разработчик",
   "role.admin": "Администратор",
   "role.moderator": "Модератор",

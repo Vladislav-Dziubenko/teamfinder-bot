@@ -158,6 +158,8 @@ export function useChatMessages(chatId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>(chatId ? _msgCache.get(chatId) ?? [] : [])
   const [status, setStatus] = useState<ChatStatus>({ muted: false, blocked: false, blockedByOther: false })
   const [typing, setTyping] = useState(false)
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
   const optimisticIds = useRef<Set<string>>(new Set())
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -170,6 +172,7 @@ export function useChatMessages(chatId: string | null) {
     ) {
       setMessages([])
       optimisticIds.current.clear()
+      setHasMore(true)
       return
     }
     setMessages(_msgCache.get(chatId) ?? [])
@@ -190,11 +193,25 @@ export function useChatMessages(chatId: string | null) {
           const serverMsgs = (data.messages ?? []).map(mapMsg)
           const serverIds = new Set(serverMsgs.map((m: ChatMessage) => m.id))
           setMessages((prev) => {
-            const kept = prev.filter((m) => m.id.startsWith("opt-") && !serverIds.has(m.id))
-            const merged = [...serverMsgs, ...kept]
+            // Сохраняем при поллинге: оптимистичные сообщения (не пришедшие
+            // с сервера) и ранее догруженные пагинацией старые сообщения —
+            // иначе после каждого poll-запроса история обрезалась бы до 50.
+            const firstServer = serverMsgs
+              .map((m: ChatMessage) => parseInt(m.id, 10))
+              .filter((n: number) => !isNaN(n))
+              .reduce((a: number, b: number) => (a === 0 ? b : Math.min(a, b)), 0)
+            const keptOld = prev.filter((m) => {
+              if (m.id.startsWith("opt-")) return false
+              if (serverIds.has(m.id)) return false
+              const idNum = parseInt(m.id, 10)
+              return !isNaN(idNum) && firstServer > 0 && idNum < firstServer
+            })
+            const keptOpt = prev.filter((m) => m.id.startsWith("opt-") && !serverIds.has(m.id))
+            const merged = [...serverMsgs, ...keptOpt, ...keptOld]
             _msgCache.set(cid, merged)
             return merged
           })
+          setHasMore(data.has_more ?? false)
         }
       } catch (e: any) {
         if (e?.status === 503 && attempt < 10 && !cancelled) {
@@ -222,6 +239,33 @@ export function useChatMessages(chatId: string | null) {
       document.removeEventListener("visibilitychange", onVisibility)
     }
   }, [chatId])
+
+  const loadEarlier = useCallback(async () => {
+    if (!chatId || loadingEarlier || !hasMore) return
+    setLoadingEarlier(true)
+    try {
+      const firstMsg = messages[0]
+      if (!firstMsg || firstMsg.id.startsWith("opt-")) return
+      const beforeId = parseInt(firstMsg.id, 10)
+      if (isNaN(beforeId)) return
+      const data: any = await api.get(`/api/chat/${chatId}?before_id=${beforeId}`)
+      const olderMsgs = (data.messages ?? []).map(mapMsg)
+      if (olderMsgs.length) {
+        setMessages((prev) => {
+          const merged = [...olderMsgs, ...prev]
+          _msgCache.set(chatId, merged)
+          return merged
+        })
+        setHasMore(data.has_more ?? false)
+      } else {
+        setHasMore(false)
+      }
+    } catch {
+      // ignore
+    } finally {
+      setLoadingEarlier(false)
+    }
+  }, [chatId, loadingEarlier, hasMore, messages])
 
   const sendMessage = useCallback(async (text: string) => {
     if (!chatId) return
@@ -302,7 +346,7 @@ export function useChatMessages(chatId: string | null) {
     } catch {}
   }, [chatId])
 
-  return { messages, status, sendMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat }
+  return { messages, status, sendMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore }
 }
 
 export async function sendMessageRaw(chatId: string, text: string): Promise<void> {

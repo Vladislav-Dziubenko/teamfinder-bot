@@ -349,6 +349,8 @@
   "chat.emoji": "Emoji",
   "chat.sticker": "Sticker",
   "chat.stickers_title": "Stickers",
+  "chat.load_earlier": "Load earlier",
+  "chat.loading_earlier": "Loading…",
   "role.developer": "Developer",
   "role.admin": "Administrator",
   "role.moderator": "Moderator",

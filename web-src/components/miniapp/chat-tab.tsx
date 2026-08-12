@@ -244,7 +244,7 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine }: { 
 
 function ChatConversation({ chatId, player, role, onBack }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void }) {
   const { t, lang } = useI18n()
-  const { messages, status, sendMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat } = useChatMessages(chatId)
+  const { messages, status, sendMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
@@ -381,6 +381,23 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+        {hasMore && (
+          <button
+            type="button"
+            onClick={loadEarlier}
+            disabled={loadingEarlier}
+            className="mx-auto mt-2 mb-1 rounded-xl border border-border bg-card/85 px-3 py-1.5 text-sm text-muted-foreground transition-colors active:scale-95 disabled:opacity-50"
+          >
+            {loadingEarlier ? (
+              <>
+                <Loader2 className="inline size-3 animate-spin mr-1" />
+                {t("chat.loading_earlier")}
+              </>
+            ) : (
+              t("chat.load_earlier")
+            )}
+          </button>
+        )}
         {messages.map((m) => {
           const mine = m.senderId === "me"
           return <MessageBubble key={m.id} message={m} mine={mine} />
