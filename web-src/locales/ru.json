@@ -336,6 +336,7 @@
   "chat.global_title": "Общий чат",
   "chat.global_subtitle": "Все игроки в одном месте",
   "chat.global_banned": "Вы заблокированы в общем чате",
+  "chat.global_loading": "Загрузка сообщений…",
   "chat.mod_delete": "Удалить сообщение",
   "chat.mod_ban": "Заблокировать",
   "chat.translate_to": "Перевести на язык",

@@ -372,7 +372,9 @@ let _globalLoaded = false
 export function preloadGlobalChat(): void {
   if (_globalLoaded) return
   _globalLoaded = true
-  api.get("/api/global").catch(() => {}).then((data: any) => {
+  api.get("/api/global").catch(() => {
+    _globalLoaded = false
+  }).then((data: any) => {
     if (!data) return
     const list: GlobalMessage[] = (data.messages ?? []).map(mapGlobalMsg)
     _globalCache.length = 0
@@ -396,6 +398,7 @@ function mapGlobalMsg(m: any): GlobalMessage {
 
 export function useGlobalChat() {
   const [messages, setMessages] = useState<GlobalMessage[]>(_globalCache)
+  const [loaded, setLoaded] = useState(_globalCache.length > 0)
   const [meRole, setMeRole] = useState<string>("")
   const [meBanned, setMeBanned] = useState(false)
   const [sending, setSending] = useState(false)
@@ -413,6 +416,7 @@ export function useGlobalChat() {
         setMessages(list)
         _globalCache.length = 0
         _globalCache.push(...list)
+        setLoaded(true)
       } catch (e: any) {
         if (e?.status === 503 && attempt < 10 && !cancelled) {
           await new Promise((r) => setTimeout(r, 1000 + attempt * 500))
@@ -494,7 +498,7 @@ export function useGlobalChat() {
     }
   }, [])
 
-  return { messages, meRole, meBanned, sendGlobal, sending, deleteMessage, banUser, unbanUser }
+  return { messages, loaded, meRole, meBanned, sendGlobal, sending, deleteMessage, banUser, unbanUser }
 }
 
 export function openChatWithPlayer(myId: number | string, otherId: number | string): string {

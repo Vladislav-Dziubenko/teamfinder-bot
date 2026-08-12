@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState, memo } from "react"
 import { createPortal } from "react-dom"
 import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock } from "lucide-react"
 import {
@@ -458,7 +458,7 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
 function GlobalChat({ onBack }: { onBack: () => void }) {
   const { t, lang } = useI18n()
   const me = useMe()
-  const { messages, meRole, meBanned, sendGlobal, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
+  const { messages, loaded, meRole, meBanned, sendGlobal, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
@@ -565,7 +565,13 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
-        {messages.length === 0 && (
+        {!loaded && messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+            <Loader2 className="size-6 animate-spin text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">{t("chat.global_loading")}</p>
+          </div>
+        )}
+        {loaded && messages.length === 0 && (
           <div className="rounded-3xl border border-dashed border-border py-12 text-center">
             <MessagesSquare className="mx-auto size-8 text-muted-foreground" />
             <p className="mt-2 font-display text-lg font-bold">{t("chat.empty_title")}</p>
@@ -1171,7 +1177,7 @@ function StickerPanel({ onPick, onClose }: { onPick: (sticker: string) => void; 
   )
 }
 
-function GlobalMsg({
+const GlobalMsg = memo(function GlobalMsg({
   msg,
   mine,
   lang,
@@ -1305,7 +1311,21 @@ function GlobalMsg({
       {pickerOpen && <TranslateLangPicker onPick={doTranslate} onClose={() => setPickerOpen(false)} />}
     </div>
   )
-}
+}, (prev, next) =>
+  prev.msg.id === next.msg.id &&
+  prev.msg.text === next.msg.text &&
+  prev.msg.ts === next.msg.ts &&
+  prev.msg.nick === next.msg.nick &&
+  prev.msg.avatar === next.msg.avatar &&
+  prev.msg.role === next.msg.role &&
+  prev.msg.deco === next.msg.deco &&
+  prev.msg.kind === next.msg.kind &&
+  prev.mine === next.mine &&
+  prev.lang === next.lang &&
+  prev.canModerate === next.canModerate &&
+  prev.canBanThis === next.canBanThis &&
+  prev.menuFor === next.menuFor,
+)
 
 function TranslateLangPicker({ onPick, onClose }: { onPick: (code: string) => void; onClose: () => void }) {
   const { t } = useI18n()

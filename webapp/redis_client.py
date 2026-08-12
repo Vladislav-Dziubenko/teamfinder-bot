@@ -199,6 +199,17 @@ async def cache_set(key: str, data: Any, ttl: int = 2) -> None:
         logger.warning("[redis] cache_set error key=%s: %s", key, exc)
 
 
+async def cache_delete(key: str) -> None:
+    """Удаляет один ключ кэша."""
+    r = get_redis()
+    if r is None:
+        return
+    try:
+        await asyncio.wait_for(r.delete(f"cache:{key}"), timeout=3.0)
+    except Exception as exc:
+        logger.warning("[redis] cache_delete error key=%s: %s", key, exc)
+
+
 async def cache_delete_pattern(pattern: str) -> None:
     """Удаляет все ключи кэша, соответствующие glob-паттерну.
 

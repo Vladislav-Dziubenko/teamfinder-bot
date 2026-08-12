@@ -45,7 +45,7 @@ from webapp.redis_client import (
     init_redis, close_redis,
     rate_limit_check, rate_limit_checks,
     counter_incr,
-    cache_get, cache_set, cache_delete_pattern,
+    cache_get, cache_set, cache_delete, cache_delete_pattern,
 )
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -3048,13 +3048,13 @@ async def _effective_is_beta(request: web.Request, db: Database, user_id: int) -
 async def handle_global_messages(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    # Кэшируем сообщения на 3с — они общие для всех пользователей.
+    # Кэшируем сообщения на 8с — поллинг клиента 10с, почти всегда из кэша.
     cached = await cache_get("global_chat_msgs")
     if cached is not None:
         messages = cached.get("messages", [])
     else:
         messages = await db.get_global_messages(50)
-        await cache_set("global_chat_msgs", {"messages": messages}, 3)
+        await cache_set("global_chat_msgs", {"messages": messages}, 8)
     settings = request.app.get("settings")
     admin_ids = set(settings.admin_ids) if settings else set()
     for msg in messages:
@@ -3063,8 +3063,17 @@ async def handle_global_messages(request: web.Request):
             msg["user_id"] = "me"
         if isinstance(uid, int) and uid in admin_ids:
             msg["role"] = "developer"
-    role = await _effective_role(request, db, user["id"])
-    banned = await db.is_globally_banned(user["id"])
+    # Роль/бан кэшируем на 30с — меняются редко, а поллинг идёт каждые 10с
+    # на каждого юзера. Отмене роли/бана (бот/админ-панель) кэш не мешает —
+    # клиент перелогинится/обновит при следующем действии.
+    role = await cache_get(f"grole:{user['id']}")
+    if role is None:
+        role = await _effective_role(request, db, user["id"])
+        await cache_set(f"grole:{user['id']}", role, 30)
+    banned = await cache_get(f"gban:{user['id']}")
+    if banned is None:
+        banned = await db.is_globally_banned(user["id"])
+        await cache_set(f"gban:{user['id']}", banned, 30)
     return web.json_response({"messages": messages, "me_role": role, "me_banned": banned})
 
 
@@ -3138,6 +3147,7 @@ async def handle_global_ban(request: web.Request):
     if duration > 0:
         expires_at = (datetime.utcnow() + timedelta(seconds=duration)).isoformat()
     await db.ban_global(target_id, user["id"], reason, expires_at)
+    await cache_delete(f"gban:{target_id}")
     logging.info("[BAN] admin=%s target=%s reason=%r duration=%s OK expires=%s", user["id"], target_id, reason, duration, expires_at)
     return web.json_response({"ok": True, "expires_at": expires_at})
 
@@ -3154,6 +3164,7 @@ async def handle_global_unban(request: web.Request):
     except (ValueError, TypeError):
         return web.json_response({"error": "invalid user_id"}, status=400)
     await db.unban_global(target_id)
+    await cache_delete(f"gban:{target_id}")
     return web.json_response({"ok": True})
 
 
@@ -3183,6 +3194,8 @@ async def handle_admin_role(request: web.Request):
     elif role == "":
         # Explicit clear of staff role (keep beta flag)
         await db.set_role(target_id, "", user["id"])
+    if role or beta is not None:
+        await cache_delete(f"grole:{target_id}")
     return web.json_response({"ok": True})
 
 

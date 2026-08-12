@@ -343,6 +343,7 @@
   "chat.global_title": "Global chat",
   "chat.global_subtitle": "Every player in one place",
   "chat.global_banned": "You are banned from the global chat",
+  "chat.global_loading": "Loading messages…",
   "chat.mod_delete": "Delete message",
   "chat.mod_ban": "Ban user",
   "chat.translate_to": "Translate to",
