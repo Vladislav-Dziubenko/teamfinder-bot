@@ -81,54 +81,51 @@ def handler(request, context=None):
     try:
         web_app = get_app()
         
-        # Конвертируем Vercel request в aiohttp request
+        # Парсим Vercel request
         if isinstance(request, dict):
             method = request.get("method", "GET")
-            path = request.get("path", "/")
+            path = request.get("path", "/api/")
             headers = request.get("headers", {})
             body = request.get("body", "")
-            query_string = request.get("query", "")
         else:
             method = getattr(request, 'method', 'GET')
-            path = getattr(request, 'path', '/')
+            path = getattr(request, 'path', '/api/')
             headers = getattr(request, 'headers', {})
             body = getattr(request, 'body', '')
-            query_string = getattr(request, 'query', '')
         
-        # Создаём фейковый aiohttp request
+        # Создаём event loop для обработки
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
         
         async def _handle():
-            # Находим нужный handler в app.router
-            for route in web_app.router.routes():
-                match = route.match(path)
-                if match:
-                    # Создаём запрос
-                    req = web.Request(
-                        method=method,
-                        url=path + (f"?{query_string}" if query_string else ""),
-                        headers=headers,
-                        app=web_app,
-                        payload=None,
-                        protocol=None,
-                        transport=None,
-                        writer=None
-                    )
-                    
-                    # Вызываем handler
-                    response = await route.handle(req)
-                    
-                    return {
-                        "statusCode": response.status,
-                        "headers": dict(response.headers),
-                        "body": response.body.decode() if response.body else ""
-                    }
+            from aiohttp import web
+            from aiohttp.test_utils import make_mocked_request
+            from io import BytesIO
             
-            # 404
+            # Создаём mock запрос для aiohttp
+            payload = BytesIO(body.encode() if isinstance(body, str) else body)
+            
+            req = make_mocked_request(
+                method=method,
+                path=path,
+                headers=headers,
+                app=web_app,
+            )
+            
+            # Обрабатываем через aiohttp app
+            response = await web_app._handle(req)
+            
+            # Читаем body
+            response_body = b""
+            if response.body:
+                response_body = response.body
+            elif hasattr(response, '_body'):
+                response_body = response._body or b""
+            
             return {
-                "statusCode": 404,
-                "body": json.dumps({"error": "Not found"})
+                "statusCode": response.status,
+                "headers": {k: v for k, v in response.headers.items()},
+                "body": response_body.decode('utf-8', errors='replace') if response_body else ""
             }
         
         result = loop.run_until_complete(_handle())
