@@ -47,7 +47,22 @@ def _normalize_database_url(raw: str) -> str:
     url = raw.strip()
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://") :]
-    return url
+    # Пароль содержит спецсимволы (#, @, %). asyncpg и стандартный URL-распарсер
+    # воспринимают # как разделитель фрагмента, @ как разделитель netloc.
+    # Заменяем их: # → %23, @ → %40, % → %25.
+    # Это нужно ВСЕГДА перед urlparse — иначе парсер режет URL на части.
+    url = url.replace("#", "%23").replace("@", "%40").replace("%", "%25")
+    from urllib.parse import urlparse
+    try:
+        parsed = urlparse(url)
+        user_info = f"{parsed.username}:{parsed.password}" if parsed.username else None
+        if not user_info or not parsed.password:
+            return url
+        encoded_user = quote(user_info, safe=":")
+        new_url = parsed._replace(netloc=encoded_user, username="", password="")
+        return new_url.geturl()
+    except Exception:
+        return url
 
 
 def _resolve_webapp_url() -> str:
