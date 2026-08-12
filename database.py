@@ -2744,15 +2744,10 @@ class Database:
                 """
                 INSERT INTO user_quests (user_id, quest_id, progress_minutes, completed, quest_date, updated_at)
                 VALUES ($1, $2, $3, 0, $4, $5)
-                ON CONFLICT (user_id, quest_id) DO UPDATE SET
-                    progress_minutes = CASE WHEN user_quests.quest_date = $4
-                        THEN user_quests.progress_minutes + $3
-                        ELSE $3 END,
-                    completed = CASE WHEN user_quests.quest_date = $4
-                        THEN user_quests.completed
-                        ELSE 0 END,
-                    quest_date = $4,
-                    updated_at = $5
+ON CONFLICT (user_id, quest_id) DO UPDATE SET
+                    progress_minutes = user_quests.progress_minutes + $3,
+                    updated_at = $4
+WHERE user_quests.completed = 0
                 """,
                 user_id, quest_id, minutes, today, datetime.utcnow().isoformat(),
             )
@@ -3695,6 +3690,7 @@ class Database:
             }
 
     async def get_user_chats(self, user_id: int) -> list[dict]:
+        """Get chats for user, with last message and unread count."""
         async with self.pool.acquire() as conn:
             # Один проход по таблице: для каждого чата сразу берём последнее
             # сообщение (MAX(id)) и число непрочитанных (FILTER). Индексы
@@ -4170,7 +4166,7 @@ class Database:
                 )
                 return r1 != "DELETE 0" or r2 != "DELETE 0"
 
-    async def get_friends(self, user_id: int) -> list[dict]:
+    async def get_friends(self, user_id: int, limit: int = 100) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """SELECT uf.friend_id, mp.nick, mp.avatar,
@@ -4178,8 +4174,9 @@ class Database:
                    FROM user_friends uf
                    LEFT JOIN mini_app_profiles mp ON mp.user_id = uf.friend_id
                    WHERE uf.user_id = $1 AND uf.status = 'accepted'
-                   ORDER BY uf.updated_at DESC""",
-                user_id, (datetime.utcnow() - timedelta(minutes=5)).isoformat(),
+                   ORDER BY uf.updated_at DESC
+                   LIMIT $3""",
+                user_id, (datetime.utcnow() - timedelta(minutes=5)).isoformat(), limit,
             )
             return [dict(r) for r in rows]
 

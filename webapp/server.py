@@ -557,6 +557,16 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
         db.get_user_prefs(user["id"]),
     )
 
+# Ограничиваем инвентарь до 100 последних предметов для уменьшения трафика
+    inventory = results[2]
+    if len(inventory) > 100:
+        inventory = sorted(inventory, key=lambda x: x.get("acquired_at", ""), reverse=True)[:100]
+
+    # Ограничиваем достижения до 50 для уменьшения трафика
+    achievements = results[6]
+    if len(achievements) > 50:
+        achievements = sorted(achievements, key=lambda x: x.get("claimed_at", "") or "", reverse=True)[:50]
+
     # Кулдауны кейсов и бонусы jet-предметов.
     case_cooldowns, free_gold_opens = await asyncio.gather(
         db.get_case_cooldowns(user["id"]),
@@ -2237,9 +2247,13 @@ async def handle_nexus_quests(request: web.Request):
         p = progress_by_quest.get(q["id"])
         if p:
             entry["progress"] = p["progress_minutes"]
-            entry["completed"] = bool(p["completed"])
+            # completed=1 в БД означает "награда уже забрана"
+            entry["claimed"] = bool(p["completed"])
+            # completed на фронте = прогресс достигнут И награда ещё не забрана
+            entry["completed"] = p["progress_minutes"] >= q["target"] and not bool(p["completed"])
         else:
             entry["progress"] = 0
+            entry["claimed"] = False
             entry["completed"] = False
         entry["target"] = q["target"]
         quests.append(entry)
@@ -4089,7 +4103,14 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot
-    app["session"] = ClientSession()
+    
+    # Создаём ClientSession с текущим event loop (для serverless совместимости)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.get_event_loop()
+    
+    app["session"] = ClientSession(loop=loop) if loop else ClientSession()
 
     app.on_startup.append(lambda _app: init_redis())
     app.on_startup.append(_start_prediction_settler)
