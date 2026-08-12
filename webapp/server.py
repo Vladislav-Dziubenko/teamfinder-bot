@@ -2015,7 +2015,14 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot
-    app["session"] = ClientSession()
+    
+    # Создаём ClientSession с текущим event loop (для serverless совместимости)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = asyncio.get_event_loop()
+    
+    app["session"] = ClientSession(loop=loop) if loop else ClientSession()
 
     app.on_startup.append(lambda _app: init_redis())
     app.on_cleanup.append(lambda _app: close_redis())
