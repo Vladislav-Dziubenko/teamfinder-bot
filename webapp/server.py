@@ -3893,6 +3893,16 @@ async def handle_discord_callback(request: web.Request):
         "token_expires_at": expires_at,
     })
 
+    # Подтянуть ник/аватар из Discord в профиль Nexus (только пустые поля)
+    try:
+        await db.sync_discord_profile(
+            user_id,
+            discord_user.get("global_name") or discord_user.get("username"),
+            avatar,
+        )
+    except Exception as e:
+        logging.warning(f"[discord.callback] profile sync failed: {e}")
+
     # Одноразовая награда за первую связку Discord
     try:
         await db.claim_discord_welcome_reward(user_id)

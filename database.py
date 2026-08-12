@@ -1644,6 +1644,27 @@ class Database:
                 data.get("token_expires_at"), now, now,
             )
 
+    async def sync_discord_profile(self, user_id: int, nick: str | None, avatar: str | None) -> None:
+        """Подтягивает ник/аватар из Discord в профиль Nexus, но только если
+        соответствующие поля ещё пустые — не перезаписываем кастомный профиль."""
+        if not nick and not avatar:
+            return
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT nick, avatar FROM mini_app_profiles WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                if not row:
+                    return
+                new_nick = row["nick"] or nick
+                new_avatar = row["avatar"] or avatar
+                if new_nick != row["nick"] or new_avatar != row["avatar"]:
+                    await conn.execute(
+                        "UPDATE mini_app_profiles SET nick = $1, avatar = $2, updated_at = $3 WHERE user_id = $4",
+                        new_nick, new_avatar, datetime.utcnow().isoformat(), user_id,
+                    )
+
     async def get_discord_connection(self, user_id: int) -> dict | None:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM discord_connections WHERE user_id = $1", user_id)
