@@ -33,6 +33,10 @@ def get_app():
     global _app, _db, _bot
     
     if _app is None:
+        # Создаём event loop ПЕРЕД инициализацией
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        
         settings = load_settings()
         
         _db = Database(
@@ -58,10 +62,7 @@ def get_app():
             except Exception as e:
                 logger.error(f"DB connection failed: {e}")
         
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
         loop.run_until_complete(_init_db())
-        loop.close()
         
         logger.info("Web app initialized")
     
