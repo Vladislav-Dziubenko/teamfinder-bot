@@ -1,4 +1,5 @@
 import hashlib
+import os
 import random
 import secrets
 
@@ -461,13 +462,15 @@ class Database:
         _local = {"localhost", "127.0.0.1", "::1"}
         ssl_arg: str | None = None if _host in _local else "require"
 
+        _max_pool = int(os.getenv("DB_POOL_MAX_SIZE", "2"))
         self._pool = await asyncpg.create_pool(
             self.database_url,
             ssl=ssl_arg,
-            min_size=1,
-            max_size=5,
+            min_size=0,
+            max_size=max(1, _max_pool),
             command_timeout=30,
             timeout=15,
+            max_inactive_connection_lifetime=300,
         )
         async with self._pool.acquire() as conn:
             await self._init_schema(conn)
