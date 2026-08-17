@@ -70,6 +70,7 @@
   "review.manage_hint": "Tylko dla programistów: wszystkie recenzje użytkowników na temat bota.",
   "review.empty": "Nie ma jeszcze żadnych recenzji",
   "cases.beta_free_hint": "Bez wersji beta: pozostało {left}",
+  "cases.free_opens_left": "Za darmo: zostało {left}",
   "cases.open_beta": "Otwarte (bezpłatne)",
   "role.beta_tester": "Beta tester",
   "beta.title": "Beta tester",

@@ -71,6 +71,7 @@
   "review.manage_hint": "Developer only: all user reviews about the bot.",
   "review.empty": "No reviews yet",
   "cases.beta_free_hint": "Beta free: {left} left",
+  "cases.free_opens_left": "Free: {left} left",
   "cases.open_beta": "Open (free)",
   "role.beta_tester": "Beta tester",
   "beta.title": "Beta tester",

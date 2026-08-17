@@ -70,6 +70,7 @@
   "review.manage_hint": "仅限开发人员：有关机器人的所有用户评论。",
   "review.empty": "还没有评论",
   "cases.beta_free_hint": "测试版免费：{left} 还剩",
+  "cases.free_opens_left": "免费：还剩 {left}",
   "cases.open_beta": "开放（免费）",
   "role.beta_tester": "贝塔测试员",
   "beta.title": "贝塔测试员",

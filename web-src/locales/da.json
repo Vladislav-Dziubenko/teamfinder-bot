@@ -70,6 +70,7 @@
   "review.manage_hint": "Kun udviklere: alle brugeranmeldelser om botten.",
   "review.empty": "Ingen anmeldelser endnu",
   "cases.beta_free_hint": "Beta gratis: {left} tilbage",
+  "cases.free_opens_left": "Gratis: {left} tilbage",
   "cases.open_beta": "Åben (gratis)",
   "role.beta_tester": "Beta tester",
   "beta.title": "Beta tester",

@@ -70,6 +70,7 @@
   "review.manage_hint": "Doar pentru dezvoltatori: toate recenziile utilizatorilor despre bot.",
   "review.empty": "Nicio recenzie încă",
   "cases.beta_free_hint": "Beta gratuită: {left} a rămas",
+  "cases.free_opens_left": "Gratuit: {left} rămase",
   "cases.open_beta": "Deschis (gratuit)",
   "role.beta_tester": "Tester beta",
   "beta.title": "Tester beta",

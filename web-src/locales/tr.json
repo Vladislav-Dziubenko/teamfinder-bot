@@ -70,6 +70,7 @@
   "review.manage_hint": "Yalnızca geliştirici: botla ilgili tüm kullanıcı yorumları.",
   "review.empty": "Henüz yorum yok",
   "cases.beta_free_hint": "Beta ücretsiz: {left} kaldı",
+  "cases.free_opens_left": "Ücretsiz: {left} kaldı",
   "cases.open_beta": "Açık (ücretsiz)",
   "role.beta_tester": "Beta test kullanıcısı",
   "beta.title": "Beta test kullanıcısı",

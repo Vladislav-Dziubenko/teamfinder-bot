@@ -3390,13 +3390,20 @@ WHERE user_quests.completed = 0
                 granted = None
                 for step in sorted(ladder, key=lambda s: s["invites"]):
                     if step["invites"] <= row["invited_count"] and step["key"] not in claimed:
-                        await conn.execute(
-                            """
-                            INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, grants_premium, acquired_at)
-                            VALUES ($1, $2, $3, $4, $5, 0, $6)
-                            """,
-                            user_id, step["key"], step["name"], step["rarity"], step.get("sell", 0), now,
-                        )
+                        free_opens = step.get("free_gold_opens")
+                        if free_opens:
+                            await conn.execute(
+                                "UPDATE users SET free_gold_opens = free_gold_opens + $1 WHERE user_id = $2",
+                                free_opens, user_id,
+                            )
+                        else:
+                            await conn.execute(
+                                """
+                                INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, grants_premium, acquired_at)
+                                VALUES ($1, $2, $3, $4, $5, 0, $6)
+                                """,
+                                user_id, step["key"], step["name"], step["rarity"], step.get("sell", 0), now,
+                            )
                         claimed.add(step["key"])
                         granted = step
                 if granted is not None:

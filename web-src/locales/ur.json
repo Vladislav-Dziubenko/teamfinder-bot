@@ -70,6 +70,7 @@
   "review.manage_hint": "صرف ڈویلپر: بوٹ کے بارے میں تمام صارف کے جائزے۔",
   "review.empty": "ابھی تک کوئی جائزہ نہیں ہے۔",
   "cases.beta_free_hint": "مفت بیٹا: {left} باقی",
+  "cases.free_opens_left": "مفت: {left} باقی",
   "cases.open_beta": "کھلا (مفت)",
   "role.beta_tester": "بیٹا ٹیسٹر",
   "beta.title": "بیٹا ٹیسٹر",

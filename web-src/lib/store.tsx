@@ -123,7 +123,7 @@ type MeResponse = {
   referral_bot_url: string
   direct_app_url: string
   referral_reward: { coins: number; stars: number }
-  referral_ladder: { invites: number; key: string; name: string; rarity: string; image?: string }[]
+  referral_ladder: { invites: number; key: string; name: string; rarity: string; image?: string; free_gold_opens?: number }[]
   battlepass_price_stars: number
   battlepass_xp_per_level: number
   default_promo_codes: PromoCode[]

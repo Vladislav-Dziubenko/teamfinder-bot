@@ -70,6 +70,7 @@
   "review.manage_hint": "Nur Entwickler: alle Benutzerbewertungen zum Bot.",
   "review.empty": "Noch keine Bewertungen",
   "cases.beta_free_hint": "Beta kostenlos: {left} übrig",
+  "cases.free_opens_left": "Kostenlos: {left} übrig",
   "cases.open_beta": "Offen (kostenlos)",
   "role.beta_tester": "Betatester",
   "beta.title": "Betatester",

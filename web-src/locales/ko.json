@@ -70,6 +70,7 @@
   "review.manage_hint": "개발자 전용: 봇에 대한 모든 사용자 리뷰입니다.",
   "review.empty": "아직 리뷰가 없습니다",
   "cases.beta_free_hint": "베타 무료: {left} 남음",
+  "cases.free_opens_left": "무료: {left} 남음",
   "cases.open_beta": "공개(무료)",
   "role.beta_tester": "베타 테스터",
   "beta.title": "베타 테스터",

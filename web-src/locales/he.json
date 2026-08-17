@@ -70,6 +70,7 @@
   "review.manage_hint": "למפתחים בלבד: כל ביקורות המשתמשים על הבוט.",
   "review.empty": "אין ביקורות עדיין",
   "cases.beta_free_hint": "ללא בטא: נותרו {left}",
+  "cases.free_opens_left": "חינם: נותרו {left}",
   "cases.open_beta": "פתוח (חינם)",
   "role.beta_tester": "בודק בטא",
   "beta.title": "בודק בטא",

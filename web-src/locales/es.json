@@ -70,6 +70,7 @@
   "review.manage_hint": "Solo para desarrolladores: todas las opiniones de los usuarios sobre el bot.",
   "review.empty": "Aún no hay reseñas",
   "cases.beta_free_hint": "Beta libre: queda {left}",
+  "cases.free_opens_left": "Gratis: quedan {left}",
   "cases.open_beta": "Abierto (gratis)",
   "role.beta_tester": "probador beta",
   "beta.title": "probador beta",

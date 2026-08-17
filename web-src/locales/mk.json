@@ -70,6 +70,7 @@
   "review.manage_hint": "Само за програмери: сите прегледи на корисници за ботот.",
   "review.empty": "Сè уште нема рецензии",
   "cases.beta_free_hint": "Бесплатно бета: {left} остана",
+  "cases.free_opens_left": "Бесплатно: {left} останува",
   "cases.open_beta": "Отворено (бесплатно)",
   "role.beta_tester": "Бета тестер",
   "beta.title": "Бета тестер",

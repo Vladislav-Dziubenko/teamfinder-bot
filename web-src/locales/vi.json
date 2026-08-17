@@ -70,6 +70,7 @@
   "review.manage_hint": "Chỉ dành cho nhà phát triển: tất cả đánh giá của người dùng về bot.",
   "review.empty": "Chưa có đánh giá nào",
   "cases.beta_free_hint": "Beta miễn phí: còn lại {left}",
+  "cases.free_opens_left": "Miễn phí: còn {left}",
   "cases.open_beta": "Mở (miễn phí)",
   "role.beta_tester": "Người thử nghiệm beta",
   "beta.title": "Người thử nghiệm beta",

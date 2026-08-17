@@ -70,6 +70,7 @@
   "review.manage_hint": "டெவலப்பர் மட்டும்: போட் பற்றிய அனைத்து பயனர் மதிப்புரைகளும்.",
   "review.empty": "இதுவரை விமர்சனங்கள் இல்லை",
   "cases.beta_free_hint": "பீட்டா இலவசம்: {left} மீதமுள்ளது",
+  "cases.free_opens_left": "இலவசம்: {left} மீதம்",
   "cases.open_beta": "திற (இலவசம்)",
   "role.beta_tester": "பீட்டா சோதனையாளர்",
   "beta.title": "பீட்டா சோதனையாளர்",

@@ -71,6 +71,7 @@
   "review.manage_hint": "Только для разработчика: отзывы пользователей о боте.",
   "review.empty": "Отзывов пока нет",
   "cases.beta_free_hint": "Бесплатно для беты: осталось {left}",
+  "cases.free_opens_left": "Бесплатно: осталось {left}",
   "cases.open_beta": "Открыть (бесплатно)",
   "role.beta_tester": "Бета-тестер",
   "friends.title": "Друзья",

@@ -70,6 +70,7 @@
   "review.manage_hint": "Tik kūrėjas: visi naudotojų atsiliepimai apie robotą.",
   "review.empty": "Dar nėra atsiliepimų",
   "cases.beta_free_hint": "Nemokama beta versija: liko {left}",
+  "cases.free_opens_left": "Nemokama: liko {left}",
   "cases.open_beta": "Atidaryti (nemokamai)",
   "role.beta_tester": "Beta testeris",
   "beta.title": "Beta testeris",

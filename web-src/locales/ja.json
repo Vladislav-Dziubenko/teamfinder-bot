@@ -70,6 +70,7 @@
   "review.manage_hint": "開発者のみ: ボットに関するすべてのユーザー レビュー。",
   "review.empty": "まだレビューはありません",
   "cases.beta_free_hint": "ベータ版無料: {left} 残り",
+  "cases.free_opens_left": "無料: 残り{left}",
   "cases.open_beta": "オープン（無料）",
   "role.beta_tester": "ベータテスター",
   "beta.title": "ベータテスター",

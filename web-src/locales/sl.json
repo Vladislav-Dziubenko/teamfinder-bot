@@ -70,6 +70,7 @@
   "review.manage_hint": "Samo za razvijalce: vse ocene uporabnikov o botu.",
   "review.empty": "Ocene še ni",
   "cases.beta_free_hint": "Brez različice beta: še {left}",
+  "cases.free_opens_left": "Brezplačno: še {left}",
   "cases.open_beta": "Odprto (brezplačno)",
   "role.beta_tester": "Beta tester",
   "beta.title": "Beta tester",

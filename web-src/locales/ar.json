@@ -70,6 +70,7 @@
   "review.manage_hint": "المطور فقط: جميع آراء المستخدمين حول الروبوت.",
   "review.empty": "لا توجد تعليقات حتى الآن",
   "cases.beta_free_hint": "النسخة التجريبية المجانية: {left} متبقية",
+  "cases.free_opens_left": "فتح مجاني: بقي {left}",
   "cases.open_beta": "مفتوح (مجاني)",
   "role.beta_tester": "اختبار بيتا",
   "beta.title": "اختبار بيتا",

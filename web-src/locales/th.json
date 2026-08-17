@@ -70,6 +70,7 @@
   "review.manage_hint": "นักพัฒนาเท่านั้น: บทวิจารณ์ของผู้ใช้ทั้งหมดเกี่ยวกับบอท",
   "review.empty": "ยังไม่มีรีวิว",
   "cases.beta_free_hint": "เบต้าฟรี: เหลือ {left} แล้ว",
+  "cases.free_opens_left": "ฟรี: เหลือ {left}",
   "cases.open_beta": "เปิด (ฟรี)",
   "role.beta_tester": "ผู้ทดสอบเบต้า",
   "beta.title": "ผู้ทดสอบเบต้า",

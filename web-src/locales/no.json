@@ -70,6 +70,7 @@
   "review.manage_hint": "Kun utvikler: alle brukeranmeldelser om boten.",
   "review.empty": "Ingen anmeldelser ennå",
   "cases.beta_free_hint": "Beta gratis: {left} igjen",
+  "cases.free_opens_left": "Gratis: {left} igjen",
   "cases.open_beta": "Åpen (gratis)",
   "role.beta_tester": "Betatester",
   "beta.title": "Betatester",

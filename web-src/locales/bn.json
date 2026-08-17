@@ -70,6 +70,7 @@
   "review.manage_hint": "শুধুমাত্র বিকাশকারী: বট সম্পর্কে সমস্ত ব্যবহারকারীর পর্যালোচনা।",
   "review.empty": "এখনো কোনো পর্যালোচনা নেই",
   "cases.beta_free_hint": "বিটা ফ্রি: {left} বাকি",
+  "cases.free_opens_left": "ফ্রি: {left} বাকি",
   "cases.open_beta": "খোলা (বিনামূল্যে)",
   "role.beta_tester": "বিটা পরীক্ষক",
   "beta.title": "বিটা পরীক্ষক",

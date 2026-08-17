@@ -70,6 +70,7 @@
   "review.manage_hint": "Csak fejlesztő: az összes felhasználói vélemény a botról.",
   "review.empty": "Még nincsenek vélemények",
   "cases.beta_free_hint": "Béta ingyenes: {left} maradt",
+  "cases.free_opens_left": "Ingyenes: {left} maradt",
   "cases.open_beta": "Nyitva (ingyenes)",
   "role.beta_tester": "Bétatesztelő",
   "beta.title": "Bétatesztelő",

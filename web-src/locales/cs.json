@@ -70,6 +70,7 @@
   "review.manage_hint": "Pouze pro vývojáře: všechny uživatelské recenze o robotovi.",
   "review.empty": "Zatím žádné recenze",
   "cases.beta_free_hint": "Beta zdarma: Zbývá {left}",
+  "cases.free_opens_left": "Zdarma: zbývá {left}",
   "cases.open_beta": "Otevřeno (zdarma)",
   "role.beta_tester": "Beta tester",
   "beta.title": "Beta tester",

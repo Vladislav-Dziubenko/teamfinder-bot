@@ -70,6 +70,7 @@
   "review.manage_hint": "Developer lang: lahat ng review ng user tungkol sa bot.",
   "review.empty": "Wala pang mga review",
   "cases.beta_free_hint": "Beta free: {left} ang natitira",
+  "cases.free_opens_left": "Libre: {left} natitira",
   "cases.open_beta": "Bukas (libre)",
   "role.beta_tester": "Beta tester",
   "beta.title": "Beta tester",

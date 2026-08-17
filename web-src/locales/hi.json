@@ -70,6 +70,7 @@
   "review.manage_hint": "केवल डेवलपर: बॉट के बारे में सभी उपयोगकर्ता समीक्षाएँ।",
   "review.empty": "अभी तक कोई समीक्षा नहीं",
   "cases.beta_free_hint": "बीटा मुक्त: {left} शेष",
+  "cases.free_opens_left": "मुफ़्त: {left} बचे",
   "cases.open_beta": "खुला (मुक्त)",
   "role.beta_tester": "बीटा परीक्षक",
   "beta.title": "बीटा परीक्षक",

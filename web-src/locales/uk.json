@@ -70,6 +70,7 @@
   "review.manage_hint": "Тільки розробник: усі відгуки користувачів про бота.",
   "review.empty": "Відгуків ще немає",
   "cases.beta_free_hint": "Без бета-версії: залишилося {left}",
+  "cases.free_opens_left": "Безкоштовно: залишилося {left}",
   "cases.open_beta": "Відкрити (безкоштовно)",
   "role.beta_tester": "Бета-тестер",
   "beta.title": "Бета-тестер",

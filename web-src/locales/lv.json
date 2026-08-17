@@ -70,6 +70,7 @@
   "review.manage_hint": "Tikai izstrādātājiem: visas lietotāju atsauksmes par robotprogrammatūru.",
   "review.empty": "Vēl nav atsauksmju",
   "cases.beta_free_hint": "Bez beta versijas: atlicis {left}",
+  "cases.free_opens_left": "Bezmaksas: atlicis {left}",
   "cases.open_beta": "Atvērts (bezmaksas)",
   "role.beta_tester": "Beta testeris",
   "beta.title": "Beta testeris",

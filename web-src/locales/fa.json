@@ -70,6 +70,7 @@
   "review.manage_hint": "فقط توسعه دهنده: همه نظرات کاربران در مورد ربات.",
   "review.empty": "هنوز هیچ بررسی وجود ندارد",
   "cases.beta_free_hint": "نسخه بتا رایگان: {left} باقی مانده است",
+  "cases.free_opens_left": "رایگان: {left} باقی مانده",
   "cases.open_beta": "باز (رایگان)",
   "role.beta_tester": "تستر بتا",
   "beta.title": "تستر بتا",

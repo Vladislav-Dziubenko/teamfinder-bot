@@ -70,6 +70,7 @@
   "review.manage_hint": "Alleen voor ontwikkelaars: alle gebruikersrecensies over de bot.",
   "review.empty": "Nog geen beoordelingen",
   "cases.beta_free_hint": "Bètavrij: {left} over",
+  "cases.free_opens_left": "Gratis: {left} over",
   "cases.open_beta": "Open (gratis)",
   "role.beta_tester": "Bètatester",
   "beta.title": "Bètatester",

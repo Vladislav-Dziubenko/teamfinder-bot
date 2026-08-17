@@ -70,6 +70,7 @@
   "review.manage_hint": "Толькі для распрацоўшчыкаў: усе водгукі карыстальнікаў аб боце.",
   "review.empty": "Водгукаў пакуль няма",
   "cases.beta_free_hint": "Бэта-версія бясплатная: засталося {left}",
+  "cases.free_opens_left": "Бясплатна: засталося {left}",
   "cases.open_beta": "Адкрыты (бясплатна)",
   "role.beta_tester": "Бэта-тэстар",
   "beta.title": "Бэта-тэстар",

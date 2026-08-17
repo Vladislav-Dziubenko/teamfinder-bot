@@ -70,6 +70,7 @@
   "review.manage_hint": "Khusus pengembang: semua ulasan pengguna tentang bot.",
   "review.empty": "Belum ada ulasan",
   "cases.beta_free_hint": "Bebas beta: tersisa {left}",
+  "cases.free_opens_left": "Gratis: {left} tersisa",
   "cases.open_beta": "Buka (gratis)",
   "role.beta_tester": "Penguji beta",
   "beta.title": "Penguji beta",

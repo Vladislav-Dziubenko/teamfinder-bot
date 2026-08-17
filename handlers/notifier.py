@@ -130,6 +130,35 @@ async def _notify_return_bonus(bot: Bot, db: Database, discord_bot=None) -> None
             await db.mark_notification_sent(r["user_id"], "return-bonus")
 
 
+async def _notify_daily_case(bot: Bot, db: Database, discord_bot=None) -> None:
+    """Бесплатный кейс готов к открытию (не открывал последние ~24ч)."""
+    cutoff = (datetime.utcnow() - timedelta(hours=24)).isoformat()
+    rows = await db.pool.fetch(
+        """
+        SELECT u.user_id
+        FROM users u
+        WHERE COALESCE(u.last_active_at, '') <> ''
+          AND NOT EXISTS (
+            SELECT 1 FROM case_opens co
+            WHERE co.user_id = u.user_id AND co.case_id = 'blue' AND co.opened_at >= $1
+          )
+        """,
+        cutoff,
+    )
+    for r in rows:
+        if not await _can_send(db, r["user_id"], "daily-case"):
+            continue
+        ok = await _send(
+            bot,
+            r["user_id"],
+            "🎁 <b>Твой бесплатный кейс готов!</b>\n\n"
+            "Nexus Basic case уже можно открыть — внутри скины, премиум и монеты.\n"
+            "Новая попытка каждый день, не пропусти!",
+        )
+        if ok:
+            await db.mark_notification_sent(r["user_id"], "daily-case")
+
+
 async def notifier_loop(bot: Bot, db: Database, interval_seconds: int = 1800, discord_bot=None) -> None:
     """Цикл фоновых уведомлений. Запускать как asyncio.create_task.
     discord_bot — опциональный TeamFinderDiscordBot для пуша в Discord-канал."""
@@ -142,4 +171,8 @@ async def notifier_loop(bot: Bot, db: Database, interval_seconds: int = 1800, di
             await _notify_return_bonus(bot, db, discord_bot)
         except Exception as e:
             logger.warning("notify return pass failed: %s", e)
+        try:
+            await _notify_daily_case(bot, db, discord_bot)
+        except Exception as e:
+            logger.warning("notify daily case failed: %s", e)
         await asyncio.sleep(interval_seconds)

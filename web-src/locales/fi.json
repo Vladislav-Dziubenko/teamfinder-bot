@@ -70,6 +70,7 @@
   "review.manage_hint": "Vain kehittäjä: kaikki käyttäjien arvostelut robotista.",
   "review.empty": "Ei arvosteluja vielä",
   "cases.beta_free_hint": "Beta-vapaa: {left} jäljellä",
+  "cases.free_opens_left": "Ilmainen: {left} jäljellä",
   "cases.open_beta": "Avoinna (ilmainen)",
   "role.beta_tester": "Beta testaaja",
   "beta.title": "Beta testaaja",

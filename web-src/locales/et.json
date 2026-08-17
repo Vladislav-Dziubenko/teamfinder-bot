@@ -70,6 +70,7 @@
   "review.manage_hint": "Ainult arendaja: kõik kasutajate arvustused roboti kohta.",
   "review.empty": "Arvustused veel puuduvad",
   "cases.beta_free_hint": "Beeta tasuta: {left} jäänud",
+  "cases.free_opens_left": "Tasuta: {left} jäänud",
   "cases.open_beta": "Avatud (tasuta)",
   "role.beta_tester": "Beetatesti",
   "beta.title": "Beetatesti",

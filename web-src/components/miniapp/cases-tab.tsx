@@ -414,9 +414,11 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                       ) : (
                         <>
                           <Star className="size-3 fill-stars" />
-                          {isBeta && c.id === "gold" && betaBalance > 0
-                            ? t("cases.beta_free_hint", { left: betaBalance })
-                            : t("cases.cost_stars", { cost: c.costStars })}
+                          {c.id === "gold" && freeGoldOpens > 0
+                            ? t("cases.free_opens_left", { left: freeGoldOpens })
+                            : isBeta && c.id === "gold" && betaBalance > 0
+                              ? t("cases.beta_free_hint", { left: betaBalance })
+                              : t("cases.cost_stars", { cost: c.costStars })}
                         </>
                       )}
                     </p>

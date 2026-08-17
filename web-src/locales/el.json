@@ -70,6 +70,7 @@
   "review.manage_hint": "Μόνο προγραμματιστής: όλες οι κριτικές χρηστών σχετικά με το bot.",
   "review.empty": "Δεν υπάρχουν ακόμη κριτικές",
   "cases.beta_free_hint": "Δωρεάν beta: Απομένει το {left}",
+  "cases.free_opens_left": "Δωρεάν: {left} απομένουν",
   "cases.open_beta": "Ανοιχτό (δωρεάν)",
   "role.beta_tester": "Beta tester",
   "beta.title": "Beta tester",
