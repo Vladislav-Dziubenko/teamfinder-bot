@@ -168,6 +168,13 @@ def _process_request(method, path, headers, body):
 
         from aiohttp import web
 
+        # Vercel редиректит "/api/games" → "/api/games/" (trailingSlash: true в
+        # next.config.mjs). Роуты aiohttp зарегистрированы БЕЗ завершающего слэша,
+        # поэтому убираем его у путей /api/* (кроме корневого "/"), иначе запрос
+        # падает в статический catch-all и возвращает пустое тело.
+        if path.startswith("/api/") and path != "/" and len(path) > 1 and path.endswith("/"):
+            path = path.rstrip("/")
+
         # Создаём event loop для обработки
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
