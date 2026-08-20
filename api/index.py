@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import sys
+import threading
 import traceback
 from pathlib import Path
 
@@ -25,6 +26,8 @@ logger = logging.getLogger(__name__)
 _app = None
 _db = None
 _bot = None
+_loop = None
+_loop_lock = threading.Lock()
 
 # Тяжёлые импорты отложены — чтобы ошибка импорта попадала в handler и
 # возвращалась в теле ответа, а не роняла функцию до запуска handler.
@@ -41,12 +44,13 @@ def _imports():
 
 def get_app():
     """Ленивая инициализация aiohttp app"""
-    global _app, _db, _bot
+    global _app, _db, _bot, _loop
     if _app is None:
         web, Bot, DefaultBotProperties, ParseMode, load_settings, Database, create_app = _imports()
-        # Создаём event loop ПЕРЕД инициализацией
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+        # Один общий event loop на процесс: pool/сессия привязываются к нему
+        # и переиспользуются между запросами (иначе cross-loop asyncpg ошибки).
+        _loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(_loop)
 
         settings = load_settings()
 
@@ -76,7 +80,7 @@ def get_app():
                 _app["db_error"] = str(e)
                 logger.error(f"DB connection failed: {e}")
 
-        loop.run_until_complete(_init_db())
+        _loop.run_until_complete(_init_db())
         logger.info("Web app initialized")
 
     return _app
@@ -166,55 +170,54 @@ def _status_text(code: int) -> str:
 
 def _process_request(method, path, headers, body):
     """Основная логика: прогоняет запрос через aiohttp-приложение."""
+    global _loop, _loop_lock
     try:
-        web_app = get_app()
+        with _loop_lock:
+            web_app = get_app()
 
-        from aiohttp import web
+            from aiohttp import web
 
-        # Vercel редиректит "/api/games" → "/api/games/" (trailingSlash: true в
-        # next.config.mjs). Роуты aiohttp зарегистрированы БЕЗ завершающего слэша,
-        # поэтому убираем его у путей /api/* (кроме корневого "/"), иначе запрос
-        # падает в статический catch-all и возвращает пустое тело.
-        if path.startswith("/api/") and path != "/" and len(path) > 1 and path.endswith("/"):
-            path = path.rstrip("/")
+            # Vercel редиректит "/api/games" → "/api/games/" (trailingSlash: true в
+            # next.config.mjs). Роуты aiohttp зарегистрированы БЕЗ завершающего слэша,
+            # поэтому убираем его у путей /api/* (кроме корневого "/"), иначе запрос
+            # падает в статический catch-all и возвращает пустое тело.
+            if path.startswith("/api/") and path != "/" and len(path) > 1 and path.endswith("/"):
+                path = path.rstrip("/")
 
-        # Создаём event loop для обработки
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
+            # Запросы выполняются на ОБЩЕМ event loop (см. get_app), чтобы pool и
+            # ClientSession не привязывались к новому/закрытому loop.
+            async def _handle():
+                from aiohttp.test_utils import make_mocked_request
+                from io import BytesIO
 
-        async def _handle():
-            from aiohttp.test_utils import make_mocked_request
-            from io import BytesIO
+                payload = BytesIO(body.encode() if isinstance(body, str) else body)
 
-            payload = BytesIO(body.encode() if isinstance(body, str) else body)
+                req = make_mocked_request(
+                    method=method,
+                    path=path,
+                    headers=headers,
+                    app=web_app,
+                )
 
-            req = make_mocked_request(
-                method=method,
-                path=path,
-                headers=headers,
-                app=web_app,
-            )
+                response = await web_app._handle(req)
 
-            response = await web_app._handle(req)
+                response_body = b""
 
-            response_body = b""
+                if hasattr(response, '_body') and response._body:
+                    response_body = response._body
+                elif hasattr(response, 'body') and response.body:
+                    response_body = response.body
+                elif hasattr(response, 'text') and response.text:
+                    response_body = response.text.encode('utf-8')
 
-            if hasattr(response, '_body') and response._body:
-                response_body = response._body
-            elif hasattr(response, 'body') and response.body:
-                response_body = response.body
-            elif hasattr(response, 'text') and response.text:
-                response_body = response.text.encode('utf-8')
+                return {
+                    "statusCode": response.status,
+                    "headers": {k: v for k, v in response.headers.items()},
+                    "body": response_body.decode('utf-8', errors='replace') if response_body else ""
+                }
 
-            return {
-                "statusCode": response.status,
-                "headers": {k: v for k, v in response.headers.items()},
-                "body": response_body.decode('utf-8', errors='replace') if response_body else ""
-            }
-
-        result = loop.run_until_complete(_handle())
-        loop.close()
-        return result
+            result = _loop.run_until_complete(_handle())
+            return result
 
     except BaseException as e:
         logger.exception(f"Handler error: {e}")

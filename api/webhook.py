@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import sys
+import threading
 from pathlib import Path
 
 # Добавляем корневую папку в PYTHONPATH
@@ -32,6 +33,8 @@ _dp = None
 _db = None
 _settings = None
 _webhook_secret = None
+_loop = None
+_loop_lock = threading.Lock()
 
 
 def get_bot_and_dp():
@@ -84,7 +87,7 @@ async def handle_webhook(request_body: dict, secret_from_path: str):
         }
     
     # Подключаем БД если не подключена
-    if not db.pool:
+    if db._pool is None:
         try:
             await db.connect()
         except Exception as e:
@@ -192,12 +195,15 @@ def handler(request, context=None):
         secret = parts[1]
         request_body = json.loads(body_str)
         
-        # Запускаем async handler
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(handle_webhook(request_body, secret))
-        loop.close()
-        
+# Запускаем async handler на ОБЩЕМ event loop (переиспользуется между
+        # запросами), чтобы pool/сессия бота не привязывались к закрытому loop.
+        global _loop, _loop_lock
+        with _loop_lock:
+            if _loop is None:
+                _loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(_loop)
+            result = _loop.run_until_complete(handle_webhook(request_body, secret))
+
         return result
         
     except Exception as e:
