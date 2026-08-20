@@ -31,6 +31,8 @@ class Settings:
     discord_guild_id: int
     discord_channel_id: int
     discord_verified_role_id: int
+    steam_web_api_key: str
+    steam_redirect_uri: str
 
 
 def _parse_admin_ids(raw: str) -> set[int]:
@@ -43,26 +45,39 @@ def _parse_admin_ids(raw: str) -> set[int]:
 
 
 def _normalize_database_url(raw: str) -> str:
-    """Render отдаёт postgres:// — asyncpg ожидает postgresql://. URL-энкодит спецсимволы в пароле."""
-    import re
+    """Render отдаёт postgres:// — asyncpg ожидает postgresql://.
+    URL-энкодит спецсимволы в пароле. Пароль ищем по ПОСЛЕДНЕМУ @
+    (rpartition), чтобы пароль, содержащий сам символ @, не ломал
+    парсинг asyncpg (он режет netloc по первому @)."""
     from urllib.parse import quote
 
     url = raw.strip()
     if url.startswith("postgres://"):
-        url = "postgresql://" + url[len("postgres://") :]
-    # Ручной парсинг и кодирование пароля (urlparse может неправильно парсить пароли со спецсимволами)
-    # Формат: postgresql://username:password@host:port/database
-    match = re.match(r'^(postgresql://[^:]+):([^@]+)@(.+)$', url)
-    if match:
-        prefix = match.group(1)  # postgresql://username
-        password = match.group(2)  # password (может содержать #, @, и т.д.)
-        suffix = match.group(3)   # host:port/database
+        url = "postgresql://" + url[len("postgres://"):]
 
-        # Кодируем пароль (заменяем спецсимволы на %XX)
-        encoded_password = quote(password, safe='')
-        url = f"{prefix}:{encoded_password}@{suffix}"
+    if not url.startswith("postgresql://"):
+        return url
 
-    return url
+    rest = url[len("postgresql://"):]
+    if "@" not in rest:
+        return url
+
+    auth, _, hostport = rest.rpartition("@")
+    user, _, password = auth.partition(":")
+    if not user or not hostport:
+        return url
+
+    # Кодируем только то, что asyncpg не понимает: @ и пробелы.
+    # % не трогаем — пароль уже может быть percent-encoded (%40 и т.п.),
+    # двойное кодирование сломает доступ.
+    if password and ("@" in password or " " in password):
+        password = password.replace("%", "%25").replace("@", "%40").replace(" ", "%20")
+        # Если были настоящие %XX, вернуть их обратно нельзя просто —
+        # заменяем обратно только известные escape-последовательности.
+        for _h, _r in (("%2540", "%40"), ("%2520", "%20"), ("%2525", "%25")):
+            password = password.replace(_h, _r)
+
+    return f"postgresql://{user}:{password}@{hostport}"
 
 
 def _resolve_webapp_url() -> str:
@@ -111,4 +126,6 @@ def load_settings() -> Settings:
         discord_guild_id=int(os.getenv("DISCORD_GUILD_ID", "0")),
         discord_channel_id=int(os.getenv("DISCORD_CHANNEL_ID", "0")),
         discord_verified_role_id=int(os.getenv("DISCORD_VERIFIED_ROLE_ID", "0")),
+        steam_web_api_key=os.getenv("STEAM_WEB_API_KEY", "").strip(),
+        steam_redirect_uri=os.getenv("STEAM_REDIRECT_URI", "").strip(),
     )

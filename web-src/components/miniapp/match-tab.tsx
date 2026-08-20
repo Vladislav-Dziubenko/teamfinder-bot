@@ -33,6 +33,7 @@ export function MatchTab({
   const [query, setQuery] = useState("")
   const [applied, setApplied] = useState("")
   const [onlyDiscord, setOnlyDiscord] = useState(false)
+  const [onlySteam, setOnlySteam] = useState(false)
   const [sort, setSort] = useState<SortKey>("match")
   const [extended, setExtended] = useState(false)
   const [notice, setNotice] = useState<string | null>(null)
@@ -57,7 +58,7 @@ export function MatchTab({
     setHasSearched(true)
     setLoading(true)
     try {
-      const data = await api.get(`/api/search?q=${encodeURIComponent(q)}&game=${encodeURIComponent(game)}${onlyDiscord ? "&discord=1" : ""}`)
+      const data = await api.get(`/api/search?q=${encodeURIComponent(q)}&game=${encodeURIComponent(game)}${onlyDiscord ? "&discord=1" : ""}${onlySteam ? "&steam=1" : ""}`)
       setSearchResults({ players: data.players || [], teams: data.teams || [] })
     } catch (e: any) {
       setNotice(e.message || t("common.error"))
@@ -227,6 +228,9 @@ export function MatchTab({
           <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
             <Chip active={onlyDiscord} onClick={() => setOnlyDiscord((v) => !v)}>
               🎧 {t("match.only_discord")}
+            </Chip>
+            <Chip active={onlySteam} onClick={() => setOnlySteam((v) => !v)}>
+              🎮 {t("match.only_steam")}
             </Chip>
           </div>
         </>

@@ -60,6 +60,16 @@ export function PlayerCard({
           </span>
         )}
 
+        {/* steam badge */}
+        {player.has_steam && (
+          <span
+            className="absolute left-3 top-20 flex items-center gap-1 rounded-lg border border-border bg-[#1B2838]/90 px-2 py-1 text-[10px] font-bold text-white backdrop-blur"
+            title="Steam verified"
+          >
+            🎮 Steam
+          </span>
+        )}
+
         {/* витрина скинов: предмет, выставленный игроком */}
         {skinMeta && (
           <span className="absolute left-3 top-[4.7rem] flex max-w-[60%] items-center gap-1 truncate rounded-lg border border-border bg-background/70 px-2 py-1 text-[10px] font-bold backdrop-blur">

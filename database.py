@@ -188,6 +188,20 @@ CREATE TABLE IF NOT EXISTS oauth_states (
     used INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS steam_connections (
+    user_id BIGINT PRIMARY KEY,
+    steamid64 TEXT NOT NULL UNIQUE,
+    steam_username TEXT,
+    steam_avatar TEXT,
+    steam_real_name TEXT,
+    cs2_minutes INTEGER DEFAULT 0,
+    cs2_kills INTEGER DEFAULT 0,
+    verified_at TEXT NOT NULL,
+    connected_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
 CREATE TABLE IF NOT EXISTS user_battlepass (
     user_id BIGINT PRIMARY KEY,
     bp_premium INTEGER DEFAULT 0,
@@ -748,6 +762,32 @@ class Database:
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS discord_welcome_at TEXT")
         except asyncpg.PostgresError as e:
             print(f"Migration warning for users.discord_welcome_at: {e}")
+
+        # Steam: connections table for Steam OpenID linking
+        try:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS steam_connections (
+                    user_id BIGINT PRIMARY KEY,
+                    steamid64 TEXT NOT NULL UNIQUE,
+                    steam_username TEXT,
+                    steam_avatar TEXT,
+                    steam_real_name TEXT,
+                    cs2_minutes INTEGER DEFAULT 0,
+                    cs2_kills INTEGER DEFAULT 0,
+                    verified_at TEXT NOT NULL,
+                    connected_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    FOREIGN KEY (user_id) REFERENCES users(user_id)
+                )
+            """)
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning for steam_connections table: {e}")
+
+        # Steam: one-time reward flag lives on users (survives unlink)
+        try:
+            await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS steam_welcome_at TEXT")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning for users.steam_welcome_at: {e}")
 
         # Referral invite ladder: granted skin rewards per invited friend count
         try:
@@ -1735,6 +1775,82 @@ class Database:
     async def remove_discord_connection(self, user_id: int) -> None:
         async with self.pool.acquire() as conn:
             await conn.execute("DELETE FROM discord_connections WHERE user_id = $1", user_id)
+
+    async def save_steam_connection(self, user_id: int, data: dict) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO steam_connections (user_id, steamid64, steam_username, steam_avatar,
+                    steam_real_name, cs2_minutes, cs2_kills, verified_at, connected_at, updated_at)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ON CONFLICT (user_id) DO UPDATE SET
+                    steamid64=EXCLUDED.steamid64, steam_username=EXCLUDED.steam_username,
+                    steam_avatar=EXCLUDED.steam_avatar, steam_real_name=EXCLUDED.steam_real_name,
+                    cs2_minutes=EXCLUDED.cs2_minutes, cs2_kills=EXCLUDED.cs2_kills,
+                    verified_at=EXCLUDED.verified_at, updated_at=EXCLUDED.updated_at
+                """,
+                user_id, data["steamid64"], data.get("steam_username"),
+                data.get("steam_avatar"), data.get("steam_real_name"),
+                data.get("cs2_minutes", 0), data.get("cs2_kills", 0),
+                now, now, now,
+            )
+
+    async def get_steam_connection(self, user_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM steam_connections WHERE user_id = $1", user_id)
+            return dict(row) if row else None
+
+    async def remove_steam_connection(self, user_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute("DELETE FROM steam_connections WHERE user_id = $1", user_id)
+
+    async def claim_steam_welcome_reward(self, user_id: int) -> dict:
+        """Одноразовая награда за первую связку Steam: 300 монет + 24ч про."""
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT steam_welcome_at FROM users WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                if not row or row["steam_welcome_at"]:
+                    return {"claimed": False, "reason": "already"}
+                ok = await self._adjust_currency_conn(conn, user_id, coins=300)
+                if not ok:
+                    return {"claimed": False, "reason": "no_user"}
+                pro_until = await conn.fetchval(
+                    "SELECT pro_until FROM users WHERE user_id = $1 FOR UPDATE", user_id
+                )
+                base = datetime.utcnow()
+                if pro_until and datetime.fromisoformat(pro_until) > base:
+                    base = datetime.fromisoformat(pro_until)
+                await conn.execute(
+                    "UPDATE users SET pro_until = $1, steam_welcome_at = $2 WHERE user_id = $3",
+                    (base + timedelta(days=1)).isoformat(), now, user_id,
+                )
+                return {"claimed": True}
+
+    async def sync_steam_profile(self, user_id: int, nickname: str | None, avatar: str | None) -> None:
+        """Подтягивает ник/аватар из Steam в профиль Nexus, но только если
+        соответствующие поля ещё пустые — не перезаписываем кастомный профиль."""
+        if not nickname and not avatar:
+            return
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT nick, avatar FROM mini_app_profiles WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                if not row:
+                    return
+                new_nick = row["nick"] or nickname
+                new_avatar = row["avatar"] or avatar
+                if new_nick != row["nick"] or new_avatar != row["avatar"]:
+                    await conn.execute(
+                        "UPDATE mini_app_profiles SET nick = $1, avatar = $2, updated_at = $3 WHERE user_id = $4",
+                        new_nick, new_avatar, datetime.utcnow().isoformat(), user_id,
+                    )
 
     async def claim_discord_welcome_reward(self, user_id: int) -> dict:
         """Одноразовая награда за первую связку Discord: 300 монет + 24ч про."""

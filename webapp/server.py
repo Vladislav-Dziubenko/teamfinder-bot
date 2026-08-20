@@ -41,6 +41,8 @@ from services.matching import find_matches, score_match
 from webapp.auth import validate_init_data
 from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
                             fetch_discord_connections, revoke_token, _make_state, _verify_state)
+from webapp.steam import (build_auth_url as build_steam_auth_url, extract_steamid64,
+                          verify_openid, fetch_player_summary, fetch_cs2_stats, fetch_owned_games)
 from webapp.redis_client import (
     init_redis, close_redis,
     rate_limit_check, rate_limit_checks,
@@ -166,7 +168,7 @@ CAPACITY_SKIP_PATHS = {
     "/api/client-error",
     "/api/diag/env",
 }
-CAPACITY_SKIP_PREFIXES = ("/static/", "/api/games", "/api/leaderboard", "/api/teams", "/api/nexus/shop", "/api/search/count", "/api/online", "/api/discord/callback")
+CAPACITY_SKIP_PREFIXES = ("/static/", "/api/games", "/api/leaderboard", "/api/teams", "/api/nexus/shop", "/api/search/count", "/api/online", "/api/discord/callback", "/api/steam/callback")
 
 # ---------------------------------------------------------------------------
 # Кэш для публичных read-heavy эндпоинтов — Redis GET/SETEX, TTL 2 сек.
@@ -226,7 +228,7 @@ def _calc_searching_minutes(searching_since: str | None) -> int:
 
 _SENTINEL = object()
 
-_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error", "/api/discord/status", "/api/discord/auth", "/api/discord/callback", "/api/discord/unlink", "/api/discord/daily", "/api/diag/env")
+_DB_FREE_PREFIXES = ("/api/games", "/api/nexus/shop", "/api/predictions/matches", "/api/client-error", "/api/discord/status", "/api/discord/auth", "/api/discord/callback", "/api/discord/unlink", "/api/discord/daily", "/api/steam/callback", "/api/diag/env")
 
 @web.middleware
 async def timing_middleware(request: web.Request, handler):
@@ -432,6 +434,7 @@ PUBLIC_API_PREFIXES = (
     "/api/search/count",
     "/api/online",
     "/api/discord/callback",
+    "/api/steam/callback",
     "/api/client-error",
     "/api/diag/env",
 )
@@ -843,6 +846,7 @@ async def handle_search(request: web.Request):
     query = request.query.get("q", "").strip().lower()
     game_filter = request.query.get("game", "").strip().lower()
     discord_filter = request.query.get("discord") == "1"
+    steam_filter = request.query.get("steam") == "1"
 
     # Честный прогресс достижений: поиск тиммейтов в конкретной игре
     # засчитывается в достижение этой игры (см. ACHIEVEMENTS_CONFIG).
@@ -859,6 +863,8 @@ async def handle_search(request: web.Request):
         params: list = [user["id"]]
         if discord_filter:
             where += " AND EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id)"
+        if steam_filter:
+            where += " AND EXISTS (SELECT 1 FROM steam_connections sc WHERE sc.user_id = u.user_id)"
         if query:
             where += (
                 " AND (LOWER(COALESCE(mp.nick, '')) LIKE $2"
@@ -873,6 +879,7 @@ async def handle_search(request: web.Request):
         rows = await db.pool.fetch(
             f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, mp.equipped_skin, p.game, p.rank, p.role, p.searching_since,
                 EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id) AS has_discord,
+                EXISTS (SELECT 1 FROM steam_connections sc WHERE sc.user_id = u.user_id) AS has_steam,
                 (SELECT ROUND(AVG(rating)::numeric, 1)::float FROM player_reviews pr WHERE pr.reviewed_user_id = u.user_id) AS rating_avg,
                 (SELECT COUNT(*) FROM player_reviews pr WHERE pr.reviewed_user_id = u.user_id) AS rating_count
                 FROM users u
@@ -906,6 +913,7 @@ async def handle_search(request: web.Request):
                 "lastSeen": None,
                 "searching_minutes": _calc_searching_minutes(r["searching_since"]),
                 "has_discord": bool(r["has_discord"]),
+                "has_steam": bool(r["has_steam"]),
                 "rating_avg": r["rating_avg"],
                 "rating_count": r["rating_count"] or 0,
             }
@@ -917,9 +925,11 @@ async def handle_search(request: web.Request):
     # When "all" games with nickname query, search across every game
     if game_filter == "all" and query:
         d_where = "AND EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id)" if discord_filter else ""
+        s_where = "AND EXISTS (SELECT 1 FROM steam_connections sc WHERE sc.user_id = u.user_id)" if steam_filter else ""
         rows = await db.pool.fetch(
             f"""SELECT u.user_id, u.username, mp.nick, mp.avatar, mp.equipped_skin, p.game, p.rank, p.role, p.searching_since,
                 EXISTS (SELECT 1 FROM discord_connections dc WHERE dc.user_id = u.user_id) AS has_discord,
+                EXISTS (SELECT 1 FROM steam_connections sc WHERE sc.user_id = u.user_id) AS has_steam,
                 (SELECT ROUND(AVG(rating)::numeric, 1)::float FROM player_reviews pr WHERE pr.reviewed_user_id = u.user_id) AS rating_avg,
                 (SELECT COUNT(*) FROM player_reviews pr WHERE pr.reviewed_user_id = u.user_id) AS rating_count
                FROM users u
@@ -931,6 +941,7 @@ async def handle_search(request: web.Request):
                    OR LOWER(COALESCE(p.role, '')) LIKE $1
                    OR LOWER(COALESCE(p.rank, '')) LIKE $1)
                  {d_where}
+                 {s_where}
                LIMIT 20""",
             f"%{query}%",
         )
@@ -960,6 +971,7 @@ async def handle_search(request: web.Request):
                 "lastSeen": None,
                 "searching_minutes": _calc_searching_minutes(r["searching_since"]),
                 "has_discord": bool(r["has_discord"]),
+                "has_steam": bool(r["has_steam"]),
                 "rating_avg": r["rating_avg"],
                 "rating_count": r["rating_count"] or 0,
             }
@@ -1004,6 +1016,12 @@ async def handle_search(request: web.Request):
     else:
         discord_ids = None
 
+    if steam_filter:
+        steam_ids = {
+            r["user_id"] for r in await db.pool.fetch("SELECT user_id FROM steam_connections")
+        }
+        candidates = [c for c in candidates if c["user_id"] in steam_ids]
+
     matches = find_matches(profile, candidates, limit=search_limit)
     if not matches and candidates:
         scored = [(c, score_match(profile, c)) for c in candidates]
@@ -1047,6 +1065,11 @@ async def handle_search(request: web.Request):
                     "SELECT 1 FROM discord_connections WHERE user_id = $1", p["user_id"]
                 )
             )
+        has_steam = bool(
+            await db.pool.fetchval(
+                "SELECT 1 FROM steam_connections WHERE user_id = $1", p["user_id"]
+            )
+        )
         players.append({
             "id": str(p["user_id"]),
             "user_id": p["user_id"],
@@ -1073,6 +1096,7 @@ async def handle_search(request: web.Request):
             "contact": contact,
             "searching_minutes": _calc_searching_minutes(p.get("searching_since")),
             "has_discord": bool(has_discord),
+            "has_steam": bool(has_steam),
             "rating_avg": ratings.get(p["user_id"], (None, 0))[0],
             "rating_count": ratings.get(p["user_id"], (None, 0))[1],
         })
@@ -4065,6 +4089,195 @@ async def handle_discord_sync_profile(request: web.Request):
     return web.json_response({"ok": True, **result})
 
 
+# ---------------------------------------------------------------------------
+# Steam OAuth (OpenID 2.0) — «Войти через Steam» + CS2-стата
+# ---------------------------------------------------------------------------
+STEAM_WELCOME_COINS = 300
+STEAM_WELCOME_PRO_DAYS = 1
+
+
+async def handle_steam_auth(request: web.Request):
+    db: Database = request.app["db"]
+    settings: Settings = request.app["settings"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    if not settings.steam_redirect_uri:
+        return web.json_response({"error": "Steam not configured"}, status=503)
+
+    # Steam OpenID не поддерживает state в ответе так же, как OAuth2, но мы
+    # добавляем его в return_to, чтобы привязать callback к телеграм-юзеру.
+    state = secrets.token_urlsafe(32)
+    created_at = datetime.utcnow().isoformat()
+    try:
+        await db.pool.execute(
+            """
+            INSERT INTO oauth_states (state, telegram_user_id, created_at, used)
+            VALUES ($1, $2, $3, 0)
+            """,
+            state, user["id"], created_at,
+        )
+    except Exception as e:
+        logging.error(f"[steam.auth] Failed to store state: {e}")
+        return web.json_response({"error": "internal server error"}, status=500)
+
+    sep = "&" if "?" in settings.steam_redirect_uri else "?"
+    return_to = f"{settings.steam_redirect_uri}{sep}state={quote(state)}"
+    url = build_steam_auth_url(return_to, state)
+    logging.info(f"[steam.auth] user={user['id']} state={state[:16]}...")
+    return web.json_response({"url": url})
+
+
+async def handle_steam_callback(request: web.Request):
+    db: Database = request.app["db"]
+    settings: Settings = request.app["settings"]
+    params = request.query
+
+    state = params.get("state", "")
+    steamid64 = extract_steamid64(params)
+    error = params.get("openid.mode")
+
+    if error:
+        logging.warning(f"[steam.callback] openid error mode={error}")
+        redirect_url = settings.public_app_url or settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=openid")
+        return web.json_response({"error": "openid error"}, status=400)
+
+    if not state or not steamid64:
+        logging.warning("[steam.callback] missing state or steamid64")
+        redirect_url = settings.public_app_url or settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=bad_params")
+        return web.json_response({"error": "invalid params"}, status=400)
+
+    # Официальная проверка подписи OpenID — защита от подделки steamid64
+    if not await verify_openid(dict(params)):
+        logging.warning(f"[steam.callback] openid signature invalid state={state[:16]}...")
+        redirect_url = settings.public_app_url or settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=sig")
+        return web.json_response({"error": "openid signature invalid"}, status=400)
+
+    # Валидируем state из oauth_states
+    row = await db.pool.fetchrow(
+        "SELECT telegram_user_id, used, created_at FROM oauth_states WHERE state = $1",
+        state,
+    )
+    if not row:
+        redirect_url = settings.public_app_url or settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=bad_state")
+        return web.json_response({"error": "state not found"}, status=400)
+
+    if row["used"]:
+        redirect_url = settings.public_app_url or settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=bad_state")
+        return web.json_response({"error": "state already used"}, status=400)
+
+    created_at = datetime.fromisoformat(row["created_at"])
+    if (datetime.utcnow() - created_at).total_seconds() > 600:
+        redirect_url = settings.public_app_url or settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=state_expired")
+        return web.json_response({"error": "state expired"}, status=400)
+
+    await db.pool.execute("UPDATE oauth_states SET used = 1 WHERE state = $1", state)
+    user_id = row["telegram_user_id"]
+
+    if not settings.steam_web_api_key:
+        logging.error("[steam.callback] STEAM_WEB_API_KEY not configured")
+        redirect_url = settings.public_app_url or settings.webapp_url
+        if redirect_url:
+            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=api_key")
+        return web.json_response({"error": "api key missing"}, status=503)
+
+    # Steam Web API: профиль + CS2-стата
+    summary = await fetch_player_summary(settings.steam_web_api_key, steamid64)
+    cs2 = await fetch_cs2_stats(settings.steam_web_api_key, steamid64)
+    owned = await fetch_owned_games(settings.steam_web_api_key, steamid64)
+
+    avatar = None
+    if summary and summary.get("avatarfull"):
+        avatar = summary["avatarfull"]
+
+    nickname = None
+    if summary:
+        nickname = summary.get("personaname") or summary.get("realname")
+
+    has_cs2 = any(int(g.get("appid", 0)) == 730 for g in owned)
+    cs2_minutes = (cs2 or {}).get("minutes_played", 0) or 0
+    cs2_kills = (cs2 or {}).get("kills", 0) or 0
+
+    await db.save_steam_connection(user_id, {
+        "steamid64": steamid64,
+        "steam_username": nickname,
+        "steam_avatar": avatar,
+        "steam_real_name": (summary or {}).get("realname"),
+        "cs2_minutes": cs2_minutes,
+        "cs2_kills": cs2_kills,
+    })
+
+    try:
+        await db.sync_steam_profile(user_id, nickname, avatar)
+    except Exception as e:
+        logging.warning(f"[steam.callback] profile sync failed: {e}")
+
+    try:
+        await db.claim_steam_welcome_reward(user_id)
+    except Exception as e:
+        logging.warning(f"[steam.callback] welcome_reward failed: {e}")
+
+    logging.info(f"[steam.callback] linked telegram={user_id} steamid64={steamid64} cs2={bool(cs2)}")
+
+    fallback_redirect = settings.public_app_url or settings.webapp_url
+    if fallback_redirect:
+        raise web.HTTPFound(f"{fallback_redirect}?steam=ok")
+    raise web.HTTPFound("https://t.me/teamfinder_bot?start=steam_ok")
+
+
+async def handle_steam_status(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    conn = await db.get_steam_connection(user["id"])
+    if not conn:
+        return web.json_response({"linked": False})
+
+    welcome_claimed = bool(
+        await db.pool.fetchval(
+            "SELECT steam_welcome_at FROM users WHERE user_id = $1", user["id"]
+        )
+    )
+
+    return web.json_response({
+        "linked": True,
+        "steamid64": conn["steamid64"],
+        "username": conn["steam_username"],
+        "avatar": conn["steam_avatar"],
+        "real_name": conn["steam_real_name"],
+        "cs2_minutes": conn["cs2_minutes"] or 0,
+        "cs2_kills": conn["cs2_kills"] or 0,
+        "linked_at": conn["connected_at"],
+        "verified_at": conn["verified_at"],
+        "welcome_claimed": welcome_claimed,
+    })
+
+
+async def handle_steam_unlink(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+
+    await db.remove_steam_connection(user["id"])
+    return web.json_response({"ok": True})
+
+
 async def handle_client_error(request: web.Request):
     try:
         body = await request.json()
@@ -4264,6 +4477,12 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/discord/quest-claim", handle_discord_quest_claim)
     app.router.add_post("/api/discord/sync-profile", handle_discord_sync_profile)
     app.router.add_post("/api/discord/invite-claim", handle_discord_invite_claim)
+
+    # Steam OAuth
+    app.router.add_get("/api/steam/auth", handle_steam_auth)
+    app.router.add_get("/api/steam/callback", handle_steam_callback)
+    app.router.add_get("/api/steam/status", handle_steam_status)
+    app.router.add_post("/api/steam/unlink", handle_steam_unlink)
 
     # Диагностика — проверка env + статус webhook
     async def handle_diag_env(request: web.Request) -> web.Response:

@@ -37,6 +37,7 @@ import { games, dailyStreakRewards, caseItemByKey } from "@/lib/data"
 import { formatNum } from "@/lib/format"
 import type { TabId } from "./bottom-nav"
 import { DiscordSection } from "@/components/miniapp/discord-section"
+import { SteamSection } from "@/components/miniapp/steam-section"
 import { cn } from "@/lib/utils"
 import { LanguageSelector } from "./language-selector"
 import { RoleBadge } from "./role-badge"
@@ -338,6 +339,9 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
 
       {/* Discord connection */}
       <DiscordSection />
+
+      {/* Steam connection */}
+      <SteamSection />
 
       {/* Daily streak — тренд-фишка */}
       <section className="rounded-3xl border border-border bg-card p-4">

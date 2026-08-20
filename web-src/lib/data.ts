@@ -89,6 +89,7 @@ export type Player = {
   reason?: "donor" | "veteran"
   fav_games?: string
   has_discord?: boolean
+  has_steam?: boolean
   skin?: string
   rating_avg?: number
   rating_count?: number
