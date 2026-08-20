@@ -4488,6 +4488,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     async def handle_diag_env(request: web.Request) -> web.Response:
         import os
         bot = request.app.get("bot")
+        db_obj = request.app.get("db")
         webhook_info = None
         if bot:
             try:
@@ -4502,6 +4503,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             "webhook_secret_set": bool(request.app.get("webhook_secret")),
             "dp_set": bool(request.app.get("dp")),
             "bot_set": bool(request.app.get("bot")),
+            "db_ready": bool(request.app.get("db_ready")),
+            "db_error": request.app.get("db_error", ""),
+            "db_pool": bool(db_obj and db_obj._pool is not None),
             "webhook_info": webhook_info,
         })
     app.router.add_get("/api/diag/env", handle_diag_env)

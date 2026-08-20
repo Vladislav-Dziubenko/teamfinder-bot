@@ -63,14 +63,17 @@ def get_app():
 
         _app = create_app(_db, settings, _bot)
         _app["db_ready"] = False
+        _app["db_error"] = ""
 
         # Подключаем БД асинхронно
         async def _init_db():
             try:
                 await _db.connect()
                 _app["db_ready"] = True
+                _app["db_error"] = ""
                 logger.info("Database connected")
             except Exception as e:
+                _app["db_error"] = str(e)
                 logger.error(f"DB connection failed: {e}")
 
         loop.run_until_complete(_init_db())
