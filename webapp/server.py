@@ -4496,6 +4496,26 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
                 webhook_info = wh.model_dump() if hasattr(wh, 'model_dump') else wh.__dict__
             except Exception as e:
                 webhook_info = {"error": str(e)}
+        db_url_info = None
+        if db_obj and db_obj.database_url:
+            from urllib.parse import urlsplit
+            db_url_info = {}
+            try:
+                u = urlsplit(db_obj.database_url)
+                hostport = u.netloc.rpartition("@")[2]
+                port_raw = hostport.rpartition(":")[2] if ":" in hostport else None
+                db_url_info["scheme"] = u.scheme
+                db_url_info["username"] = u.username
+                db_url_info["password_len"] = len(u.password or "")
+                db_url_info["hostname"] = u.hostname
+                db_url_info["port_raw"] = port_raw
+                db_url_info["database"] = u.path.lstrip("/").split("/")[0] if u.path else None
+                try:
+                    db_url_info["port"] = u.port
+                except Exception as pe:
+                    db_url_info["port_error"] = str(pe)
+            except Exception as e:
+                db_url_info["parse_error"] = str(e)
         return web.json_response({
             "RENDER_EXTERNAL_URL": os.environ.get("RENDER_EXTERNAL_URL", ""),
             "WEBAPP_URL": os.environ.get("WEBAPP_URL", ""),
@@ -4506,6 +4526,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             "db_ready": bool(request.app.get("db_ready")),
             "db_error": request.app.get("db_error", ""),
             "db_pool": bool(db_obj and db_obj._pool is not None),
+            "db_url": db_url_info,
             "webhook_info": webhook_info,
         })
     app.router.add_get("/api/diag/env", handle_diag_env)
