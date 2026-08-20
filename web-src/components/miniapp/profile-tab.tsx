@@ -460,7 +460,7 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
           onClick={() => {
             if (!me.referralBotUrl) return
             const link = me.referralBotUrl + "?start=" + me.referralCode
-            const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("🎮 Присоединяйся ко мне в TeamFinder!")
+            const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("🎁 Дарю тебе 50⭐ и 50 монет на старте! Заходи в TeamFinder по моей ссылке 👇")
             try {
               const wa = (window as any).Telegram?.WebApp
               if (wa?.openTelegramLink) {
@@ -664,7 +664,7 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
                   if (!me.referralBotUrl) return
                   const link = me.referralBotUrl + "?start=profile_" + me.userId
                   setShowShare(false)
-                  const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("👋 Загляни в мой профиль в TeamFinder!")
+                  const shareUrl = "https://t.me/share/url?url=" + encodeURIComponent(link) + "&text=" + encodeURIComponent("🎁 Я дарю тебе 50⭐ и 50 монет на старте! Загляни в мой профиль в TeamFinder 👇")
                   try {
                     const wa = (window as any).Telegram?.WebApp
                     if (wa?.openTelegramLink) {

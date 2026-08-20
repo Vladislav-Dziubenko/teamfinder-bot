@@ -3334,11 +3334,12 @@ WHERE user_quests.completed = 0
                     "referral_earned_coins": row["referral_earned_coins"],
                 }
 
-    async def claim_referral_reward(self, referrer_user_id: int, referred_user_id: int, referral_reward: dict) -> bool:
-        """Привязывает реферала к рефереру и сразу платит награду ТОЛЬКО рефералу.
+    async def claim_referral_reward(self, referrer_user_id: int, referred_user_id: int, referral_reward: dict, instant_reward: dict | None = None) -> bool:
+        """Привязывает реферала к рефереру и сразу платит награду рефералу.
 
-        Награда реферера выплачивается позже — settle_referral_reward, когда
-        приглашённый проявил реальную активность (заполнил анкету и прошло ≥24ч).
+        Пригласившему сразу начисляется небольшой instant_reward (дофамин),
+        а крупная награда — позже, settle_referral_reward, когда приглашённый
+        проявил реальную активность (заполнил анкету и прошло ≥24ч).
         Это блокирует мгновенный фрод «альт ввёл код → оба получили награду».
         """
         if referrer_user_id == referred_user_id:
@@ -3366,6 +3367,13 @@ WHERE user_quests.completed = 0
                     coins=referral_reward.get("coins", 0),
                     stars=referral_reward.get("stars", 0),
                 )
+                if instant_reward:
+                    await self._adjust_currency_conn(
+                        conn,
+                        referrer_user_id,
+                        coins=instant_reward.get("coins", 0),
+                        stars=instant_reward.get("stars", 0),
+                    )
                 return True
 
     async def claim_referral_ladder(self, user_id: int, ladder: list[dict]) -> dict | None:

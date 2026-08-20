@@ -54,7 +54,7 @@ function TabFallback() {
 function Shell() {
   const { t } = useI18n()
   const me = useMe()
-  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus, banned, banReason, banExpiresAt } = useNexus()
+  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus, banned, banReason, banExpiresAt, refresh } = useNexus()
   const [tab, setTab] = useState<TabId>("home")
   const [moreOpen, setMoreOpen] = useState(false)
   const [contact, setContact] = useState<Player | null>(null)
@@ -161,7 +161,8 @@ function Shell() {
       }
       if (refCode) {
         api.post("/api/referral/claim", { code: refCode }).then(() => {
-          setToast("🎉 Реферальная награда получена!")
+          setToast("🎉 Ты получил 50⭐ и 50 монет, а пригласивший тебя — мгновенный бонус!")
+          refresh()
         }).catch(() => { setToast("❌ Реферальная награда не начислена") })
       }
     } catch {}

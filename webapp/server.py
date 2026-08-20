@@ -33,7 +33,7 @@ from config import Settings
 from data.games import (
     GAMES, LOOKING_FOR, PLAYTIME,
     BATTLE_PASS_TIERS, BATTLE_PASS_XP_PER_LEVEL, BATTLE_PASS_PRICE_STARS,
-    DAILY_STREAK_REWARDS, REFERRAL_REWARD, REFERRAL_LADDER, COIN_PACKS, DEFAULT_PROMO_CODES,
+    DAILY_STREAK_REWARDS, REFERRAL_REWARD, REFERRAL_INSTANT_REWARD, REFERRAL_LADDER, COIN_PACKS, DEFAULT_PROMO_CODES,
 )
 from data.guides import GUIDES
 from database import Database
@@ -2781,7 +2781,7 @@ async def handle_referral_claim(request: web.Request):
     if referrer_user_id == user["id"]:
         return web.json_response({"error": "cannot invite yourself"}, status=400)
 
-    ok = await db.claim_referral_reward(referrer_user_id, user["id"], REFERRAL_REWARD)
+    ok = await db.claim_referral_reward(referrer_user_id, user["id"], REFERRAL_REWARD, instant_reward=REFERRAL_INSTANT_REWARD)
     if not ok:
         return web.json_response({"error": "referral reward already claimed"}, status=400)
 
@@ -2792,7 +2792,7 @@ async def handle_referral_claim(request: web.Request):
     except Exception as e:
         logging.warning(f"[referral] ladder claim failed: {e}")
 
-    return web.json_response({"ok": True, "reward": REFERRAL_REWARD, "ladder_granted": granted})
+    return web.json_response({"ok": True, "reward": REFERRAL_REWARD, "instant_reward": REFERRAL_INSTANT_REWARD, "ladder_granted": granted})
 
 
 async def handle_streak_claim(request: web.Request):

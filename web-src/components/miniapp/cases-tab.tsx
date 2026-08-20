@@ -1012,7 +1012,7 @@ function RevealModal({ item, box, fair, onToast, onClose }: { item: CaseItem; bo
     setSharing(true)
     const name = tl(itemNameKey(item), item.name)
     const boxName = tl(caseNameKey(box), box.name)
-    const shareText = `Я выбил ${name} из кейса ${boxName} в NEXUS TeamHub! 🔥`
+    const shareText = `Я выбил ${name} из кейса ${boxName} в NEXUS TeamHub! 🔥 Заходи — тут реально падают скины и кейсы 🎁`
     try {
       const blob = await api.postBlob("/api/nexus/cases/share-image", {
         item: { name, rarity: item.rarity, icon: item.icon, image: item.image },
