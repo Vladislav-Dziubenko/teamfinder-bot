@@ -4,8 +4,8 @@ import random
 import secrets
 
 import asyncpg
+from urllib.parse import unquote, urlparse, urlsplit
 from datetime import datetime, timedelta
-from urllib.parse import urlparse
 
 from data.games import DEFAULT_PROMO_CODES
 
@@ -472,13 +472,24 @@ class Database:
         # Для локальной разработки (localhost / 127.0.0.1 / ::1) SSL не нужен.
         # Такой подход убирает хрупкую проверку по строке "render.com" и
         # автоматически покрывает Neon-хосты (*.neon.tech) и любые другие облачные БД.
-        _host = urlparse(self.database_url).hostname or ""
+        #
+        # URL парсим через urlsplit (режет netloc по ПОСЛЕДНЕМУ @) и передаём
+        # параметры подключения отдельными аргументами. Это чинит URL, где пароль
+        # содержит символы @ и : — asyncpg сам парсит netloc по ПЕРВОМУ @ и
+        # падал с "invalid literal for int() ... 'Nz'", а встроенный в URL
+        # percent-encoding (%40) он не декодирует.
+        _parsed = urlsplit(self.database_url)
+        _host = _parsed.hostname or ""
         _local = {"localhost", "127.0.0.1", "::1"}
         ssl_arg: str | None = None if _host in _local else "require"
 
         _max_pool = int(os.getenv("DB_POOL_MAX_SIZE", "2"))
         self._pool = await asyncpg.create_pool(
-            self.database_url,
+            host=_host,
+            port=_parsed.port or 5432,
+            user=unquote(_parsed.username or ""),
+            password=unquote(_parsed.password or ""),
+            database=unquote((_parsed.path or "/").lstrip("/")) or None,
             ssl=ssl_arg,
             min_size=0,
             max_size=max(1, _max_pool),
