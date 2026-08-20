@@ -496,6 +496,12 @@ class Database:
             command_timeout=30,
             timeout=15,
             max_inactive_connection_lifetime=300,
+            # Supabase pooler (порт 6543) работает через pgbouncer в transaction
+            # mode — он не хранит prepared statements между транзакциями, поэтому
+            # asyncpg-кэш именованных стейтментов ломается ("prepared statement
+            # already exists"). Отключаем кэш — pgbouncer сам прекрасно работает
+            # с незакэшированными запросами.
+            statement_cache_size=0,
         )
         async with self._pool.acquire() as conn:
             await self._init_schema(conn)
