@@ -14,6 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+print("DIAG: api/index.py module loading", flush=True)
+
 # Глобальные объекты
 _app = None
 _db = None
@@ -82,7 +84,9 @@ def handler(request, context=None):
     Vercel Serverless Function handler для API
     """
     try:
+        print(f"DIAG: handler called method={getattr(request,'method',None) or (request.get('method') if isinstance(request,dict) else None)} path={getattr(request,'path',None) or (request.get('path') if isinstance(request,dict) else None)}", flush=True)
         web_app = get_app()
+        print("DIAG: get_app done", flush=True)
 
         # Парсим Vercel request
         if isinstance(request, dict):
@@ -151,6 +155,7 @@ def handler(request, context=None):
 
     except BaseException as e:
         logger.exception(f"Handler error: {e}")
+        print(f"DIAG: handler exception {type(e).__name__}: {e}\n{traceback.format_exc()}", flush=True)
         return {
             "statusCode": 500,
             "headers": {"Content-Type": "application/json; charset=utf-8"},
