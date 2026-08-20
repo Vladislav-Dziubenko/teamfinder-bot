@@ -67,15 +67,12 @@ def _normalize_database_url(raw: str) -> str:
     if not user or not hostport:
         return url
 
-    # Кодируем только то, что asyncpg не понимает: @ и пробелы.
-    # % не трогаем — пароль уже может быть percent-encoded (%40 и т.п.),
-    # двойное кодирование сломает доступ.
-    if password and ("@" in password or " " in password):
-        password = password.replace("%", "%25").replace("@", "%40").replace(" ", "%20")
-        # Если были настоящие %XX, вернуть их обратно нельзя просто —
-        # заменяем обратно только известные escape-последовательности.
-        for _h, _r in (("%2540", "%40"), ("%2520", "%20"), ("%2525", "%25")):
-            password = password.replace(_h, _r)
+    # Кодируем пароль целиком (urllib quote). Это делает URL безопасным для
+    # любого парсера: urlsplit режет netloc по / ? #, asyncpg — по первому @.
+    # connect() декодирует обратно через urllib.parse.unquote, поэтому round-trip
+    # точен даже для уже percent-encoded паролей (%40 и т.п.).
+    if password:
+        password = quote(password, safe="")
 
     return f"postgresql://{user}:{password}@{hostport}"
 
