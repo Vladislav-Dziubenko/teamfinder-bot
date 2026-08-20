@@ -4504,7 +4504,15 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             "after_last_at": raw_url[last_at+1:] if last_at >= 0 else "",
         }
         db_url_info = None
+        db_url_masked = None
         if db_obj and db_obj.database_url:
+            n = db_obj.database_url
+            if "@" in n:
+                auth, _, host = n.rpartition("@")
+                user, _, pw = auth.partition(":")
+                db_url_masked = f"{user}:***@{host}"
+            else:
+                db_url_masked = f"NO-AT: {n[:24]}...{n[-24:]}"
             from urllib.parse import urlsplit
             db_url_info = {}
             try:
@@ -4534,6 +4542,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             "db_error": request.app.get("db_error", ""),
             "db_pool": bool(db_obj and db_obj._pool is not None),
             "db_url": db_url_info,
+            "db_url_masked": db_url_masked,
             "raw_url": raw_info,
             "webhook_info": webhook_info,
         })
