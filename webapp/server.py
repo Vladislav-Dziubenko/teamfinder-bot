@@ -4496,6 +4496,13 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
                 webhook_info = wh.model_dump() if hasattr(wh, 'model_dump') else wh.__dict__
             except Exception as e:
                 webhook_info = {"error": str(e)}
+        raw_url = os.getenv("DATABASE_URL", "")
+        last_at = raw_url.rfind("@")
+        raw_info = {
+            "len": len(raw_url),
+            "at_count": raw_url.count("@"),
+            "after_last_at": raw_url[last_at+1:] if last_at >= 0 else "",
+        }
         db_url_info = None
         if db_obj and db_obj.database_url:
             from urllib.parse import urlsplit
@@ -4527,6 +4534,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             "db_error": request.app.get("db_error", ""),
             "db_pool": bool(db_obj and db_obj._pool is not None),
             "db_url": db_url_info,
+            "raw_url": raw_info,
             "webhook_info": webhook_info,
         })
     app.router.add_get("/api/diag/env", handle_diag_env)
