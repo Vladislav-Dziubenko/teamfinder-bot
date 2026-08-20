@@ -110,10 +110,49 @@ async def handle_webhook(request_body: dict, secret_from_path: str):
         }
 
 
-# Vercel entry point
+# Vercel entry point — WSGI-приложение (это то, что видит @vercel/python).
+# Обычная функция `handler(request, context)` больше не поддерживается новым
+# @vercel/python, поэтому `app` — полноценный WSGI-мост в handler-логику.
 def app(environ, start_response):
-    """WSGI application for Vercel"""
-    return handler(environ, start_response)
+    """WSGI application for Vercel — мост в handler."""
+    try:
+        request = {
+            "method": environ.get("REQUEST_METHOD", "GET"),
+            "path": environ.get("RAW_URI", "") or environ.get("PATH_INFO", "/"),
+            "headers": environ,
+            "body": b"",
+        }
+        try:
+            content_length = int(environ.get("CONTENT_LENGTH", "0") or "0")
+            if content_length > 0:
+                request["body"] = environ["wsgi.input"].read(content_length)
+        except Exception:
+            pass
+
+        result = handler(request, None)
+
+        status_code = result.get("statusCode", 500)
+        response_headers = result.get("headers", {})
+        response_body = result.get("body", "")
+        if not isinstance(response_body, str):
+            response_body = str(response_body)
+
+        header_list = []
+        has_content_type = False
+        for k, v in (response_headers or {}).items():
+            if k.lower() == "content-type":
+                has_content_type = True
+            header_list.append((str(k), str(v)))
+        if not has_content_type:
+            header_list.append(("Content-Type", "application/json; charset=utf-8"))
+
+        start_response(f"{status_code} OK", header_list)
+        return [response_body.encode("utf-8")]
+    except Exception:
+        logger.exception("WSGI app error")
+        import traceback
+        start_response("500 Internal Server Error", [("Content-Type", "application/json; charset=utf-8")])
+        return [json.dumps({"error": "internal server error", "trace": traceback.format_exc()[-2000:]}).encode("utf-8")]
 
 def handler(request, context=None):
     """

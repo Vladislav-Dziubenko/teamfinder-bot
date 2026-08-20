@@ -1,5 +1,12 @@
 """
 Vercel Serverless Function для Web API (Mini App endpoints)
+
+Vercel Python runtime требует, чтобы entrypoint был либо `app` (ASGI/WSGI),
+либо `application`, либо класс `handler` (BaseHTTPRequestHandler). Обычная
+функция `handler(request, context)` больше НЕ поддерживается новым
+@vercel/python — если её определить, билдер выбирает `app` как WSGI-приложение.
+Поэтому здесь `app` — полноценное WSGI-приложение, которое мостит запрос в
+aiohttp-приложение.
 """
 import asyncio
 import json
@@ -13,8 +20,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-print("DIAG: api/index.py module loading", flush=True)
 
 # Глобальные объекты
 _app = None
@@ -74,31 +79,92 @@ def get_app():
     return _app
 
 
-# Vercel entry point - must be named 'app' or 'handler'
+def _wsgi_headers(environ: dict) -> dict:
+    """Преобразует WSGI environ в словарь HTTP-заголовков."""
+    headers = {}
+    for key, value in environ.items():
+        if key.startswith("HTTP_"):
+            header_name = key[5:].replace("_", "-").title()
+            headers[header_name] = value
+    if environ.get("CONTENT_TYPE"):
+        headers["Content-Type"] = environ["CONTENT_TYPE"]
+    if environ.get("CONTENT_LENGTH"):
+        headers["Content-Length"] = environ["CONTENT_LENGTH"]
+    return headers
+
+
+# Vercel entry point — WSGI-приложение (это то, что видит @vercel/python)
 def app(environ, start_response):
-    """WSGI application for Vercel"""
-    return handler(environ, start_response)
-
-def handler(request, context=None):
-    """
-    Vercel Serverless Function handler для API
-    """
+    """WSGI application for Vercel — мост в aiohttp-приложение."""
     try:
-        print(f"DIAG: handler called method={getattr(request,'method',None) or (request.get('method') if isinstance(request,dict) else None)} path={getattr(request,'path',None) or (request.get('path') if isinstance(request,dict) else None)}", flush=True)
-        web_app = get_app()
-        print("DIAG: get_app done", flush=True)
-
-        # Парсим Vercel request
-        if isinstance(request, dict):
-            method = request.get("method", "GET")
-            path = request.get("path", "/api/")
-            headers = request.get("headers", {})
-            body = request.get("body", "")
+        method = environ.get("REQUEST_METHOD", "GET")
+        # PATH_INFO уже декодирован; RAW_URI (если есть) содержит полный путь с query.
+        raw_uri = environ.get("RAW_URI", "")
+        if raw_uri:
+            path = raw_uri
         else:
-            method = getattr(request, 'method', 'GET')
-            path = getattr(request, 'path', '/api/')
-            headers = getattr(request, 'headers', {})
-            body = getattr(request, 'body', '')
+            path = environ.get("PATH_INFO", "/api/")
+            query = environ.get("QUERY_STRING", "")
+            if query:
+                path = path + "?" + query
+
+        headers = _wsgi_headers(environ)
+
+        # Читаем тело запроса
+        body = b""
+        try:
+            content_length = int(environ.get("CONTENT_LENGTH", "0") or "0")
+            if content_length > 0:
+                body = environ["wsgi.input"].read(content_length)
+        except Exception:
+            pass
+
+        result = _process_request(method, path, headers, body)
+
+        status_code = result.get("statusCode", 500)
+        response_headers = result.get("headers", {})
+        response_body = result.get("body", "")
+        if not isinstance(response_body, str):
+            response_body = str(response_body)
+
+        header_list = []
+        has_content_type = False
+        for k, v in (response_headers or {}).items():
+            if k.lower() == "content-type":
+                has_content_type = True
+            header_list.append((str(k), str(v)))
+        if not has_content_type:
+            header_list.append(("Content-Type", "application/json; charset=utf-8"))
+
+        start_response(
+            f"{status_code} " + _status_text(status_code),
+            header_list,
+        )
+        return [response_body.encode("utf-8")]
+    except Exception:
+        logger.exception("WSGI app error")
+        trace = traceback.format_exc()
+        start_response("500 Internal Server Error", [("Content-Type", "application/json; charset=utf-8")])
+        return [json.dumps({"error": "internal server error", "trace": trace[-2000:]}).encode("utf-8")]
+
+
+def _status_text(code: int) -> str:
+    mapping = {
+        200: "OK", 201: "Created", 204: "No Content", 301: "Moved Permanently",
+        302: "Found", 304: "Not Modified", 307: "Temporary Redirect", 308: "Permanent Redirect",
+        400: "Bad Request", 401: "Unauthorized", 403: "Forbidden", 404: "Not Found",
+        405: "Method Not Allowed", 408: "Request Timeout", 409: "Conflict",
+        413: "Payload Too Large", 429: "Too Many Requests", 499: "Client Closed Request",
+        500: "Internal Server Error", 502: "Bad Gateway", 503: "Service Unavailable",
+        504: "Gateway Timeout",
+    }
+    return mapping.get(code, "Error")
+
+
+def _process_request(method, path, headers, body):
+    """Основная логика: прогоняет запрос через aiohttp-приложение."""
+    try:
+        web_app = get_app()
 
         from aiohttp import web
 
@@ -110,7 +176,6 @@ def handler(request, context=None):
             from aiohttp.test_utils import make_mocked_request
             from io import BytesIO
 
-            # Создаём mock запрос для aiohttp
             payload = BytesIO(body.encode() if isinstance(body, str) else body)
 
             req = make_mocked_request(
@@ -120,27 +185,16 @@ def handler(request, context=None):
                 app=web_app,
             )
 
-            # Обрабатываем через aiohttp app
             response = await web_app._handle(req)
 
-            # Читаем body в зависимости от типа ответа
             response_body = b""
 
-            # FileResponse, StreamResponse и другие
             if hasattr(response, '_body') and response._body:
                 response_body = response._body
             elif hasattr(response, 'body') and response.body:
                 response_body = response.body
             elif hasattr(response, 'text') and response.text:
                 response_body = response.text.encode('utf-8')
-
-            # Если тело всё ещё пустое, пробуем прочитать как stream
-            if not response_body and hasattr(response, 'body_length') and response.body_length:
-                try:
-                    # Для StreamResponse читаем через prepare/write
-                    response_body = b""
-                except:
-                    pass
 
             return {
                 "statusCode": response.status,
@@ -150,14 +204,30 @@ def handler(request, context=None):
 
         result = loop.run_until_complete(_handle())
         loop.close()
-
         return result
 
     except BaseException as e:
         logger.exception(f"Handler error: {e}")
-        print(f"DIAG: handler exception {type(e).__name__}: {e}\n{traceback.format_exc()}", flush=True)
         return {
             "statusCode": 500,
             "headers": {"Content-Type": "application/json; charset=utf-8"},
             "body": json.dumps({"error": str(e), "type": type(e).__name__, "trace": traceback.format_exc()[-3000:]})
         }
+
+
+# Для локального тестирования и обратной совместимости.
+def handler(request, context=None):
+    """
+    Принимает Vercel-совместимый request (dict или объект с атрибутами).
+    """
+    if isinstance(request, dict):
+        method = request.get("method", "GET")
+        path = request.get("path", "/api/")
+        headers = request.get("headers", {})
+        body = request.get("body", "")
+    else:
+        method = getattr(request, 'method', 'GET')
+        path = getattr(request, 'path', '/api/')
+        headers = getattr(request, 'headers', {})
+        body = getattr(request, 'body', '')
+    return _process_request(method, path, headers, body)
