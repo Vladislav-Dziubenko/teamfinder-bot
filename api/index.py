@@ -66,6 +66,14 @@ def get_app():
         )
 
         _app = create_app(_db, settings, _bot)
+        # aiohttp >= 3.12 собирает middleware-цепочку только в pre_freeze(),
+        # который обычно вызывается AppRunner.setup(). Мы вызываем _handle()
+        # напрямую (WSGI-мост), поэтому без freeze() все middleware (auth,
+        # ban, rate-limit) молча пропускаются. Замораживаем app вручную.
+        try:
+            _app.freeze()
+        except Exception:
+            logger.exception("app.freeze() failed")
         _app["db_ready"] = False
         _app["db_error"] = ""
 
