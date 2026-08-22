@@ -46,3 +46,7 @@ services:
         sync: false
       - key: DISCORD_BOT_TOKEN
         sync: false
+      - key: STEAM_WEB_API_KEY
+        sync: false
+      - key: STEAM_REDIRECT_URI
+        sync: false

@@ -204,6 +204,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       setSpin(null)
       onToast(res.error ?? t("common.error"))
     } else if (res.item) {
+      if (!c.free) analytics.purchase(c.id, c.costStars, 1)
       setSpin((p) => (p ? { box: p.box, winner: res.item!, fair: res.fair } : p))
     }
     openBusyRef.current = false
@@ -259,7 +260,10 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         onToast(res.error ?? t("common.error"))
         return
       }
-      if (res.items) setMulti({ box: c, items: res.items, fair: res.fair })
+      if (res.items) {
+        if (!c.free) analytics.purchase(c.id, c.costStars, count)
+        setMulti({ box: c, items: res.items, fair: res.fair })
+      }
     } finally {
       openBusyRef.current = false
       setMultiBusy(null)

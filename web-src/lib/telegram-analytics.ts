@@ -70,6 +70,15 @@ export const analytics = {
   caseOpen(caseId: string, free: boolean): void {
     sendAnalytics("case_open", { case_id: caseId, free })
   },
+  purchase(caseId: string, costStars: number, count: number): void {
+    sendAnalytics("purchase", { case_id: caseId, cost_stars: costStars, count })
+  },
+  streakClaim(day: number, coins: number): void {
+    sendAnalytics("streak_claim", { day, coins })
+  },
+  steamLink(ok: boolean): void {
+    sendAnalytics("steam_link", { ok })
+  },
   chatSend(): void {
     sendAnalytics("chat_send")
   },
