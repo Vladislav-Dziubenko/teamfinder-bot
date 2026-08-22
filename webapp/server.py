@@ -4103,7 +4103,11 @@ async def handle_steam_auth(request: web.Request):
     if not user:
         return web.json_response({"error": "unauthorized"}, status=401)
 
-    if not settings.steam_redirect_uri:
+    # STEAM_REDIRECT_URI может быть не задан в Vercel — fallback на WEBAPP_URL/public_app_url
+    steam_redirect = settings.steam_redirect_uri or settings.public_app_url or settings.webapp_url
+    if steam_redirect and not steam_redirect.rstrip("/").endswith("/api/steam/callback"):
+        steam_redirect = steam_redirect.rstrip("/") + "/api/steam/callback"
+    if not steam_redirect:
         return web.json_response({"error": "Steam not configured"}, status=503)
 
     # Steam OpenID не поддерживает state в ответе так же, как OAuth2, но мы
@@ -4122,8 +4126,8 @@ async def handle_steam_auth(request: web.Request):
         logging.error(f"[steam.auth] Failed to store state: {e}")
         return web.json_response({"error": "internal server error"}, status=500)
 
-    sep = "&" if "?" in settings.steam_redirect_uri else "?"
-    return_to = f"{settings.steam_redirect_uri}{sep}state={quote(state)}"
+    sep = "&" if "?" in steam_redirect else "?"
+    return_to = f"{steam_redirect}{sep}state={quote(state)}"
     url = build_steam_auth_url(return_to, state)
     logging.info(f"[steam.auth] user={user['id']} state={state[:16]}...")
     return web.json_response({"url": url})

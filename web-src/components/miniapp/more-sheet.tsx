@@ -23,12 +23,14 @@ export function MoreSheet({
   const startY = useRef<number | null>(null)
   const [dragY, setDragY] = useState(0)
   const [dragging, setDragging] = useState(false)
+  const [closing, setClosing] = useState(false)
 
   useEffect(() => {
     if (!open) return
     setDragY(0)
+    setClosing(false)
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose()
+      if (e.key === "Escape") handleClose()
     }
     document.addEventListener("keydown", onKey)
     return () => document.removeEventListener("keydown", onKey)
@@ -36,23 +38,36 @@ export function MoreSheet({
 
   if (!open) return null
 
+  function handleClose() {
+    if (closing) return
+    setClosing(true)
+    setDragY(0)
+    setDragging(false)
+    // Даём анимации проиграть перед размонтированием
+    setTimeout(() => {
+      setClosing(false)
+      onClose()
+    }, 280)
+  }
+
   function onTouchStart(e: React.TouchEvent) {
-    if (e.touches.length !== 1) return
+    if (closing || e.touches.length !== 1) return
     startY.current = e.touches[0].clientY
     setDragging(true)
   }
 
   function onTouchMove(e: React.TouchEvent) {
-    if (startY.current === null) return
+    if (closing || startY.current === null) return
     const dy = e.touches[0].clientY - startY.current
     if (dy > 0) setDragY(dy)
   }
 
   function onTouchEnd() {
-    if (startY.current === null) return
+    if (closing || startY.current === null) return
     const wasDragging = dragY > 0
     if (dragY > CLOSE_THRESHOLD) {
-      onClose()
+      handleClose()
+      return
     } else if (wasDragging) {
       hapticTap()
     }
@@ -66,14 +81,15 @@ export function MoreSheet({
       <button
         type="button"
         aria-label={t("common.close")}
-        onClick={onClose}
-        className="absolute inset-0 bg-background/70 backdrop-blur-sm"
+        onClick={handleClose}
+        className={`absolute inset-0 bg-background/70 backdrop-blur-sm transition-opacity duration-300 ${closing ? "opacity-0" : "opacity-100"}`}
       />
       <div
-        className="relative mx-auto w-full max-w-md rounded-t-3xl border-t border-border bg-card p-5 pb-8 animate-rise"
+        className={`relative mx-auto w-full max-w-md rounded-t-3xl border-t border-border bg-card p-5 pb-8 ${!dragging && !closing ? "animate-rise" : ""}`}
         style={{
-          transform: dragY > 0 ? `translateY(${dragY}px)` : undefined,
-          transition: dragging ? "none" : "transform 0.25s ease-out",
+          transform: closing ? "translateY(100%)" : dragY > 0 ? `translateY(${dragY}px)` : undefined,
+          transition: dragging ? "none" : "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.3s ease",
+          opacity: closing ? 0 : 1,
         }}
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
@@ -83,7 +99,7 @@ export function MoreSheet({
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-muted-foreground/40" />
         <button
           type="button"
-          onClick={onClose}
+          onClick={handleClose}
           className="absolute right-4 top-4 grid size-8 place-items-center rounded-lg text-muted-foreground active:bg-secondary"
           aria-label={t("common.close")}
         >
