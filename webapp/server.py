@@ -1555,21 +1555,21 @@ async def handle_nexus_open_case(request: web.Request):
                         if (datetime.utcnow() - last_dt).total_seconds() < 24 * 3600 and not body.get("via_ad"):
                             return web.json_response({"error": "cooldown"}, status=400)
                 else:
-                    # Бета-тестер открывает премиум-кейс за накопленный бесплатный
-                    # баланс (до 200/день, копится до 6000) вместо звёзд.
+                    # Бета-тестер может открыть голд за бета-баланс (case_balance),
+                    # но только если клиент явно просит beta_free И баланс хватает.
+                    # Иначе — всегда за звезды (даже для беты), иначе 50к ⭐ блокировались
+                    # ошибкой "not enough beta cases" при case_balance=0.
                     is_beta = await _effective_is_beta(request, db, user["id"])
-                    beta_free = body.get("beta_free") or is_beta
-                    if beta_free and case_id == "gold":
+                    wants_beta = bool(body.get("beta_free"))
+                    if is_beta and wants_beta and case_id == "gold":
                         beta_state = await db.get_beta_state(user["id"])
                         if beta_state and beta_state["case_balance"] >= count:
                             if not await db.consume_beta_case(user["id"], count, conn):
                                 return web.json_response({"error": "not enough beta cases"}, status=400)
                         else:
-                            total_cost = case_config["costStars"] * count
-                            if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
-                                return web.json_response({"error": "not enough stars"}, status=400)
+                            return web.json_response({"error": "not enough beta cases"}, status=400)
                     elif case_id == "gold":
-                        # Бесплатные премиум-открытия от jet-предметов
+                        # Обычная оплата звездами (для всех, включая бету) — free_gold_opens → звезды
                         free_opens = await conn.fetchval(
                             "SELECT free_gold_opens FROM users WHERE user_id = $1", user["id"],
                         ) or 0
