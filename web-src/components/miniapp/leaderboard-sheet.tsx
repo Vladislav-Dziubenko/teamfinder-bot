@@ -21,15 +21,16 @@ export function LeaderboardSheet({ open, onClose }: { open: boolean; onClose: ()
   const rank = useRankInfo()
   const [rows, setRows] = useState<LeaderRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [sort, setSort] = useState<"coins" | "stars">("coins")
 
   useEffect(() => {
     if (!open) return
     setLoading(true)
-    api.get("/api/leaderboard?limit=50")
+    api.get(`/api/leaderboard?limit=50&sort=${sort}`)
       .then((data: any) => setRows(Array.isArray(data.leaderboard) ? data.leaderboard : []))
       .catch(() => setRows([]))
       .finally(() => setLoading(false))
-  }, [open])
+  }, [open, sort])
 
   if (!open) return null
 
@@ -46,6 +47,35 @@ export function LeaderboardSheet({ open, onClose }: { open: boolean; onClose: ()
             </h2>
             <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-lg text-muted-foreground active:bg-secondary" aria-label="Закрыть">
               <X className="size-4" />
+            </button>
+          </div>
+        </div>
+
+        <div className="px-5 pt-3">
+          <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card p-1">
+            <button
+              type="button"
+              onClick={() => setSort("coins")}
+              className={cn(
+                "rounded-xl px-3 py-2 text-sm font-bold transition-colors",
+                sort === "coins" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              <span className="flex items-center justify-center gap-1">
+                <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" /> Монеты
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setSort("stars")}
+              className={cn(
+                "rounded-xl px-3 py-2 text-sm font-bold transition-colors",
+                sort === "stars" ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              <span className="flex items-center justify-center gap-1">
+                <Star className="size-4 fill-stars text-stars" /> Звезды
+              </span>
             </button>
           </div>
         </div>

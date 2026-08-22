@@ -3798,12 +3798,16 @@ async def handle_leaderboard(request: web.Request):
         limit = max(1, min(int(request.query.get("limit", "10")), 100))
     except (TypeError, ValueError):
         limit = 10
-    cache_key = f"leaderboard:{limit}"
+    sort = request.query.get("sort", "coins")
+    sort = sort.strip().lower() if isinstance(sort, str) else "coins"
+    if sort not in ("coins", "stars", "points"):
+        sort = "coins"
+    cache_key = f"leaderboard:{limit}:{sort}"
     cached = await cache_get(cache_key)
     if cached is not None:
         return web.json_response(cached)
     db: Database = request.app["db"]
-    leaderboard = await db.get_leaderboard(limit=limit)
+    leaderboard = await db.get_leaderboard(limit=limit, sort_by=sort)
     data = {"leaderboard": leaderboard}
     await cache_set(cache_key, data, CACHE_TTL)
     return web.json_response(data)

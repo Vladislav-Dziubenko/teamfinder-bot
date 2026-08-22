@@ -2959,9 +2959,16 @@ WHERE user_quests.completed = 0
                 return {"stars": total_stars, "claimed": claimed}
 
     # Leaderboard method
-    async def get_leaderboard(self, limit: int = 10) -> list[dict]:
+    async def get_leaderboard(self, limit: int = 10, sort_by: str = "coins") -> list[dict]:
+        sort_by = sort_by if sort_by in ("coins", "stars", "points") else "coins"
+        if sort_by == "stars":
+            order_sql = "COALESCE(uc2.stars, 0) DESC, COALESCE(uc2.coins, 0) DESC"
+        elif sort_by == "points":
+            order_sql = "COALESCE(uc2.points, 0) DESC, COALESCE(uc2.coins, 0) DESC"
+        else:
+            order_sql = "COALESCE(uc2.coins, 0) DESC, COALESCE(uc2.stars, 0) DESC"
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch("""
+            rows = await conn.fetch(f"""
                 SELECT
                     u.user_id,
                     u.username,
@@ -2970,11 +2977,12 @@ WHERE user_quests.completed = 0
                     mp.avatar AS avatar,
                     COALESCE(uc2.coins, 0) AS coins,
                     COALESCE(uc2.stars, 0) AS stars,
+                    COALESCE(uc2.points, 0) AS points,
                     u.pro_until IS NOT NULL AND u.pro_until > $2 AS is_premium
                 FROM users u
                 LEFT JOIN user_currency uc2 ON u.user_id = uc2.user_id
                 LEFT JOIN mini_app_profiles mp ON u.user_id = mp.user_id
-                ORDER BY COALESCE(uc2.coins, 0) DESC, COALESCE(uc2.stars, 0) DESC
+                ORDER BY {order_sql}
                 LIMIT $1
             """, limit, datetime.utcnow().isoformat())
             return [dict(r) for r in rows]
