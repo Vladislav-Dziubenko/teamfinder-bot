@@ -6,6 +6,10 @@
       "use": "@vercel/python"
     },
     {
+      "src": "api/webhook.py",
+      "use": "@vercel/python"
+    },
+    {
       "src": "web-src/package.json",
       "use": "@vercel/next"
     }
