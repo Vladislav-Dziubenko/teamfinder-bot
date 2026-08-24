@@ -10,18 +10,18 @@
       "use": "@vercel/next"
     }
   ],
-  "routes": [
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "api/index.py"
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
     },
     {
-      "src": "/webhook/(.*)",
-      "dest": "api/webhook.py"
+      "source": "/webhook/(.*)",
+      "destination": "/api/webhook.py"
     },
     {
-      "src": "/(.*)",
-      "dest": "web-src/$1"
+      "source": "/(.*)",
+      "destination": "/web-src/$1"
     }
   ],
   "cleanUrls": false,
