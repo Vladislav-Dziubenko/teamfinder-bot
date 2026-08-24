@@ -289,13 +289,10 @@ async def cors_middleware(request: web.Request, handler):
 async def cache_static_middleware(request: web.Request, handler):
     response = await handler(request)
     if not request.path.startswith("/api/") and request.path != "/health":
-        if not response.headers.get("Cache-Control"):
-            if request.path == "/" or request.path == "/index.html":
-                response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-            elif request.path.startswith("/_next/static/"):
-                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-            else:
-                response.headers["Cache-Control"] = "public, max-age=3600"
+        # Жестко запрещаем кэш для Telegram WebApp и браузера (иначе старый UI из кэша)
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
     return response
 
 
@@ -2246,8 +2243,14 @@ async def _notify_tg_session_join(request: web.Request, db: Database, session: d
         emoji = game.get("emoji", "🎮")
         title = game.get("title", session.get("game", ""))
         settings: Settings = request.app["settings"]
+        _webapp_url = settings.webapp_url
+        if _webapp_url:
+            _sep = "&" if "?" in _webapp_url else "?"
+            _webapp_url = _webapp_url.rstrip("/") + f"{_sep}v={int(time.time())}"
+        else:
+            _webapp_url = settings.webapp_url
         markup = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Открыть TeamFinder", web_app=WebAppInfo(url=settings.webapp_url))]
+            [InlineKeyboardButton(text="🚀 Открыть TeamFinder", web_app=WebAppInfo(url=_webapp_url))]
         ])
         await bot.send_message(
             creator_id,

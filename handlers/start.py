@@ -1,3 +1,5 @@
+import time
+
 from aiogram import Router, F
 from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, WebAppInfo
@@ -31,6 +33,10 @@ async def cmd_start(message: Message, command: CommandObject, db: Database, sett
         return
 
     webapp_url = settings.webapp_url
+    if webapp_url:
+        # cache-bust для Telegram WebApp (каждый /start — новый URL)
+        sep0 = "&" if "?" in webapp_url else "?"
+        webapp_url = webapp_url.rstrip("/") + f"{sep0}v={int(time.time())}"
     if args and webapp_url:
         if args.startswith("profile_"):
             profile_id = args.replace("profile_", "")
