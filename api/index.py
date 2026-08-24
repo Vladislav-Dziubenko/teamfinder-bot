@@ -29,8 +29,14 @@ _bot = None
 _loop = None
 _loop_lock = threading.Lock()
 
-# Тяжёлые импорты отложены — чтобы ошибка импорта попадала в handler и
-# возвращалась в теле ответа, а не роняла функцию до запуска handler.
+import hashlib
+
+_webhook_dp = None
+_webhook_bot = None
+_webhook_db = None
+_webhook_secret = None
+
+
 def _imports():
     from aiohttp import web
     from aiogram import Bot
@@ -40,6 +46,37 @@ def _imports():
     from database import Database
     from webapp.server import create_app
     return web, Bot, DefaultBotProperties, ParseMode, load_settings, Database, create_app
+
+
+def _init_webhook():
+    """Ленивая инициализация бота/диспетчера для webhook."""
+    global _webhook_dp, _webhook_bot, _webhook_db, _webhook_secret
+    if _webhook_dp is None:
+        from aiogram import Bot as WBot, Dispatcher
+        from aiogram.client.default import DefaultBotProperties as WDP
+        from aiogram.enums import ParseMode as WP
+        from aiogram.fsm.storage.memory import MemoryStorage
+        from config import load_settings
+        from database import Database
+        from handlers import start, profile, search, guides, payments, admin, discord
+        from middleware import InjectMiddleware, RateLimitMiddleware
+
+        settings = load_settings()
+        _webhook_db = Database(settings.database_url, bot_token=settings.bot_token, fernet_key=settings.fernet_key)
+        _webhook_bot = WBot(token=settings.bot_token, default=WDP(parse_mode=WP.HTML))
+        _webhook_dp = Dispatcher(storage=MemoryStorage())
+        _webhook_dp.update.middleware(RateLimitMiddleware())
+        _webhook_dp.update.middleware(InjectMiddleware(_webhook_db, settings))
+        _webhook_dp.include_router(start.router)
+        _webhook_dp.include_router(profile.router)
+        _webhook_dp.include_router(search.router)
+        _webhook_dp.include_router(guides.router)
+        _webhook_dp.include_router(payments.router)
+        _webhook_dp.include_router(admin.router)
+        _webhook_dp.include_router(discord.router)
+        _webhook_secret = hashlib.sha256(settings.bot_token.encode()).hexdigest()
+        logger.info("Webhook bot/dispatcher initialized")
+    return _webhook_bot, _webhook_dp, _webhook_db, _webhook_secret
 
 
 def get_app():
@@ -176,6 +213,31 @@ def _status_text(code: int) -> str:
     return mapping.get(code, "Error")
 
 
+def _handle_webhook(path, body):
+    """Обработка Telegram webhook напрямую из WSGI."""
+    global _loop, _loop_lock
+    try:
+        from aiogram.types import Update as TGUpdate
+
+        bot, dp, db, webhook_secret = _init_webhook()
+        parts = path.strip("/").split("/")
+        if len(parts) < 2:
+            return {"statusCode": 404, "headers": {}, "body": '{"error":"not found"}'}
+        secret = parts[1]
+        if secret != webhook_secret:
+            return {"statusCode": 403, "headers": {}, "body": '{"error":"invalid secret"}'}
+        if db._pool is None:
+            _loop.run_until_complete(db.connect())
+        body_str = body.decode("utf-8", errors="replace") if isinstance(body, bytes) else body
+        request_body = json.loads(body_str)
+        update = TGUpdate(**request_body)
+        _loop.run_until_complete(dp.feed_update(bot, update))
+        return {"statusCode": 200, "headers": {}, "body": '{"ok":true}'}
+    except Exception as e:
+        logger.exception(f"Webhook error: {e}")
+        return {"statusCode": 500, "headers": {}, "body": json.dumps({"error": str(e)})}
+
+
 def _process_request(method, path, headers, body):
     """Основная логика: прогоняет запрос через aiohttp-приложение."""
     global _loop, _loop_lock
@@ -185,10 +247,9 @@ def _process_request(method, path, headers, body):
 
             from aiohttp import web
 
-            # Vercel редиректит "/api/games" → "/api/games/" (trailingSlash: true в
-            # next.config.mjs). Роуты aiohttp зарегистрированы БЕЗ завершающего слэша,
-            # поэтому убираем его у путей /api/* (кроме корневого "/"), иначе запрос
-            # падает в статический catch-all и возвращает пустое тело.
+            if path.startswith("/webhook/") and method == "POST":
+                return _handle_webhook(path, body)
+
             if path.startswith("/api/") and path != "/" and len(path) > 1 and path.endswith("/"):
                 path = path.rstrip("/")
 

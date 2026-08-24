@@ -3,7 +3,7 @@ const nextConfig = {
   // Статический экспорт: `next build` кладёт готовый сайт в папку `out/`.
   // Эти файлы отдаёт твой Python-сервер из папки static/ на Render.
   output: 'export',
-  trailingSlash: true,
+  trailingSlash: false,
   typescript: {
     ignoreBuildErrors: true,
   },

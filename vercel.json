@@ -6,22 +6,18 @@
       "use": "@vercel/python"
     },
     {
-      "src": "api/webhook.py",
-      "use": "@vercel/python"
-    },
-    {
       "src": "web-src/package.json",
       "use": "@vercel/next"
     }
   ],
   "rewrites": [
     {
-      "source": "/api/(.*)",
+      "source": "/webhook/(.*)",
       "destination": "/api/index.py"
     },
     {
-      "source": "/webhook/(.*)",
-      "destination": "/api/webhook.py"
+      "source": "/api/(.*)",
+      "destination": "/api/index.py"
     },
     {
       "source": "/(.*)",
