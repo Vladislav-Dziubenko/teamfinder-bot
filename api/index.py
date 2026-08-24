@@ -37,6 +37,19 @@ _webhook_db = None
 _webhook_secret = None
 
 
+def settings_database_host() -> str:
+    """Только хост БД для диагностики (без пароля)."""
+    try:
+        from urllib.parse import urlsplit
+        from config import load_settings
+        url = load_settings().database_url
+        if not url:
+            return ""
+        return urlsplit(url).netloc.split("@")[-1]
+    except Exception:
+        return ""
+
+
 def _imports():
     from aiohttp import web
     from aiogram import Bot
@@ -77,6 +90,29 @@ def _init_webhook():
         _webhook_secret = hashlib.sha256(settings.bot_token.encode()).hexdigest()
         logger.info("Webhook bot/dispatcher initialized")
     return _webhook_bot, _webhook_dp, _webhook_db, _webhook_secret
+
+
+def ensure_db():
+    """Повторная попытка подключения к БД, если предыдущая упала.
+
+    Раньше connect() вызывался только один раз при старте функции — если
+    в этот момент Supabase был недоступен (смена пароля, cold start, limit),
+    функция навсегда отдавала 503. Теперь каждый запрос к БД-зависимому
+    роуту проверяет готовность и, при необходимости, переподключается.
+    """
+    app = _app
+    if app is None:
+        return
+    if app.get("db_ready"):
+        return
+    try:
+        _loop.run_until_complete(_db.connect())
+        app["db_ready"] = True
+        app["db_error"] = ""
+        logger.info("Database connected (lazy retry)")
+    except Exception as e:
+        app["db_error"] = str(e)
+        logger.error(f"DB reconnect failed: {e}")
 
 
 def get_app():
@@ -258,6 +294,22 @@ def _process_request(method, path, headers, body):
             web_app = get_app()
 
             from aiohttp import web
+
+            # Диагностический эндпоинт: показывает реальную ошибку БД вместо слепого 503.
+            if path.split("?")[0].rstrip("/") in ("/api/health", "/health"):
+                return {
+                    "statusCode": 200,
+                    "headers": {"Content-Type": "application/json; charset=utf-8"},
+                    "body": json.dumps({
+                        "db_ready": bool(web_app.get("db_ready")),
+                        "db_error": web_app.get("db_error", ""),
+                        "database_url_host": (settings_database_host() if (sh := settings_database_host()) else ""),
+                    }),
+                }
+
+            # Если БД не готова — пробуем переподключиться перед обработкой запроса.
+            if path.startswith("/api/"):
+                ensure_db()
 
             if (path.startswith("/webhook") or path.startswith("/api/webhook")) and method == "POST":
                 return _handle_webhook(path, body, headers)

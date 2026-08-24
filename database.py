@@ -1,4 +1,6 @@
+import asyncio
 import hashlib
+import logging
 import os
 import random
 import secrets
@@ -8,6 +10,8 @@ from urllib.parse import unquote, urlparse, urlsplit
 from datetime import datetime, timedelta
 
 from data.games import DEFAULT_PROMO_CODES
+
+logger = logging.getLogger("database")
 
 
 SCHEMA = """
@@ -467,7 +471,22 @@ class Database:
         self._fernet_key = fernet_key or bot_token
         self._pool: asyncpg.Pool | None = None
 
-    async def connect(self) -> None:
+    async def connect(self, retries: int = 3) -> None:
+        # Retry с backoff: Vercel cold start / Supabase pooler могут отказать
+        # на первом коннекте (connection limit, transient). Без retry функция
+        # навсегда остаётся "не готовой" и отдаёт 503.
+        _last: Exception | None = None
+        for attempt in range(1, retries + 1):
+            try:
+                return await self._connect_once()
+            except Exception as e:  # noqa: BLE001
+                _last = e
+                logger.warning(f"DB connect attempt {attempt}/{retries} failed: {e}")
+                if attempt < retries:
+                    await asyncio.sleep(min(0.5 * attempt, 2.0))
+        raise _last if _last else RuntimeError("DB connect failed")
+
+    async def _connect_once(self) -> None:
         # SSL включается для всех внешних хостов (Neon, Render, Supabase, Railway…).
         # Для локальной разработки (localhost / 127.0.0.1 / ::1) SSL не нужен.
         # Такой подход убирает хрупкую проверку по строке "render.com" и
