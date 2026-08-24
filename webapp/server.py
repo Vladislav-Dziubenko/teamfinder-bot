@@ -557,13 +557,11 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
         db.get_user_prefs(user["id"]),
     )
 
-# Ограничиваем инвентарь до 100 последних предметов для уменьшения трафика
-    inventory = results[2]
+    # Ограничиваем инвентарь до 100 последних предметов для уменьшения трафика
     if len(inventory) > 100:
         inventory = sorted(inventory, key=lambda x: x.get("acquired_at", ""), reverse=True)[:100]
 
     # Ограничиваем достижения до 50 для уменьшения трафика
-    achievements = results[6]
     if len(achievements) > 50:
         achievements = sorted(achievements, key=lambda x: x.get("claimed_at", "") or "", reverse=True)[:50]
 
