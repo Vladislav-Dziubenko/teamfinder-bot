@@ -24,6 +24,12 @@
       "destination": "/web-src/$1"
     }
   ],
+  "crons": [
+    {
+      "path": "/api/online",
+      "schedule": "*/5 * * * *"
+    }
+  ],
   "cleanUrls": false,
   "trailingSlash": false,
   "env": {
