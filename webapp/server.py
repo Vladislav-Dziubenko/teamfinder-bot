@@ -130,9 +130,9 @@ ME_RATE_WINDOW = 60      # секунд
 # У одного честного юзера 1-2 IP — лимит по IP срабатывает раньше, чем
 # per-user, и режет фермеров с альт-аккаунтов и ботнеты.
 # Глобальный лимит — верхний предохранитель от лавины.
-IP_RATE_LIMIT = 150       # запросов/мин с одного IP
+IP_RATE_LIMIT = 400       # запросов/мин с одного IP (было 150 — резало кейсы при 2 юзерах с одного IP)
 IP_RATE_WINDOW = 60
-GLOBAL_RATE_LIMIT = 3000  # суммарно на весь сервис
+GLOBAL_RATE_LIMIT = 6000  # суммарно на весь сервис
 GLOBAL_RATE_WINDOW = 60
 
 # Антифарм welcome-бонуса: не больше N выдач стартового капитала с одного IP.
@@ -149,7 +149,7 @@ CONSENT_VERSION = 1
 # Применяется к: /api/leaderboard, /api/teams, /api/teams/{id}/applications
 # Остаётся in-memory (IP не требует персистентности)
 # ---------------------------------------------------------------------------
-PUBLIC_RATE_LIMIT = 60   # запросов
+PUBLIC_RATE_LIMIT = 120   # запросов (было 60 — резало публичные ручки при открытии кейсов)
 PUBLIC_RATE_WINDOW = 60  # секунд
 from collections import defaultdict
 public_ip_requests: defaultdict[str, list[float]] = defaultdict(list)
