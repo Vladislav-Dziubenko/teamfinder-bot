@@ -24,6 +24,8 @@
       "dest": "web-src/$1"
     }
   ],
+  "cleanUrls": false,
+  "trailingSlash": false,
   "env": {
     "PYTHON_VERSION": "3.11"
   }
