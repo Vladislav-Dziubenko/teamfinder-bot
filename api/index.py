@@ -213,18 +213,30 @@ def _status_text(code: int) -> str:
     return mapping.get(code, "Error")
 
 
-def _handle_webhook(path, body):
-    """Обработка Telegram webhook напрямую из WSGI."""
+def _handle_webhook(path, body, headers=None):
+    """Обработка Telegram webhook: поддерживает секрет в пути И в заголовке X-Telegram-Bot-Api-Secret-Token."""
     global _loop, _loop_lock
     try:
         from aiogram.types import Update as TGUpdate
 
         bot, dp, db, webhook_secret = _init_webhook()
-        parts = path.strip("/").split("/")
-        if len(parts) < 2:
-            return {"statusCode": 404, "headers": {}, "body": '{"error":"not found"}'}
-        secret = parts[1]
-        if secret != webhook_secret:
+        secret = None
+        # 1) секрет в пути /webhook/<secret> или /api/webhook/<secret>
+        parts = path.split("?")[0].strip("/").split("/")
+        if len(parts) >= 2 and parts[0] in ("webhook", "api") and "webhook" in parts:
+            idx = parts.index("webhook")
+            if len(parts) > idx + 1 and parts[idx + 1]:
+                secret = parts[idx + 1]
+        # 2) секрет в заголовке X-Telegram-Bot-Api-Secret-Token (рекомендует Telegram)
+        if not secret and headers:
+            hdr = headers.get("X-Telegram-Bot-Api-Secret-Token") or headers.get("X-Telegram-Bot-Api-Secret-Token".lower())
+            if hdr:
+                secret = hdr.strip()
+        # 3) fallback: path == /webhook или /api/webhook без секрета — проверяем только заголовок
+        if secret is None and path.split("?")[0].rstrip("/") in ("/webhook", "/api/webhook"):
+            if not headers or headers.get("X-Telegram-Bot-Api-Secret-Token") != webhook_secret:
+                return {"statusCode": 403, "headers": {}, "body": '{"error":"invalid secret"}'}
+        elif secret != webhook_secret:
             return {"statusCode": 403, "headers": {}, "body": '{"error":"invalid secret"}'}
         if db._pool is None:
             _loop.run_until_complete(db.connect())
@@ -247,8 +259,8 @@ def _process_request(method, path, headers, body):
 
             from aiohttp import web
 
-            if path.startswith("/webhook/") and method == "POST":
-                return _handle_webhook(path, body)
+            if (path.startswith("/webhook") or path.startswith("/api/webhook")) and method == "POST":
+                return _handle_webhook(path, body, headers)
 
             if path.startswith("/api/") and path != "/" and len(path) > 1 and path.endswith("/"):
                 path = path.rstrip("/")
