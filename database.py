@@ -1418,7 +1418,7 @@ class Database:
                 if not claimed:
                     return False
                 await conn.execute(
-                    "INSERT INTO user_currency (user_id, coins, stars, points, updated_at) VALUES ($1, 0, $2, 0, $3) ON CONFLICT (user_id) DO UPDATE SET stars = stars + $2, updated_at = EXCLUDED.updated_at",
+                    "INSERT INTO user_currency (user_id, coins, stars, points, updated_at) VALUES ($1, 0, $2, 0, $3) ON CONFLICT (user_id) DO UPDATE SET stars = user_currency.stars + EXCLUDED.stars, updated_at = EXCLUDED.updated_at",
                     user_id, self.WELCOME_STARS, datetime.utcnow().isoformat(),
                 )
                 return True
@@ -3677,7 +3677,10 @@ WHERE user_quests.completed = 0
         """Данные профиля, на основе которых считается прогресс ачивок a6/a7:
         уровень и число приглашённых по рефералке."""
         async with self.pool.acquire() as conn:
-            level = await conn.fetchval("SELECT level FROM users WHERE user_id = $1", user_id) or 0
+            try:
+                level = await conn.fetchval("SELECT level FROM users WHERE user_id = $1", user_id) or 0
+            except Exception:
+                level = 0
             invited = 0
             try:
                 invited = await conn.fetchval("SELECT invited_count FROM referrals WHERE user_id = $1", user_id) or 0
