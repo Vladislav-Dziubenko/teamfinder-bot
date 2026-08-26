@@ -1423,6 +1423,7 @@ QUESTS_CONFIG = [
     {"id": "do-searches", "title": "Сделай 14 поисков", "desc": "Найди тиммейтов 14 раз", "reward": "35 ⭐", "rewardStars": 35, "target": 14},
     {"id": "open-cases-2", "title": "Открой 50 кейсов", "desc": "Открой 50 кейсов в Nexus", "reward": "75 ⭐", "rewardStars": 75, "target": 50},
     {"id": "do-searches-2", "title": "Сделай 30 поисков", "desc": "Найди тиммейтов 30 раз", "reward": "60 ⭐", "rewardStars": 60, "target": 30},
+    {"id": "invite-friend", "title": "Пригласи друга", "desc": "Пригласи 1 друга по реферальной ссылке", "reward": "30 ⭐ + 1 кейс", "rewardStars": 30, "target": 1},
 ]
 
 ACHIEVEMENTS_CONFIG = [
@@ -2819,6 +2820,11 @@ async def handle_referral_claim(request: web.Request):
         granted = await db.claim_referral_ladder(referrer_user_id, REFERRAL_LADDER)
     except Exception as e:
         logging.warning(f"[referral] ladder claim failed: {e}")
+    # Виральный квест: пригласи друга → прогресс +1
+    try:
+        await db.update_quest_progress(referrer_user_id, "invite-friend", 1)
+    except Exception as e:
+        logging.warning(f"[referral] quest invite-friend failed: {e}")
 
     return web.json_response({"ok": True, "reward": REFERRAL_REWARD, "instant_reward": REFERRAL_INSTANT_REWARD, "ladder_granted": granted})
 
