@@ -250,19 +250,42 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `rid-${Date.now()}-${Math.random().toString(36).slice(2)}`
     setMultiBusy(count)
     try {
-      let res = await openCase(c.id, count, rid)
-      // Обрыв сети/таймаут: один безопасный повтор с тем же ключом — сервер
-      // не спишет повторно, если первая попытка уже была обработана.
-      if (!res.ok && res.error === "timeout") {
-        res = await openCase(c.id, count, rid)
-      }
-      if (!res.ok) {
-        onToast(res.error ?? t("common.error"))
-        return
-      }
-      if (res.items) {
-        if (!c.free) analytics.purchase(c.id, c.costStars, count)
-        setMulti({ box: c, items: res.items, fair: res.fair })
+      // Батчим >20 чтобы не ловить 400 max 20 и не валить транзакцию на 100 инсертов
+      const BATCH = 20
+      if (count <= BATCH) {
+        let res = await openCase(c.id, count, rid)
+        if (!res.ok && res.error === "timeout") {
+          res = await openCase(c.id, count, rid)
+        }
+        if (!res.ok) {
+          onToast(res.error ?? t("common.error"))
+          return
+        }
+        if (res.items) {
+          if (!c.free) analytics.purchase(c.id, c.costStars, count)
+          setMulti({ box: c, items: res.items, fair: res.fair })
+        }
+      } else {
+        const allItems: any[] = []
+        let allFair: any = null
+        let ok = true
+        for (let off = 0; off < count; off += BATCH) {
+          const batch = Math.min(BATCH, count - off)
+          const batchRid = `${rid}-${off / BATCH}`
+          let r = await openCase(c.id, batch, batchRid)
+          if (!r.ok && r.error === "timeout") r = await openCase(c.id, batch, batchRid)
+          if (!r.ok) {
+            onToast(r.error ?? t("common.error"))
+            ok = false
+            break
+          }
+          if (r.items) allItems.push(...r.items)
+          if (r.fair) allFair = r.fair
+        }
+        if (ok && allItems.length) {
+          if (!c.free) analytics.purchase(c.id, c.costStars, count)
+          setMulti({ box: c, items: allItems, fair: allFair })
+        }
       }
     } finally {
       openBusyRef.current = false
