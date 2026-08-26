@@ -2247,31 +2247,35 @@ class Database:
     async def get_limited_model_history(self) -> list[dict]:
         """Публичная история всех серий 3D-моделей: событие релиза, выбивания,
         покупки, передачи и сжигания. Служит и реестром для будущих моделей."""
-        async with self.pool.acquire() as conn:
-            out = []
-            for model_id, meta in self.LIMITED_MODELS.items():
-                claimed = await conn.fetchval(
-                    "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
-                    model_id,
-                )
-                events = await conn.fetch(
-                    "SELECT id, token_id, user_id, nick, event_type, details, created_at "
-                    "FROM limited_model_events WHERE model_id = $1 "
-                    "ORDER BY created_at DESC, id DESC",
-                    model_id,
-                )
-                out.append({
-                    "model_id": model_id,
-                    "name": meta["name"],
-                    "icon": meta["icon"],
-                    "desc": meta["desc"],
-                    "glb": meta["glb"],
-                    "supply": self.LIMITED_MODEL_SUPPLY,
-                    "claimed": claimed,
-                    "remaining": max(0, self.LIMITED_MODEL_SUPPLY - claimed),
-                    "events": [dict(e) for e in events],
-                })
-            return out
+        try:
+            async with self.pool.acquire() as conn:
+                out = []
+                for model_id, meta in self.LIMITED_MODELS.items():
+                    claimed = await conn.fetchval(
+                        "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
+                        model_id,
+                    )
+                    events = await conn.fetch(
+                        "SELECT id, token_id, user_id, nick, event_type, details, created_at "
+                        "FROM limited_model_events WHERE model_id = $1 "
+                        "ORDER BY created_at DESC, id DESC",
+                        model_id,
+                    )
+                    out.append({
+                        "model_id": model_id,
+                        "name": meta["name"],
+                        "icon": meta["icon"],
+                        "desc": meta["desc"],
+                        "glb": meta["glb"],
+                        "supply": self.LIMITED_MODEL_SUPPLY,
+                        "claimed": claimed,
+                        "remaining": max(0, self.LIMITED_MODEL_SUPPLY - claimed),
+                        "events": [dict(e) for e in events],
+                    })
+                return out
+        except Exception as e:
+            logger.warning(f"get_limited_model_history failed (table missing?): {e}")
+            return []
 
     async def list_limited_model(self, owner_id: int, token_id: int, price: int) -> bool:
         if price <= 0:
