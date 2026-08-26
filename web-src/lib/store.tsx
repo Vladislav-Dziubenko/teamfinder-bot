@@ -865,6 +865,12 @@ export function NexusProvider({ children }: { children: ReactNode }) {
             caseCooldown: { ...p.caseCooldown, [caseId]: until },
           }))
         }
+        // Оптимистично уменьшаем счётчики чтобы "бесплатно осталось" не лагало до refresh()
+        if (betaPays) {
+          setS((p: PersistedState) => ({ ...p, betaBalance: Math.max(0, (p as any).betaBalance - count) }))
+        } else if (hasFreeGold) {
+          setS((p: PersistedState) => ({ ...p, freeGoldOpens: Math.max(0, (p as any).freeGoldOpens - count) }))
+        }
         refresh()
         if (Array.isArray(data.items) && data.items.length > 0) {
           return { ok: true, items: data.items as CaseItem[], item: data.items[0] as CaseItem, fair: data.fair as FairProof | undefined }
