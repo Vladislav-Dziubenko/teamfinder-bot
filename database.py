@@ -3732,7 +3732,7 @@ WHERE user_quests.completed = 0
                 )
                 if row and row["claimed"]:
                     return False
-                await conn.execute(
+                result = await conn.execute(
                     """
                     INSERT INTO user_achievements (user_id, achievement_id, claimed, claimed_at)
                     VALUES ($1, $2, 1, $3)
@@ -3743,6 +3743,9 @@ WHERE user_quests.completed = 0
                     """,
                     user_id, achievement_id, now,
                 )
+                # result = "INSERT 0 1" или "UPDATE 1" — если 0 строк затронуто, значит уже claimed (гонка)
+                if isinstance(result, str) and result.split()[-1] == "0":
+                    return False
                 if await self._adjust_currency_conn(conn, user_id, coins=coins, points=points):
                     return True
                 return False

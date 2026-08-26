@@ -1508,6 +1508,9 @@ async def handle_nexus_open_case(request: web.Request):
     # Мульти-открытие доступно только для платных кейсов (у бесплатного дневной кулдаун)
     if count > 1 and case_config["free"]:
         return web.json_response({"error": "multi open not allowed for free case"}, status=400)
+    # Лимит батча — 100 кейсов в одной транзакции валят pool/timeout (Jet 1200*100 + 100 инсертов)
+    if count > 20:
+        return web.json_response({"error": "max 20 per request, open in batches"}, status=400)
 
     def _fair_pick(server_seed: str, client_seed: str, nonce: int, items: list[dict]) -> tuple[dict, int, int]:
         # Детерминированный ролл: результат выводится из sha256(seed:client:nonce),
