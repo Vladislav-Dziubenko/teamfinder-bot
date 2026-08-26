@@ -4236,23 +4236,28 @@ WHERE user_quests.completed = 0
 
     async def _grant_beta_daily_conn(self, conn: asyncpg.Connection, user_id: int) -> dict | None:
         today = datetime.utcnow().strftime("%Y-%m-%d")
-        row = await conn.fetchrow(
-            "SELECT case_balance, last_grant FROM beta_state WHERE user_id = $1",
-            user_id,
+        # Атомарно: UPDATE только если last_grant < CURRENT_DATE
+        result = await conn.execute(
+            "UPDATE beta_state SET case_balance = LEAST($3, case_balance + $4), last_grant = $2 "
+            "WHERE user_id = $1 AND last_grant < $2",
+            user_id, today, self.BETA_MAX_CASES, self.BETA_DAILY_CASES,
         )
-        balance = row["case_balance"] if row else 0
-        last_grant = row["last_grant"] if row else ""
-        if last_grant >= today:
-            return {"case_balance": balance, "last_grant": last_grant}
-        new_balance = min(self.BETA_MAX_CASES, balance + self.BETA_DAILY_CASES)
+        if result == "UPDATE 1":
+            await self._adjust_currency_conn(conn, user_id, stars=self.BETA_DAILY_STARS)
+            row = await conn.fetchrow("SELECT case_balance, last_grant FROM beta_state WHERE user_id = $1", user_id)
+            return {"case_balance": row["case_balance"], "last_grant": row["last_grant"]}
+        # Не обновилось — либо уже выдано сегодня, либо записи нет — пробуем INSERT
+        row = await conn.fetchrow("SELECT case_balance, last_grant FROM beta_state WHERE user_id = $1", user_id)
+        if row:
+            return {"case_balance": row["case_balance"], "last_grant": row["last_grant"]}
         await conn.execute(
-            """INSERT INTO beta_state (user_id, case_balance, last_grant)
-               VALUES ($1, $2, $3)
-               ON CONFLICT (user_id) DO UPDATE SET case_balance = $2, last_grant = $3""",
-            user_id, new_balance, today,
+            "INSERT INTO beta_state (user_id, case_balance, last_grant) VALUES ($1, $2, $3) "
+            "ON CONFLICT (user_id) DO NOTHING",
+            user_id, min(self.BETA_MAX_CASES, self.BETA_DAILY_CASES), today,
         )
         await self._adjust_currency_conn(conn, user_id, stars=self.BETA_DAILY_STARS)
-        return {"case_balance": new_balance, "last_grant": today}
+        row = await conn.fetchrow("SELECT case_balance, last_grant FROM beta_state WHERE user_id = $1", user_id)
+        return {"case_balance": row["case_balance"], "last_grant": row["last_grant"]} if row else None
 
     async def consume_beta_case(self, user_id: int, count: int, conn: asyncpg.Connection) -> bool:
         """Списывает count из накопленных бесплатных премиум-кейсов."""
