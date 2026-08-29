@@ -159,7 +159,7 @@ public_ip_requests: defaultdict[str, list[float]] = defaultdict(list)
 # max concurrent API requests (tunable via env). Skip health, static, webhook.
 # ---------------------------------------------------------------------------
 import os
-MAX_CONCURRENT_REQUESTS = int(os.getenv("MAX_CONCURRENT_REQUESTS", "50"))
+MAX_CONCURRENT_REQUESTS = int(os.getenv("MAX_CONCURRENT_REQUESTS", "100"))
 _concurrency_semaphore = asyncio.Semaphore(MAX_CONCURRENT_REQUESTS)
 
 CAPACITY_SKIP_PATHS = {
@@ -371,19 +371,20 @@ def _event_from_path(path: str) -> str | None:
 
 @web.middleware
 async def capacity_middleware(request: web.Request, handler):
-    """Global concurrent request limiter — returns 503 with retry-after when at capacity."""
+    """Global concurrent request limiter — queues up to MAX_CONCURRENT_REQUESTS, 503 only on timeout."""
     path = request.path
     if path in CAPACITY_SKIP_PATHS or any(path.startswith(p) for p in CAPACITY_SKIP_PREFIXES):
         return await handler(request)
-    if not _concurrency_semaphore.locked():
-        async with _concurrency_semaphore:
-            return await handler(request)
-    # at capacity — return 503 with Retry-After hint
-    return web.json_response(
-        {"error": "server busy", "message": "Сервер перегружен, попробуйте через несколько секунд", "retry_after": 5},
-        status=503,
-        headers={"Retry-After": "5"},
-    )
+    try:
+        async with asyncio.timeout(5):
+            async with _concurrency_semaphore:
+                return await handler(request)
+    except TimeoutError:
+        return web.json_response(
+            {"error": "server busy", "message": "Сервер перегружен, попробуйте через несколько секунд", "retry_after": 5},
+            status=503,
+            headers={"Retry-After": "5"},
+        )
 
 
 @web.middleware
