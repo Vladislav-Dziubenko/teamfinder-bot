@@ -537,5 +537,8 @@
   "consent.accept": "Tanggapin at magpatuloy",
   "consent.agree_all": "Lagyan ng check ang parehong kahon upang magpatuloy",
   "consent.version": "Bersyon ng kasunduan: v{version}",
-  "match.only_steam": "Steam lang"
+  "match.only_steam": "Steam lang",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

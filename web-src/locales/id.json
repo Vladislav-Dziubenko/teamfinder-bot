@@ -537,5 +537,8 @@
   "consent.accept": "Terima dan lanjutkan",
   "consent.agree_all": "Centang kedua kotak untuk melanjutkan",
   "consent.version": "Versi perjanjian: v{version}",
-  "match.only_steam": "Hanya Steam"
+  "match.only_steam": "Hanya Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

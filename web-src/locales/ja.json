@@ -775,5 +775,8 @@
   "onboarding.chat_title": "グローバルチャットとフレンド",
   "onboarding.chat_desc": "グローバルチャットで書き込み、フレンドを追加して連絡を取り合いましょう。プレイヤーのフィードでは直接メッセージを送れます。",
   "onboarding.chat_tip": "ヒント：アクティブでいましょう。レベルが上がり、ボットの新機能が解放されます。",
-  "match.only_steam": "Steamのみ"
+  "match.only_steam": "Steamのみ",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

@@ -995,5 +995,8 @@
   "home.quest_not_ready": "Задание ещё не выполнено — прогресс чуть позже",
   "home.claim_all": "Забрать всё",
   "home.quest_claimed_all": "Получено наград: {count} (+{reward})",
-  "match.only_steam": "Только со Steam"
+  "match.only_steam": "Только со Steam",
+  "cases.need_coins_title": "Недостаточно монет",
+  "cases.need_coins_desc": "Нужно {cost} монет, у вас {coins}",
+  "cases.top_up_coins": "Купить {cost} монет"
 }

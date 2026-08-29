@@ -537,5 +537,8 @@
   "consent.accept": "Chấp nhận và tiếp tục",
   "consent.agree_all": "Đánh dấu cả hai ô để tiếp tục",
   "consent.version": "Phiên bản thỏa thuận: v{version}",
-  "match.only_steam": "Chỉ Steam"
+  "match.only_steam": "Chỉ Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

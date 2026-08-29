@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Globaali chat ja ystävät",
   "onboarding.chat_desc": "Kirjoita globaaliin chattiin, lisää ystäviä ja pysy yhteydessä. Pelaajasyötteessä voit kirjoittaa suoraan.",
   "onboarding.chat_tip": "Vinkki: ole aktiivinen — tasosi nousee ja sen mukana botin uudet ominaisuudet.",
-  "match.only_steam": "Vain Steam"
+  "match.only_steam": "Vain Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

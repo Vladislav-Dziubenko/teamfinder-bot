@@ -995,5 +995,8 @@
   "home.quest_not_ready": "Quest is not finished yet — progress will sync shortly",
   "home.claim_all": "Claim all",
   "home.quest_claimed_all": "Rewards claimed: {count} (+{reward})",
-  "match.only_steam": "Steam only"
+  "match.only_steam": "Steam only",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

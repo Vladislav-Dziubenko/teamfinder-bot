@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Καθολικό chat και φίλοι",
   "onboarding.chat_desc": "Γράψε στο καθολικό chat, πρόσθεσε φίλους και μείνε σε επαφή. Στη ροή παικτών μπορείς να γράψεις απευθείας.",
   "onboarding.chat_tip": "Συμβουλή: να είσαι ενεργός — το επίπεδό σου ανεβαίνει και μαζί του οι νέες δυνατότητες του bot.",
-  "match.only_steam": "Μόνο Steam"
+  "match.only_steam": "Μόνο Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

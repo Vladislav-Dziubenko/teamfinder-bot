@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Globaler Chat und Freunde",
   "onboarding.chat_desc": "Schreibe im globalen Chat, füge Freunde hinzu und bleib in Kontakt. Im Spieler-Feed kannst du direkt schreiben.",
   "onboarding.chat_tip": "Tipp: Sei aktiv — dein Level steigt und mit ihm neue Funktionen des Bots.",
-  "match.only_steam": "Nur Steam"
+  "match.only_steam": "Nur Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

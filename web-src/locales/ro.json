@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Chat global și prieteni",
   "onboarding.chat_desc": "Scrie în chat-ul global, adaugă prieteni și rămâi în contact. În feed-ul jucătorilor poți scrie direct.",
   "onboarding.chat_tip": "Sfat: fii activ — nivelul tău crește, iar odată cu el noile funcții ale botului.",
-  "match.only_steam": "Doar Steam"
+  "match.only_steam": "Doar Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

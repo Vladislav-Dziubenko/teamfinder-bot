@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Global chat og venner",
   "onboarding.chat_desc": "Skriv i den globale chat, tilføj venner og hold kontakten. I spillerfeedet kan du skrive direkte.",
   "onboarding.chat_tip": "Tip: vær aktiv — dit niveau vokser, og med det botternes nye funktioner.",
-  "match.only_steam": "Kun Steam"
+  "match.only_steam": "Kun Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

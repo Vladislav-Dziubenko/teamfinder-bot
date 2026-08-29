@@ -775,5 +775,8 @@
   "onboarding.chat_title": "全球聊天和好友",
   "onboarding.chat_desc": "在全球聊天中发言，添加好友并保持联系。在玩家列表中可以直接私信。",
   "onboarding.chat_tip": "提示：保持活跃 — 你的等级会提升，同时解锁机器人的新功能。",
-  "match.only_steam": "仅 Steam"
+  "match.only_steam": "仅 Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

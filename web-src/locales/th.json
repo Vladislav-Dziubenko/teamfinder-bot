@@ -537,5 +537,8 @@
   "consent.accept": "ยอมรับและดำเนินการต่อ",
   "consent.agree_all": "ทำเครื่องหมายทั้งสองช่องเพื่อดำเนินการต่อ",
   "consent.version": "เวอร์ชันข้อตกลง: v{version}",
-  "match.only_steam": "Steam เท่านั้น"
+  "match.only_steam": "Steam เท่านั้น",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

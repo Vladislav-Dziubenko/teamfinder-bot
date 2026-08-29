@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Глобален чет и пријатели",
   "onboarding.chat_desc": "Пишувај во глобалниот чет, додавај пријатели и остани во контакт. Во листата на играчи можеш да пишуваш директно.",
   "onboarding.chat_tip": "Совет: биди активен — твоето ниво расте, а со него и новите можности на ботот.",
-  "match.only_steam": "Само Steam"
+  "match.only_steam": "Само Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

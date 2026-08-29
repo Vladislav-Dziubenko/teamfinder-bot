@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Глабальны чат і сябры",
   "onboarding.chat_desc": "Пішы ў глабальны чат, дадавай сяброў і заставайся на сувязі. У стужцы гульцоў можна напісаць асабіста.",
   "onboarding.chat_tip": "Парада: будзь актыўным — твой узровень расце, а разам з ім і новыя магчымасці бота.",
-  "match.only_steam": "Толькі Steam"
+  "match.only_steam": "Толькі Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

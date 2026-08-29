@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Globális chat és barátok",
   "onboarding.chat_desc": "Írj a globális chatbe, adj hozzá barátokat és maradj kapcsolatban. A játékosok hírfolyamában közvetlenül írhatsz.",
   "onboarding.chat_tip": "Tipp: légy aktív — a szinted nő, és vele együtt a bot új funkciói.",
-  "match.only_steam": "Csak Steam"
+  "match.only_steam": "Csak Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

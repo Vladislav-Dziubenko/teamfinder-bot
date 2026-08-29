@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Globale chat en vrienden",
   "onboarding.chat_desc": "Schrijf in de globale chat, voeg vrienden toe en blijf in contact. In de spelersfeed kun je direct schrijven.",
   "onboarding.chat_tip": "Tip: wees actief — je niveau groeit en daarmee de nieuwe functies van de bot.",
-  "match.only_steam": "Alleen Steam"
+  "match.only_steam": "Alleen Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

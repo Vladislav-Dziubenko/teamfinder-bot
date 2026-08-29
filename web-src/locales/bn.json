@@ -537,5 +537,8 @@
   "consent.accept": "গ্রহণ করুন এবং চালিয়ে যান",
   "consent.agree_all": "চালিয়ে যেতে উভয় বক্স চেক করুন",
   "consent.version": "চুক্তি সংস্করণ: v{version}",
-  "match.only_steam": "শুধুমাত্র স্টিম"
+  "match.only_steam": "শুধুমাত্র স্টিম",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

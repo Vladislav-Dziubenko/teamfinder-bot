@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Globālais čats un draugi",
   "onboarding.chat_desc": "Raksti globālajā čatā, pievieno draugus un uzturi kontaktu. Spēlētāju plūsmā vari rakstīt tieši.",
   "onboarding.chat_tip": "Padoms: esi aktīvs — tavs līmenis aug un līdz ar to jaunās bota funkcijas.",
-  "match.only_steam": "Tikai Steam"
+  "match.only_steam": "Tikai Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

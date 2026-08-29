@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Globálny chat a priatelia",
   "onboarding.chat_desc": "Píš do globálneho chatu, pridávaj priateľov a zostaň v kontakte. Vo feede hráčov môžeš písať priamo.",
   "onboarding.chat_tip": "Tip: buď aktívny — tvoja úroveň rastie a s ňou aj nové funkcie bota.",
-  "match.only_steam": "Iba Steam"
+  "match.only_steam": "Iba Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

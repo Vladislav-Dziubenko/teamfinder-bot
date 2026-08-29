@@ -537,5 +537,8 @@
   "consent.accept": "قبول کریں اور جاری رکھیں",
   "consent.agree_all": "جاری رکھنے کے لیے دونوں خانوں کو نشان زد کریں",
   "consent.version": "معاہدہ ورژن: v{version}",
-  "match.only_steam": "صرف سٹیم"
+  "match.only_steam": "صرف سٹیم",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

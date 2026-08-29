@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Globaalne vestlus ja sõbrad",
   "onboarding.chat_desc": "Kirjuta globaalsesse vestlusse, lisa sõpru ja püsi kontaktis. Mängijate voos saad kirjutada otse.",
   "onboarding.chat_tip": "Näpunäide: ole aktiivne — su tase kasvab ja koos sellega boti uued funktsioonid.",
-  "match.only_steam": "Ainult Steam"
+  "match.only_steam": "Ainult Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

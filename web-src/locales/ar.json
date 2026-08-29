@@ -775,5 +775,8 @@
   "onboarding.chat_title": "الدردشة العالمية والأصدقاء",
   "onboarding.chat_desc": "اكتب في الدردشة العالمية وأضف الأصدقاء وابق على تواصل. في قائمة اللاعبين يمكنك الكتابة مباشرة.",
   "onboarding.chat_tip": "نصيحة: كن نشطاً - مستواك يرتفع ومعه ميزات جديدة للبوت.",
-  "match.only_steam": "ستيم فقط"
+  "match.only_steam": "ستيم فقط",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

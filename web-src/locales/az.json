@@ -537,5 +537,8 @@
   "consent.accept": "Qəbul et və davam et",
   "consent.agree_all": "Davam etmək üçün hər iki qutunu işarələyin",
   "consent.version": "Razılaşma versiyası: v{version}",
-  "match.only_steam": "Yalnız Steam"
+  "match.only_steam": "Yalnız Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

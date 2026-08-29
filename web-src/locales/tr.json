@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Global sohbet ve arkadaşlar",
   "onboarding.chat_desc": "Global sohbete yazın, arkadaş ekleyin ve iletişimde kalın. Oyuncu akışında doğrudan yazabilirsiniz.",
   "onboarding.chat_tip": "İpucu: aktif olun — seviyeniz yükselir ve onunla birlikte botun yeni özellikleri.",
-  "match.only_steam": "Sadece Steam"
+  "match.only_steam": "Sadece Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

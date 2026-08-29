@@ -775,5 +775,8 @@
   "onboarding.chat_title": "글로벌 채팅과 친구",
   "onboarding.chat_desc": "글로벌 채팅에 글을 쓰고, 친구를 추가하고 연락을 유지하세요. 플레이어 피드에서 직접 메시지를 보낼 수 있습니다.",
   "onboarding.chat_tip": "팁: 활발하게 활동하세요. 레벨이 오르고 봇의 새로운 기능이 열립니다.",
-  "match.only_steam": "스팀만"
+  "match.only_steam": "스팀만",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

@@ -775,5 +775,8 @@
   "onboarding.chat_title": "Globalni chat i prijatelji",
   "onboarding.chat_desc": "Piši u globalni chat, dodaj prijatelje i ostani u kontaktu. U feedu igrača možeš pisati izravno.",
   "onboarding.chat_tip": "Savjet: budi aktivan — tvoja razina raste, a s njom i nove mogućnosti bota.",
-  "match.only_steam": "Samo Steam"
+  "match.only_steam": "Samo Steam",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

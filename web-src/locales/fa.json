@@ -775,5 +775,8 @@
   "onboarding.chat_title": "چت جهانی و دوستان",
   "onboarding.chat_desc": "در چت جهانی بنویسید، دوست اضافه کنید و در ارتباط بمانید. در فید بازیکنان می‌توانید مستقیم بنویسید.",
   "onboarding.chat_tip": "نکته: فعال باشید — سطح شما بالا می‌رود و قابلیت‌های جدید بات با آن.",
-  "match.only_steam": "فقط استیم"
+  "match.only_steam": "فقط استیم",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }

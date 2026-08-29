@@ -775,5 +775,8 @@
   "onboarding.chat_title": "ग्लोबल चैट और दोस्त",
   "onboarding.chat_desc": "ग्लोबल चैट में लिखें, दोस्त जोड़ें और संपर्क में रहें। खिलाड़ियों की फ़ीड में आप सीधे लिख सकते हैं।",
   "onboarding.chat_tip": "टिप: सक्रिय रहें — आपका लेवल बढ़ता है और साथ में बॉट की नई सुविधाएँ।",
-  "match.only_steam": "केवल स्टीम"
+  "match.only_steam": "केवल स्टीम",
+  "cases.need_coins_title": "Not enough coins",
+  "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
+  "cases.top_up_coins": "Buy {cost} coins"
 }
