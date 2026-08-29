@@ -1,9 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { UserPlus, UserCheck, UserX, MessageCircle, Clock, Users, Search, Loader2 } from "lucide-react"
+import { UserPlus, UserCheck, UserX, MessageCircle, Clock, Users, Search, Loader2, Share2 } from "lucide-react"
 import { api } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
+import { useNexus } from "@/lib/store"
+import { ShareStorySheet } from "./share-story-sheet"
 import type { Player } from "@/lib/data"
 
 type Friend = {
@@ -99,6 +101,9 @@ export function FriendsTab({
     load()
   }
 
+  const nexus = useNexus() as any
+  const [shareOpen, setShareOpen] = useState(false)
+
   return (
     <div className="space-y-4 px-4 py-5">
       <div className="flex items-center justify-between">
@@ -123,6 +128,11 @@ export function FriendsTab({
           )}
         </button>
       </div>
+
+      {/* Share story card */}
+      <button onClick={() => setShareOpen(true)} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-primary py-3 font-bold text-primary-foreground active:scale-95">
+        <Share2 className="size-4" /> Поделиться в сторис — QR +30⭐ за друга
+      </button>
 
       {/* Search */}
       <div className="relative">
@@ -280,6 +290,12 @@ export function FriendsTab({
           </div>
         )
       )}
+      <ShareStorySheet
+        open={shareOpen}
+        onClose={() => setShareOpen(false)}
+        refCode={nexus.referralCode || "NEXUS"}
+        botUsername={(nexus.referralBotUrl?.split("t.me/")[1]?.split("?")[0] || "teamfinder_bot").replace("@", "")}
+      />
     </div>
   )
 }
