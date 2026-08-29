@@ -188,11 +188,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       const affordable = c.costCoins && c.costCoins > 0 ? coins >= c.costCoins : stars >= c.costStars
       if (!affordable) {
         openBusyRef.current = false
-        if (c.costCoins && c.costCoins > 0) {
-          onToast(t("cases.need_coins"))
-        } else {
-          setTopUp({ box: c, count: 1, isMulti: false })
-        }
+        setTopUp({ box: c, count: 1, isMulti: false })
         return
       }
     }
@@ -238,11 +234,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     const betaPays = isBeta && c.id === "gold" && betaBalance >= count
     const freeGoldPays = c.id === "gold" && freeGoldOpens >= count
     if (!betaPays && !freeGoldPays && (c.costCoins && c.costCoins > 0 ? coins < totalCost : stars < totalCost)) {
-      if (c.costCoins && c.costCoins > 0) {
-        onToast(t("cases.need_coins"))
-      } else {
-        setTopUp({ box: c, count, isMulti: true })
-      }
+      setTopUp({ box: c, count, isMulti: true })
       return
     }
     openBusyRef.current = true
@@ -794,11 +786,12 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       {/* Multi reveal modal */}
       {multi && <MultiRevealModal box={multi.box} items={multi.items} fair={multi.fair} onClose={() => { setMulti(null); refresh() }} />}
 
-      {/* Недостаточно звёзд -> пополнение (оплата картой через Telegram Stars) */}
+      {/* Недостаточно валюты -> пополнение (монеты → магазин коинов, звёзды → Stars) */}
       {topUp && (
         <TopUpSheet
           open={!!topUp}
-          need={topUp.box.costStars * topUp.count}
+          need={topUp.box.costCoins ? topUp.box.costCoins * topUp.count : topUp.box.costStars * topUp.count}
+          isCoin={!!topUp.box.costCoins}
           onClose={() => setTopUp(null)}
           onDone={handleTopUpDone}
           onToast={onToast}
