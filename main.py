@@ -122,6 +122,7 @@ async def main():
             public_url = (settings.webapp_url or "").strip()
         logging.info("WEBHOOK public_url resolved: '%s' (RENDER_EXTERNAL_URL='%s' webapp_url='%s')",
                      public_url, os.environ.get("RENDER_EXTERNAL_URL", ""), settings.webapp_url)
+        webhook_url = ""
         if public_url:
             try:
                 await bot.delete_webhook(drop_pending_updates=True)
@@ -144,6 +145,31 @@ async def main():
                         await asyncio.sleep(3)
         else:
             logging.warning("WEBAPP_URL / RENDER_EXTERNAL_URL не задан — webhook не зарегистрирован")
+
+        # ---- Шаг 6b: watchdog — каждые 10 мин сверяет webhook, чинит если слетел на старый -1 ----
+        async def _webhook_watchdog():
+            await asyncio.sleep(60)  # первый чек через минуту после старта
+            while True:
+                try:
+                    if not webhook_url:
+                        await asyncio.sleep(600)
+                        continue
+                    info = await bot.get_webhook_info()
+                    if info.url != webhook_url:
+                        logging.warning("Webhook mismatch: got '%s' expected '%s' -> fixing", info.url, webhook_url)
+                        await bot.set_webhook(
+                            url=webhook_url,
+                            allowed_updates=dp.resolve_used_update_types(),
+                            drop_pending_updates=True,
+                            secret_token=webhook_secret,
+                        )
+                        logging.info("Webhook watchdog fixed: %s", webhook_url)
+                except Exception as e:
+                    logging.warning("webhook watchdog failed: %s", e)
+                await asyncio.sleep(600)
+
+        if webhook_url:
+            asyncio.create_task(_webhook_watchdog())
 
         # ---- Graceful shutdown ----
         shutdown_event = asyncio.Event()
