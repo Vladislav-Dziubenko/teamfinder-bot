@@ -5,6 +5,7 @@ import Script from 'next/script'
 import { ErrorBoundary } from '@/components/error-boundary'
 import { I18nProvider } from '@/lib/i18n'
 import { ThemeProvider } from '@/lib/theme'
+import { TonConnectProvider } from '@/components/ton-provider'
 import './globals.css'
 
 const geist = Geist({
@@ -58,7 +59,7 @@ export default function RootLayout({
         <ErrorBoundary>
           <I18nProvider>
             <ThemeProvider>
-              {children}
+              <TonConnectProvider>{children}</TonConnectProvider>
             </ThemeProvider>
           </I18nProvider>
         </ErrorBoundary>

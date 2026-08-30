@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react"
 import { Gem, Send, Star, Loader2, Wallet, Crown, RefreshCw, History, EyeOff } from "lucide-react"
+import { TonConnectButton, useTonAddress } from "@tonconnect/ui-react"
 import { useNexus } from "@/lib/store"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
@@ -171,6 +172,8 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
   const noOwn = mine.length === 0
   const hidden = soldOut && noOwn
 
+  const tonAddress = useTonAddress()
+
   return (
     <div className="space-y-5 px-4 py-5">
       <div className="flex items-start justify-between gap-3">
@@ -189,6 +192,14 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
         >
           <RefreshCw className="size-5" />
         </button>
+      </div>
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <p className="text-sm font-bold">TON Connect</p>
+        <p className="mt-1 text-xs text-muted-foreground">Подключи кошелек — нужно для TON App Review</p>
+        <div className="mt-3">
+          <TonConnectButton />
+        </div>
+        {tonAddress && <p className="mt-2 truncate text-xs text-muted-foreground">{tonAddress.slice(0, 6)}…{tonAddress.slice(-4)}</p>}
       </div>
 
       {hidden ? (
