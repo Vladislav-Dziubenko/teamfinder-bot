@@ -119,14 +119,20 @@ async def main():
         # ---- Шаг 6: удаляем старый webhook (если был) и регистрируем новый ----
         # Хардкодим правильный URL чтобы не прыгал между -1 и -9pol из-за старого WEBAPP_URL/кэша
         _hardcoded = "https://teamfinder-bot-1-9pol.onrender.com"
-        public_url = (os.environ.get("RENDER_EXTERNAL_URL") or "").strip()
-        if not public_url:
-            public_url = (settings.webapp_url or "").strip()
-        # Если Render отдал старый -1 без -9pol — форсим -9pol
-        if public_url == "https://teamfinder-bot-1.onrender.com":
-            public_url = _hardcoded
-        if not public_url:
-            public_url = _hardcoded
+        raw_render = (os.environ.get("RENDER_EXTERNAL_URL") or "").strip()
+        # Если это старый сервис teamfinder-bot-1 (без -9pol) — вообще не трогаем webhook, чтобы не драться с -9pol
+        if raw_render == "https://teamfinder-bot-1.onrender.com":
+            logging.warning("Старый сервис teamfinder-bot-1 обнаружен — webhook не трогаю, работает -9pol")
+            public_url = ""
+        else:
+            public_url = raw_render
+            if not public_url:
+                public_url = (settings.webapp_url or "").strip()
+            # Если Render отдал старый -1 без -9pol — форсим -9pol
+            if public_url == "https://teamfinder-bot-1.onrender.com":
+                public_url = _hardcoded
+            if not public_url:
+                public_url = _hardcoded
         logging.info("WEBHOOK public_url resolved: '%s' (RENDER_EXTERNAL_URL='%s' webapp_url='%s')",
                      public_url, os.environ.get("RENDER_EXTERNAL_URL", ""), settings.webapp_url)
         webhook_url = ""
