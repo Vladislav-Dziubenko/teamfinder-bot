@@ -62,7 +62,11 @@ async def exchange_code(client_id: str, client_secret: str, redirect_uri: str, c
     async with aiohttp.ClientSession() as session:
         async with session.post(TOKEN_URL, data=data) as resp:
             if resp.status != 200:
-                logging.error(f"Discord token exchange failed: {resp.status}")
+                try:
+                    body = await resp.text()
+                except Exception:
+                    body = "<no body>"
+                logging.error(f"Discord token exchange failed: {resp.status} body={body[:500]} redirect_uri={redirect_uri} client_id={client_id[:6]}...")
                 return None
             return await resp.json()
 
