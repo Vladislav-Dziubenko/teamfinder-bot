@@ -117,9 +117,16 @@ async def main():
         asyncio.create_task(_init_db())
 
         # ---- Шаг 6: удаляем старый webhook (если был) и регистрируем новый ----
+        # Хардкодим правильный URL чтобы не прыгал между -1 и -9pol из-за старого WEBAPP_URL/кэша
+        _hardcoded = "https://teamfinder-bot-1-9pol.onrender.com"
         public_url = (os.environ.get("RENDER_EXTERNAL_URL") or "").strip()
         if not public_url:
             public_url = (settings.webapp_url or "").strip()
+        # Если Render отдал старый -1 без -9pol — форсим -9pol
+        if public_url == "https://teamfinder-bot-1.onrender.com":
+            public_url = _hardcoded
+        if not public_url:
+            public_url = _hardcoded
         logging.info("WEBHOOK public_url resolved: '%s' (RENDER_EXTERNAL_URL='%s' webapp_url='%s')",
                      public_url, os.environ.get("RENDER_EXTERNAL_URL", ""), settings.webapp_url)
         webhook_url = ""
