@@ -1,0 +1,25 @@
+1575: 28 |                            elif case_id == "gold":|
+1576: 24 |                        # Обычная оплата звездами (для всех, включая бету) — free_gold_opens → звезды|
+1577: 24 |                        free_opens = await conn.fetchval(|
+1578: 28 |                            "SELECT free_gold_opens FROM users WHERE user_id = $1", user["id"],|
+1579: 24 |                        ) or 0|
+1580: 24 |                        if free_opens >= count:|
+1581: 28 |                            await conn.execute(|
+1582: 32 |                                "UPDATE users SET free_gold_opens = free_gold_opens - $1 WHERE user_id = $2",|
+1583: 32 |                                count, user["id"],|
+1584: 28 |                            )|
+1585: 24 |                        else:|
+1586: 28 |                            remaining = count - free_opens|
+1587: 28 |                            if free_opens > 0:|
+1588: 32 |                                await conn.execute(|
+1589: 36 |                                    "UPDATE users SET free_gold_opens = 0 WHERE user_id = $1", user["id"],|
+1590: 32 |                                )|
+1591: 28 |                            total_cost = case_config["costStars"] * remaining|
+1592: 28 |                            if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):|
+1593: 32 |                                return web.json_response({"error": "not enough stars"}, status=400)|
+1594: 20 |                    elif case_config.get("costCoins"):|
+1595: 24 |                        total_cost = case_config["costCoins"] * count|
+1596: 24 |                        if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):|
+1597: 28 |                            return web.json_response({"error": "not enough coins"}, status=400)|
+1598: 20 |                    else:|
+1599: 24 |                        total_cost = case_config["costStars"] * count|

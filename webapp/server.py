@@ -1534,69 +1534,86 @@ async def handle_nexus_open_case(request: web.Request):
     # Per-user lock serializes opens from the same user so rapid clicks can't spawn
     # concurrent transactions on the same row (avoids lock waits / pool exhaustion).
     lock = await _user_lock(user["id"])
-    async with lock:
-        async with db.pool.acquire() as conn:
-            async with conn.transaction():
-                # Идемпотентность: если этот request_id уже обработан (клиент мог
-                # повторить запрос после обрыва сети), возвращаем сохранённый результат
-                # и ничего не списываем повторно.
-                if request_id:
-                    existing = await conn.fetchval(
-                        "SELECT result FROM case_open_requests WHERE request_id = $1 AND user_id = $2",
-                        request_id, user["id"],
-                    )
-                    if existing is not None:
-                        return web.json_response(json.loads(existing))
+    # Retry на transient DB ошибки (cold start, pool busy, timeout) — до 3 попыток
+    for attempt in range(3):
+        try:
+            async with lock:
+                async with db.pool.acquire() as conn:
+                    async with conn.transaction():
+                        # Идемпотентность: если этот request_id уже обработан (клиент мог
+                        # повторить запрос после обрыва сети), возвращаем сохранённый результат
+                        # и ничего не списываем повторно.
+                        if request_id:
+                            existing = await conn.fetchval(
+                                "SELECT result FROM case_open_requests WHERE request_id = $1 AND user_id = $2",
+                                request_id, user["id"],
+                            )
+                            if existing is not None:
+                                return web.json_response(json.loads(existing))
 
-                if case_config["free"]:
-                    last_open = await db.get_last_case_open(user["id"], case_id, conn)
-                    if last_open:
-                        last_dt = datetime.fromisoformat(last_open)
-                        if (datetime.utcnow() - last_dt).total_seconds() < 24 * 3600 and not body.get("via_ad"):
-                            return web.json_response({"error": "cooldown"}, status=400)
-                else:
-                    # Бета-тестер может открыть голд за бета-баланс (case_balance),
-                    # но только если клиент явно просит beta_free И баланс хватает.
-                    # Иначе — всегда за звезды (даже для беты), иначе 50к ⭐ блокировались
-                    # ошибкой "not enough beta cases" при case_balance=0.
-                    is_beta = await _effective_is_beta(request, db, user["id"])
-                    wants_beta = bool(body.get("beta_free"))
-                    if is_beta and wants_beta and case_id == "gold":
-                        beta_state = await db.get_beta_state(user["id"])
-                        if beta_state and beta_state["case_balance"] >= count:
-                            if not await db.consume_beta_case(user["id"], count, conn):
-                                return web.json_response({"error": "not enough beta cases"}, status=400)
+                        if case_config["free"]:
+                            last_open = await db.get_last_case_open(user["id"], case_id, conn)
+                            if last_open:
+                                last_dt = datetime.fromisoformat(last_open)
+                                if (datetime.utcnow() - last_dt).total_seconds() < 24 * 3600 and not body.get("via_ad"):
+                                    return web.json_response({"error": "cooldown"}, status=400)
                         else:
-                            return web.json_response({"error": "not enough beta cases"}, status=400)
-                    elif case_id == "gold":
-                        # Обычная оплата звездами (для всех, включая бету) — free_gold_opens → звезды
-                        free_opens = await conn.fetchval(
-                            "SELECT free_gold_opens FROM users WHERE user_id = $1", user["id"],
-                        ) or 0
-                        if free_opens >= count:
-                            await conn.execute(
+                            # Бета-тестер может открыть голд за бета-баланс (case_balance),
+                            # но только если клиент явно просит beta_free И баланс хватает.
+                            # Иначе — всегда за звезды (даже для беты), иначе 50к ⭐ блокировались
+                            # ошибкой "not enough beta cases" при case_balance=0.
+                            is_beta = await _effective_is_beta(request, db, user["id"])
+                            wants_beta = bool(body.get("beta_free"))
+                            if is_beta and wants_beta and case_id == "gold":
+                                beta_state = await db.get_beta_state(user["id"])
+                                if beta_state and beta_state["case_balance"] >= count:
+                                    # Списываем бета-кейс ВНЕ основной транзакции (отдельным коннектом),
+                                    # чтобы списание не откатилось при ошибках дальше (seed, inventory и т.д.)
+                                    if not await db.consume_beta_case(user["id"], count):
+                                        return web.json_response({"error": "not enough beta cases"}, status=400)
+                                else:
+                                    return web.json_response({"error": "not enough beta cases"}, status=400)
+                            elif case_id == "gold":
+
+
+                                # Обычная оплата звездами (для всех, включая бету) — free_gold_opens → звезды
+
+                                free_opens = await conn.fetchval(
+
+                                "SELECT free_gold_opens FROM users WHERE user_id = $1", user["id"],
+
+                                ) or 0
+
+                                if free_opens >= count:
+                                    await conn.execute(
+
                                 "UPDATE users SET free_gold_opens = free_gold_opens - $1 WHERE user_id = $2",
                                 count, user["id"],
-                            )
-                        else:
-                            remaining = count - free_opens
-                            if free_opens > 0:
-                                await conn.execute(
-                                    "UPDATE users SET free_gold_opens = 0 WHERE user_id = $1", user["id"],
                                 )
-                            total_cost = case_config["costStars"] * remaining
-                            if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
-                                return web.json_response({"error": "not enough stars"}, status=400)
-                    elif case_config.get("costCoins"):
-                        total_cost = case_config["costCoins"] * count
-                        if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):
-                            return web.json_response({"error": "not enough coins"}, status=400)
-                    else:
-                        total_cost = case_config["costStars"] * count
-                        if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
-                            return web.json_response({"error": "not enough stars"}, status=400)
+                                else:
+                                    remaining = count - free_opens
+
+                                    if free_opens > 0:
+                                        await conn.execute(
+                                            "UPDATE users SET free_gold_opens = 0 WHERE user_id = $1", user["id"],
+                                )
+                                    total_cost = case_config["costStars"] * remaining
+
+                                    if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
+
+                                        return web.json_response({"error": "not enough stars"}, status=400)
+                            elif case_config.get("costCoins"):
+                                total_cost = case_config["costCoins"] * count
+
+                            if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):
+                                return web.json_response({"error": "not enough coins"}, status=400)
+                            else:
+                                    total_cost = case_config["costStars"] * count
+                                    if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
+                                        return web.json_response({"error": "not enough stars"}, status=400)
 
                 jackpot_item = next((i for i in case_config["items"] if i.get("jackpot")), None)
+
                 rolled_items: list[dict] = []
                 stars_won = 0
                 coins_won = 0
@@ -1768,21 +1785,40 @@ async def handle_nexus_open_case(request: web.Request):
                         now,
                     )
 
-    # Track quest progress: case opened (await — прогресс должен быть в БД
-    # уже к моменту ответа, иначе «Забрать награду» сразу после открытия
-    # вернёт «quest not completed»).
-    await db.update_quest_progress(user["id"], "open-cases", count)
-    await db.update_quest_progress(user["id"], "open-cases-2", count)
+            # Track quest progress: case opened (await — прогресс должен быть в БД
 
-    # Достижение «50 кейсов»: суммарный счётчик открытий (не сбрасывается по дням).
-    asyncio.create_task(db.bump_achievement_progress(user["id"], "a4", 50, count))
+            # уже к моменту ответа, иначе «Забрать награду» сразу после открытия
 
-    return web.json_response({
+            # вернёт «quest not completed»).
+
+            await db.update_quest_progress(user["id"], "open-cases", count)
+
+            await db.update_quest_progress(user["id"], "open-cases-2", count)
+
+
+            # Достижение «50 кейсов»: суммарный счётчик открытий (не сбрасывается по дням).
+
+            asyncio.create_task(db.bump_achievement_progress(user["id"], "a4", 50, count))
+
+
+            return web.json_response({
+
         "item": rolled_items[0],
         "items": rolled_items if count > 1 else None,
         "last_open_at": datetime.utcnow().isoformat(),
         "fair": fair_proof,
-    })
+            })
+
+        except (asyncpg.exceptions.PostgresError, asyncio.TimeoutError, ConnectionError) as e:
+            # Transient DB ошибка — логируем и ретраим
+            logging.warning(f"handle_nexus_open_case attempt {attempt+1}/3 failed: {e}")
+            if attempt == 2:
+                return web.json_response({"error": "server busy, try again"}, status=503)
+            await asyncio.sleep(0.5 * (attempt + 1))
+            continue
+        except Exception as e:
+            logging.exception(f"handle_nexus_open_case fatal error: {e}")
+            return web.json_response({"error": "internal server error"}, status=500)
 
 
 async def handle_nexus_share_image(request: web.Request):
@@ -4345,13 +4381,13 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot
-    
+
     # Создаём ClientSession с текущим event loop (для serverless совместимости)
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
         loop = asyncio.get_event_loop()
-    
+
     app["session"] = ClientSession(loop=loop) if loop else ClientSession()
 
     app.on_startup.append(lambda _app: init_redis())

@@ -4265,13 +4265,24 @@ WHERE user_quests.completed = 0
         row = await conn.fetchrow("SELECT case_balance, last_grant FROM beta_state WHERE user_id = $1", user_id)
         return {"case_balance": row["case_balance"], "last_grant": row["last_grant"]} if row else None
 
-    async def consume_beta_case(self, user_id: int, count: int, conn: asyncpg.Connection) -> bool:
-        """Списывает count из накопленных бесплатных премиум-кейсов."""
-        result = await conn.execute(
-            "UPDATE beta_state SET case_balance = case_balance - $2 WHERE user_id = $1 AND case_balance >= $2",
-            user_id, count,
-        )
-        return result == "UPDATE 1"
+    async def consume_beta_case(self, user_id: int, count: int, conn: asyncpg.Connection | None = None) -> bool:
+        """Списывает count из накопленных бесплатных премиум-кейсов.
+
+        Если conn передан — использует переданное соединение (для транзакций).
+        Если conn=None — создаёт своё соединение и коммитит сразу (для независимого списания)."""
+        if conn is not None:
+            result = await conn.execute(
+                "UPDATE beta_state SET case_balance = case_balance - $2 WHERE user_id = $1 AND case_balance >= $2",
+                user_id, count,
+            )
+            return result == "UPDATE 1"
+        # Собственное соединение — атомарное списание с коммитом
+        async with self.pool.acquire() as own_conn:
+            result = await own_conn.execute(
+                "UPDATE beta_state SET case_balance = case_balance - $2 WHERE user_id = $1 AND case_balance >= $2",
+                user_id, count,
+            )
+            return result == "UPDATE 1"
 
     # ---------- Reviews ----------
 
