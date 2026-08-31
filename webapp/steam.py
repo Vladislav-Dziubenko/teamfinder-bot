@@ -43,9 +43,13 @@ def build_auth_url(redirect_uri: str, state: str) -> str:
 
 def extract_steamid64(params: dict) -> str | None:
     """Достаёт steamid64 из openid.identity после callback."""
-    identity = params.get("openid.identity", "")
-    if identity.startswith(STEAM_IDENTITY_PREFIX):
-        return identity[len(STEAM_IDENTITY_PREFIX):]
+    identity = params.get("openid.identity", "") or params.get("openid.claimed_id", "")
+    for prefix in (STEAM_IDENTITY_PREFIX, STEAM_IDENTITY_PREFIX.replace("http://", "https://")):
+        if identity.startswith(prefix):
+            return identity[len(prefix):]
+    # fallback: последний сегмент URL
+    if "steamcommunity.com/openid/id/" in identity:
+        return identity.rstrip("/").split("/")[-1] or None
     return None
 
 
