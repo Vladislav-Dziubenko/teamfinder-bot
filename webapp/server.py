@@ -3913,13 +3913,18 @@ async def handle_discord_callback(request: web.Request):
 
     logging.info(f"[discord.callback] hit state_present={bool(state)} code_present={bool(code)}")
 
+    def _discord_html(ok: bool, reason: str = "") -> web.Response:
+        bot = request.app.get("bot")
+        bot_username = getattr(bot, "username", None) or "teamfinder_bot"
+        link = f"https://t.me/{bot_username}"
+        title = "✅ Discord привязан!" if ok else f"❌ Ошибка: {reason}"
+        msg = "Вернись в Telegram — Mini App обновится автоматически." if ok else "Попробуй снова из Telegram: Профиль → Привязать Discord."
+        return web.Response(text=f"""<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title><style>body{{background:#0f1115;color:#fff;font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}}a{{display:inline-block;margin-top:16px;padding:12px 24px;background:#5865F2;color:#fff;border-radius:10px;text-decoration:none;font-weight:600}}p{{color:#9aa0a6;max-width:360px}}</style></head><body><h2>{title}</h2><p>{msg}</p><a href="{link}">Открыть Telegram</a><script>setTimeout(()=>{{try{{window.close()}}catch(e){{}}}},1200)</script></body></html>""", content_type="text/html")
+
     if error or not code or not state:
-        redirect_url = settings.webapp_url or settings.public_app_url
         reason = error or ("missing_code" if not code else "missing_state")
         logging.warning(f"[discord.callback] early_error reason={reason}")
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?discord=error&reason={reason}")
-        return web.json_response({"error": f"oauth early failure: {reason}"}, status=400)
+        return _discord_html(False, reason)
 
     # Lookup state in oauth_states table
     row = await db.pool.fetchrow(
@@ -3929,24 +3934,15 @@ async def handle_discord_callback(request: web.Request):
     logging.info(f"[discord.callback] state_lookup state={state[:16]}... found_user={row['telegram_user_id'] if row else None} code_present={bool(code)}")
 
     if not row:
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?discord=error&reason=bad_state")
-        return web.json_response({"error": "invalid state"}, status=400)
+        return _discord_html(False, "bad_state")
 
     if row["used"]:
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?discord=error&reason=bad_state")
-        return web.json_response({"error": "state already used"}, status=400)
+        return _discord_html(False, "bad_state")
 
     # Check TTL (10 minutes)
     created_at = datetime.fromisoformat(row["created_at"])
     if (datetime.utcnow() - created_at).total_seconds() > 600:
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?discord=error&reason=state_expired")
-        return web.json_response({"error": "state expired"}, status=400)
+        return _discord_html(False, "state_expired")
 
     # Mark state as used
     await db.pool.execute("UPDATE oauth_states SET used = 1 WHERE state = $1", state)
@@ -3957,20 +3953,14 @@ async def handle_discord_callback(request: web.Request):
     token_data = await exchange_code(settings.discord_client_id, settings.discord_client_secret, settings.discord_redirect_uri, code)
     if not token_data or "access_token" not in token_data:
         logging.error(f"[discord.callback] token_exchange status=failed body={str(token_data)[:300]}")
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?discord=error&reason=token")
-        return web.json_response({"error": "token exchange failed"}, status=400)
+        return _discord_html(False, "token")
 
     logging.info(f"[discord.callback] token_exchange status=200 body={str(token_data)[:300]}")
 
     # Fetch Discord user
     discord_user = await fetch_discord_user(token_data["access_token"])
     if not discord_user:
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?discord=error&reason=user_fetch")
-        return web.json_response({"error": "failed to fetch user"}, status=400)
+        return _discord_html(False, "user_fetch")
 
     avatar = None
     if discord_user.get("avatar"):
@@ -4035,11 +4025,10 @@ async def handle_discord_callback(request: web.Request):
 
     logging.info(f"[discord.callback] linked telegram={user_id} discord={discord_user['id']}")
 
-    # Redirect to main fallback
-    fallback_redirect = settings.public_app_url or settings.webapp_url
-    if fallback_redirect:
-        raise web.HTTPFound(f"{fallback_redirect}?discord=ok")
-    raise web.HTTPFound("https://t.me/teamfinder_bot?start=discord_ok")
+    # Return HTML that auto-closes (OAuth opened in _blank) and shows success
+    bot = request.app.get("bot")
+    bot_username = getattr(bot, "username", None) or "teamfinder_bot"
+    return web.Response(text=f"""<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OK</title><style>body{{background:#0f1115;color:#fff;font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}}a{{display:inline-block;margin-top:16px;padding:12px 24px;background:#5865F2;color:#fff;border-radius:10px;text-decoration:none;font-weight:600}}p{{color:#9aa0a6;max-width:360px}}</style></head><body><h2>✅ Discord привязан!</h2><p>Вернись в Telegram — Mini App обновится автоматически.</p><a href="https://t.me/{bot_username}">Открыть Telegram</a><script>setTimeout(()=>{{try{{window.close()}}catch(e){{}}}},1200)</script></body></html>""", content_type="text/html")
 
 
 async def handle_discord_status(request: web.Request):
@@ -4203,27 +4192,26 @@ async def handle_steam_callback(request: web.Request):
     steamid64 = extract_steamid64(params)
     mode = params.get("openid.mode")
 
+    def _steam_html(ok: bool, reason: str = "") -> web.Response:
+        bot = request.app.get("bot")
+        bot_username = getattr(bot, "username", None) or "teamfinder_bot"
+        link = f"https://t.me/{bot_username}"
+        title = "✅ Steam привязан!" if ok else f"❌ Ошибка: {reason}"
+        msg = "Вернись в Telegram — Mini App обновится автоматически." if ok else "Попробуй снова из Telegram: Профиль → Привязать Steam."
+        return web.Response(text=f"""<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title><style>body{{background:#0f1115;color:#fff;font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}}a{{display:inline-block;margin-top:16px;padding:12px 24px;background:#111;color:#fff;border:1px solid #333;border-radius:10px;text-decoration:none;font-weight:600}}p{{color:#9aa0a6;max-width:360px}}</style></head><body><h2>{title}</h2><p>{msg}</p><a href="{link}">Открыть Telegram</a><script>setTimeout(()=>{{try{{window.close()}}catch(e){{}}}},1200)</script></body></html>""", content_type="text/html")
+
     if mode and mode != "id_res":
         logging.warning(f"[steam.callback] openid error mode={mode}")
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=openid")
-        return web.json_response({"error": "openid error"}, status=400)
+        return _steam_html(False, "openid")
 
     if not state or not steamid64:
         logging.warning("[steam.callback] missing state or steamid64")
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=bad_params")
-        return web.json_response({"error": "invalid params"}, status=400)
+        return _steam_html(False, "bad_params")
 
     # Официальная проверка подписи OpenID — защита от подделки steamid64
     if not await verify_openid(dict(params)):
         logging.warning(f"[steam.callback] openid signature invalid state={state[:16]}...")
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=sig")
-        return web.json_response({"error": "openid signature invalid"}, status=400)
+        return _steam_html(False, "sig")
 
     # Валидируем state из oauth_states
     row = await db.pool.fetchrow(
@@ -4231,33 +4219,21 @@ async def handle_steam_callback(request: web.Request):
         state,
     )
     if not row:
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=bad_state")
-        return web.json_response({"error": "state not found"}, status=400)
+        return _steam_html(False, "bad_state")
 
     if row["used"]:
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=bad_state")
-        return web.json_response({"error": "state already used"}, status=400)
+        return _steam_html(False, "bad_state")
 
     created_at = datetime.fromisoformat(row["created_at"])
     if (datetime.utcnow() - created_at).total_seconds() > 600:
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=state_expired")
-        return web.json_response({"error": "state expired"}, status=400)
+        return _steam_html(False, "state_expired")
 
     await db.pool.execute("UPDATE oauth_states SET used = 1 WHERE state = $1", state)
     user_id = row["telegram_user_id"]
 
     if not settings.steam_web_api_key:
         logging.error("[steam.callback] STEAM_WEB_API_KEY not configured")
-        redirect_url = settings.public_app_url or settings.webapp_url
-        if redirect_url:
-            raise web.HTTPFound(f"{redirect_url}?steam=error&reason=api_key")
-        return web.json_response({"error": "api key missing"}, status=503)
+        return _steam_html(False, "api_key")
 
     # Steam Web API: профиль + CS2-стата
     summary = await fetch_player_summary(settings.steam_web_api_key, steamid64)
@@ -4297,10 +4273,7 @@ async def handle_steam_callback(request: web.Request):
 
     logging.info(f"[steam.callback] linked telegram={user_id} steamid64={steamid64} cs2={bool(cs2)}")
 
-    fallback_redirect = settings.public_app_url or settings.webapp_url
-    if fallback_redirect:
-        raise web.HTTPFound(f"{fallback_redirect}?steam=ok")
-    raise web.HTTPFound("https://t.me/teamfinder_bot?start=steam_ok")
+    return _steam_html(True)
 
 
 async def handle_steam_status(request: web.Request):

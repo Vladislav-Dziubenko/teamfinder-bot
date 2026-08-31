@@ -28,9 +28,9 @@ export function useSteam() {
   const lastFetchRef = useRef(0)
   const unauthRef = useRef(false)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
     const now = Date.now()
-    if (now - lastFetchRef.current < DEBOUNCE_MS) return
+    if (!force && now - lastFetchRef.current < DEBOUNCE_MS) return
     lastFetchRef.current = now
     try {
       setError(null)
@@ -72,11 +72,21 @@ export function useSteam() {
   }, [refresh])
 
   useEffect(() => {
-    refresh()
+    refresh(true)
+    try {
+      const sp = new URLSearchParams(window.location.search)
+      if (sp.has("steam")) {
+        lastFetchRef.current = 0
+        refresh(true)
+        sp.delete("steam"); sp.delete("reason")
+        const qs = sp.toString()
+        window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""))
+      }
+    } catch {}
     const onVis = () => {
-      if (document.visibilityState === "visible") refresh()
+      if (document.visibilityState === "visible") { lastFetchRef.current = 0; refresh(true) }
     }
-    const onFocus = () => refresh()
+    const onFocus = () => { lastFetchRef.current = 0; refresh(true) }
     document.addEventListener("visibilitychange", onVis)
     window.addEventListener("focus", onFocus)
     return () => {

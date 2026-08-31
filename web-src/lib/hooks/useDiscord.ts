@@ -33,22 +33,17 @@ export function useDiscord() {
   const lastFetchRef = useRef(0)
   const unauthRef = useRef(false)
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (force = false) => {
     const now = Date.now()
-    if (now - lastFetchRef.current < DEBOUNCE_MS) return
+    if (!force && now - lastFetchRef.current < DEBOUNCE_MS) return
     lastFetchRef.current = now
     try {
       setError(null)
       const data = await api.get<DiscordStatus>("/api/discord/status")
       setStatus(data)
-      // If we successfully got status, clear any auth block
       unauthRef.current = false
     } catch (e: any) {
-      // On 401 (token expired/invalid), backend now returns linked: false
-      // So we don't need to permanently block refresh - just update status if we can
       if (e?.message?.includes("401") || e?.message?.includes("unauthorized")) {
-        // Don't block forever; let next refresh attempt try again
-        // (Backend already cleared invalid token and returns linked: false)
       }
       setError(e?.message ?? "Не удалось получить статус Discord")
     } finally {
@@ -89,9 +84,13 @@ export function useDiscord() {
       setError(null)
       const data = await api.post<{ claimed: boolean; stars?: number; reason?: string }>("/api/discord/daily")
       if (data?.claimed) {
-        await refresh()
+        lastFetchRef.current = 0
+        await refresh(true)
         return { ok: true, stars: data.stars ?? 10 }
       }
+      // force refresh even if not claimed to update daily_ready
+      lastFetchRef.current = 0
+      await refresh(true)
       return { ok: false }
     } catch (e: any) {
       setError(e?.message ?? "Не удалось получить награду")
@@ -107,9 +106,12 @@ export function useDiscord() {
       setError(null)
       const data = await api.post<{ ok: boolean; stars?: number }>("/api/discord/quest-claim")
       if (data?.ok) {
-        await refresh()
+        lastFetchRef.current = 0
+        await refresh(true)
         return { ok: true, stars: data.stars ?? 0 }
       }
+      lastFetchRef.current = 0
+      await refresh(true)
       return { ok: false }
     } catch (e: any) {
       setError(e?.message ?? "Не удалось получить награду")
@@ -125,7 +127,8 @@ export function useDiscord() {
       setError(null)
       const data = await api.post<{ ok: boolean }>("/api/discord/sync-profile")
       if (data?.ok) {
-        await refresh()
+        lastFetchRef.current = 0
+        await refresh(true)
         return true
       }
       return false
@@ -143,9 +146,12 @@ export function useDiscord() {
       setError(null)
       const data = await api.post<{ ok: boolean; stars?: number }>("/api/discord/invite-claim")
       if (data?.ok) {
-        await refresh()
+        lastFetchRef.current = 0
+        await refresh(true)
         return { ok: true, stars: data.stars ?? 0 }
       }
+      lastFetchRef.current = 0
+      await refresh(true)
       return { ok: false }
     } catch (e: any) {
       setError(e?.message ?? "Не удалось получить награду")
@@ -156,11 +162,23 @@ export function useDiscord() {
   }, [refresh])
 
   useEffect(() => {
-    refresh()
+    refresh(true)
+    // handle ?discord=ok/error from old redirects (fallback)
+    try {
+      const sp = new URLSearchParams(window.location.search)
+      if (sp.has("discord")) {
+        lastFetchRef.current = 0
+        refresh(true)
+        // clean url without reload
+        sp.delete("discord"); sp.delete("reason")
+        const qs = sp.toString()
+        window.history.replaceState({}, "", window.location.pathname + (qs ? "?" + qs : ""))
+      }
+    } catch {}
     const onVis = () => {
-      if (document.visibilityState === "visible") refresh()
+      if (document.visibilityState === "visible") { lastFetchRef.current = 0; refresh(true) }
     }
-    const onFocus = () => refresh()
+    const onFocus = () => { lastFetchRef.current = 0; refresh(true) }
     document.addEventListener("visibilitychange", onVis)
     window.addEventListener("focus", onFocus)
     return () => {
