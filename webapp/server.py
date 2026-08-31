@@ -4201,10 +4201,10 @@ async def handle_steam_callback(request: web.Request):
 
     state = params.get("state", "")
     steamid64 = extract_steamid64(params)
-    error = params.get("openid.mode")
+    mode = params.get("openid.mode")
 
-    if error:
-        logging.warning(f"[steam.callback] openid error mode={error}")
+    if mode and mode != "id_res":
+        logging.warning(f"[steam.callback] openid error mode={mode}")
         redirect_url = settings.public_app_url or settings.webapp_url
         if redirect_url:
             raise web.HTTPFound(f"{redirect_url}?steam=error&reason=openid")
