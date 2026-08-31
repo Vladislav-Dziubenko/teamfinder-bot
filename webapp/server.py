@@ -3938,7 +3938,17 @@ async def handle_discord_callback(request: web.Request):
 
     avatar = None
     if discord_user.get("avatar"):
-        avatar = f"https://cdn.discordapp.com/avatars/{discord_user['id']}/{discord_user['avatar']}.png"
+        # animated avatar a_xxx -> gif, static -> png, добавляем ?size=512 для качества
+        ext = "gif" if str(discord_user["avatar"]).startswith("a_") else "png"
+        avatar = f"https://cdn.discordapp.com/avatars/{discord_user['id']}/{discord_user['avatar']}.{ext}?size=512"
+    else:
+        # дефолтный аватар Discord (0-5) по дискриминатору или id
+        try:
+            disc = int(discord_user.get("discriminator", "0") or "0")
+            idx = disc % 5 if disc else int(discord_user["id"]) % 5
+        except:
+            idx = 0
+        avatar = f"https://cdn.discordapp.com/embed/avatars/{idx}.png"
 
     expires_at = None
     if token_data.get("expires_in"):

@@ -1759,6 +1759,12 @@ class Database:
                     return {"error": "not_linked"}
                 nick = row["discord_global_name"] or row["discord_username"]
                 avatar = row["discord_avatar"]
+                # Не затираем аватар пустым если в Discord дефолтный (None) — оставляем текущий
+                if not avatar:
+                    cur = await conn.fetchrow("SELECT avatar FROM mini_app_profiles WHERE user_id = $1", user_id)
+                    avatar = cur["avatar"] if cur and cur["avatar"] else None
+                    if not avatar:
+                        return {"error": "no_avatar"}
                 await conn.execute(
                     "UPDATE mini_app_profiles SET nick = $1, avatar = $2, updated_at = $3 WHERE user_id = $4",
                     nick, avatar, datetime.utcnow().isoformat(), user_id,
