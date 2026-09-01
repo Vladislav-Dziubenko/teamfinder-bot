@@ -19,6 +19,7 @@ import random
 import re
 import secrets
 import asyncio
+import asyncpg
 from pathlib import Path
 from datetime import datetime, timedelta
 from time import time
@@ -1604,13 +1605,12 @@ async def handle_nexus_open_case(request: web.Request):
                                         return web.json_response({"error": "not enough stars"}, status=400)
                             elif case_config.get("costCoins"):
                                 total_cost = case_config["costCoins"] * count
-
-                            if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):
-                                return web.json_response({"error": "not enough coins"}, status=400)
+                                if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):
+                                    return web.json_response({"error": "not enough coins"}, status=400)
                             else:
-                                    total_cost = case_config["costStars"] * count
-                                    if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
-                                        return web.json_response({"error": "not enough stars"}, status=400)
+                                total_cost = case_config["costStars"] * count
+                                if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
+                                    return web.json_response({"error": "not enough stars"}, status=400)
 
                 jackpot_item = next((i for i in case_config["items"] if i.get("jackpot")), None)
 
