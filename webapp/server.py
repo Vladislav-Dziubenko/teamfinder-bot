@@ -1612,178 +1612,178 @@ async def handle_nexus_open_case(request: web.Request):
                                 if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
                                     return web.json_response({"error": "not enough stars"}, status=400)
 
-                jackpot_item = next((i for i in case_config["items"] if i.get("jackpot")), None)
+                        jackpot_item = next((i for i in case_config["items"] if i.get("jackpot")), None)
 
-                rolled_items: list[dict] = []
-                stars_won = 0
-                coins_won = 0
-                inventory_batch: list[tuple] = []
-                premium_count = 0
-                jet_bonuses_batch: list[dict] = []
-                now = datetime.utcnow().isoformat()
+                        rolled_items: list[dict] = []
+                        stars_won = 0
+                        coins_won = 0
+                        inventory_batch: list[tuple] = []
+                        premium_count = 0
+                        jet_bonuses_batch: list[dict] = []
+                        now = datetime.utcnow().isoformat()
 
-                # Provably-fair: берём активный сид (FOR UPDATE — сериализует
-                # параллельные открытия у разных юзеров на этой строке).
-                seed_row = await conn.fetchrow(
-                    "SELECT * FROM provably_fair_seeds WHERE rotated_at IS NULL ORDER BY id DESC LIMIT 1 FOR UPDATE"
-                )
-                if seed_row is None:
-                    new_seed = secrets.token_hex(32)
-                    seed_row = await conn.fetchrow(
-                        """
-                        INSERT INTO provably_fair_seeds (server_seed, seed_hash, created_at)
-                        VALUES ($1, $2, $3) RETURNING *
-                        """,
-                        new_seed,
-                        hashlib.sha256(new_seed.encode("utf-8")).hexdigest(),
-                        now,
-                    )
-                server_seed = seed_row["server_seed"]
-                seed_version = seed_row["id"]
-                seed_hash = seed_row["seed_hash"]
-                client_seed = secrets.token_hex(16)
-                nonce_start = seed_row["nonce"]
-
-                for idx in range(count):
-                    # Джекпот-ролл (0.1%) — лимитированная 3D-модель, если тираж не распродан.
-                    nonce_i = nonce_start + idx + 1
-                    rolled_item, pick, jackpot_value = _fair_pick(server_seed, client_seed, nonce_i, case_config["items"])
-                    model_token = None
-                    granted_role = None
-                    if jackpot_item and jackpot_value == 0:
-                        token = await db.next_limited_token(conn)
-                        if token is not None:
-                            rolled_item = jackpot_item
-                            model_token = token
-
-                    kind = rolled_item.get("kind", "inventory")
-                    if kind == "stars":
-                        stars_won += rolled_item.get("stars", 0)
-                    elif kind == "jet":
-                        bonuses = rolled_item.get("bonuses", {})
-                        stars_won += bonuses.get("stars", 0)
-                        coins_won += bonuses.get("coins", 0)
-                        jet_bonuses_batch.append(bonuses)
-                    elif kind == "model":
-                        settings = request.app.get("settings")
-                        dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
-                        granted_role = await db.grant_limited_model(conn, user["id"], model_token, dev_id)
-                    else:
-                        inventory_batch.append((
-                            rolled_item["key"],
-                            rolled_item["name"],
-                            rolled_item["rarity"],
-                            rolled_item["sell"],
-                            int(bool(rolled_item.get("grantsPremium"))),
-                        ))
-                        if rolled_item.get("grantsPremium"):
-                            premium_count += 1
-
-                    result_item = dict(rolled_item)
-                    if model_token is not None:
-                        result_item["token"] = model_token
-                        result_item["role"] = granted_role
-                        nick = await conn.fetchval(
-                            "SELECT nick FROM mini_app_profiles WHERE user_id = $1",
-                            user["id"],
+                        # Provably-fair: берём активный сид (FOR UPDATE — сериализует
+                        # параллельные открытия у разных юзеров на этой строке).
+                        seed_row = await conn.fetchrow(
+                            "SELECT * FROM provably_fair_seeds WHERE rotated_at IS NULL ORDER BY id DESC LIMIT 1 FOR UPDATE"
                         )
-                        claimed_now = await conn.fetchval(
-                            "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
-                            "nexus-model",
+                        if seed_row is None:
+                            new_seed = secrets.token_hex(32)
+                            seed_row = await conn.fetchrow(
+                                """
+                                INSERT INTO provably_fair_seeds (server_seed, seed_hash, created_at)
+                                VALUES ($1, $2, $3) RETURNING *
+                                """,
+                                new_seed,
+                                hashlib.sha256(new_seed.encode("utf-8")).hexdigest(),
+                                now,
+                            )
+                        server_seed = seed_row["server_seed"]
+                        seed_version = seed_row["id"]
+                        seed_hash = seed_row["seed_hash"]
+                        client_seed = secrets.token_hex(16)
+                        nonce_start = seed_row["nonce"]
+
+                        for idx in range(count):
+                            # Джекпот-ролл (0.1%) — лимитированная 3D-модель, если тираж не распродан.
+                            nonce_i = nonce_start + idx + 1
+                            rolled_item, pick, jackpot_value = _fair_pick(server_seed, client_seed, nonce_i, case_config["items"])
+                            model_token = None
+                            granted_role = None
+                            if jackpot_item and jackpot_value == 0:
+                                token = await db.next_limited_token(conn)
+                                if token is not None:
+                                    rolled_item = jackpot_item
+                                    model_token = token
+
+                            kind = rolled_item.get("kind", "inventory")
+                            if kind == "stars":
+                                stars_won += rolled_item.get("stars", 0)
+                            elif kind == "jet":
+                                bonuses = rolled_item.get("bonuses", {})
+                                stars_won += bonuses.get("stars", 0)
+                                coins_won += bonuses.get("coins", 0)
+                                jet_bonuses_batch.append(bonuses)
+                            elif kind == "model":
+                                settings = request.app.get("settings")
+                                dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
+                                granted_role = await db.grant_limited_model(conn, user["id"], model_token, dev_id)
+                            else:
+                                inventory_batch.append((
+                                    rolled_item["key"],
+                                    rolled_item["name"],
+                                    rolled_item["rarity"],
+                                    rolled_item["sell"],
+                                    int(bool(rolled_item.get("grantsPremium"))),
+                                ))
+                                if rolled_item.get("grantsPremium"):
+                                    premium_count += 1
+
+                            result_item = dict(rolled_item)
+                            if model_token is not None:
+                                result_item["token"] = model_token
+                                result_item["role"] = granted_role
+                                nick = await conn.fetchval(
+                                    "SELECT nick FROM mini_app_profiles WHERE user_id = $1",
+                                    user["id"],
+                                )
+                                claimed_now = await conn.fetchval(
+                                    "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
+                                    "nexus-model",
+                                )
+                                await db.send_global_message(
+                                    user["id"],
+                                    f"выбил Mini Boss bro #{model_token} из кейса NEXUS TeamHub Premium! Тираж: {claimed_now}/20",
+                                    kind="system",
+                                    conn=conn,
+                                )
+                            rolled_items.append(result_item)
+
+                        # Применяем результаты батчами
+                        if stars_won > 0:
+                            await db._adjust_currency_conn(conn, user["id"], stars=stars_won)
+                        if coins_won > 0:
+                            await db._adjust_currency_conn(conn, user["id"], coins=coins_won)
+
+                        # Jet-бонусы: подсветка, бесплатные премиум-открытия, анкеты
+                        for bonuses in jet_bonuses_batch:
+                            await db.grant_jet_bonuses(user["id"], bonuses, conn)
+
+                        if inventory_batch:
+                            rows_sql = ", ".join(
+                                f"({user['id']}, ${i*6+1}, ${i*6+2}, ${i*6+3}, ${i*6+4}, ${i*6+5}, ${i*6+6})"
+                                for i in range(len(inventory_batch))
+                            )
+                            inv_params: list = []
+                            for key, name, rarity, sell, premium in inventory_batch:
+                                inv_params += [key, name, rarity, sell, premium, now]
+                            await conn.execute(
+                                f"INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, grants_premium, acquired_at) VALUES {rows_sql}",
+                                *inv_params,
+                            )
+
+                        if premium_count > 0:
+                            await db.set_pro_status(user["id"], days=premium_count, conn=conn)
+
+                        if rolled_items:
+                            keys_sql = ", ".join(
+                                f"({user['id']}, ${i*7+1}, ${i*7+2}, ${i*7+3}, ${i*7+4}, ${i*7+5}, ${i*7+6}, ${i*7+7})"
+                                for i in range(len(rolled_items))
+                            )
+                            open_params: list = []
+                            for it, nonce_i in zip(rolled_items, range(nonce_start + 1, nonce_start + count + 1)):
+                                open_params += [case_id, now, it["key"], client_seed, nonce_i, seed_version, seed_hash]
+                            await conn.execute(
+                                f"INSERT INTO case_opens (user_id, case_id, opened_at, item_key, client_seed, nonce, seed_version, seed_hash) VALUES {keys_sql}",
+                                *open_params,
+                            )
+
+                        # Продвигаем nonce и при необходимости ротируем сид: старый сид
+                        # раскрывается (revealed_seed), новые открытия идут на новом сиде.
+                        await conn.execute(
+                            "UPDATE provably_fair_seeds SET nonce = $1 WHERE id = $2",
+                            nonce_start + count, seed_version,
                         )
-                        await db.send_global_message(
-                            user["id"],
-                            f"выбил Mini Boss bro #{model_token} из кейса NEXUS TeamHub Premium! Тираж: {claimed_now}/20",
-                            kind="system",
-                            conn=conn,
-                        )
-                    rolled_items.append(result_item)
+                        if nonce_start + count >= FAIR_ROTATE_EVERY:
+                            old_seed = server_seed
+                            await conn.execute(
+                                "UPDATE provably_fair_seeds SET rotated_at = $1 WHERE id = $2",
+                                now, seed_version,
+                            )
+                            new_seed = secrets.token_hex(32)
+                            await conn.execute(
+                                "INSERT INTO provably_fair_seeds (server_seed, seed_hash, created_at) VALUES ($1, $2, $3)",
+                                new_seed,
+                                hashlib.sha256(new_seed.encode("utf-8")).hexdigest(),
+                                now,
+                            )
+                            await conn.execute(
+                                "UPDATE case_opens SET revealed_seed = $1 WHERE seed_version = $2",
+                                old_seed, seed_version,
+                            )
 
-                # Применяем результаты батчами
-                if stars_won > 0:
-                    await db._adjust_currency_conn(conn, user["id"], stars=stars_won)
-                if coins_won > 0:
-                    await db._adjust_currency_conn(conn, user["id"], coins=coins_won)
+                        await db.add_battlepass_xp(user["id"], 20 * count, conn)
 
-                # Jet-бонусы: подсветка, бесплатные премиум-открытия, анкеты
-                for bonuses in jet_bonuses_batch:
-                    await db.grant_jet_bonuses(user["id"], bonuses, conn)
+                        fair_proof = {
+                            "seed_version": seed_version,
+                            "seed_hash": seed_hash,
+                            "client_seed": client_seed,
+                            "nonces": list(range(nonce_start + 1, nonce_start + count + 1)),
+                            "rotate_every": FAIR_ROTATE_EVERY,
+                        }
 
-                if inventory_batch:
-                    rows_sql = ", ".join(
-                        f"({user['id']}, ${i*6+1}, ${i*6+2}, ${i*6+3}, ${i*6+4}, ${i*6+5}, ${i*6+6})"
-                        for i in range(len(inventory_batch))
-                    )
-                    inv_params: list = []
-                    for key, name, rarity, sell, premium in inventory_batch:
-                        inv_params += [key, name, rarity, sell, premium, now]
-                    await conn.execute(
-                        f"INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, grants_premium, acquired_at) VALUES {rows_sql}",
-                        *inv_params,
-                    )
-
-                if premium_count > 0:
-                    await db.set_pro_status(user["id"], days=premium_count, conn=conn)
-
-                if rolled_items:
-                    keys_sql = ", ".join(
-                        f"({user['id']}, ${i*7+1}, ${i*7+2}, ${i*7+3}, ${i*7+4}, ${i*7+5}, ${i*7+6}, ${i*7+7})"
-                        for i in range(len(rolled_items))
-                    )
-                    open_params: list = []
-                    for it, nonce_i in zip(rolled_items, range(nonce_start + 1, nonce_start + count + 1)):
-                        open_params += [case_id, now, it["key"], client_seed, nonce_i, seed_version, seed_hash]
-                    await conn.execute(
-                        f"INSERT INTO case_opens (user_id, case_id, opened_at, item_key, client_seed, nonce, seed_version, seed_hash) VALUES {keys_sql}",
-                        *open_params,
-                    )
-
-                # Продвигаем nonce и при необходимости ротируем сид: старый сид
-                # раскрывается (revealed_seed), новые открытия идут на новом сиде.
-                await conn.execute(
-                    "UPDATE provably_fair_seeds SET nonce = $1 WHERE id = $2",
-                    nonce_start + count, seed_version,
-                )
-                if nonce_start + count >= FAIR_ROTATE_EVERY:
-                    old_seed = server_seed
-                    await conn.execute(
-                        "UPDATE provably_fair_seeds SET rotated_at = $1 WHERE id = $2",
-                        now, seed_version,
-                    )
-                    new_seed = secrets.token_hex(32)
-                    await conn.execute(
-                        "INSERT INTO provably_fair_seeds (server_seed, seed_hash, created_at) VALUES ($1, $2, $3)",
-                        new_seed,
-                        hashlib.sha256(new_seed.encode("utf-8")).hexdigest(),
-                        now,
-                    )
-                    await conn.execute(
-                        "UPDATE case_opens SET revealed_seed = $1 WHERE seed_version = $2",
-                        old_seed, seed_version,
-                    )
-
-                await db.add_battlepass_xp(user["id"], 20 * count, conn)
-
-                fair_proof = {
-                    "seed_version": seed_version,
-                    "seed_hash": seed_hash,
-                    "client_seed": client_seed,
-                    "nonces": list(range(nonce_start + 1, nonce_start + count + 1)),
-                    "rotate_every": FAIR_ROTATE_EVERY,
-                }
-
-                if request_id:
-                    await conn.execute(
-                        "INSERT INTO case_open_requests (request_id, user_id, case_id, count, result, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
-                        request_id, user["id"], case_id, count,
-                        json.dumps({
-                            "item": rolled_items[0],
-                            "items": rolled_items if count > 1 else None,
-                            "last_open_at": datetime.utcnow().isoformat(),
-                            "fair": fair_proof,
-                        }),
-                        now,
-                    )
+                        if request_id:
+                            await conn.execute(
+                                "INSERT INTO case_open_requests (request_id, user_id, case_id, count, result, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
+                                request_id, user["id"], case_id, count,
+                                json.dumps({
+                                    "item": rolled_items[0],
+                                    "items": rolled_items if count > 1 else None,
+                                    "last_open_at": datetime.utcnow().isoformat(),
+                                    "fair": fair_proof,
+                                }),
+                                now,
+                            )
 
             # Track quest progress: case opened (await — прогресс должен быть в БД
 
