@@ -1415,15 +1415,15 @@ function JackpotBurst({ onDone }: { onDone: () => void }) {
             opacity: 0,
           },
         ],
-        { duration: 1400 + Math.random() * 700, easing: "cubic-bezier(.2,.6,.3,1)", fill: "forwards" },
+        { duration: 2500 + Math.random() * 1000, easing: "cubic-bezier(.2,.6,.3,1)", fill: "forwards" },
       )
     }
     const flash = document.createElement("div")
     flash.style.cssText =
       "position:absolute;inset:0;background:radial-gradient(circle,#fff7cc 0%,#ffd700 25%,rgba(255,180,0,0.5) 50%,transparent 72%);opacity:0"
     el.appendChild(flash)
-    flash.animate([{ opacity: 0 }, { opacity: 0.95 }, { opacity: 0 }], { duration: 1000, easing: "ease-out" })
-    const t = setTimeout(onDone, 2100)
+    flash.animate([{ opacity: 0 }, { opacity: 0.95 }, { opacity: 0 }], { duration: 1500, easing: "ease-out" })
+    const t = setTimeout(onDone, 3800)
     return () => {
       clearTimeout(t)
       spans.forEach((x) => x.remove())
@@ -1466,15 +1466,15 @@ function JetBurst({ onDone }: { onDone: () => void }) {
             opacity: 0,
           },
         ],
-        { duration: 1400 + Math.random() * 700, easing: "cubic-bezier(.2,.6,.3,1)", fill: "forwards" },
+        { duration: 2500 + Math.random() * 1000, easing: "cubic-bezier(.2,.6,.3,1)", fill: "forwards" },
       )
     }
     const flash = document.createElement("div")
     flash.style.cssText =
       "position:absolute;inset:0;background:radial-gradient(circle,#e8f9ff 0%,#4fc3f7 25%,rgba(79,195,247,0.5) 50%,transparent 72%);opacity:0"
     el.appendChild(flash)
-    flash.animate([{ opacity: 0 }, { opacity: 0.9 }, { opacity: 0 }], { duration: 1000, easing: "ease-out" })
-    const t = setTimeout(onDone, 2100)
+    flash.animate([{ opacity: 0 }, { opacity: 0.9 }, { opacity: 0 }], { duration: 1500, easing: "ease-out" })
+    const t = setTimeout(onDone, 3800)
     return () => {
       clearTimeout(t)
       spans.forEach((x) => x.remove())
