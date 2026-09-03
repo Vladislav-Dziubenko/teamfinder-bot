@@ -2757,7 +2757,14 @@ class Database:
             result = []
             for r in rows:
                 d = dict(r)
-                d["players"] = r["players"] or []
+                players = r["players"]
+                if isinstance(players, str):
+                    import json
+                    try:
+                        players = json.loads(players)
+                    except Exception:
+                        players = []
+                d["players"] = players or []
                 result.append(d)
             return result
 
