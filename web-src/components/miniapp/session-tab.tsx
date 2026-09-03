@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Timer, Gamepad2, Users, Loader2, LogOut, Plus } from "lucide-react"
+import { Timer, Gamepad2, Users, Loader2, LogOut, Plus, Lock, UserMinus } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { games } from "@/lib/data"
@@ -24,10 +24,12 @@ type GameSession = {
   expires_at: string
   players_count: number
   players: SessionPlayer[]
+  max_players?: number
+  is_private?: boolean
 }
 
 const DURATIONS = [15, 30, 60, 120]
-const MAX_PLAYERS = 6
+const MAX_PLAYERS_OPTIONS = [2, 3, 4, 5, 6, 8, 10, 12, 16, 20]
 
 export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
@@ -36,8 +38,11 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
   const [loading, setLoading] = useState(false)
   const [game, setGame] = useState("cs2")
   const [minutes, setMinutes] = useState(30)
+  const [maxPlayers, setMaxPlayers] = useState(6)
+  const [password, setPassword] = useState("")
   const [creating, setCreating] = useState(false)
   const [joiningId, setJoiningId] = useState<number | null>(null)
+  const [joiningPassword, setJoiningPassword] = useState("")
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -68,10 +73,11 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
     if (creating) return
     setCreating(true)
     try {
-      await api.post("/api/sessions", { game, minutes })
+      await api.post("/api/sessions", { game, minutes, max_players: maxPlayers, password: password || undefined })
       onToast(t("sessions.created"))
       await load()
       await refresh()
+      setPassword("")
     } catch {
       onToast(t("sessions.create_failed"))
     } finally {
@@ -81,6 +87,22 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
 
   async function join(s: GameSession) {
     if (joiningId) return
+    // Check if session is private and needs password
+    if (s.is_private) {
+      const pwd = prompt(t("sessions.password_prompt"))
+      if (!pwd) return
+      setJoiningId(s.id)
+      try {
+        await api.post(`/api/sessions/${s.id}/join`, { password: pwd })
+        onToast(t("sessions.joined"))
+        await load()
+      } catch {
+        onToast(t("sessions.join_failed"))
+      } finally {
+        setJoiningId(null)
+      }
+      return
+    }
     setJoiningId(s.id)
     try {
       await api.post(`/api/sessions/${s.id}/join`)
@@ -163,6 +185,46 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
             </button>
           ))}
         </div>
+        <div className="mt-3 flex gap-1.5">
+          {MAX_PLAYERS_OPTIONS.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => setMaxPlayers(p)}
+              className={cn(
+                "flex-1 rounded-xl border px-2 py-2 text-xs font-bold transition-colors active:scale-95",
+                maxPlayers === p ? "border-primary/50 bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground",
+              )}
+            >
+              {p} {t("sessions.max_players")}
+            </button>
+          ))}
+        </div>
+        <div className="mt-3">
+          <label className="block text-[11px] font-bold uppercase tracking-wide text-muted-foreground mb-1.5">
+            {t("sessions.password_label")}
+          </label>
+          <div className="flex gap-1.5">
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder={t("sessions.password_placeholder")}
+              className="flex-1 rounded-xl border border-input bg-background px-4 py-2 text-sm font-medium outline-none placeholder:text-muted-foreground/40"
+              maxLength={20}
+            />
+            <label className="flex items-center gap-1.5 rounded-xl border border-border bg-secondary/60 px-3 py-2 text-xs font-semibold text-muted-foreground cursor-pointer">
+              <input
+                type="checkbox"
+                checked={!!password}
+                onChange={(e) => { if (!e.target.checked) setPassword("") }}
+                className="size-4 accent-primary"
+              />
+              {t("sessions.private_session")}
+            </label>
+          </div>
+          <p className="mt-1 text-[10px] text-muted-foreground">{t("sessions.password_hint")}</p>
+        </div>
         <button
           type="button"
           disabled={creating}
@@ -214,15 +276,16 @@ function SessionCard({
   t: (k: string, vars?: Record<string, string | number>) => string
 }) {
   const gm = games.find((g) => g.id === s.game)
-  const joined = s.players.some((p) => p.user_id === userId)
   const creator = s.players.find((p) => p.user_id === s.creator_id)
+  const joined = s.players.some((p) => p.user_id === userId)
   return (
-    <div className={cn("overflow-hidden rounded-2xl border bg-card p-3", mine ? "border-primary/50 shadow-[0_0_20px_-8px_var(--primary)]" : "border-border")}>
+    <>
       <div className="flex items-center gap-2.5">
         <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-secondary/60 text-xl">{gm?.emoji}</span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-sm font-bold" style={{ color: gm?.color }}>
             {gm?.name ?? s.game}
+            {s.is_private && <Lock className="ml-1.5 size-3.5 text-primary/80" title={t("sessions.private_session")} />}
           </p>
           <p className="truncate text-[11px] text-muted-foreground">
             {creator ? creator.nick : "User" + s.creator_id}
@@ -237,7 +300,7 @@ function SessionCard({
       <div className="mt-2.5 flex items-center justify-between gap-2">
         <div className="flex items-center">
           <div className="flex -space-x-2">
-            {s.players.slice(0, MAX_PLAYERS).map((p) => (
+            {s.players.slice(0, (s.max_players || 6)).map((p) => (
               <img
                 key={p.user_id}
                 src={p.avatar || `/player-${((p.user_id % 4) + 1)}.webp`}
@@ -248,7 +311,7 @@ function SessionCard({
             ))}
           </div>
           <span className="ml-2 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
-            <Users className="size-3" /> {s.players_count}/{MAX_PLAYERS}
+            <Users className="size-3" /> {s.players_count}/{s.max_players || 6}
           </span>
         </div>
         {joined ? (
@@ -264,7 +327,7 @@ function SessionCard({
         ) : (
           <button
             type="button"
-            disabled={busy !== null || s.players_count >= MAX_PLAYERS}
+            disabled={busy !== null || s.players_count >= (s.max_players || 6)}
             onClick={() => onJoin(s)}
             className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground transition-transform active:scale-95 disabled:opacity-50"
           >
@@ -273,6 +336,5 @@ function SessionCard({
           </button>
         )}
       </div>
-    </div>
-  )
+  </> )
 }

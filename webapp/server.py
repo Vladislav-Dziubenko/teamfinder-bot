@@ -2215,9 +2215,12 @@ async def handle_sessions_create(request: web.Request):
         return web.json_response({"error": "unknown game"}, status=400)
     try:
         minutes = int(body.get("minutes", 30))
+        max_players = int(body.get("max_players", 6))
     except (TypeError, ValueError):
         minutes = 30
-    session = await db.create_game_session(user["id"], game, minutes)
+        max_players = 6
+    password = (body.get("password") or "").strip() or None
+    session = await db.create_game_session(user["id"], game, minutes, max_players, password)
     return web.json_response({"session": session})
 
 
@@ -2228,7 +2231,12 @@ async def handle_sessions_join(request: web.Request):
         session_id = int(request.match_info["session_id"])
     except (ValueError, KeyError):
         return web.json_response({"error": "invalid session_id"}, status=400)
-    ok, err, session = await db.join_game_session(session_id, user["id"])
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    password = (body.get("password") or "").strip() or None
+    ok, err, session = await db.join_game_session(session_id, user["id"], password)
     if not ok:
         return web.json_response({"error": err}, status=400)
     # Push в Telegram создателю, если он не в приложении (фоном, не блокируем).

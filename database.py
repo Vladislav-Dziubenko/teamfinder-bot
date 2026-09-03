@@ -1169,7 +1169,10 @@ class Database:
                             title TEXT NOT NULL DEFAULT '',
                             status TEXT NOT NULL DEFAULT 'active',
                             created_at TEXT NOT NULL,
-                            expires_at TEXT NOT NULL
+                            expires_at TEXT NOT NULL,
+                            max_players INT NOT NULL DEFAULT 6,
+                            is_private BOOLEAN NOT NULL DEFAULT FALSE,
+                            password_hash TEXT
                         )
                         """
                     )
@@ -1193,6 +1196,32 @@ class Database:
                 )
             except asyncpg.PostgresError as e:
                 print(f"Migration warning game_sessions_v1: {e}")
+
+        # Migration: add private session columns
+        migration_name = "game_sessions_v2"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        "ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS max_players INT NOT NULL DEFAULT 6"
+                    )
+                    await conn.execute(
+                        "ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS is_private BOOLEAN NOT NULL DEFAULT FALSE"
+                    )
+                    await conn.execute(
+                        "ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS password_hash TEXT"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning game_sessions_v2: {e}")
 
         # Provably-fair кейсы: серверный сид + SHA-256 коммитмент, каждый ролл
         # детерминированно выводится из sha256(server_seed:client_seed:nonce),
@@ -2679,17 +2708,23 @@ class Database:
             )
             return [dict(r) for r in rows]
 
-    async def create_game_session(self, user_id: int, game: str, minutes: int = 30) -> dict | None:
+    async def create_game_session(self, user_id: int, game: str, minutes: int = 30, max_players: int = 6, password: str | None = None) -> dict | None:
         """Создаёт сессию «Играть вместе» и добавляет создателя участником."""
         minutes = max(15, min(int(minutes), 120))
+        max_players = max(2, min(int(max_players), 20))
+        is_private = password is not None and password.strip() != ""
+        password_hash = None
+        if is_private:
+            import hashlib
+            password_hash = hashlib.sha256(password.strip().encode()).hexdigest()
         now = datetime.utcnow()
         expires = now + timedelta(minutes=minutes)
         now_iso, exp_iso = now.isoformat(), expires.isoformat()
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
-                    "INSERT INTO game_sessions (creator_id, game, title, status, created_at, expires_at) VALUES ($1, $2, '', 'active', $3, $4) RETURNING id",
-                    user_id, game, now_iso, exp_iso,
+                    "INSERT INTO game_sessions (creator_id, game, title, status, created_at, expires_at, max_players, is_private, password_hash) VALUES ($1, $2, '', 'active', $3, $4, $5, $6, $7) RETURNING id",
+                    user_id, game, now_iso, exp_iso, max_players, is_private, password_hash,
                 )
                 await conn.execute(
                     "INSERT INTO game_session_players (session_id, user_id, joined_at) VALUES ($1, $2, $3)",
@@ -2702,6 +2737,8 @@ class Database:
                     "status": "active",
                     "created_at": now_iso,
                     "expires_at": exp_iso,
+                    "max_players": max_players,
+                    "is_private": is_private,
                 }
 
     async def get_active_game_sessions(self, game: str = "") -> list[dict]:
@@ -2768,8 +2805,8 @@ class Database:
                 result.append(d)
             return result
 
-    async def join_game_session(self, session_id: int, user_id: int) -> tuple[bool, str, dict | None]:
-        """Вступает в активную сессию. Максимум 6 участников."""
+    async def join_game_session(self, session_id: int, user_id: int, password: str | None = None) -> tuple[bool, str, dict | None]:
+        """Вступает в активную сессию. Максимум max_players участников."""
         now = datetime.utcnow()
         async with self.pool.acquire() as conn:
             async with conn.transaction():
@@ -2785,8 +2822,17 @@ class Database:
                 count = await conn.fetchval(
                     "SELECT COUNT(*) FROM game_session_players WHERE session_id = $1", session_id,
                 )
-                if count >= 6:
+                max_players = row["max_players"] if row["max_players"] else 6
+                if count >= max_players:
                     return False, "full", None
+                # Check if private and password required
+                if row["is_private"]:
+                    if not password:
+                        return False, "password_required", None
+                    import hashlib
+                    password_hash = hashlib.sha256(password.strip().encode()).hexdigest()
+                    if row["password_hash"] != password_hash:
+                        return False, "wrong_password", None
                 await conn.execute(
                     "INSERT INTO game_session_players (session_id, user_id, joined_at) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING",
                     session_id, user_id, now.isoformat(),
