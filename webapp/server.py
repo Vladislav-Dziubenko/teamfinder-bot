@@ -2263,6 +2263,101 @@ async def handle_sessions_leave(request: web.Request):
     return web.json_response({"ok": True})
 
 
+async def handle_sessions_voice_join(request: web.Request):
+    """Присоединиться к голосовому чату сессии."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        session_id = int(request.match_info["session_id"])
+    except (ValueError, KeyError):
+        return web.json_response({"error": "invalid session_id"}, status=400)
+    if not await db.is_voice_enabled(session_id):
+        return web.json_response({"error": "voice chat not enabled"}, status=400)
+    if not await db.pool.fetchval(
+        "SELECT 1 FROM game_session_players WHERE session_id = $1 AND user_id = $2",
+        session_id, user["id"],
+    ):
+        return web.json_response({"error": "not in session"}, status=403)
+    ok, err, _ = await db.join_voice_chat(session_id, user["id"])
+    if not ok:
+        return web.json_response({"error": err}, status=400)
+    return web.json_response({"ok": True})
+
+
+async def handle_sessions_voice_leave(request: web.Request):
+    """Покинуть голосовой чат сессии."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        session_id = int(request.match_info["session_id"])
+    except (ValueError, KeyError):
+        return web.json_response({"error": "invalid session_id"}, status=400)
+    await db.leave_voice_chat(session_id, user["id"])
+    return web.json_response({"ok": True})
+
+
+async def handle_sessions_voice_participants(request: web.Request):
+    """Получить участников голосового чата."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        session_id = int(request.match_info["session_id"])
+    except (ValueError, KeyError):
+        return web.json_response({"error": "invalid session_id"}, status=400)
+    if not await db.pool.fetchval(
+        "SELECT 1 FROM voice_chat_participants WHERE session_id = $1 AND user_id = $2",
+        session_id, user["id"],
+    ):
+        return web.json_response({"error": "not in voice chat"}, status=403)
+    participants = await db.get_voice_participants(session_id)
+    return web.json_response({"participants": participants})
+
+
+async def handle_sessions_voice_toggle(request: web.Request):
+    """Включить/выключить голосовой чат (только создатель)."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        session_id = int(request.match_info["session_id"])
+        body = await request.json()
+    except (ValueError, KeyError, Exception):
+        return web.json_response({"error": "bad request"}, status=400)
+    enabled = bool(body.get("enabled", False))
+    row = await db.pool.fetchrow("SELECT creator_id FROM game_sessions WHERE id = $1", session_id)
+    if not row or row["creator_id"] != user["id"]:
+        return web.json_response({"error": "only creator can toggle voice"}, status=403)
+    await db.set_voice_enabled(session_id, enabled)
+    return web.json_response({"ok": True, "voice_enabled": enabled})
+
+
+async def handle_sessions_voice_mute(request: web.Request):
+    """Mute/unmute себя в голосовом чате."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        session_id = int(request.match_info["session_id"])
+        body = await request.json()
+    except (ValueError, KeyError, Exception):
+        return web.json_response({"error": "bad request"}, status=400)
+    muted = bool(body.get("muted", False))
+    await db.set_voice_mute(session_id, user["id"], muted)
+    return web.json_response({"ok": True, "muted": muted})
+
+
+async def handle_sessions_voice_deafen(request: web.Request):
+    """Deafen/undeafen себя в голосовом чате."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        session_id = int(request.match_info["session_id"])
+        body = await request.json()
+    except (ValueError, KeyError, Exception):
+        return web.json_response({"error": "bad request"}, status=400)
+    deafened = bool(body.get("deafened", False))
+    await db.set_voice_deafen(session_id, user["id"], deafened)
+    return web.json_response({"ok": True, "deafened": deafened})
+
+
 async def _notify_tg_session_join(request: web.Request, db: Database, session: dict, sender_nick: str) -> None:
     """Push создателю сессии, что к нему присоединились (когда он не в приложении)."""
     try:
@@ -4503,6 +4598,12 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/sessions", handle_sessions_create)
     app.router.add_post("/api/sessions/{session_id}/join", handle_sessions_join)
     app.router.add_post("/api/sessions/{session_id}/leave", handle_sessions_leave)
+    app.router.add_post("/api/sessions/{session_id}/voice/join", handle_sessions_voice_join)
+    app.router.add_post("/api/sessions/{session_id}/voice/leave", handle_sessions_voice_leave)
+    app.router.add_get("/api/sessions/{session_id}/voice/participants", handle_sessions_voice_participants)
+    app.router.add_post("/api/sessions/{session_id}/voice/toggle", handle_sessions_voice_toggle)
+    app.router.add_post("/api/sessions/{session_id}/voice/mute", handle_sessions_voice_mute)
+    app.router.add_post("/api/sessions/{session_id}/voice/deafen", handle_sessions_voice_deafen)
     app.router.add_post("/api/nexus/quests/claim", handle_nexus_claim_quest_reward)
     app.router.add_post("/api/nexus/quests/claim-all", handle_nexus_claim_all_quests)
     app.router.add_get("/api/nexus/shop", handle_nexus_shop)
@@ -4705,6 +4806,104 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
         except Exception:
             logging.exception("Telegram webhook error")
         return web.Response(status=200)
+    app.router.add_post("/webhook/{secret}", handle_telegram_webhook)
+
+    # WebSocket для голосового сигналинга
+    # -----------------------------------------------------------------------
+    async def handle_voice_websocket(request: web.Request) -> web.WebSocketResponse:
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+
+        db: Database = request.app["db"]
+        user = _get_user(request)
+        if not user:
+            await ws.close(code=4001, message=b"unauthorized")
+            return ws
+
+        session_id = request.match_info.get("session_id")
+        if not session_id or not session_id.isdigit():
+            await ws.close(code=4002, message=b"invalid session")
+            return ws
+        session_id = int(session_id)
+
+        # Check access
+        if not await db.can_access_chat(f"dm-{session_id}", user["id"]) and not await db.is_user_in_session(session_id, user["id"]):
+            # Fallback: check if user is in session
+            in_session = await db.pool.fetchval(
+                "SELECT 1 FROM game_session_players WHERE session_id = $1 AND user_id = $2",
+                session_id, user["id"],
+            )
+            if not in_session:
+                await ws.close(code=4003, message=b"not in session")
+                return ws
+
+        # Check voice enabled
+        if not await db.is_voice_enabled(session_id):
+            await ws.close(code=4004, message=b"voice not enabled")
+            return ws
+
+        # Register connection
+        session_ws_key = f"voice:{session_id}"
+        if session_ws_key not in request.app:
+            request.app[session_ws_key] = {}
+        request.app[session_ws_key][user["id"]] = ws
+
+        # Notify others about new participant
+        join_msg = {"type": "user_joined", "user_id": user["id"]}
+        for uid, conn in request.app[session_ws_key].items():
+            if uid != user["id"] and not conn.closed:
+                await conn.send_json(join_msg)
+
+        try:
+            async for msg in ws:
+                if msg.type == web.WSMsgType.TEXT:
+                    try:
+                        data = msg.json()
+                    except Exception:
+                        continue
+
+                    msg_type = data.get("type")
+                    if msg_type in ("offer", "answer", "ice-candidate"):
+                        target_id = data.get("target_id")
+                        if target_id and target_id in request.app[session_ws_key]:
+                            target_ws = request.app[session_ws_key][target_id]
+                            if not target_ws.closed:
+                                await target_ws.send_json({
+                                    "type": msg_type,
+                                    "from_id": user["id"],
+                                    "payload": data.get("payload"),
+                                })
+                elif msg_type == "mute":
+                    await db.set_voice_mute(session_id, user["id"], data.get("muted", False))
+                    # Broadcast mute status
+                    for uid, conn in request.app[session_ws_key].items():
+                        if uid != user["id"] and not conn.closed:
+                            await conn.send_json({"type": "mute_changed", "user_id": user["id"], "muted": data.get("muted", False)})
+                elif msg_type == "deafen":
+                    await db.set_voice_deafen(session_id, user["id"], data.get("deafened", False))
+                    for uid, conn in request.app[session_ws_key].items():
+                        if uid != user["id"] and not conn.closed:
+                            await conn.send_json({"type": "deafen_changed", "user_id": user["id"], "deafened": data.get("deafened", False)})
+                elif msg_type == "speaking":
+                    # Broadcast speaking status
+                    for uid, conn in request.app[session_ws_key].items():
+                        if uid != user["id"] and not conn.closed:
+                            await conn.send_json({"type": "speaking", "user_id": user["id"], "speaking": data.get("speaking", False)})
+        finally:
+            # Cleanup
+            if session_ws_key in request.app and user["id"] in request.app[session_ws_key]:
+                del request.app[session_ws_key][user["id"]]
+            # Notify others about departure
+            leave_msg = {"type": "user_left", "user_id": user["id"]}
+            if session_ws_key in request.app:
+                for uid, conn in request.app[session_ws_key].items():
+                    if not conn.closed:
+                        await conn.send_json(leave_msg)
+
+        return ws
+
+    app.router.add_get("/ws/voice/{session_id}", handle_voice_websocket)
+
     app.router.add_post("/webhook/{secret}", handle_telegram_webhook)
 
     app.router.add_static("/", STATIC_DIR, show_index=False)

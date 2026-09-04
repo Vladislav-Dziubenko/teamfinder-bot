@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Timer, Gamepad2, Users, Loader2, LogOut, Plus, Lock, UserMinus } from "lucide-react"
+import { Timer, Gamepad2, Users, Loader2, LogOut, Plus, Lock, UserMinus, Mic, MicOff, Headphones, VolumeX, Volume2 } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { games } from "@/lib/data"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
+import { VoiceChat } from "@/components/miniapp/VoiceChat"
 
 type SessionPlayer = {
   user_id: number
@@ -43,6 +44,8 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
   const [creating, setCreating] = useState(false)
   const [joiningId, setJoiningId] = useState<number | null>(null)
   const [joiningPassword, setJoiningPassword] = useState("")
+  const [voiceChatOpen, setVoiceChatOpen] = useState(false)
+  const [voiceEnabled, setVoiceEnabled] = useState(false)
   const [, setTick] = useState(0)
 
   useEffect(() => {
@@ -141,7 +144,8 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
   const others = sessions.filter((s) => !s.players.some((p) => p.user_id === userId))
 
   return (
-    <div className="space-y-4 px-4 py-5">
+    <>
+      <div className="space-y-4 px-4 py-5">
       <div>
         <h1 className="flex items-center gap-2 font-display text-2xl font-bold">
           <Timer className="size-6 text-primary" /> {t("sessions.title")}
@@ -225,6 +229,17 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
           </div>
           <p className="mt-1 text-[10px] text-muted-foreground">{t("sessions.password_hint")}</p>
         </div>
+        <div className="mt-3 flex items-center gap-2">
+          <label className="flex items-center gap-1.5 rounded-xl border border-border bg-secondary/60 px-3 py-2 text-xs font-semibold text-muted-foreground cursor-pointer">
+            <input
+              type="checkbox"
+              checked={voiceEnabled}
+              onChange={(e) => setVoiceEnabled(e.target.checked)}
+              className="size-4 accent-primary"
+            />
+            {t("sessions.voice_chat")}
+          </label>
+        </div>
         <button
           type="button"
           disabled={creating}
@@ -235,6 +250,28 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
           {t("sessions.create_btn")}
         </button>
       </section>
+
+      {/* Voice Chat Toggle */}
+      <div className="mt-3 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={() => setVoiceChatOpen(true)}
+          disabled={!mySession || !mySession.voice_enabled}
+          className={cn(
+            "w-full flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold transition-colors active:scale-[0.98] disabled:opacity-50",
+            mySession?.voice_enabled ? "bg-primary text-primary-foreground" : "bg-secondary/60 text-muted-foreground"
+          )}
+        >
+          <Mic className="size-4" />
+          {t("sessions.voice_chat")}
+          {mySession?.voice_enabled && (
+            <span className="ml-1.5 flex items-center gap-1 rounded-full bg-primary/20 px-2 py-0.5 text-[10px] font-medium">
+              <span className="size-1.5 rounded-full bg-green-500 animate-pulse" />
+              {t("sessions.voice_active")}
+            </span>
+          )}
+        </button>
+      </div>
 
       {loading && <Loader2 className="mx-auto mt-4 size-6 animate-spin text-muted-foreground" />}
 
@@ -253,6 +290,14 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
         ))}
       </div>
     </div>
+      {voiceChatOpen && (
+        <VoiceChat
+          sessionId={mySession?.id || 0}
+          isCreator={mySession?.creator_id === userId}
+          onClose={() => setVoiceChatOpen(false)}
+        />
+      )}
+    </>
   )
 }
 
@@ -336,5 +381,13 @@ function SessionCard({
           </button>
         )}
       </div>
-  </> )
+  {voiceChatOpen && (
+        <VoiceChat
+          sessionId={mySession?.id || 0}
+          isCreator={mySession?.creator_id === userId}
+          onClose={() => setVoiceChatOpen(false)}
+        />
+      )}
+    </>
+  )
 }

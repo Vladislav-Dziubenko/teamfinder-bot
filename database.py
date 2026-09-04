@@ -1201,7 +1201,8 @@ class Database:
                             expires_at TEXT NOT NULL,
                             max_players INT NOT NULL DEFAULT 6,
                             is_private BOOLEAN NOT NULL DEFAULT FALSE,
-                            password_hash TEXT
+                            password_hash TEXT,
+                            voice_enabled BOOLEAN NOT NULL DEFAULT FALSE
                         )
                         """
                     )
@@ -1251,6 +1252,55 @@ class Database:
                 )
             except asyncpg.PostgresError as e:
                 print(f"Migration warning game_sessions_v2: {e}")
+
+        # Migration: voice chat columns
+        migration_name = "game_sessions_voice_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        "ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS voice_enabled BOOLEAN NOT NULL DEFAULT FALSE"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning game_sessions_voice_v1: {e}")
+
+        # Voice chat participants table
+        migration_name = "voice_chat_participants_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS voice_chat_participants (
+                            session_id BIGINT NOT NULL REFERENCES game_sessions(id) ON DELETE CASCADE,
+                            user_id BIGINT NOT NULL,
+                            joined_at TEXT NOT NULL,
+                            is_muted BOOLEAN NOT NULL DEFAULT FALSE,
+                            is_deafened BOOLEAN NOT NULL DEFAULT FALSE,
+                            PRIMARY KEY (session_id, user_id)
+                        )
+                        """
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning voice_chat_participants_v1: {e}")
 
         # Provably-fair кейсы: серверный сид + SHA-256 коммитмент, каждый ролл
         # детерминированно выводится из sha256(server_seed:client_seed:nonce),
@@ -2885,6 +2935,108 @@ class Database:
                     )
                     return True
                 return True
+
+    async def is_user_in_session(self, session_id: int, user_id: int) -> bool:
+        """Проверяет, является ли пользователь участником сессии."""
+        return await self.pool.fetchval(
+            "SELECT 1 FROM game_session_players WHERE session_id = $1 AND user_id = $2",
+            session_id, user_id,
+        ) is not None
+
+    # Voice chat methods
+    async def join_voice_chat(self, session_id: int, user_id: int) -> tuple[bool, str, dict | None]:
+        """Присоединяется к голосовому чату сессии."""
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                # Check session exists and voice is enabled
+                row = await conn.fetchrow(
+                    "SELECT voice_enabled FROM game_sessions WHERE id = $1 AND status = 'active'",
+                    session_id,
+                )
+                if not row:
+                    return False, "session not found", None
+                if not row["voice_enabled"]:
+                    return False, "voice chat not enabled", None
+
+                # Check if already in voice
+                existing = await conn.fetchval(
+                    "SELECT 1 FROM voice_chat_participants WHERE session_id = $1 AND user_id = $2",
+                    session_id, user_id,
+                )
+                if existing:
+                    return False, "already in voice chat", None
+
+                # Add participant
+                await conn.execute(
+                    "INSERT INTO voice_chat_participants (session_id, user_id, joined_at) VALUES ($1, $2, $3)",
+                    session_id, user_id, datetime.utcnow().isoformat(),
+                )
+                return True, "", {"session_id": session_id, "user_id": user_id, "muted": False, "deafened": False}
+
+    async def leave_voice_chat(self, session_id: int, user_id: int) -> bool:
+        """Покидает голосовой чат."""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "DELETE FROM voice_chat_participants WHERE session_id = $1 AND user_id = $2",
+                session_id, user_id,
+            )
+            return True
+
+    async def get_voice_participants(self, session_id: int) -> list[dict]:
+        """Возвращает участников голосового чата с профилями."""
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT vp.user_id, vp.joined_at, vp.is_muted, vp.is_deafened,
+                       mp.nick, mp.avatar
+                FROM voice_chat_participants vp
+                LEFT JOIN mini_app_profiles mp ON mp.user_id = vp.user_id
+                WHERE vp.session_id = $1
+                ORDER BY vp.joined_at
+                """,
+                session_id,
+            )
+            return [dict(r) for r in rows]
+
+    async def set_voice_mute(self, session_id: int, user_id: int, muted: bool) -> bool:
+        """Меняет статус mute участника."""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE voice_chat_participants SET is_muted = $1 WHERE session_id = $2 AND user_id = $3",
+                muted, session_id, user_id,
+            )
+            return True
+
+    async def set_voice_deafen(self, session_id: int, user_id: int, deafened: bool) -> bool:
+        """Меняет статус deafen участника."""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE voice_chat_participants SET is_deafened = $1 WHERE session_id = $2 AND user_id = $3",
+                deafened, session_id, user_id,
+            )
+            return True
+
+    async def is_voice_enabled(self, session_id: int) -> bool:
+        """Проверяет, включен ли голосовой чат в сессии."""
+        row = await self.pool.fetchval(
+            "SELECT voice_enabled FROM game_sessions WHERE id = $1", session_id,
+        )
+        return bool(row)
+
+    async def set_voice_enabled(self, session_id: int, enabled: bool) -> bool:
+        """Включает/выключает голосовой чат в сессии."""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE game_sessions SET voice_enabled = $1 WHERE id = $2",
+                enabled, session_id,
+            )
+            if not enabled:
+                # Kick all participants
+                await conn.execute(
+                    "DELETE FROM voice_chat_participants WHERE session_id = $1", session_id,
+                )
+            return True
 
     async def get_user_prefs(self, user_id: int) -> dict:
         async with self.pool.acquire() as conn:
