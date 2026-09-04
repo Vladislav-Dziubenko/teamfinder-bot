@@ -3147,6 +3147,81 @@ async def handle_chat_unmute(request: web.Request):
     return web.json_response({"ok": True})
 
 
+async def handle_chat_voice_upload(request: web.Request):
+    """Upload voice message (multipart/form-data with 'audio' field)."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    status = await db.get_chat_status(chat_id, user["id"])
+    if status["blocked"]:
+        return web.json_response({"error": "blocked"}, status=403)
+
+    try:
+        reader = await request.multipart()
+        field = await reader.next()
+        if field is None or field.name != "audio":
+            return web.json_response({"error": "missing audio field"}, status=400)
+
+        voice_data = await field.read()
+        if not voice_data:
+            return web.json_response({"error": "empty audio"}, status=400)
+
+        # Parse duration from headers or form field
+        duration = 0
+        mime = field.headers.get("Content-Type", "audio/webm")
+        duration_header = field.headers.get("X-Duration")
+        if duration_header and duration_header.isdigit():
+            duration = int(duration_header)
+
+        # Limit: max 60 seconds, max 2MB
+        if len(voice_data) > 2 * 1024 * 1024:
+            return web.json_response({"error": "audio too large (max 2MB)"}, status=400)
+        if duration > 60:
+            duration = 60
+
+        msg = await db.send_voice_message(chat_id, user["id"], voice_data, duration, mime)
+        await cache_delete_pattern(f"chat_msgs:{chat_id}")
+
+        # Notify other user
+        if status.get("other_id") is not None:
+            sender_nick = ""
+            try:
+                sender_nick = (await db.get_mini_app_profile(user["id"])).get("nick") or f"User{user['id']}"
+            except Exception:
+                pass
+            asyncio.create_task(_notify_tg_new_message(request, db, status["other_id"], chat_id, sender_nick, "🎤 Голосовое сообщение"))
+
+        return web.json_response({"message": msg})
+    except Exception as e:
+        logging.exception("voice upload failed")
+        return web.json_response({"error": "upload failed"}, status=500)
+
+
+async def handle_chat_voice_stream(request: web.Request):
+    """Stream voice message audio."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    msg_id = request.match_info["msg_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+
+    msg = await db.pool.fetchrow(
+        "SELECT voice_data, voice_mime FROM chat_messages WHERE id = $1 AND chat_id = $2 AND is_voice = TRUE",
+        int(msg_id), chat_id,
+    )
+    if not msg or not msg["voice_data"]:
+        return web.json_response({"error": "not found"}, status=404)
+
+    return web.Response(
+        body=msg["voice_data"],
+        content_type=msg["voice_mime"] or "audio/webm",
+        headers={"Accept-Ranges": "bytes", "Content-Length": str(len(msg["voice_data"]))},
+    )
+
+
 # ---------------------------------------------------------------------------
 # Roles & moderation helpers
 # ---------------------------------------------------------------------------
@@ -4473,6 +4548,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/chat/{chat_id}/unblock", handle_chat_unblock)
     app.router.add_post("/api/chat/{chat_id}/mute", handle_chat_mute)
     app.router.add_post("/api/chat/{chat_id}/unmute", handle_chat_unmute)
+    app.router.add_post("/api/chat/{chat_id}/voice", handle_chat_voice_upload)
+    app.router.add_get("/api/chat/{chat_id}/voice/{msg_id}", handle_chat_voice_stream)
     app.router.add_get("/api/global", handle_global_messages)
     app.router.add_post("/api/global/send", handle_global_send)
     app.router.add_post("/api/global/delete", handle_global_delete)

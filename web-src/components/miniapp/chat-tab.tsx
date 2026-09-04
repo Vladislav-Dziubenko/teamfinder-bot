@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState, memo } from "react"
 import { createPortal } from "react-dom"
-import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock } from "lucide-react"
+import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock, Mic, MicOff } from "lucide-react"
 import {
   useChatMessages,
   useChats,
@@ -18,6 +18,8 @@ import { hapticImpact, hapticTap } from "@/lib/webapp"
 import { analytics } from "@/lib/telegram-analytics"
 import { cn } from "@/lib/utils"
 import { RoleBadge, roleRank } from "@/components/miniapp/role-badge"
+import { VoiceRecordButton } from "@/components/miniapp/VoiceRecordButton"
+import { VoiceMessagePlayer } from "@/components/miniapp/VoiceMessagePlayer"
 import { StarSendSheet } from "@/components/miniapp/star-send-sheet"
 import { useMe } from "@/lib/store"
 
@@ -165,6 +167,9 @@ type Message = {
   text: string
   ts: number
   status?: "sent" | "read"
+  isVoice?: boolean
+  voiceDuration?: number
+  voiceMime?: string
 }
 
 const MessageBubble = React.memo(function MessageBubble({ message: m, mine }: { message: Message; mine: boolean }) {
@@ -173,15 +178,23 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine }: { 
   const [loading, setLoading] = useState(false)
 
   const isSticker = isStickerText(m.text)
+  const isVoice = m.isVoice && m.voiceDuration
 
-  async function doTranslate() {
-    if (isSticker) return
-    setLoading(true)
-    try {
-      const res = await api.post("/api/translate", { text: m.text, target: lang })
-      setTranslated(res.translated ?? null)
-    } catch {}
-    setLoading(false)
+  if (isVoice) {
+    return (
+      <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
+        <VoiceMessagePlayer
+          src={`/api/chat/${chatId}/voice/${m.id}`}
+          duration={m.voiceDuration || 0}
+          mime={m.voiceMime}
+        />
+        <div className={cn("flex items-center gap-1 mt-0.5", mine ? "justify-end" : "justify-start")}>
+          <span className={cn("text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
+            {formatMsgTime(m.ts, lang)}
+          </span>
+        </div>
+      </div>
+    )
   }
 
   if (isSticker) {
@@ -427,7 +440,6 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
         <StickerPanel onPick={sendSticker} onClose={() => setShowStickers(false)} />
       )}
 
-      {/* Input */}
       <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2.5 backdrop-blur-xl">
         {canSend ? (
           <>
@@ -437,6 +449,7 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
             <button type="button" onClick={openStickerPanel} aria-label={t("chat.sticker")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
               <Sticker className="size-5" />
             </button>
+            <VoiceRecordButton chatId={chatId} onSend={sendMessage} disabled={!canSend} />
             <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }} placeholder={t("chat.input_placeholder")} className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50" />
             <button type="button" onClick={submit} disabled={!draft.trim()} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
               <Send className="size-5" />

@@ -292,6 +292,35 @@ CREATE TABLE IF NOT EXISTS chat_mutes (
     PRIMARY KEY (user_id, chat_id)
 );
 
+-- Voice messages migration
+        migration_name = "voice_messages_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_voice BOOLEAN NOT NULL DEFAULT FALSE"
+                    )
+                    await conn.execute(
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_data BYTEA"
+                    )
+                    await conn.execute(
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_duration INTEGER NOT NULL DEFAULT 0"
+                    )
+                    await conn.execute(
+                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_mime TEXT"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning voice_messages_v1: {e}")
+
 CREATE TABLE IF NOT EXISTS global_messages (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -3882,6 +3911,15 @@ WHERE user_quests.completed = 0
             )
             return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": text, "created_at": now, "read_at": None}
 
+    async def send_voice_message(self, chat_id: str, sender_id: int, voice_data: bytes, duration: int, mime: str) -> dict:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "INSERT INTO chat_messages (chat_id, sender_id, text, created_at, is_voice, voice_data, voice_duration, voice_mime) VALUES ($1, $2, '', $3, TRUE, $4, $5, $6) RETURNING id",
+                chat_id, sender_id, now, voice_data, duration, mime,
+            )
+            return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": "", "created_at": now, "read_at": None, "is_voice": True, "voice_duration": duration, "voice_mime": mime}
+
     async def mark_chat_read(self, chat_id: str, user_id: int) -> None:
         """Mark all incoming messages (from the other party) as read."""
         now = datetime.utcnow().isoformat()
@@ -3896,12 +3934,12 @@ WHERE user_quests.completed = 0
         async with self.pool.acquire() as conn:
             if before_id is not None:
                 rows = await conn.fetch(
-                    "SELECT id, chat_id, sender_id, text, created_at, read_at FROM chat_messages WHERE chat_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT $3",
+                    "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_data, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT $3",
                     chat_id, before_id, limit,
                 )
             else:
                 rows = await conn.fetch(
-                    "SELECT id, chat_id, sender_id, text, created_at, read_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
+                    "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_data, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
                     chat_id, limit,
                 )
             return [dict(r) for r in reversed(rows)]
