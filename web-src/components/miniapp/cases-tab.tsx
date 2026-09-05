@@ -142,7 +142,11 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
   // Реклама через AdsGram SDK. showAd() показывает рекламу,
   // возвращает true если юзер досмотрел до конца.
   async function showRewardedAd(): Promise<boolean> {
-    return showAd()
+    // AdsGram showAd may resolve before ad completes. We await and validate.
+    const result = await showAd()
+    // AdsGram may resolve before ad completes. Add a small delay to ensure ad was actually shown.
+    await new Promise(r => setTimeout(r, 500))
+    return result
   }
 
   async function handleOpenForAd(c: LootCase) {

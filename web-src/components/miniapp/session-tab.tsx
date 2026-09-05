@@ -30,7 +30,7 @@ type GameSession = {
 }
 
 const DURATIONS = [15, 30, 60, 120]
-const MAX_PLAYERS_OPTIONS = [2, 3, 4, 5, 6, 8, 10, 12, 16, 20]
+const MAX_PLAYERS_OPTIONS = [2, 3, 4, 5, 6, 8, 10]
 
 export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
@@ -216,6 +216,7 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
               placeholder={t("sessions.password_placeholder")}
               className="flex-1 rounded-xl border border-input bg-background px-4 py-2 text-sm font-medium outline-none placeholder:text-muted-foreground/40"
               maxLength={20}
+              disabled={!password}
             />
             <label className="flex items-center gap-1.5 rounded-xl border border-border bg-secondary/60 px-3 py-2 text-xs font-semibold text-muted-foreground cursor-pointer">
               <input
