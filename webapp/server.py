@@ -1560,27 +1560,33 @@ async def handle_nexus_open_case(request: web.Request):
 
                         if case_config["free"]:
                             last_open = await db.get_last_case_open(user["id"], case_id, conn)
+                            logging.info("[CASE_DEBUG] free case, last_open=%s user=%s case=%s", last_open is not None, user["id"], case_id)
                             if last_open:
                                 last_dt = datetime.fromisoformat(last_open)
-                                if (datetime.utcnow() - last_dt).total_seconds() < 24 * 3600:
-                                    # Кулдаун снимается ТОЛЬКО если реклама реально
-                                    # засчитана на сервере (recordAdWatch) недавно.
-                                    # Флаг via_ad от клиента без свежего просмотра игнорируем.
-                                    via_ad = bool(body.get("via_ad"))
+                                cooldown_sec = (datetime.utcnow() - last_dt).total_seconds()
+                                logging.info("[CASE_DEBUG] cooldown_remaining=%.0fs (limit=%ds)", max(0, 24*3600 - cooldown_sec), 24*3600)
+                                if cooldown_sec < 24 * 3600:
+                                    ad_row = await conn.fetchrow(
+                                        "SELECT updated_at, watch_count, rewarded FROM user_ad_watches WHERE user_id = $1",
+                                        user["id"],
+                                    )
                                     ad_ok = False
-                                    if via_ad:
-                                        ad_row = await conn.fetchrow(
-                                            "SELECT updated_at FROM user_ad_watches WHERE user_id = $1",
-                                            user["id"],
-                                        )
-                                        if ad_row and ad_row["updated_at"]:
-                                            try:
-                                                ad_dt = datetime.fromisoformat(ad_row["updated_at"])
-                                                ad_ok = (datetime.utcnow() - ad_dt).total_seconds() < 10 * 60
-                                            except (ValueError, TypeError):
-                                                ad_ok = False
+                                    if ad_row and ad_row["updated_at"]:
+                                        try:
+                                            ad_dt = datetime.fromisoformat(ad_row["updated_at"])
+                                            ad_age = (datetime.utcnow() - ad_dt).total_seconds()
+                                            ad_ok = ad_age < 10 * 60
+                                            logging.info("[CASE_DEBUG] ad_row updated_at=%s age=%.0fs ad_ok=%s watch_count=%s rewarded=%s", ad_row["updated_at"], ad_age, ad_ok, ad_row["watch_count"], ad_row["rewarded"])
+                                        except (ValueError, TypeError) as e:
+                                            logging.warning("[CASE_DEBUG] ad parse error: %s", e)
+                                            ad_ok = False
+                                    else:
+                                        logging.warning("[CASE_DEBUG] no ad_row for user=%s", user["id"])
                                     if not ad_ok:
+                                        logging.warning("[CASE_DEBUG] COOLDOWN triggered user=%s case=%s", user["id"], case_id)
                                         return web.json_response({"error": "cooldown"}, status=400)
+                                    else:
+                                        logging.info("[CASE_DEBUG] AD WATCH ACCEPTED, opening free case user=%s case=%s", user["id"], case_id)
                         else:
                             # Бета-тестер может открыть голд за бета-баланс (case_balance),
                             # но только если клиент явно просит beta_free И баланс хватает.
