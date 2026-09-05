@@ -5176,6 +5176,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             # Cleanup
             if session_ws_key in request.app and user["id"] in request.app[session_ws_key]:
                 del request.app[session_ws_key][user["id"]]
+            await db.leave_voice_chat(session_id, user["id"])
             # Notify others about departure
             leave_msg = {"type": "user_left", "user_id": user["id"]}
             if session_ws_key in request.app:
