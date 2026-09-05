@@ -107,6 +107,11 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
   const extRef = useRef("webm")
   const startTimeRef = useRef<number>(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Замер уровня сигнала для диагностики «тихих» записей (0..1, пик за запись)
+  const levelCtxRef = useRef<AudioContext | null>(null)
+  const levelAnRef = useRef<AnalyserNode | null>(null)
+  const levelDataRef = useRef<Uint8Array | null>(null)
+  const peakRef = useRef(0)
 
   // Отпускаем микрофон полностью: только при уходе из чата.
   // Пока чат открыт — стрим держим тёплым, чтобы системный диалог
@@ -126,6 +131,11 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
   useEffect(() => {
     return () => {
       if (timerRef.current) clearInterval(timerRef.current)
+      try {
+        levelCtxRef.current?.close()?.catch(() => {})
+      } catch {}
+      levelCtxRef.current = null
+      levelAnRef.current = null
       releaseStream()
     }
   }, [releaseStream])
@@ -135,6 +145,11 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
       clearInterval(timerRef.current)
       timerRef.current = null
     }
+    try {
+      levelCtxRef.current?.close()?.catch(() => {})
+    } catch {}
+    levelCtxRef.current = null
+    levelAnRef.current = null
     setLiveStream(null)
     mediaRecorderRef.current = null
     cancelledRef.current = false
@@ -196,6 +211,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
     try {
       const res = await api.postForm<{ message: any }>(`/api/chat/${chatId}/voice`, formData, {
         "X-Duration": String(Math.min(secs, 60)),
+        "X-Peak-Level": String(Math.round(peakRef.current * 100)),
       })
       if (res?.message) onSend(res.message)
       setError(null)
@@ -280,11 +296,39 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
       }
       startTimeRef.current = Date.now()
       cancelledRef.current = false
+      peakRef.current = 0
+      // Отдельный анализатор для замера пика (волна в HUD рисует свой)
+      try {
+        const AC = window.AudioContext || (window as any).webkitAudioContext
+        if (AC) {
+          const lctx = new AC()
+          const lsrc = lctx.createMediaStreamSource(stream)
+          const lan = lctx.createAnalyser()
+          lan.fftSize = 256
+          lsrc.connect(lan)
+          levelCtxRef.current = lctx
+          levelAnRef.current = lan
+          levelDataRef.current = new Uint8Array(lan.fftSize)
+        }
+      } catch {}
       rec.start(100)
       setLiveStream(stream)
       setRecording(true)
       timerRef.current = setInterval(() => {
         setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000))
+        try {
+          const an = levelAnRef.current
+          const buf = levelDataRef.current
+          if (an && buf) {
+            an.getByteTimeDomainData(buf)
+            let peak = 0
+            for (let i = 0; i < buf.length; i++) {
+              const v = Math.abs(buf[i] - 128) / 128
+              if (v > peak) peak = v
+            }
+            if (peak > peakRef.current) peakRef.current = peak
+          }
+        } catch {}
       }, 200)
     } catch (err: any) {
       const name = err?.name || "UnknownError"

@@ -3298,6 +3298,11 @@ async def handle_chat_voice_upload(request: web.Request):
         if duration > 60:
             duration = 60
 
+        peak = request.headers.get("X-Peak-Level", "?")
+        logging.info(
+            "[VOICE] upload user=%s chat=%s bytes=%s dur=%s mime=%s peak=%s",
+            user["id"], chat_id, len(voice_data), duration, mime, peak,
+        )
         msg = await db.send_voice_message(chat_id, user["id"], voice_data, duration, mime)
         await cache_delete_pattern(f"chat_msgs:{chat_id}")
 
