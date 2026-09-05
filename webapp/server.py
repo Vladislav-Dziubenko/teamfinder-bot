@@ -5137,8 +5137,16 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
                 except Exception:
                     pass
 
-        # Notify others about new participant
-        await _broadcast({"type": "user_joined", "user_id": user["id"]})
+        # Notify others about new participant (include nick/avatar for display)
+        profile = await db.pool.fetchrow(
+            "SELECT nick, avatar FROM mini_app_profiles WHERE user_id = $1", user["id"],
+        )
+        await _broadcast({
+            "type": "user_joined",
+            "user_id": user["id"],
+            "nick": profile["nick"] if profile else None,
+            "avatar": profile["avatar"] if profile else None,
+        })
 
         try:
             async for msg in ws:

@@ -318,7 +318,11 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
               })
               return next
             })
-            list.forEach((p) => void createOffer(Number(p.user_id)))
+            list.forEach((p) => {
+              if (userIdRef.current > Number(p.user_id)) {
+                void createOffer(Number(p.user_id))
+              }
+            })
           })
           .catch(() => {})
       }
@@ -334,7 +338,18 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
         switch (data.type) {
           case "user_joined":
             if (Number(data.user_id) && Number(data.user_id) !== userIdRef.current) {
-              void createOffer(Number(data.user_id))
+              const remoteId = Number(data.user_id)
+              if (data.nick || data.avatar) {
+                setNames((prev) => {
+                  const next = new Map(prev)
+                  next.set(remoteId, { nick: data.nick ?? null, avatar: data.avatar ?? null })
+                  return next
+                })
+              }
+              // Only higher ID creates offer to avoid collision
+              if (userIdRef.current > remoteId) {
+                void createOffer(remoteId)
+              }
             }
             break
           case "user_left":
