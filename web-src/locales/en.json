@@ -1010,5 +1010,20 @@
   "chat.mic_webview_blocked": "App webview blocks recording — restart Telegram fully and update it.",
   "chat.mic_ready": "Mic is ready — hold the button to record.",
   "chat.voice_via_tg": "Record via Telegram (if the mic button fails)",
-  "chat.mic_use_tg_instead": "This browser keeps blocking the mic — tap the robot 🤖 button next to it and record via Telegram."
+  "chat.mic_use_tg_instead": "This browser keeps blocking the mic — tap the robot 🤖 button next to it and record via Telegram.",
+  "sessions.max_players": "players",
+  "sessions.password_label": "Session password (optional)",
+  "sessions.password_placeholder": "Empty = public session",
+  "sessions.private_session": "Private",
+  "sessions.password_hint": "Only people with the password can join.",
+  "sessions.password_prompt": "Enter session password",
+  "sessions.voice_chat": "Voice chat",
+  "sessions.voice_active": "On",
+  "voice.title": "Voice chat",
+  "voice.join_title": "Join voice chat?",
+  "voice.join_desc": "Talk with session members in real time.",
+  "voice.join_btn": "Join",
+  "voice.participants": "participants",
+  "voice.speaking": "Speaking…",
+  "voice.disabled_by_creator": "Voice chat is disabled by the creator."
 }

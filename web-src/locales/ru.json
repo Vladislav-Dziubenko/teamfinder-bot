@@ -1010,5 +1010,20 @@
   "chat.mic_webview_blocked": "Вебвью режет запись — полностью перезапустите Telegram и обновите его.",
   "chat.mic_ready": "Микрофон готов — зажмите кнопку для записи.",
   "chat.voice_via_tg": "Записать через Telegram (если кнопка микрофона не работает)",
-  "chat.mic_use_tg_instead": "Браузер упорно режет микрофон — нажми кнопку с роботом 🤖 рядом и запиши через Telegram."
+  "chat.mic_use_tg_instead": "Браузер упорно режет микрофон — нажми кнопку с роботом 🤖 рядом и запиши через Telegram.",
+  "sessions.max_players": "игроков",
+  "sessions.password_label": "Пароль сессии (необязательно)",
+  "sessions.password_placeholder": "Пусто — открытая сессия",
+  "sessions.private_session": "Приватная",
+  "sessions.password_hint": "Зайти смогут только с паролем.",
+  "sessions.password_prompt": "Введи пароль сессии",
+  "sessions.voice_chat": "Голосовой чат",
+  "sessions.voice_active": "Вкл",
+  "voice.title": "Голосовой чат",
+  "voice.join_title": "Зайти в голосовой?",
+  "voice.join_desc": "Общайся с участниками сессии в реальном времени.",
+  "voice.join_btn": "Зайти",
+  "voice.participants": "участники",
+  "voice.speaking": "Говорит…",
+  "voice.disabled_by_creator": "Голосовой чат выключен создателем."
 }

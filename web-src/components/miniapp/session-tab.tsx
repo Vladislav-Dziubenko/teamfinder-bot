@@ -192,14 +192,14 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
             </button>
           ))}
         </div>
-        <div className="mt-3 flex gap-1.5">
+        <div className="mt-3 flex flex-wrap gap-1.5">
           {MAX_PLAYERS_OPTIONS.map((p) => (
             <button
               key={p}
               type="button"
               onClick={() => setMaxPlayers(p)}
               className={cn(
-                "flex-1 rounded-xl border px-2 py-2 text-xs font-bold transition-colors active:scale-95",
+                "min-w-[72px] flex-1 rounded-xl border px-2 py-2 text-xs font-bold transition-colors active:scale-95",
                 maxPlayers === p ? "border-primary/50 bg-primary/10 text-primary" : "border-border bg-secondary/50 text-muted-foreground",
               )}
             >
