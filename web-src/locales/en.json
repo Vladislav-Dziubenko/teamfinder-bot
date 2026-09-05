@@ -998,5 +998,13 @@
   "match.only_steam": "Steam only",
   "cases.need_coins_title": "Not enough coins",
   "cases.need_coins_desc": "Need {cost} coins, you have {coins}",
-  "cases.top_up_coins": "Buy {cost} coins"
+  "cases.top_up_coins": "Buy {cost} coins",
+  "chat.record_voice": "Hold to record a voice message",
+  "chat.recording": "Recording…",
+  "chat.release_to_send": "Release to send",
+  "chat.voice_too_short": "Hold the button longer to record",
+  "chat.voice_send_failed": "Couldn't send the voice message",
+  "chat.mic_denied": "Microphone is blocked. Allow mic access and hold the button again.",
+  "chat.mic_no_device": "No microphone found on this device.",
+  "chat.mic_unsupported": "Voice recording isn't supported here. Open the Mini App in the Telegram app."
 }

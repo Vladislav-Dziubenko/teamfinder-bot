@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef, useCallback, useEffect } from "react"
-import { Mic, MicOff, Loader2 } from "lucide-react"
+import { useState, useRef, useCallback } from "react"
+import { Mic, Loader2 } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -12,152 +12,195 @@ interface VoiceRecordButtonProps {
   disabled?: boolean
 }
 
+function pickMime(): { mime: string; ext: string } {
+  try {
+    const MR = window.MediaRecorder as any
+    if (MR?.isTypeSupported?.("audio/webm;codecs=opus")) return { mime: "audio/webm;codecs=opus", ext: "webm" }
+    if (MR?.isTypeSupported?.("audio/webm")) return { mime: "audio/webm", ext: "webm" }
+    if (MR?.isTypeSupported?.("audio/mp4")) return { mime: "audio/mp4", ext: "m4a" }
+  } catch {}
+  return { mime: "", ext: "webm" }
+}
+
 export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButtonProps) {
   const { t } = useI18n()
   const [recording, setRecording] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [duration, setDuration] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
+  const mimeRef = useRef("audio/webm")
+  const extRef = useRef("webm")
   const startTimeRef = useRef<number>(0)
-  const timerRef = useRef<NodeJS.Timeout | null>(null)
-  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null)
-  const isLongPressRef = useRef(false)
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const sentRef = useRef(false)
 
-  const startRecording = useCallback(async () => {
-    if (disabled) return
-
-    try {
-      setError(null)
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      const mediaRecorder = new MediaRecorder(stream, { mimeType: "audio/webm" })
-      mediaRecorderRef.current = mediaRecorder
-      chunksRef.current = []
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data)
-      }
-
-      mediaRecorder.onstop = async () => {
-        const blob = new Blob(chunksRef.current, { type: "audio/webm" })
-        const duration = Math.floor((Date.now() - startTimeRef.current) / 1000)
-
-        // Send to server (multipart — api.post шлёт только JSON, для FormData есть postForm)
-        const formData = new FormData()
-        formData.append("audio", blob, "voice.webm")
-
+  const cleanup = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((tr) => {
         try {
-          const res = await api.postForm<{ message: any }>(`/api/chat/${chatId}/voice`, formData, {
-            "X-Duration": String(duration),
-          })
-          if (res?.message) {
-            onSend(res.message)
-          }
-        } catch (err: any) {
-          setError(err?.message ?? "Failed to send voice message")
-        } finally {
-          stream.getTracks().forEach(t => t.stop())
-        }
-      }
-
-      mediaRecorder.start(100)
-      setRecording(true)
-      startTimeRef.current = Date.now()
-      timerRef.current = setInterval(() => {
-        setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000))
-      }, 200)
-    } catch (err) {
-      setError("Microphone access denied")
+          tr.stop()
+        } catch {}
+      })
+      streamRef.current = null
     }
-  }, [chatId, onSend, disabled])
-
-  const stopRecording = useCallback(() => {
-    if (timerRef.current) clearInterval(timerRef.current)
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
-      mediaRecorderRef.current.stop()
-    }
+    mediaRecorderRef.current = null
+    sentRef.current = false
     setRecording(false)
     setDuration(0)
   }, [])
 
-  // Touch handlers for press-hold
-  const onTouchStart = useCallback((e: React.TouchEvent) => {
-    e.preventDefault()
-    isLongPressRef.current = false
-    longPressTimerRef.current = setTimeout(() => {
-      isLongPressRef.current = true
-      startRecording()
-    }, 300) // 300ms to trigger recording
-  }, [startRecording])
+  const finishUpload = useCallback(async () => {
+    const blobParts = chunksRef.current
+    const mime = mimeRef.current
+    const ext = extRef.current
+    const secs = Math.floor((Date.now() - startTimeRef.current) / 1000)
+    // Короткий тап (<0.5с) — не отправляем, это был не холд
+    if (secs < 1 && blobParts.length === 0) {
+      cleanup()
+      return
+    }
+    const blob = new Blob(blobParts, { type: mime || "audio/webm" })
+    if (blob.size < 500) {
+      setError(t("chat.voice_too_short"))
+      cleanup()
+      return
+    }
+    const formData = new FormData()
+    formData.append("audio", blob, `voice.${ext}`)
+    setUploading(true)
+    try {
+      const res = await api.postForm<{ message: any }>(`/api/chat/${chatId}/voice`, formData, {
+        "X-Duration": String(Math.min(secs, 60)),
+      })
+      if (res?.message) onSend(res.message)
+      setError(null)
+    } catch (err: any) {
+      setError(err?.message ?? t("chat.voice_send_failed"))
+    } finally {
+      setUploading(false)
+      cleanup()
+    }
+  }, [chatId, onSend, cleanup, t])
 
-  const onTouchEnd = useCallback((e: React.TouchEvent) => {
-    e.preventDefault()
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
-    if (!isLongPressRef.current) return // Was just a tap, not long press
-    stopRecording()
-  }, [stopRecording])
+  // Старт — СИНХРОННО в жесте (pointerdown), без setTimeout:
+  // иначе WebView теряет user activation и кидает NotAllowedError
+  // даже при разрешённом микрофоне.
+  const handlePress = useCallback(async () => {
+    if (disabled || uploading || recording) return
+    setError(null)
+    const md = navigator.mediaDevices
+    if (!md?.getUserMedia) {
+      setError(t("chat.mic_unsupported"))
+      return
+    }
+    try {
+      const stream = await md.getUserMedia({ audio: true })
+      streamRef.current = stream
+      const picked = pickMime()
+      mimeRef.current = picked.mime
+      extRef.current = picked.ext
+      chunksRef.current = []
+      const rec = picked.mime ? new MediaRecorder(stream, { mimeType: picked.mime }) : new MediaRecorder(stream)
+      mediaRecorderRef.current = rec
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data)
+      }
+      rec.onstop = () => {
+        void finishUpload()
+      }
+      rec.onerror = () => {
+        setError(t("chat.voice_send_failed"))
+        cleanup()
+      }
+      startTimeRef.current = Date.now()
+      rec.start(100)
+      setRecording(true)
+      timerRef.current = setInterval(() => {
+        setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000))
+      }, 200)
+    } catch (err: any) {
+      const name = err?.name || ""
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        setError(t("chat.mic_denied"))
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        setError(t("chat.mic_no_device"))
+      } else if (name === "NotSupportedError") {
+        setError(t("chat.mic_unsupported"))
+      } else {
+        setError(t("chat.mic_denied"))
+      }
+      cleanup()
+    }
+  }, [disabled, uploading, recording, finishUpload, cleanup, t])
 
-  // Mouse handlers for desktop testing
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    if (e.button !== 0) return // Only left click
-    isLongPressRef.current = false
-    longPressTimerRef.current = setTimeout(() => {
-      isLongPressRef.current = true
-      startRecording()
-    }, 300)
-  }, [startRecording])
-
-  const onMouseUp = useCallback(() => {
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
-    if (!isLongPressRef.current) return
-    stopRecording()
-  }, [stopRecording])
-
-  const onMouseLeave = useCallback(() => {
-    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current)
-    if (!isLongPressRef.current) return
-    stopRecording()
-  }, [stopRecording])
+  const handleRelease = useCallback(() => {
+    const rec = mediaRecorderRef.current
+    if (!rec || rec.state === "inactive") return
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    try {
+      rec.stop()
+    } catch {
+      cleanup()
+    }
+    // setRecording(false) случится в cleanup после загрузки
+  }, [cleanup])
 
   return (
     <div className="relative">
       <button
         type="button"
-        disabled={disabled || recording}
-        onTouchStart={onTouchStart}
-        onTouchEnd={onTouchEnd}
-        onMouseDown={onMouseDown}
-        onMouseUp={onMouseUp}
-        onMouseLeave={onMouseLeave}
+        disabled={disabled || uploading}
+        onPointerDown={(e) => {
+          e.preventDefault()
+          void handlePress()
+        }}
+        onPointerUp={(e) => {
+          e.preventDefault()
+          handleRelease()
+        }}
+        onPointerLeave={handleRelease}
+        onPointerCancel={handleRelease}
+        onContextMenu={(e) => e.preventDefault()}
         className={cn(
-          "grid size-10 place-items-center rounded-xl transition-colors active:scale-95",
-          recording ? "bg-red-500 text-white animate-pulse" : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
+          "grid size-10 touch-none place-items-center rounded-xl transition-colors active:scale-95 select-none",
+          recording ? "bg-red-500 text-white animate-pulse" : "bg-secondary/60 text-muted-foreground hover:bg-secondary",
         )}
         aria-label={recording ? t("chat.recording") : t("chat.record_voice")}
       >
-        {recording ? (
+        {uploading ? (
+          <Loader2 className="size-5 animate-spin" />
+        ) : (
           <>
             <Mic className="size-5" />
-            <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] font-mono tabular-nums bg-black/80 text-white px-1.5 py-0.5 rounded">
-              {String(Math.floor(duration / 60)).padStart(2, "0")}:{String(duration % 60).padStart(2, "0")}
-            </span>
+            {recording && (
+              <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] font-mono tabular-nums bg-black/80 text-white px-1.5 py-0.5 rounded">
+                {String(Math.floor(duration / 60)).padStart(2, "0")}:{String(duration % 60).padStart(2, "0")}
+              </span>
+            )}
           </>
-        ) : (
-          <Mic className="size-5" />
         )}
       </button>
 
       {error && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 text-[10px] text-red-500 whitespace-nowrap bg-red-500/10 px-2 py-1 rounded">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 max-w-[220px] text-center text-[10px] text-red-500 whitespace-normal bg-red-500/10 px-2 py-1 rounded">
           {error}
         </div>
       )}
 
       {recording && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-10 text-center">
-          <p className="text-[11px] text-muted-foreground bg-background/90 px-3 py-1.5 rounded-xl shadow-lg border border-border">
+        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-10 text-center pointer-events-none">
+          <p className="text-[11px] text-muted-foreground bg-background/90 px-3 py-1.5 rounded-xl shadow-lg border border-border whitespace-nowrap">
             {t("chat.release_to_send")}
           </p>
         </div>
