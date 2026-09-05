@@ -1044,5 +1044,8 @@
     "chat.global_delete_msg": "Удалить",
     "chat.select_messages": "Выбрать",
     "chat.cannot_delete_others": "Можно удалить только свои сообщения"
+  },
+  "market": {
+    "already_sold": "Этот предмет уже продан"
   }
 }

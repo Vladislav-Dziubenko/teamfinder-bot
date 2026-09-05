@@ -2719,7 +2719,7 @@ class Database:
                 if row["seller_id"] == buyer_id:
                     return False, "self buy"
                 balance = await conn.fetchrow(
-                    "SELECT coins FROM user_currency WHERE user_id = $1", buyer_id
+                    "SELECT coins FROM user_currency WHERE user_id = $1 FOR UPDATE", buyer_id
                 )
                 coins = balance["coins"] if balance else 0
                 if coins < row["price_coins"]:

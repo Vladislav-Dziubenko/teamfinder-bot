@@ -1044,5 +1044,8 @@
     "chat.global_delete_msg": "Delete",
     "chat.select_messages": "Select",
     "chat.cannot_delete_others": "You can only delete your own messages"
+  },
+  "market": {
+    "already_sold": "This item was already sold"
   }
 }

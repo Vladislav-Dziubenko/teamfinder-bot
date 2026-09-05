@@ -114,8 +114,13 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
       onToast(t("market.bought", { item: tl(itemNameKey({ key: l.item_key }), l.item_name) }))
       setListings((prev) => prev.filter((x) => x.id !== l.id))
       await refresh()
-    } catch {
-      onToast(t("market.buy_failed"))
+    } catch (e: any) {
+      const msg = String(e?.message || e || "")
+      if (msg.includes("not found")) {
+        onToast(t("market.already_sold"))
+      } else {
+        onToast(t("market.buy_failed"))
+      }
     } finally {
       setBuyingId(null)
       setConfirm(null)
