@@ -29,6 +29,9 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
     deafened,
     speaking,
     error,
+    clearError,
+    toggleMute,
+    toggleDeafen,
     wsConnected,
   } = useVoiceChat(sessionId, userId, enabled)
 
@@ -136,14 +139,7 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
 
         <div className="flex items-center gap-2">
           <button
-            onClick={() => {
-              const audioTracks = localStream?.getAudioTracks()
-              if (audioTracks) {
-                const newMuted = !muted
-                audioTracks.forEach((t) => (t.enabled = !newMuted))
-                setMuted(newMuted)
-              }
-            }}
+            onClick={toggleMute}
             className={cn(
               "grid size-9 place-items-center rounded-xl transition-colors active:scale-95",
               muted ? "bg-destructive/10 text-destructive" : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
@@ -154,10 +150,7 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
           </button>
 
           <button
-            onClick={() => {
-              const newDeafened = !deafened
-              setDeafened(newDeafened)
-            }}
+            onClick={toggleDeafen}
             className={cn(
               "grid size-9 place-items-center rounded-xl transition-colors active:scale-95",
               deafened ? "bg-destructive/10 text-destructive" : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
@@ -194,7 +187,7 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
       {error && (
         <div className="mx-4 mt-2 rounded-xl border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive flex items-center justify-between">
           <span>{error}</span>
-          <button onClick={() => setError(null)} className="text-destructive/70 hover:text-destructive">
+          <button onClick={clearError} className="text-destructive/70 hover:text-destructive">
             <X className="size-4" />
           </button>
         </div>
@@ -249,14 +242,7 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
       <div className="border-t border-border/50 bg-card/95 backdrop-blur-xl px-4 py-3">
         <div className="flex items-center justify-center gap-4">
           <button
-            onClick={() => {
-              const audioTracks = localStream?.getAudioTracks()
-              if (audioTracks) {
-                const newMuted = !muted
-                audioTracks.forEach((t) => (t.enabled = !newMuted))
-                setMuted(newMuted)
-              }
-            }}
+            onClick={toggleMute}
             className={cn(
               "flex flex-col items-center gap-1 rounded-xl px-4 py-2.5 transition-colors active:scale-95",
               muted ? "bg-destructive/10 text-destructive" : "bg-secondary/60 text-muted-foreground"
@@ -267,10 +253,7 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
           </button>
 
           <button
-            onClick={() => {
-              const newDeafened = !deafened
-              setDeafened(newDeafened)
-            }}
+            onClick={toggleDeafen}
             className={cn(
               "flex flex-col items-center gap-1 rounded-xl px-4 py-2.5 transition-colors active:scale-95",
               deafened ? "bg-destructive/10 text-destructive" : "bg-secondary/60 text-muted-foreground"

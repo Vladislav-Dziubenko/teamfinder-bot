@@ -431,5 +431,6 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
     deafened,
     speaking,
     error,
+    clearError: () => setError(null),
   }
 }
