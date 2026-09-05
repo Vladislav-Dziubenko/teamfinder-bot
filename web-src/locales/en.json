@@ -1007,5 +1007,6 @@
   "chat.mic_denied": "No mic access — allow it and hold the button again.",
   "chat.mic_no_device": "No microphone found on this device.",
   "chat.mic_unsupported": "Voice recording isn't supported here. Open the Mini App in the Telegram app.",
-  "chat.mic_webview_blocked": "App webview blocks recording — restart Telegram fully and update it."
+  "chat.mic_webview_blocked": "App webview blocks recording — restart Telegram fully and update it.",
+  "chat.mic_ready": "Mic is ready — hold the button to record."
 }

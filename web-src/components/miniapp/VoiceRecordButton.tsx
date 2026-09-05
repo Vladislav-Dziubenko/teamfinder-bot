@@ -28,6 +28,11 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
   const [uploading, setUploading] = useState(false)
   const [duration, setDuration] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [info, setInfo] = useState<string | null>(null)
+  // Палец сейчас на кнопке? Нужно, потому что системное окно Telegram
+  // («дать боту доступ к микрофону») требует отпустить кнопку, чтобы тапнуть
+  // «Разрешить» — холд при этом прерывается, и это нормально.
+  const pressActiveRef = useRef(false)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -57,12 +62,17 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
     setDuration(0)
   }, [])
 
-  // Ошибка — короткий тост, сама гаснет через 4с, экран не загораживает
+  // Ошибка/подсказка — короткие тосты, сами гаснут через 4с
   useEffect(() => {
     if (!error) return
     const id = setTimeout(() => setError(null), 4000)
     return () => clearTimeout(id)
   }, [error])
+  useEffect(() => {
+    if (!info) return
+    const id = setTimeout(() => setInfo(null), 3500)
+    return () => clearTimeout(id)
+  }, [info])
 
   const finishUpload = useCallback(async () => {
     const blobParts = chunksRef.current
@@ -165,6 +175,22 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
         setError(t("chat.voice_send_failed"))
         cleanup()
       }
+      // Если палец уже отпущен (вылезло системное окно Telegram и человек
+      // отпустил кнопку, чтобы тапнуть «Разрешить») — не стартуем призрачную
+      // запись, а фиксируем: микрофон разблокирован, просим зажать ещё раз.
+      if (!pressActiveRef.current) {
+        try {
+          stream.getTracks().forEach((tr) => {
+            try {
+              tr.stop()
+            } catch {}
+          })
+        } catch {}
+        streamRef.current = null
+        mediaRecorderRef.current = null
+        setInfo(t("chat.mic_ready"))
+        return
+      }
       startTimeRef.current = Date.now()
       rec.start(100)
       setRecording(true)
@@ -192,6 +218,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
   }, [disabled, uploading, recording, finishUpload, cleanup, t])
 
   const handleRelease = useCallback(() => {
+    pressActiveRef.current = false
     const rec = mediaRecorderRef.current
     if (!rec || rec.state === "inactive") return
     if (timerRef.current) {
@@ -213,6 +240,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
         disabled={disabled || uploading}
         onPointerDown={(e) => {
           e.preventDefault()
+          pressActiveRef.current = true
           void handlePress()
         }}
         onPointerUp={(e) => {
@@ -245,6 +273,12 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
       {error && (
         <div className="fixed left-1/2 bottom-36 z-[90] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border border-red-500/30 bg-background/95 px-3 py-2 text-center text-xs text-red-500 shadow-xl backdrop-blur">
           {error}
+        </div>
+      )}
+
+      {info && !error && (
+        <div className="fixed left-1/2 bottom-36 z-[90] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border border-primary/30 bg-background/95 px-3 py-2 text-center text-xs text-primary shadow-xl backdrop-blur">
+          {info}
         </div>
       )}
 
