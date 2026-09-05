@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react"
 import { Play, Pause, Volume2, VolumeX } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { getInitData } from "@/lib/api"
 
 interface VoiceMessagePlayerProps {
   src: string
@@ -18,31 +19,66 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
   const [muted, setMuted] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const audioRef = useRef<HTMLAudioElement>(null)
+  const volumeRef = useRef(1)
+  const mutedRef = useRef(false)
 
+  // ВАЖНО: голый <audio src> шлёт запрос БЕЗ X-Telegram-Init-Data,
+  // сервер отвечает 401 и в плеере тишина. Поэтому качаем авторизованным
+  // fetch и отдаём тегу blob-URL (файлы маленькие, до 2МБ).
   useEffect(() => {
-    if (!audioRef.current) {
-      audioRef.current = new Audio(src)
-      audioRef.current.preload = "metadata"
-    }
-    const audio = audioRef.current
+    let cancelled = false
+    let objectUrl: string | null = null
+    let audio: HTMLAudioElement | null = null
 
     const onLoadedMetadata = () => setLoaded(true)
-    const onTimeUpdate = () => setCurrentTime(audio.currentTime)
+    const onTimeUpdate = () => {
+      if (audio) setCurrentTime(audio.currentTime)
+    }
     const onEnded = () => setPlaying(false)
-    const onError = () => { setPlaying(false); console.error("Audio playback error") }
+    const onError = () => {
+      setPlaying(false)
+      console.error("Audio playback error")
+    }
 
-    audio.addEventListener("loadedmetadata", onLoadedMetadata)
-    audio.addEventListener("timeupdate", onTimeUpdate)
-    audio.addEventListener("ended", onEnded)
-    audio.addEventListener("error", onError)
+    const load = async () => {
+      try {
+        const res = await fetch(src, { headers: { "X-Telegram-Init-Data": getInitData() } })
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const blob = await res.blob()
+        if (cancelled) return
+        objectUrl = URL.createObjectURL(blob)
+        audio = new Audio(objectUrl)
+        audio.preload = "metadata"
+        audio.volume = volumeRef.current
+        audio.muted = mutedRef.current
+        audioRef.current = audio
+        audio.addEventListener("loadedmetadata", onLoadedMetadata)
+        audio.addEventListener("timeupdate", onTimeUpdate)
+        audio.addEventListener("ended", onEnded)
+        audio.addEventListener("error", onError)
+      } catch (e) {
+        if (!cancelled) onError()
+      }
+    }
+    void load()
 
     return () => {
-      audio.removeEventListener("loadedmetadata", onLoadedMetadata)
-      audio.removeEventListener("timeupdate", onTimeUpdate)
-      audio.removeEventListener("ended", onEnded)
-      audio.removeEventListener("error", onError)
-      audio.pause()
-      audio.src = ""
+      cancelled = true
+      if (audio) {
+        audio.removeEventListener("loadedmetadata", onLoadedMetadata)
+        audio.removeEventListener("timeupdate", onTimeUpdate)
+        audio.removeEventListener("ended", onEnded)
+        audio.removeEventListener("error", onError)
+        try {
+          audio.pause()
+        } catch {}
+      }
+      audioRef.current = null
+      if (objectUrl) {
+        try {
+          URL.revokeObjectURL(objectUrl)
+        } catch {}
+      }
     }
   }, [src])
 
@@ -70,6 +106,7 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
     const audio = audioRef.current
     if (!audio) return
     setMuted(!muted)
+    mutedRef.current = !muted
     audio.muted = !muted
   }
 
@@ -129,6 +166,7 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
           onChange={(e) => {
             const v = parseFloat(e.target.value)
             setVolume(v)
+            volumeRef.current = v
             if (audioRef.current) audioRef.current.volume = v
           }}
           className="w-16 h-1 appearance-none bg-secondary/40 rounded-full accent-primary"
