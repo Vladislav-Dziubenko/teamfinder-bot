@@ -3501,6 +3501,135 @@ async def handle_global_send(request: web.Request):
     return web.json_response({"message": msg})
 
 
+async def handle_global_voice_upload(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if await db.is_globally_banned(user["id"]):
+        return web.json_response({"error": "banned"}, status=403)
+    if await rate_limit_check(f"gsend:{user['id']}", GLOBAL_SEND_LIMIT, GLOBAL_SEND_WINDOW):
+        return web.json_response({"error": "slow down"}, status=429)
+    reader = await request.multipart()
+    field = await reader.next()
+    if not field or field.name != "audio":
+        return web.json_response({"error": "missing audio field"}, status=400)
+    voice_data = await field.read()
+    if len(voice_data) > 2 * 1024 * 1024:
+        return web.json_response({"error": "file too large"}, status=400)
+    duration = int(request.headers.get("X-Duration", "0") or "0")
+    if duration > 60:
+        return web.json_response({"error": "too long"}, status=400)
+    mime = field.content_type or "audio/webm"
+    msg = await db.send_global_voice_message(user["id"], voice_data, duration, mime)
+    msg["user_id"] = "me"
+    await cache_delete_pattern("global_chat_msgs")
+    return web.json_response({"message": msg})
+
+
+async def handle_global_voice_stream(request: web.Request):
+    db: Database = request.app["db"]
+    msg_id = int(request.match_info["msg_id"])
+    async with db.pool.acquire() as conn:
+        row = await conn.fetchrow(
+            "SELECT global_voice_data, global_voice_mime FROM global_messages WHERE id = $1 AND is_global_voice = TRUE",
+            msg_id,
+        )
+    if not row:
+        return web.json_response({"error": "not found"}, status=404)
+    return web.Response(
+        body=row["global_voice_data"],
+        content_type=row["global_voice_mime"] or "audio/webm",
+        headers={"Accept-Ranges": "bytes", "Cache-Control": "public, max-age=31536000"},
+    )
+
+
+# ---------- Sticker sets ----------
+
+DEFAULT_STICKER_SETS = [
+    "AnimatedPepe", "FrenPepe", "PepeBounce", "PepeStickers",
+    "NickandtheFam", "Kongz", "Puss2", "SmurfCat",
+    "DogToTheMoon", "H摸鱼猫H", "TamagotchiCat",
+]
+
+
+async def handle_sticker_sets(request: web.Request):
+    db: Database = request.app["db"]
+    sets = await db.get_sticker_sets()
+    return web.json_response({"sets": sets})
+
+
+async def handle_sticker_sync(request: web.Request):
+    db: Database = request.app["db"]
+    token = (os.getenv("BOT_TOKEN") or "").strip()
+    if not token:
+        return web.json_response({"error": "no bot token"}, status=500)
+    synced = []
+    async with ClientSession() as session:
+        for name in DEFAULT_STICKER_SETS:
+            try:
+                async with session.get(
+                    f"https://api.telegram.org/bot{token}/getStickerSet",
+                    params={"name": name},
+                    timeout=ClientTimeout(total=10),
+                ) as resp:
+                    if resp.status != 200:
+                        continue
+                    data = await resp.json()
+                    if not data.get("ok"):
+                        continue
+                    result = data["result"]
+                    stickers = []
+                    for s in result.get("stickers", [])[:50]:
+                        fid = s.get("file_id", "")
+                        thumb_fid = (s.get("thumb") or {}).get("file_id", "")
+                        stickers.append({
+                            "file_id": fid,
+                            "thumb_file_id": thumb_fid,
+                            "emoji": s.get("emoji", ""),
+                            "type": s.get("type", "regular"),
+                        })
+                    await db.upsert_sticker_set(name, result.get("title", name), stickers)
+                    synced.append(name)
+            except Exception:
+                continue
+    return web.json_response({"synced": synced})
+
+
+async def handle_sticker_image(request: web.Request):
+    file_id = request.match_info["file_id"]
+    token = (os.getenv("BOT_TOKEN") or "").strip()
+    if not token:
+        return web.json_response({"error": "no bot token"}, status=500)
+    cache_key = f"sticker_img:{file_id}"
+    cached = await cache_get(cache_key)
+    if cached:
+        return web.Response(body=cached[0], content_type=cached[1])
+    try:
+        async with ClientSession() as session:
+            async with session.get(
+                f"https://api.telegram.org/bot{token}/getFile",
+                params={"file_id": file_id},
+                timeout=ClientTimeout(total=10),
+            ) as resp:
+                if resp.status != 200:
+                    return web.json_response({"error": "getFile failed"}, status=502)
+                data = await resp.json()
+                if not data.get("ok"):
+                    return web.json_response({"error": "getFile error"}, status=502)
+                file_path = data["result"]["file_path"]
+            async with session.get(
+                f"https://api.telegram.org/file/bot{token}/{file_path}",
+                timeout=ClientTimeout(total=15),
+            ) as resp:
+                if resp.status != 200:
+                    return web.json_response({"error": "download failed"}, status=502)
+                img_bytes = await resp.read()
+                ct = resp.content_type or "image/webp"
+                await cache_set(cache_key, (img_bytes, ct), ttl=86400 * 30)
+                return web.Response(body=img_bytes, content_type=ct, headers={"Cache-Control": "public, max-age=2592000"})
+    except Exception as e:
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_global_delete(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -4762,9 +4891,14 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/voice/route", handle_voice_route)
     app.router.add_get("/api/global", handle_global_messages)
     app.router.add_post("/api/global/send", handle_global_send)
+    app.router.add_post("/api/global/voice", handle_global_voice_upload)
+    app.router.add_get("/api/global/voice/{msg_id}", handle_global_voice_stream)
     app.router.add_post("/api/global/delete", handle_global_delete)
     app.router.add_post("/api/global/ban", handle_global_ban)
     app.router.add_post("/api/global/unban", handle_global_unban)
+    app.router.add_get("/api/stickers", handle_sticker_sets)
+    app.router.add_post("/api/stickers/sync", handle_sticker_sync)
+    app.router.add_get("/api/stickers/img/{file_id}", handle_sticker_image)
     app.router.add_post("/api/admin/role", handle_admin_role)
     app.router.add_get("/api/admin/users", handle_admin_users)
     app.router.add_post("/api/admin/tg-profile/{user_id}", handle_admin_tg_profile)

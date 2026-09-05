@@ -13,6 +13,8 @@ interface VoiceRecordButtonProps {
   // Запасной путь (нативный войс Телеги через бота). Показываем его
   // прямо в модалке отказа — иначе человек упирается в тупик.
   onViaTelegram?: (() => void) | null
+  // Кастомная загрузка (для глобального чата): (blob, duration, mime) => Promise
+  customUpload?: (blob: Blob, duration: number, mime: string) => Promise<any>
 }
 
 function pickMime(): { mime: string; ext: string } {
@@ -84,7 +86,7 @@ function WaveBars({ stream }: { stream: MediaStream | null }) {
   return <canvas ref={canvasRef} width={168} height={36} className="h-9 w-40 shrink-0" />
 }
 
-export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: VoiceRecordButtonProps) {
+export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram, customUpload }: VoiceRecordButtonProps) {
   const { t } = useI18n()
   const [recording, setRecording] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -209,11 +211,16 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
     formData.append("audio", blob, `voice.${ext}`)
     setUploading(true)
     try {
-      const res = await api.postForm<{ message: any }>(`/api/chat/${chatId}/voice`, formData, {
-        "X-Duration": String(Math.min(secs, 60)),
-        "X-Peak-Level": String(Math.round(peakRef.current * 100)),
-      })
-      if (res?.message) onSend(res.message)
+      if (customUpload) {
+        const result = await customUpload(blob, Math.min(secs, 60), mime || "audio/webm")
+        if (result) onSend(result)
+      } else {
+        const res = await api.postForm<{ message: any }>(`/api/chat/${chatId}/voice`, formData, {
+          "X-Duration": String(Math.min(secs, 60)),
+          "X-Peak-Level": String(Math.round(peakRef.current * 100)),
+        })
+        if (res?.message) onSend(res.message)
+      }
       setError(null)
     } catch (err: any) {
       setError(err?.message ?? t("chat.voice_send_failed"))

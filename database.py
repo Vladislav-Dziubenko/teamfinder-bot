@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import json
 import logging
 import os
 import random
@@ -943,6 +944,31 @@ class Database:
             await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_mime TEXT")
         except asyncpg.PostgresError as e:
             print(f"Migration warning adding chat_messages.voice_mime: {e}")
+
+        # Голосовые сообщения в общем чате — те же колонки.
+        for col, typedef in [
+            ("is_global_voice", "BOOLEAN NOT NULL DEFAULT FALSE"),
+            ("global_voice_data", "BYTEA"),
+            ("global_voice_duration", "INTEGER NOT NULL DEFAULT 0"),
+            ("global_voice_mime", "TEXT"),
+        ]:
+            try:
+                await conn.execute(f"ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS {col} {typedef}")
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning adding global_messages.{col}: {e}")
+
+        # Таблица стикерпаков Telegram.
+        try:
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS sticker_sets (
+                    name TEXT PRIMARY KEY,
+                    title TEXT NOT NULL DEFAULT '',
+                    stickers JSONB NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL DEFAULT ''
+                )
+            """)
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning creating sticker_sets: {e}")
 
         if not already_applied:
             if await self._column_exists(conn, "promo_codes", "reward_json"):
@@ -4322,7 +4348,10 @@ WHERE user_quests.completed = 0
             rows = await conn.fetch(
                 """SELECT gm.id, gm.user_id, gm.text, gm.created_at, gm.kind,
                           COALESCE(mp.nick, '') AS nick, mp.avatar,
-                          COALESCE(ur.role, '') AS role, mp.deco
+                          COALESCE(ur.role, '') AS role, mp.deco,
+                          COALESCE(gm.is_global_voice, FALSE) AS is_voice,
+                          COALESCE(gm.global_voice_duration, 0) AS voice_duration,
+                          COALESCE(gm.global_voice_mime, 'audio/webm') AS voice_mime
                    FROM global_messages gm
                    LEFT JOIN mini_app_profiles mp ON mp.user_id = gm.user_id
                    LEFT JOIN user_roles ur ON ur.user_id = gm.user_id
@@ -4346,6 +4375,34 @@ WHERE user_quests.completed = 0
             )
             return {"id": str(row["id"]), "user_id": user_id, "text": text, "created_at": now, "kind": kind}
 
+    async def send_global_voice_message(self, user_id: int, voice_data: bytes, duration: int, mime: str) -> dict:
+        now = datetime.utcnow().isoformat()
+        try:
+            row = await self.pool.fetchrow(
+                """INSERT INTO global_messages (user_id, text, created_at, kind,
+                   is_global_voice, global_voice_data, global_voice_duration, global_voice_mime)
+                   VALUES ($1, '', $2, 'user', TRUE, $3, $4, $5) RETURNING id""",
+                user_id, now, voice_data, duration, mime,
+            )
+            return {"id": str(row["id"]), "user_id": user_id, "text": "", "created_at": now,
+                    "kind": "user", "is_voice": True, "voice_duration": duration, "voice_mime": mime}
+        except asyncpg.UndefinedColumnError:
+            for col, typedef in [
+                ("is_global_voice", "BOOLEAN NOT NULL DEFAULT FALSE"),
+                ("global_voice_data", "BYTEA"),
+                ("global_voice_duration", "INTEGER NOT NULL DEFAULT 0"),
+                ("global_voice_mime", "TEXT"),
+            ]:
+                await self.pool.execute(f"ALTER TABLE global_messages ADD COLUMN IF NOT EXISTS {col} {typedef}")
+            row = await self.pool.fetchrow(
+                """INSERT INTO global_messages (user_id, text, created_at, kind,
+                   is_global_voice, global_voice_data, global_voice_duration, global_voice_mime)
+                   VALUES ($1, '', $2, 'user', TRUE, $3, $4, $5) RETURNING id""",
+                user_id, now, voice_data, duration, mime,
+            )
+            return {"id": str(row["id"]), "user_id": user_id, "text": "", "created_at": now,
+                    "kind": "user", "is_voice": True, "voice_duration": duration, "voice_mime": mime}
+
     async def delete_global_message(self, message_id: int) -> bool:
         async with self.pool.acquire() as conn:
             result = await conn.execute(
@@ -4360,6 +4417,38 @@ WHERE user_quests.completed = 0
                 "SELECT user_id FROM global_messages WHERE id = $1",
                 message_id,
             )
+
+    # ---------- Sticker sets ----------
+
+    async def upsert_sticker_set(self, name: str, title: str, stickers: list[dict]) -> None:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO sticker_sets (name, title, stickers, updated_at)
+                   VALUES ($1, $2, $3::jsonb, $4)
+                   ON CONFLICT (name) DO UPDATE SET
+                       title = EXCLUDED.title,
+                       stickers = EXCLUDED.stickers,
+                       updated_at = EXCLUDED.updated_at""",
+                name, title, json.dumps(stickers), now,
+            )
+
+    async def get_sticker_sets(self) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT name, title, stickers FROM sticker_sets ORDER BY name"
+            )
+            return [{"name": r["name"], "title": r["title"], "stickers": json.loads(r["stickers"]) if isinstance(r["stickers"], str) else r["stickers"]} for r in rows]
+
+    async def get_sticker_set(self, name: str) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT name, title, stickers FROM sticker_sets WHERE name = $1", name
+            )
+            if not row:
+                return None
+            stickers = json.loads(row["stickers"]) if isinstance(row["stickers"], str) else row["stickers"]
+            return {"name": row["name"], "title": row["title"], "stickers": stickers}
 
     # ---------- Roles & moderation ----------
 

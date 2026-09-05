@@ -1035,5 +1035,8 @@
   "chat.mic_modal_close": "Понятно",
   "chat.mic_modal_via_tg": "🎤 Записать через Telegram",
   "chat.delete_selected": "Удалить",
-  "chat.selected_n": "Выбрано: {n}"
+  "chat.selected_n": "Выбрано: {n}",
+  "chat": {
+    "no_stickers": "Стикеров пока нет. Нажмите синхронизацию в админке."
+  }
 }

@@ -417,6 +417,9 @@ export type GlobalMessage = {
   role?: string
   deco?: string
   kind?: "user" | "system"
+  isVoice?: boolean
+  voiceDuration?: number
+  voiceMime?: string
 }
 
 const _globalCache: GlobalMessage[] = []
@@ -447,6 +450,9 @@ function mapGlobalMsg(m: any): GlobalMessage {
     role: m.role ?? "",
     deco: m.deco ?? "",
     kind: m.kind === "system" ? "system" : "user",
+    isVoice: Boolean(m.is_voice),
+    voiceDuration: Number(m.voice_duration ?? 0) || 0,
+    voiceMime: String(m.voice_mime ?? "audio/webm"),
   }
 }
 
@@ -525,6 +531,34 @@ export function useGlobalChat() {
     return false
   }, [sending, meRole])
 
+  const sendGlobalVoice = useCallback(async (blob: Blob, duration: number, mime: string): Promise<boolean> => {
+    setSending(true)
+    try {
+      const fd = new FormData()
+      fd.append("audio", blob, "voice.webm")
+      const res: any = await api.postForm("/api/global/voice", fd, { "X-Duration": String(duration) })
+      if (res?.message?.id != null) {
+        const msg: GlobalMessage = {
+          id: String(res.message.id),
+          userId: "me",
+          text: "",
+          ts: res.message.created_at ? parseIsoTs(res.message.created_at) : Date.now(),
+          nick: "You",
+          avatar: "",
+          role: meRole,
+          isVoice: true,
+          voiceDuration: res.message.voice_duration ?? duration,
+          voiceMime: res.message.voice_mime ?? mime,
+        }
+        setMessages((prev) => [...prev, msg])
+        _globalCache.push(msg)
+        return true
+      }
+    } catch {}
+    finally { setSending(false) }
+    return false
+  }, [sending, meRole])
+
   const deleteMessage = useCallback(async (id: string) => {
     try {
       await api.post("/api/global/delete", { message_id: id })
@@ -552,7 +586,7 @@ export function useGlobalChat() {
     }
   }, [])
 
-  return { messages, loaded, meRole, meBanned, sendGlobal, sending, deleteMessage, banUser, unbanUser }
+  return { messages, loaded, meRole, meBanned, sendGlobal, sendGlobalVoice, sending, deleteMessage, banUser, unbanUser }
 }
 
 export function openChatWithPlayer(myId: number | string, otherId: number | string): string {

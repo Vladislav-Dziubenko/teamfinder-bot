@@ -208,10 +208,19 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
   }
 
   if (isSticker) {
+    const tgSticker = isTgSticker(m.text)
     return (
       <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
         <div className="flex max-w-[78%] flex-col items-end gap-1">
-          <p className="text-[64px] leading-none drop-shadow-md">{m.text}</p>
+          {tgSticker ? (
+            <img
+              src={`/api/stickers/img/${m.text.split(":")[2]}`}
+              alt="sticker"
+              className="max-h-[160px] object-contain drop-shadow-md"
+            />
+          ) : (
+            <p className="text-[64px] leading-none drop-shadow-md">{m.text}</p>
+          )}
           <span className={cn("flex items-center gap-1 text-[10px]", mine ? "text-muted-foreground/70" : "text-muted-foreground")}>
             {formatMsgTime(m.ts, lang)}
             {mine && (m.status === "read" ? <CheckCheck className="size-3" /> : <Check className="size-3" />)}
@@ -622,7 +631,7 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
 function GlobalChat({ onBack }: { onBack: () => void }) {
   const { t, lang } = useI18n()
   const me = useMe()
-  const { messages, loaded, meRole, meBanned, sendGlobal, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
+  const { messages, loaded, meRole, meBanned, sendGlobal, sendGlobalVoice, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
@@ -669,6 +678,26 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
     const ok = await sendGlobal(sticker)
     if (ok) setShowStickers(false)
   }
+
+  async function handleGlobalVoiceSent(serverMsg: any) {
+    if (!serverMsg) return
+    const msg: GlobalMessage = {
+      id: String(serverMsg.id ?? ""),
+      userId: "me",
+      text: serverMsg.text ?? "",
+      ts: serverMsg.created_at ? parseIsoTs(serverMsg.created_at) : Date.now(),
+      nick: "You",
+      avatar: "",
+      role: meRole,
+      isVoice: Boolean(serverMsg.is_voice),
+      voiceDuration: Number(serverMsg.voice_duration ?? 0) || 0,
+      voiceMime: String(serverMsg.voice_mime ?? "audio/webm"),
+    }
+  }
+
+  const uploadGlobalVoice = useCallback(async (blob: Blob, duration: number, mime: string) => {
+    return sendGlobalVoice(blob, duration, mime)
+  }, [sendGlobalVoice])
 
   async function submit() {
     if (!draft.trim() || meBanned) return
@@ -793,6 +822,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
               placeholder={t("chat.input_placeholder")}
               className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
             />
+            <VoiceRecordButton chatId="global" onSend={handleGlobalVoiceSent} customUpload={uploadGlobalVoice} disabled={false} />
             <button type="button" onClick={submit} disabled={!draft.trim() || sending} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
               {sending ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
             </button>
@@ -1301,11 +1331,17 @@ function formatMsgTime(ts: number, lang: string): string {
 
 const EMOJI_ONLY_RE = /^[\p{Extended_Pictographic}\u200d\ufe0f\s]{1,4}$/u
 
-/** Считает сообщение стикером, если это чистая короткая эмодзи-строка. */
+/** Считает сообщение стикером, если это чистая короткая эмодзи-строка или Telegram-стикер. */
 function isStickerText(text: string): boolean {
   const t = (text ?? "").trim()
-  if (!t || t.length > 8) return false
+  if (!t) return false
+  if (t.startsWith("tg_sticker:")) return true
+  if (t.length > 8) return false
   return EMOJI_ONLY_RE.test(t)
+}
+
+function isTgSticker(text: string): boolean {
+  return (text ?? "").trim().startsWith("tg_sticker:")
 }
 
 const STICKERS = [
@@ -1371,7 +1407,7 @@ const GlobalMsg = memo(function GlobalMsg({
 
   async function doTranslate(target: string) {
     setPickerOpen(false)
-    if (!msg.text.trim() || sticker) return
+    if (!msg.text.trim() || sticker || msg.isVoice) return
     setLoading(true)
     try {
       const res = await api.post("/api/translate", { text: msg.text, target })
@@ -1415,7 +1451,19 @@ const GlobalMsg = memo(function GlobalMsg({
         )}
         {mine && <RoleBadge role={msg.role} className="mb-1 self-end" />}
         {sticker ? (
-          <p className="select-none text-6xl leading-none">{msg.text.trim()}</p>
+          isTgSticker(msg.text) ? (
+            <img
+              src={`/api/stickers/img/${msg.text.split(":")[2]}`}
+              alt="sticker"
+              className="max-h-[140px] object-contain drop-shadow-md"
+            />
+          ) : (
+            <p className="select-none text-6xl leading-none">{msg.text.trim()}</p>
+          )
+        ) : msg.isVoice ? (
+          <div className="min-w-[200px]">
+            <VoiceMessagePlayer src={`/api/global/voice/${msg.id}`} duration={msg.voiceDuration ?? 0} mime={msg.voiceMime ?? "audio/webm"} />
+          </div>
         ) : (
           <p className="text-pretty leading-relaxed">{translated || msg.text}</p>
         )}
