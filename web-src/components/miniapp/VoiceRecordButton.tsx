@@ -101,6 +101,15 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
       setError(t("chat.mic_unsupported"))
       return
     }
+    // Если доступ уже запрещён на уровне браузера/ОС — запрос мгновенно
+    // упадёт без промпта. Сразу говорим человеку, где разблокировать.
+    try {
+      const perm = await (navigator as any).permissions?.query?.({ name: "microphone" })
+      if (perm?.state === "denied") {
+        setError(t("chat.mic_denied"))
+        return
+      }
+    } catch {}
     try {
       const stream = await md.getUserMedia({ audio: true })
       streamRef.current = stream
@@ -127,7 +136,15 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
         setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000))
       }, 200)
     } catch (err: any) {
-      const name = err?.name || ""
+      const name = err?.name || "UnknownError"
+      const detail = String(err?.message || "").slice(0, 200)
+      // Диагностика на сервер — в логах будет точная причина
+      try {
+        navigator.sendBeacon?.(
+          "/api/client-error",
+          new Blob([JSON.stringify({ message: `mic gUM failed: ${name} ${detail}`, tab: "chat", url: location.href })], { type: "application/json" }),
+        )
+      } catch {}
       if (name === "NotAllowedError" || name === "SecurityError") {
         setError(t("chat.mic_denied"))
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {

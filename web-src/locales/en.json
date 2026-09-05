@@ -1004,7 +1004,7 @@
   "chat.release_to_send": "Release to send",
   "chat.voice_too_short": "Hold the button longer to record",
   "chat.voice_send_failed": "Couldn't send the voice message",
-  "chat.mic_denied": "Microphone is blocked. Allow mic access and hold the button again.",
+  "chat.mic_denied": "Mic is blocked (browser remembers the ban and won't ask again). Android: phone Settings → Apps → Telegram → Permissions → Microphone → Allow. Browser: tap the lock icon in the address bar → allow mic. Then hold the button again.",
   "chat.mic_no_device": "No microphone found on this device.",
   "chat.mic_unsupported": "Voice recording isn't supported here. Open the Mini App in the Telegram app."
 }
