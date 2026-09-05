@@ -1032,5 +1032,6 @@
   "chat.mic_modal_title": "Нужен доступ к микрофону",
   "chat.mic_modal_text": "Telegram не дал мини-аппу доступ к микрофону.\n\n1. Открой Настройки телефона → Приложения → Telegram → Разрешения → Микрофон → Разрешить.\n2. Полностью закрой Telegram и открой заново.\n3. Обнови Telegram до последней версии.",
   "chat.mic_modal_retry": "Попробовать снова",
-  "chat.mic_modal_close": "Понятно"
+  "chat.mic_modal_close": "Понятно",
+  "chat.mic_modal_via_tg": "🎤 Записать через Telegram"
 }

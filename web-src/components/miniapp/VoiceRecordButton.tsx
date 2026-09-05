@@ -10,6 +10,9 @@ interface VoiceRecordButtonProps {
   chatId: string
   onSend: (msg: any) => void
   disabled?: boolean
+  // Запасной путь (нативный войс Телеги через бота). Показываем его
+  // прямо в модалке отказа — иначе человек упирается в тупик.
+  onViaTelegram?: (() => void) | null
 }
 
 function pickMime(): { mime: string; ext: string } {
@@ -81,7 +84,7 @@ function WaveBars({ stream }: { stream: MediaStream | null }) {
   return <canvas ref={canvasRef} width={168} height={36} className="h-9 w-40 shrink-0" />
 }
 
-export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButtonProps) {
+export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: VoiceRecordButtonProps) {
   const { t } = useI18n()
   const [recording, setRecording] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -383,6 +386,18 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
               <Mic className="size-4" />
               {t("chat.mic_modal_retry")}
             </button>
+            {onViaTelegram && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPermModal(false)
+                  onViaTelegram()
+                }}
+                className="mt-2 flex w-full items-center justify-center gap-2 rounded-2xl border border-primary/40 bg-primary/10 py-3 text-sm font-bold text-primary active:scale-[0.98]"
+              >
+                {t("chat.mic_modal_via_tg")}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setShowPermModal(false)}

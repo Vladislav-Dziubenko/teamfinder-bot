@@ -479,7 +479,7 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
             <button type="button" onClick={openStickerPanel} aria-label={t("chat.sticker")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
               <Sticker className="size-5" />
             </button>
-            <VoiceRecordButton chatId={chatId} onSend={handleVoiceSent} disabled={!canSend} />
+            <VoiceRecordButton chatId={chatId} onSend={handleVoiceSent} disabled={!canSend} onViaTelegram={sendViaTelegram} />
             <button type="button" onClick={sendViaTelegram} disabled={!canSend || !(player as any)?.id || tgVoiceBusy} aria-label={t("chat.voice_via_tg")} title={t("chat.voice_via_tg")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90 disabled:opacity-40">
               {tgVoiceBusy ? <Loader2 className="size-5 animate-spin" /> : <Bot className="size-5" />}
             </button>
