@@ -11,6 +11,9 @@ export type ChatMessage = {
   text: string
   ts: number
   status?: "sent" | "read"
+  isVoice?: boolean
+  voiceDuration?: number
+  voiceMime?: string
 }
 
 export type ChatPreview = {
@@ -123,6 +126,9 @@ function mapMsg(m: any): ChatMessage {
     text: m.text ?? "",
     ts: m.created_at ? parseIsoTs(m.created_at) : Date.now(),
     status: m.read_at ? "read" : "sent",
+    isVoice: Boolean(m.is_voice ?? m.isVoice ?? false),
+    voiceDuration: Number(m.voice_duration ?? m.voiceDuration ?? 0) || 0,
+    voiceMime: String(m.voice_mime ?? m.voiceMime ?? "audio/webm"),
   }
 }
 
@@ -304,6 +310,27 @@ export function useChatMessages(chatId: string | null) {
     }
   }, [chatId])
 
+  const appendServerMessage = useCallback((serverMsg: any) => {
+    if (!chatId || !serverMsg?.id) return
+    const mapped: ChatMessage = {
+      id: String(serverMsg.id),
+      chatId,
+      senderId: "me",
+      text: serverMsg.text ?? "",
+      ts: serverMsg.created_at ? parseIsoTs(serverMsg.created_at) : Date.now(),
+      status: "sent",
+      isVoice: Boolean(serverMsg.is_voice ?? serverMsg.isVoice ?? false),
+      voiceDuration: Number(serverMsg.voice_duration ?? serverMsg.voiceDuration ?? 0) || 0,
+      voiceMime: String(serverMsg.voice_mime ?? serverMsg.voiceMime ?? "audio/webm"),
+    }
+    setMessages((prev) => {
+      if (prev.some((m) => m.id === mapped.id)) return prev
+      const merged = [...prev, mapped]
+      _msgCache.set(chatId, merged)
+      return merged
+    })
+  }, [chatId])
+
   const clearChat = useCallback(async () => {
     if (!chatId) return
     try {
@@ -346,7 +373,7 @@ export function useChatMessages(chatId: string | null) {
     } catch {}
   }, [chatId])
 
-  return { messages, status, sendMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore }
+  return { messages, status, sendMessage, appendServerMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore }
 }
 
 export async function sendMessageRaw(chatId: string, text: string): Promise<void> {

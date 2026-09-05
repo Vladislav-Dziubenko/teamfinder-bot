@@ -27,6 +27,7 @@ type GameSession = {
   players: SessionPlayer[]
   max_players?: number
   is_private?: boolean
+  voice_enabled?: boolean
 }
 
 const DURATIONS = [15, 30, 60, 120]
@@ -76,7 +77,7 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
     if (creating) return
     setCreating(true)
     try {
-      await api.post("/api/sessions", { game, minutes, max_players: maxPlayers, password: password || undefined })
+      await api.post("/api/sessions", { game, minutes, max_players: maxPlayers, password: password || undefined, voice_enabled: voiceEnabled })
       onToast(t("sessions.created"))
       await load()
       await refresh()
@@ -132,8 +133,10 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
   }
 
   function timeLeft(s: GameSession): string {
-    const ms = new Date(s.expires_at).getTime() - Date.now()
-    if (ms <= 0) return "00:00"
+    const raw = s.expires_at ?? ""
+    const normalized = /[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : raw + "Z"
+    const ms = new Date(normalized).getTime() - Date.now()
+    if (!Number.isFinite(ms) || ms <= 0) return "00:00"
     const total = Math.floor(ms / 1000)
     const m = Math.floor(total / 60)
     const sec = total % 60
@@ -216,7 +219,6 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
               placeholder={t("sessions.password_placeholder")}
               className="flex-1 rounded-xl border border-input bg-background px-4 py-2 text-sm font-medium outline-none placeholder:text-muted-foreground/40"
               maxLength={20}
-              disabled={!password}
             />
             <label className="flex items-center gap-1.5 rounded-xl border border-border bg-secondary/60 px-3 py-2 text-xs font-semibold text-muted-foreground cursor-pointer">
               <input
@@ -378,17 +380,10 @@ function SessionCard({
             className="flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground transition-transform active:scale-95 disabled:opacity-50"
           >
             {busy === s.id ? <Loader2 className="size-3.5 animate-spin" /> : <Plus className="size-3.5" />}
-            {s.players_count >= MAX_PLAYERS ? t("sessions.full") : t("sessions.join_btn")}
+            {s.players_count >= (s.max_players || 6) ? t("sessions.full") : t("sessions.join_btn")}
           </button>
         )}
       </div>
-  {voiceChatOpen && (
-        <VoiceChat
-          sessionId={mySession?.id || 0}
-          isCreator={mySession?.creator_id === userId}
-          onClose={() => setVoiceChatOpen(false)}
-        />
-      )}
     </>
   )
 }

@@ -172,7 +172,7 @@ type Message = {
   voiceMime?: string
 }
 
-const MessageBubble = React.memo(function MessageBubble({ message: m, mine }: { message: Message; mine: boolean }) {
+const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chatId }: { message: Message; mine: boolean; chatId: string }) {
   const { t, lang } = useI18n()
   const [translated, setTranslated] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -257,7 +257,7 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine }: { 
 
 function ChatConversation({ chatId, player, role, onBack }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void }) {
   const { t, lang } = useI18n()
-  const { messages, status, sendMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
+  const { messages, status, sendMessage, appendServerMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
@@ -304,6 +304,10 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
     analytics.chatSend()
     sendMessage(draft)
     setDraft("")
+  }
+
+  function handleVoiceSent(serverMsg: any) {
+    appendServerMessage(serverMsg)
   }
 
   function actionClear() {
@@ -413,7 +417,7 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
         )}
         {messages.map((m) => {
           const mine = m.senderId === "me"
-          return <MessageBubble key={m.id} message={m} mine={mine} />
+          return <MessageBubble key={m.id} message={m} mine={mine} chatId={chatId} />
         })}
         {typing && !blockedByOther && (
           <div className="flex justify-start">
@@ -449,7 +453,7 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
             <button type="button" onClick={openStickerPanel} aria-label={t("chat.sticker")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
               <Sticker className="size-5" />
             </button>
-            <VoiceRecordButton chatId={chatId} onSend={sendMessage} disabled={!canSend} />
+            <VoiceRecordButton chatId={chatId} onSend={handleVoiceSent} disabled={!canSend} />
             <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }} placeholder={t("chat.input_placeholder")} className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50" />
             <button type="button" onClick={submit} disabled={!draft.trim()} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
               <Send className="size-5" />

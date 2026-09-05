@@ -43,14 +43,13 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
         const blob = new Blob(chunksRef.current, { type: "audio/webm" })
         const duration = Math.floor((Date.now() - startTimeRef.current) / 1000)
 
-        // Send to server
+        // Send to server (multipart — api.post шлёт только JSON, для FormData есть postForm)
         const formData = new FormData()
         formData.append("audio", blob, "voice.webm")
 
         try {
-          const res = await api.post<{ message: any }>(`/api/chat/${chatId}/voice`, formData, {
-            headers: { "X-Duration": String(duration) },
-            timeout: 30000,
+          const res = await api.postForm<{ message: any }>(`/api/chat/${chatId}/voice`, formData, {
+            "X-Duration": String(duration),
           })
           if (res?.message) {
             onSend(res.message)

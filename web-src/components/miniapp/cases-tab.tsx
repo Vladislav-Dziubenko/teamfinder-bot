@@ -139,14 +139,14 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     setMuted(!next)
   }
 
-  // Реклама через AdsGram SDK. showAd() показывает рекламу,
-  // возвращает true если юзер досмотрел до конца.
+  // Реклама через AdsGram SDK. showAd() возвращает true ТОЛЬКО если юзер
+  // досмотрел до конца. false/throw = рекламы не было, кейс НЕ открываем.
   async function showRewardedAd(): Promise<boolean> {
-    // AdsGram showAd may resolve before ad completes. We await and validate.
-    const result = await showAd()
-    // AdsGram may resolve before ad completes. Add a small delay to ensure ad was actually shown.
-    await new Promise(r => setTimeout(r, 500))
-    return result
+    try {
+      return await showAd()
+    } catch {
+      return false
+    }
   }
 
   async function handleOpenForAd(c: LootCase) {

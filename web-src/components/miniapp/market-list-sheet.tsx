@@ -34,7 +34,7 @@ export function MarketListSheet({
     if (!valid || busy) return
     setBusy(true)
     try {
-      await api.post("/api/market/list", { inventory_id: it.uid, price_coins: parsed })
+      await api.post("/api/market/list", { inventory_id: it.id, price_coins: parsed })
       onToast(t("market.listed", { item: tl(itemNameKey(it), it.name), price: formatNum(parsed) }))
       await refresh()
       onClose()

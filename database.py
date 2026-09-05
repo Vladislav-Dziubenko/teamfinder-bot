@@ -2787,7 +2787,7 @@ class Database:
             )
             return [dict(r) for r in rows]
 
-    async def create_game_session(self, user_id: int, game: str, minutes: int = 30, max_players: int = 6, password: str | None = None) -> dict | None:
+    async def create_game_session(self, user_id: int, game: str, minutes: int = 30, max_players: int = 6, password: str | None = None, voice_enabled: bool = False) -> dict | None:
         """Создаёт сессию «Играть вместе» и добавляет создателя участником."""
         minutes = max(15, min(int(minutes), 120))
         max_players = max(2, min(int(max_players), 20))
@@ -2802,8 +2802,8 @@ class Database:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
-                    "INSERT INTO game_sessions (creator_id, game, title, status, created_at, expires_at, max_players, is_private, password_hash) VALUES ($1, $2, '', 'active', $3, $4, $5, $6, $7) RETURNING id",
-                    user_id, game, now_iso, exp_iso, max_players, is_private, password_hash,
+                    "INSERT INTO game_sessions (creator_id, game, title, status, created_at, expires_at, max_players, is_private, password_hash, voice_enabled) VALUES ($1, $2, '', 'active', $3, $4, $5, $6, $7, $8) RETURNING id",
+                    user_id, game, now_iso, exp_iso, max_players, is_private, password_hash, bool(voice_enabled),
                 )
                 await conn.execute(
                     "INSERT INTO game_session_players (session_id, user_id, joined_at) VALUES ($1, $2, $3)",
@@ -2818,6 +2818,7 @@ class Database:
                     "expires_at": exp_iso,
                     "max_players": max_players,
                     "is_private": is_private,
+                    "voice_enabled": bool(voice_enabled),
                 }
 
     async def get_active_game_sessions(self, game: str = "") -> list[dict]:
@@ -4082,16 +4083,19 @@ WHERE user_quests.completed = 0
             )
 
     async def get_chat_messages(self, chat_id: str, limit: int = 5000, before_id: int | None = None) -> list[dict]:
-        """Get messages, optionally paginated before a specific message ID."""
+        """Get messages, optionally paginated before a specific message ID.
+        NOTE: voice_data (BYTEA) is intentionally NOT selected here — bytes are
+        not JSON-serializable and would 500 the whole chat list. Audio streams
+        via GET /api/chat/{chat_id}/voice/{msg_id}."""
         async with self.pool.acquire() as conn:
             if before_id is not None:
                 rows = await conn.fetch(
-                    "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_data, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT $3",
+                    "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT $3",
                     chat_id, before_id, limit,
                 )
             else:
                 rows = await conn.fetch(
-                    "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_data, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
+                    "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
                     chat_id, limit,
                 )
             return [dict(r) for r in reversed(rows)]

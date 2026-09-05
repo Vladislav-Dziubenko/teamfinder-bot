@@ -1556,8 +1556,25 @@ async def handle_nexus_open_case(request: web.Request):
                             last_open = await db.get_last_case_open(user["id"], case_id, conn)
                             if last_open:
                                 last_dt = datetime.fromisoformat(last_open)
-                                if (datetime.utcnow() - last_dt).total_seconds() < 24 * 3600 and not body.get("via_ad"):
-                                    return web.json_response({"error": "cooldown"}, status=400)
+                                if (datetime.utcnow() - last_dt).total_seconds() < 24 * 3600:
+                                    # Кулдаун снимается ТОЛЬКО если реклама реально
+                                    # засчитана на сервере (recordAdWatch) недавно.
+                                    # Флаг via_ad от клиента без свежего просмотра игнорируем.
+                                    via_ad = bool(body.get("via_ad"))
+                                    ad_ok = False
+                                    if via_ad:
+                                        ad_row = await conn.fetchrow(
+                                            "SELECT updated_at FROM user_ad_watches WHERE user_id = $1",
+                                            user["id"],
+                                        )
+                                        if ad_row and ad_row["updated_at"]:
+                                            try:
+                                                ad_dt = datetime.fromisoformat(ad_row["updated_at"])
+                                                ad_ok = (datetime.utcnow() - ad_dt).total_seconds() < 10 * 60
+                                            except (ValueError, TypeError):
+                                                ad_ok = False
+                                    if not ad_ok:
+                                        return web.json_response({"error": "cooldown"}, status=400)
                         else:
                             # Бета-тестер может открыть голд за бета-баланс (case_balance),
                             # но только если клиент явно просит beta_free И баланс хватает.
@@ -2220,7 +2237,8 @@ async def handle_sessions_create(request: web.Request):
         minutes = 30
         max_players = 6
     password = (body.get("password") or "").strip() or None
-    session = await db.create_game_session(user["id"], game, minutes, max_players, password)
+    voice_enabled = bool(body.get("voice_enabled", False))
+    session = await db.create_game_session(user["id"], game, minutes, max_players, password, voice_enabled)
     return web.json_response({"session": session})
 
 

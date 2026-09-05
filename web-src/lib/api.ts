@@ -113,6 +113,26 @@ async function request(method: string, path: string, body?: unknown, attempt = 0
 export const api = {
   get: <T = any>(path: string): Promise<T> => request("GET", path) as Promise<T>,
   post: <T = any>(path: string, body?: unknown): Promise<T> => request("POST", path, body) as Promise<T>,
+  postForm: async <T = any>(path: string, form: FormData, extraHeaders?: Record<string, string>): Promise<T> => {
+    const headers: Record<string, string> = {
+      "X-Telegram-Init-Data": getInitData(),
+      ...(extraHeaders ?? {}),
+    }
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 30_000)
+    try {
+      const res = await fetch(`${API_BASE}${path}`, { method: "POST", headers, body: form, signal: controller.signal })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const err = new Error((data as any).error || `HTTP ${res.status}`) as any
+        err.status = res.status
+        throw err
+      }
+      return data as T
+    } finally {
+      clearTimeout(timeout)
+    }
+  },
   postBlob: async (path: string, body?: unknown): Promise<Blob> => {
     const headers: Record<string, string> = {
       "X-Telegram-Init-Data": getInitData(),
