@@ -180,6 +180,16 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
   const isSticker = isStickerText(m.text)
   const isVoice = Boolean(m.isVoice)
 
+  async function doTranslate() {
+    if (isSticker || isVoice) return
+    setLoading(true)
+    try {
+      const res = await api.post("/api/translate", { text: m.text, target: lang })
+      setTranslated(res.translated ?? null)
+    } catch {}
+    setLoading(false)
+  }
+
   if (isVoice) {
     return (
       <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
