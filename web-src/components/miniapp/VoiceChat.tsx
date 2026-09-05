@@ -112,6 +112,14 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
                 <Mic className="size-5" />
                 {t("voice.join_btn")}
               </button>
+            ) : isCreator ? (
+              <button
+                onClick={handleToggleVoice}
+                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground active:scale-[0.98]"
+              >
+                <Mic className="size-5" />
+                {t("voice.enable_btn")}
+              </button>
             ) : (
               <div className="rounded-xl border border-border bg-muted/50 p-4 text-center text-sm text-muted-foreground">
                 <Shield className="mx-auto size-5 mb-2 text-muted-foreground" />
@@ -162,7 +170,7 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
 
           {isCreator && (
             <button
-              onClick={() => setVoiceEnabled(!voiceEnabled)}
+              onClick={handleToggleVoice}
               className={cn(
                 "grid size-9 place-items-center rounded-xl transition-colors active:scale-95",
                 voiceEnabled ? "bg-primary/10 text-primary" : "bg-secondary/60 text-muted-foreground hover:bg-secondary"

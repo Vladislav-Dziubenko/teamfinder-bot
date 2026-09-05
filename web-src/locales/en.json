@@ -1026,5 +1026,6 @@
   "voice.participants": "participants",
   "voice.speaking": "Speaking…",
   "voice.disabled_by_creator": "Voice chat is disabled by the creator.",
-  "chat.voice_btn_hint": "Hold to record • tap to attach audio"
+  "chat.voice_btn_hint": "Hold to record • tap to attach audio",
+  "voice.enable_btn": "Enable voice chat"
 }
