@@ -99,7 +99,9 @@ CSP = (
     "style-src 'self' 'unsafe-inline';"
     "img-src 'self' data: https: https://*.adsgram.ai;"
     "font-src 'self' data:;"
-    "media-src 'self' blob:;"
+    # ВАЖНО: медиа AdsGram тоже разрешены — иначе видеокреативы крутятся
+    # вслепую (чёрный экран + done=true), и кейс открывается «без рекламы».
+    "media-src 'self' blob: https://cdn.adsgram.ai https://sad.adsgram.ai https://*.adsgram.ai https://partner.adsgram.ai https://tma.adsgram.ai;"
     "connect-src 'self' https://translate.googleapis.com https://api.adsgram.ai https://partner.adsgram.ai https://tma.adsgram.ai https://*.adsgram.ai;"
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://*.adsgram.ai;"
     "frame-ancestors https://telegram.org;"
