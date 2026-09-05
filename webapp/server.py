@@ -3322,9 +3322,13 @@ async def handle_chat_voice_stream(request: web.Request):
     if not await db.can_access_chat(chat_id, user["id"]):
         return web.json_response({"error": "forbidden"}, status=403)
 
+    try:
+        msg_id_int = int(msg_id)
+    except (TypeError, ValueError):
+        return web.json_response({"error": "not found"}, status=404)
     msg = await db.pool.fetchrow(
         "SELECT voice_data, voice_mime FROM chat_messages WHERE id = $1 AND chat_id = $2 AND is_voice = TRUE",
-        int(msg_id), chat_id,
+        msg_id_int, chat_id,
     )
     if not msg or not msg["voice_data"]:
         return web.json_response({"error": "not found"}, status=404)
@@ -3334,6 +3338,47 @@ async def handle_chat_voice_stream(request: web.Request):
         content_type=msg["voice_mime"] or "audio/webm",
         headers={"Accept-Ranges": "bytes", "Content-Length": str(len(msg["voice_data"]))},
     )
+
+
+async def handle_voice_route(request: web.Request):
+    """Deep link для записи войса штатным микрофоном Telegram.
+
+    Фронт зовёт с peer_id из открытой лички, сервер кладёт маршрут
+    voice_route:{user_id} на 10 минут и отдаёт ссылку
+    t.me/<bot>?start=voice_<peer>. Бот ждёт следующее голосовое и
+    доставляет его в dm-переписку (handlers/voice.py).
+    """
+    from webapp.redis_client import cache_set
+
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
+    try:
+        peer_id = int(body.get("peer_id", 0))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "invalid peer_id"}, status=400)
+    if not peer_id or peer_id == user["id"]:
+        return web.json_response({"error": "invalid peer_id"}, status=400)
+    peer_exists = await db.pool.fetchval("SELECT 1 FROM users WHERE user_id = $1", peer_id)
+    if not peer_exists:
+        return web.json_response({"error": "peer not found"}, status=404)
+
+    await cache_set(f"voice_route:{user['id']}", {"peer": peer_id}, ttl=600)
+
+    bot = request.app.get("bot")
+    bot_username = getattr(bot, "username", None) or ""
+    if not bot_username and bot is not None:
+        try:
+            me = await asyncio.wait_for(bot.me(), timeout=5)
+            bot_username = me.username or ""
+        except Exception:
+            pass
+    if not bot_username:
+        return web.json_response({"error": "bot username unavailable"}, status=503)
+    return web.json_response({"link": f"https://t.me/{bot_username}?start=voice_{peer_id}"})
 
 
 # ---------------------------------------------------------------------------
@@ -4670,6 +4715,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/chat/{chat_id}/unmute", handle_chat_unmute)
     app.router.add_post("/api/chat/{chat_id}/voice", handle_chat_voice_upload)
     app.router.add_get("/api/chat/{chat_id}/voice/{msg_id}", handle_chat_voice_stream)
+    app.router.add_post("/api/voice/route", handle_voice_route)
     app.router.add_get("/api/global", handle_global_messages)
     app.router.add_post("/api/global/send", handle_global_send)
     app.router.add_post("/api/global/delete", handle_global_delete)

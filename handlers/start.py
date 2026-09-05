@@ -7,6 +7,7 @@ from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message, W
 from config import Settings
 from database import Database
 from keyboards.menus import main_menu
+from webapp.redis_client import cache_set
 
 router = Router()
 
@@ -29,6 +30,36 @@ async def cmd_start(message: Message, command: CommandObject, db: Database, sett
             "Если вы считаете блокировку ошибочной — напишите апелляцию "
             "одним сообщением ниже. Она будет отправлена модерации.\n\n"
             "Ответ придёт сюда."
+        )
+        return
+
+    # Deep link из мини-аппа «🎤 через Telegram»: следующие 10 минут ждём
+    # голосовое и кладём его в личку с указанным пиром (handlers/voice.py).
+    if args.startswith("voice_"):
+        if await db.is_globally_banned(user.id):
+            await message.answer("📨 <b>Вы заблокированы.</b>")
+            return
+        try:
+            peer_id = int(args.replace("voice_", ""))
+        except ValueError:
+            peer_id = 0
+        if not peer_id or peer_id == user.id:
+            await message.answer("❌ Некорректная ссылка. Открой диалог заново через мини-апп.")
+            return
+        peer_exists = await db.pool.fetchval("SELECT 1 FROM users WHERE user_id = $1", peer_id)
+        if not peer_exists:
+            await message.answer("❌ Получатель не найден. Открой диалог заново через мини-апп.")
+            return
+        try:
+            peer_nick = (await db.get_mini_app_profile(peer_id)).get("nick") or f"User{peer_id}"
+        except Exception:
+            peer_nick = f"User{peer_id}"
+        await cache_set(f"voice_route:{user.id}", {"peer": peer_id}, ttl=600)
+        await message.answer(
+            f"🎤 <b>Голосовое для {peer_nick}</b>\n\n"
+            "Пришли следующим сообщением голосовое (зажми микрофон Telegram) — "
+            "доставлю его в вашу переписку в NEXUS.\n\n"
+            "⏳ Жду 10 минут."
         )
         return
 

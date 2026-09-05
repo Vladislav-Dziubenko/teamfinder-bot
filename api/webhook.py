@@ -21,7 +21,7 @@ from aiogram.types import Update
 
 from config import load_settings
 from database import Database
-from handlers import start, profile, search, guides, payments, admin, discord
+from handlers import start, profile, search, guides, payments, admin, discord, voice
 from middleware import InjectMiddleware, RateLimitMiddleware
 
 logging.basicConfig(level=logging.INFO)
@@ -66,6 +66,7 @@ def get_bot_and_dp():
         _dp.include_router(payments.router)
         _dp.include_router(admin.router)
         _dp.include_router(discord.router)
+        _dp.include_router(voice.router)
         
         _webhook_secret = hashlib.sha256(_settings.bot_token.encode()).hexdigest()
         

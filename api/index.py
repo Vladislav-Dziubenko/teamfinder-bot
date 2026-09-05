@@ -71,7 +71,7 @@ def _init_webhook():
         from aiogram.fsm.storage.memory import MemoryStorage
         from config import load_settings
         from database import Database
-        from handlers import start, profile, search, guides, payments, admin, discord
+        from handlers import start, profile, search, guides, payments, admin, discord, voice
         from middleware import InjectMiddleware, RateLimitMiddleware
 
         settings = load_settings()
@@ -87,6 +87,7 @@ def _init_webhook():
         _webhook_dp.include_router(payments.router)
         _webhook_dp.include_router(admin.router)
         _webhook_dp.include_router(discord.router)
+        _webhook_dp.include_router(voice.router)
         _webhook_secret = hashlib.sha256(settings.bot_token.encode()).hexdigest()
         logger.info("Webhook bot/dispatcher initialized")
     return _webhook_bot, _webhook_dp, _webhook_db, _webhook_secret

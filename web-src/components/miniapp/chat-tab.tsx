@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState, memo } from "react"
 import { createPortal } from "react-dom"
-import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock, Mic, MicOff } from "lucide-react"
+import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock, Mic, MicOff, Bot } from "lucide-react"
 import {
   useChatMessages,
   useChats,
@@ -13,7 +13,7 @@ import {
   type GlobalMessage,
 } from "@/lib/chat"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
-import { api } from "@/lib/api"
+import { api, openTelegramLink } from "@/lib/api"
 import { hapticImpact, hapticTap } from "@/lib/webapp"
 import { analytics } from "@/lib/telegram-analytics"
 import { cn } from "@/lib/utils"
@@ -320,6 +320,22 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
     appendServerMessage(serverMsg)
   }
 
+  // Запасной путь, когда WebView режет микрофон: запись штатным
+  // микрофоном Telegram. Бот ждёт следующее голосовое 10 минут.
+  const [tgVoiceBusy, setTgVoiceBusy] = useState(false)
+  async function sendViaTelegram() {
+    const peerId = Number((player as any)?.id ?? 0)
+    if (!peerId || tgVoiceBusy) return
+    setTgVoiceBusy(true)
+    try {
+      const res = await api.post<{ link: string }>("/api/voice/route", { peer_id: peerId })
+      if (res?.link) openTelegramLink(res.link)
+    } catch {}
+    finally {
+      setTgVoiceBusy(false)
+    }
+  }
+
   function actionClear() {
     setMenuOpen(false)
     clearChat()
@@ -464,6 +480,9 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
               <Sticker className="size-5" />
             </button>
             <VoiceRecordButton chatId={chatId} onSend={handleVoiceSent} disabled={!canSend} />
+            <button type="button" onClick={sendViaTelegram} disabled={!canSend || !(player as any)?.id || tgVoiceBusy} aria-label={t("chat.voice_via_tg")} title={t("chat.voice_via_tg")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90 disabled:opacity-40">
+              {tgVoiceBusy ? <Loader2 className="size-5 animate-spin" /> : <Bot className="size-5" />}
+            </button>
             <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }} placeholder={t("chat.input_placeholder")} className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50" />
             <button type="button" onClick={submit} disabled={!draft.trim()} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
               <Send className="size-5" />
