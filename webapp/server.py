@@ -3281,11 +3281,12 @@ async def handle_chat_voice_upload(request: web.Request):
         if not voice_data:
             return web.json_response({"error": "empty audio"}, status=400)
 
-        # Parse duration from headers or form field
+        # Parse duration: клиент шлёт X-Duration HTTP-заголовком запроса
+        # (postForm), фолбэк — заголовок части multipart.
         duration = 0
         mime = field.headers.get("Content-Type", "audio/webm")
-        duration_header = field.headers.get("X-Duration")
-        if duration_header and duration_header.isdigit():
+        duration_header = request.headers.get("X-Duration") or field.headers.get("X-Duration")
+        if duration_header and str(duration_header).isdigit():
             duration = int(duration_header)
 
         # Limit: max 60 seconds, max 2MB

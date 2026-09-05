@@ -178,7 +178,7 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
   const [loading, setLoading] = useState(false)
 
   const isSticker = isStickerText(m.text)
-  const isVoice = m.isVoice && m.voiceDuration
+  const isVoice = Boolean(m.isVoice)
 
   if (isVoice) {
     return (

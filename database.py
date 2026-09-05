@@ -292,35 +292,6 @@ CREATE TABLE IF NOT EXISTS chat_mutes (
     PRIMARY KEY (user_id, chat_id)
 );
 
--- Voice messages migration
-        migration_name = "voice_messages_v1"
-        already_applied = await conn.fetchval(
-            "SELECT 1 FROM applied_migrations WHERE name = $1",
-            migration_name,
-        )
-        if not already_applied:
-            try:
-                async with conn.transaction():
-                    await conn.execute(
-                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_voice BOOLEAN NOT NULL DEFAULT FALSE"
-                    )
-                    await conn.execute(
-                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_data BYTEA"
-                    )
-                    await conn.execute(
-                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_duration INTEGER NOT NULL DEFAULT 0"
-                    )
-                    await conn.execute(
-                        "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_mime TEXT"
-                    )
-                await conn.execute(
-                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
-                    migration_name,
-                    datetime.utcnow().isoformat(),
-                )
-            except asyncpg.PostgresError as e:
-                print(f"Migration warning voice_messages_v1: {e}")
-
 CREATE TABLE IF NOT EXISTS global_messages (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -952,6 +923,26 @@ class Database:
             await conn.execute("ALTER TABLE global_bans ADD COLUMN IF NOT EXISTS expires_at TEXT DEFAULT ''")
         except asyncpg.PostgresError as e:
             print(f"Migration warning adding global_bans.expires_at: {e}")
+
+        # Голосовые сообщения в личке: метаданные + аудио-блоб.
+        # Безусловные ALTER ... IF NOT EXISTS — накатываются на каждом старте,
+        # поэтому пропущенная миграция (voice_messages_v1) закроется сама.
+        try:
+            await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_voice BOOLEAN NOT NULL DEFAULT FALSE")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning adding chat_messages.is_voice: {e}")
+        try:
+            await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_data BYTEA")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning adding chat_messages.voice_data: {e}")
+        try:
+            await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_duration INTEGER NOT NULL DEFAULT 0")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning adding chat_messages.voice_duration: {e}")
+        try:
+            await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_mime TEXT")
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning adding chat_messages.voice_mime: {e}")
 
         if not already_applied:
             if await self._column_exists(conn, "promo_codes", "reward_json"):
@@ -4067,10 +4058,23 @@ WHERE user_quests.completed = 0
     async def send_voice_message(self, chat_id: str, sender_id: int, voice_data: bytes, duration: int, mime: str) -> dict:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "INSERT INTO chat_messages (chat_id, sender_id, text, created_at, is_voice, voice_data, voice_duration, voice_mime) VALUES ($1, $2, '', $3, TRUE, $4, $5, $6) RETURNING id",
-                chat_id, sender_id, now, voice_data, duration, mime,
-            )
+            try:
+                row = await conn.fetchrow(
+                    "INSERT INTO chat_messages (chat_id, sender_id, text, created_at, is_voice, voice_data, voice_duration, voice_mime) VALUES ($1, $2, '', $3, TRUE, $4, $5, $6) RETURNING id",
+                    chat_id, sender_id, now, voice_data, duration, mime,
+                )
+            except asyncpg.UndefinedColumnError:
+                # Самолечение: колонок войса нет (миграция не накатилась) —
+                # создаём на месте и повторяем вставку.
+                print("send_voice_message: voice columns missing, creating inline")
+                await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS is_voice BOOLEAN NOT NULL DEFAULT FALSE")
+                await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_data BYTEA")
+                await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_duration INTEGER NOT NULL DEFAULT 0")
+                await conn.execute("ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS voice_mime TEXT")
+                row = await conn.fetchrow(
+                    "INSERT INTO chat_messages (chat_id, sender_id, text, created_at, is_voice, voice_data, voice_duration, voice_mime) VALUES ($1, $2, '', $3, TRUE, $4, $5, $6) RETURNING id",
+                    chat_id, sender_id, now, voice_data, duration, mime,
+                )
             return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": "", "created_at": now, "read_at": None, "is_voice": True, "voice_duration": duration, "voice_mime": mime}
 
     async def mark_chat_read(self, chat_id: str, user_id: int) -> None:
@@ -4088,17 +4092,39 @@ WHERE user_quests.completed = 0
         not JSON-serializable and would 500 the whole chat list. Audio streams
         via GET /api/chat/{chat_id}/voice/{msg_id}."""
         async with self.pool.acquire() as conn:
-            if before_id is not None:
-                rows = await conn.fetch(
-                    "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT $3",
-                    chat_id, before_id, limit,
-                )
-            else:
-                rows = await conn.fetch(
-                    "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
-                    chat_id, limit,
-                )
-            return [dict(r) for r in reversed(rows)]
+            try:
+                if before_id is not None:
+                    rows = await conn.fetch(
+                        "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT $3",
+                        chat_id, before_id, limit,
+                    )
+                else:
+                    rows = await conn.fetch(
+                        "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
+                        chat_id, limit,
+                    )
+            except asyncpg.UndefinedColumnError:
+                # Миграция голосовых ещё не накатилась (старая БД) — отдаём
+                # текстовые сообщения, вместо того чтобы ронять весь чат 500-й.
+                print("get_chat_messages fallback: voice columns missing, serving text-only")
+                if before_id is not None:
+                    rows = await conn.fetch(
+                        "SELECT id, chat_id, sender_id, text, created_at, read_at FROM chat_messages WHERE chat_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT $3",
+                        chat_id, before_id, limit,
+                    )
+                else:
+                    rows = await conn.fetch(
+                        "SELECT id, chat_id, sender_id, text, created_at, read_at FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
+                        chat_id, limit,
+                    )
+            result = []
+            for r in reversed(rows):
+                d = dict(r)
+                d.setdefault("is_voice", False)
+                d.setdefault("voice_duration", 0)
+                d.setdefault("voice_mime", "audio/webm")
+                result.append(d)
+            return result
 
     async def get_chat_status(self, chat_id: str, user_id: int) -> dict:
         """Возвращает состояние чата для пользователя: muted, blocked (я/собеседник)."""
