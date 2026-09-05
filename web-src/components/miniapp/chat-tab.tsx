@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useMemo, useRef, useState, memo } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from "react"
 import { createPortal } from "react-dom"
 import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock, Mic, MicOff, Bot } from "lucide-react"
 import {
