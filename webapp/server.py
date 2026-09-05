@@ -99,6 +99,7 @@ CSP = (
     "style-src 'self' 'unsafe-inline';"
     "img-src 'self' data: https: https://*.adsgram.ai;"
     "font-src 'self' data:;"
+    "media-src 'self' blob:;"
     "connect-src 'self' https://translate.googleapis.com https://api.adsgram.ai https://partner.adsgram.ai https://tma.adsgram.ai https://*.adsgram.ai;"
     "frame-src https://www.youtube.com https://www.youtube-nocookie.com https://*.adsgram.ai;"
     "frame-ancestors https://telegram.org;"
