@@ -642,7 +642,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
   // Multi-select mode for deletion (like in DMs)
   const [selected, setSelected] = useState<string[] | null>(null)
 
-  const toggleSelect = useCallback((id: string, mine: boolean) => {
+  function toggleSelect(id: string, mine: boolean) {
     if (!canModerate && !mine) return
     setSelected((prev) => {
       if (prev === null) return [id]
@@ -652,16 +652,16 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
       }
       return [...prev, id]
     })
-  }, [canModerate])
+  }
 
-  const deleteSelected = useCallback(async () => {
+  async function deleteSelected() {
     if (!selected?.length) return
     const ids = selected
     setSelected(null)
     for (const id of ids) {
       await deleteMessage(id)
     }
-  }, [selected, deleteMessage])
+  }
 
   useEffect(() => {
     if (!gErr) return
