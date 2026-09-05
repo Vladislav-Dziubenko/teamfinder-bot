@@ -1028,5 +1028,9 @@
   "voice.disabled_by_creator": "Voice chat is disabled by the creator.",
   "chat.voice_btn_hint": "Hold to record • tap to attach audio",
   "voice.enable_btn": "Enable voice chat",
-  "chat.pick_audio_instead": "Direct recording is blocked — pick or record audio via system instead."
+  "chat.pick_audio_instead": "Direct recording is blocked — pick or record audio via system instead.",
+  "chat.mic_modal_title": "Microphone access needed",
+  "chat.mic_modal_text": "Telegram didn't allow microphone access for the Mini App.\n\n1. Open phone Settings → Apps → Telegram → Permissions → Microphone → Allow.\n2. Fully close Telegram and open it again.\n3. Update Telegram to the latest version.",
+  "chat.mic_modal_retry": "Try again",
+  "chat.mic_modal_close": "Got it"
 }
