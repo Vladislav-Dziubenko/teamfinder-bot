@@ -44,6 +44,15 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
   const sentRef = useRef(false)
   const fileRef = useRef<HTMLInputElement | null>(null)
   const downTimeRef = useRef(0)
+  // Пиккер открываем максимум раз за нажатие — иначе зациклит диалоги
+  const autoPickerRef = useRef(false)
+  const openPickerOnce = useCallback(() => {
+    if (autoPickerRef.current) return
+    autoPickerRef.current = true
+    try {
+      fileRef.current?.click()
+    } catch {}
+  }, [])
   // Короткий тап — не холд: открываем системный пиккер (там часто есть
   // «записать аудио»), вместо отправки пустого куска.
   const tapPickRef = useRef(false)
@@ -123,9 +132,12 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
   const handlePress = useCallback(async () => {
     if (disabled || uploading || recording) return
     setError(null)
+    autoPickerRef.current = false
     const md = navigator.mediaDevices
-    if (!md?.getUserMedia) {
-      setError(t("chat.mic_unsupported"))
+    // Нет Web API захвата — сразу системный пиккер, без попыток записи
+    if (!md?.getUserMedia || typeof window.MediaRecorder === "undefined") {
+      openPickerOnce()
+      setInfo(t("chat.pick_audio_instead"))
       return
     }
     // Состояние разрешения — только для диагностики, НЕ для раннего выхода:
@@ -138,10 +150,6 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
       const perm = await (navigator as any).permissions?.query?.({ name: "microphone" })
       if (perm?.state) permState = perm.state
     } catch {}
-    if (typeof window.MediaRecorder === "undefined") {
-      setError(t("chat.mic_unsupported"))
-      return
-    }
     // Сколько аудиоустройств вообще видит WebView (без лейблов до разрешения).
     // Ноль = хост режет захват на своём уровне, getUserMedia не поможет.
     let audioInputs = -1
@@ -213,6 +221,9 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
       const detail = String(err?.message || "").slice(0, 200)
       // Диагностика на сервер — в логах будет точная причина
       report(`gUM failed: ${name} ${detail}`)
+      // Мгновенный фолбэк из спеки: раз прямой захват не дали — сразу
+      // открываем системный пиккер (там свой, нативный запрос микрофона).
+      openPickerOnce()
       if (name === "NotAllowedError" || name === "SecurityError") {
         failCountRef.current += 1
         // Разрешение вроде есть (perm granted/prompt), а хост всё равно режет —
@@ -221,7 +232,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
         if (failCountRef.current >= 2) {
           setError(t("chat.mic_use_tg_instead"))
         } else {
-          setError(permState === "granted" ? t("chat.mic_webview_blocked") : t("chat.mic_denied"))
+          setInfo(t("chat.pick_audio_instead"))
         }
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {
         setError(t("chat.mic_no_device"))
@@ -232,7 +243,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
       }
       cleanup()
     }
-  }, [disabled, uploading, recording, finishUpload, cleanup, t])
+  }, [disabled, uploading, recording, finishUpload, cleanup, openPickerOnce, t])
 
   const onFilePicked = useCallback(async (file: File) => {
     if (!file || file.size === 0) return
@@ -300,6 +311,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
         ref={fileRef}
         type="file"
         accept="audio/*"
+        capture="user"
         className="hidden"
         aria-hidden
         tabIndex={-1}
