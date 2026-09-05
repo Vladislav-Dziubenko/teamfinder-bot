@@ -140,16 +140,7 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
             <h3 className="font-display text-xl font-bold mb-2">{t("voice.join_title")}</h3>
             <p className="text-sm text-muted-foreground mb-6">{t("voice.join_desc")}</p>
 
-            {voiceEnabled ? (
-              <button
-                onClick={handleJoin}
-                disabled={false}
-                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground active:scale-[0.98]"
-              >
-                <Mic className="size-5" />
-                {t("voice.join_btn")}
-              </button>
-            ) : isCreator ? (
+            {isCreator ? (
               <button
                 onClick={handleToggleVoice}
                 className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground active:scale-[0.98]"
@@ -163,6 +154,35 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
                 {t("voice.disabled_by_creator")}
               </div>
             )}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (!enabled && voiceEnabled) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-display text-lg font-bold">{t("voice.title")}</h2>
+            <button onClick={onClose} className="grid size-8 place-items-center rounded-xl text-muted-foreground hover:bg-secondary/50 active:scale-90">
+              <X className="size-5" />
+            </button>
+          </div>
+
+          <div className="text-center py-8">
+            <Users className="mx-auto size-16 text-primary/50 mb-4" />
+            <h3 className="font-display text-xl font-bold mb-2">{t("voice.join_title")}</h3>
+            <p className="text-sm text-muted-foreground mb-6">{t("voice.join_desc")}</p>
+
+            <button
+              onClick={handleJoin}
+              className="w-full flex items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-bold text-primary-foreground active:scale-[0.98]"
+            >
+              <Mic className="size-5" />
+              {t("voice.join_btn")}
+            </button>
           </div>
         </div>
       </div>
