@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense, lazy, useEffect, useState } from "react"
-import { Check, Loader2 } from "lucide-react"
+import { Check, Loader2, ExternalLink } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { NexusProvider } from "@/lib/store"
 import { TopBar } from "./top-bar"
@@ -21,7 +21,7 @@ import { BannedSheet } from "./banned-sheet"
 import { LeaderboardSheet } from "./leaderboard-sheet"
 import { OnboardingSheet, isOnboardingDone, markOnboardingDone } from "./onboarding"
 import { openChatWithPlayer, chatIdForPair, getChatPlayer } from "@/lib/chat"
-import { api } from "@/lib/api"
+import { api, getInitDataUser } from "@/lib/api"
 import { hapticTap } from "@/lib/webapp"
 import { analytics } from "@/lib/telegram-analytics"
 import { useMe, useNexus, CONSENT_VERSION } from "@/lib/store"
@@ -292,7 +292,36 @@ function Shell() {
   )
 }
 
+function NoTelegramGate() {
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6 text-center">
+      <div className="grid size-16 place-items-center rounded-3xl bg-primary/10 text-primary mb-6">
+        <ExternalLink className="size-7" />
+      </div>
+      <h1 className="font-display text-xl font-bold">TeamFinder</h1>
+      <p className="mt-2 max-w-xs text-sm text-muted-foreground">
+        Откройте Mini App из Telegram-бота, а не из браузера.
+      </p>
+      <p className="mt-1 text-xs text-muted-foreground/60">
+        Найдите бота в Telegram и нажмите «Открыть» в чате.
+      </p>
+    </div>
+  )
+}
+
 export function AppShell() {
+  const [hasTelegram, setHasTelegram] = useState<boolean | null>(null)
+  useEffect(() => {
+    setHasTelegram(!!getInitDataUser())
+  }, [])
+  if (hasTelegram === null) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center bg-background">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    )
+  }
+  if (!hasTelegram) return <NoTelegramGate />
   return (
     <NexusProvider>
       <Shell />
