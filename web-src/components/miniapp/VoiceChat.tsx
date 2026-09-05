@@ -11,6 +11,7 @@ import { useNexus } from "@/lib/store"
 interface VoiceChatProps {
   sessionId: number
   isCreator: boolean
+  initialVoiceEnabled?: boolean
   onClose: () => void
 }
 
@@ -44,12 +45,12 @@ function RemoteAudio({ stream, muted }: { stream: MediaStream; muted: boolean })
   return <audio ref={ref} autoPlay playsInline className="hidden" />
 }
 
-export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
+export function VoiceChat({ sessionId, isCreator, initialVoiceEnabled, onClose }: VoiceChatProps) {
   const { t } = useI18n()
   const { userId } = useNexus()
   const [enabled, setEnabled] = useState(false)
   const [showParticipants, setShowParticipants] = useState(true)
-  const [voiceEnabled, setVoiceEnabled] = useState(false)
+  const [voiceEnabled, setVoiceEnabled] = useState(initialVoiceEnabled ?? false)
 
   const {
     connected,
@@ -67,16 +68,10 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
   } = useVoiceChat(sessionId, userId, enabled)
 
   useEffect(() => {
-    let active = true
-    const load = () => {
-      api.get("/api/sessions/" + sessionId).then((res) => {
-        if (active) setVoiceEnabled(res?.voice_enabled || false)
-      }).catch(console.error)
+    if (initialVoiceEnabled != null) {
+      setVoiceEnabled(initialVoiceEnabled)
     }
-    load()
-    const iv = setInterval(load, 3000)
-    return () => { active = false; clearInterval(iv) }
-  }, [sessionId])
+  }, [initialVoiceEnabled])
 
   useEffect(() => {
     if (error === "kicked") {

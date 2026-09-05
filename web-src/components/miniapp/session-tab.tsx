@@ -297,6 +297,7 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
         <VoiceChat
           sessionId={mySession?.id || 0}
           isCreator={mySession?.creator_id === userId}
+          initialVoiceEnabled={mySession?.voice_enabled ?? false}
           onClose={() => setVoiceChatOpen(false)}
         />
       )}
