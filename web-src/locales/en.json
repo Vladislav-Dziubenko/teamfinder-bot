@@ -1033,5 +1033,7 @@
   "chat.mic_modal_text": "Telegram didn't allow microphone access for the Mini App.\n\n1. Open phone Settings → Apps → Telegram → Permissions → Microphone → Allow.\n2. Fully close Telegram and open it again.\n3. Update Telegram to the latest version.",
   "chat.mic_modal_retry": "Try again",
   "chat.mic_modal_close": "Got it",
-  "chat.mic_modal_via_tg": "🎤 Record via Telegram instead"
+  "chat.mic_modal_via_tg": "🎤 Record via Telegram instead",
+  "chat.delete_selected": "Delete",
+  "chat.selected_n": "{n} selected"
 }

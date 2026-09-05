@@ -265,9 +265,97 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
   )
 })
 
+/** Строка сообщения с долгим нажатием для выбора (удаление по одному/несколько). */
+function SelectableRow({
+  id,
+  mine,
+  selecting,
+  selected,
+  onToggle,
+  children,
+}: {
+  id: string
+  mine: boolean
+  selecting: boolean
+  selected: boolean
+  onToggle: (id: string, mine: boolean) => void
+  children: React.ReactNode
+}) {
+  const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
+  const suppressClick = React.useRef(false)
+  const clearTimer = () => {
+    if (timer.current) {
+      clearTimeout(timer.current)
+      timer.current = null
+    }
+  }
+  React.useEffect(() => clearTimer, [])
+  const start = () => {
+    if (!mine) return
+    clearTimer()
+    suppressClick.current = false
+    timer.current = setTimeout(() => {
+      suppressClick.current = true
+      onToggle(id, mine)
+    }, 500)
+  }
+  return (
+    <div
+      className="relative select-none"
+      onTouchStart={start}
+      onTouchEnd={clearTimer}
+      onTouchMove={clearTimer}
+      onMouseDown={(e) => {
+        if (e.button === 0) start()
+      }}
+      onMouseUp={clearTimer}
+      onMouseLeave={clearTimer}
+      onClick={() => {
+        if (suppressClick.current) {
+          suppressClick.current = false
+          return
+        }
+        if (selecting) onToggle(id, mine)
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      <div className={cn(selecting && !selected && "opacity-60")}>{children}</div>
+      {selecting && mine && (
+        <span
+          className={cn(
+            "absolute left-1 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-full border-2 transition-colors",
+            selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-card",
+          )}
+        >
+          {selected && <Check className="size-3.5" />}
+        </span>
+      )}
+    </div>
+  )
+}
+
 function ChatConversation({ chatId, player, role, onBack }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void }) {
   const { t, lang } = useI18n()
-  const { messages, status, sendMessage, appendServerMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
+  const { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
+  // Выбор сообщений долгим нажатием (как в Telegram): null = режим выключен
+  const [selected, setSelected] = useState<string[] | null>(null)
+  const toggleSelect = React.useCallback((id: string, mine: boolean) => {
+    if (!mine) return
+    setSelected((prev) => {
+      if (prev === null) return [id]
+      if (prev.includes(id)) {
+        const next = prev.filter((x) => x !== id)
+        return next.length ? next : null
+      }
+      return [...prev, id]
+    })
+  }, [])
+  async function deleteSelected() {
+    if (!selected?.length) return
+    const ids = selected
+    setSelected(null)
+    await deleteMessages(ids)
+  }
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
@@ -443,7 +531,18 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
         )}
         {messages.map((m) => {
           const mine = m.senderId === "me"
-          return <MessageBubble key={m.id} message={m} mine={mine} chatId={chatId} />
+          return (
+            <SelectableRow
+              key={m.id}
+              id={m.id}
+              mine={mine}
+              selecting={selected !== null}
+              selected={selected?.includes(m.id) ?? false}
+              onToggle={toggleSelect}
+            >
+              <MessageBubble message={m} mine={mine} chatId={chatId} />
+            </SelectableRow>
+          )
         })}
         {typing && !blockedByOther && (
           <div className="flex justify-start">
@@ -468,6 +567,25 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
       {/* Sticker panel */}
       {showStickers && canSend && (
         <StickerPanel onPick={sendSticker} onClose={() => setShowStickers(false)} />
+      )}
+
+      {/* Панель выбранных сообщений */}
+      {selected !== null && (
+        <div className="flex items-center gap-2 border-t border-border bg-card/95 px-3 py-2.5 backdrop-blur-xl">
+          <button type="button" onClick={() => setSelected(null)} aria-label={t("common.cancel")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90">
+            <X className="size-5" />
+          </button>
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold">{t("chat.selected_n", { n: selected.length })}</span>
+          <button
+            type="button"
+            onClick={deleteSelected}
+            disabled={!selected.length}
+            className="flex items-center gap-1.5 rounded-xl bg-destructive/10 px-3.5 py-2.5 text-sm font-bold text-destructive transition-transform active:scale-95 disabled:opacity-40"
+          >
+            <Trash2 className="size-4" />
+            {t("chat.delete_selected")}
+          </button>
+        </div>
       )}
 
       <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2.5 backdrop-blur-xl">

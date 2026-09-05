@@ -4301,6 +4301,22 @@ WHERE user_quests.completed = 0
                 chat_id,
             )
 
+    async def delete_chat_messages(self, chat_id: str, user_id: int, ids: list[int]) -> int:
+        """Удаляет СВОИ сообщения (по одному/несколько, как в Telegram).
+        Чужие не трогаем. Возвращает число удалённых."""
+        ids = [i for i in ids if isinstance(i, int) and i > 0][:50]
+        if not ids:
+            return 0
+        async with self.pool.acquire() as conn:
+            res = await conn.execute(
+                "DELETE FROM chat_messages WHERE chat_id = $1 AND sender_id = $2 AND id = ANY($3::int[])",
+                chat_id, user_id, ids,
+            )
+            try:
+                return int(res.split()[-1])
+            except Exception:
+                return 0
+
     async def get_global_messages(self, limit: int = 50) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(

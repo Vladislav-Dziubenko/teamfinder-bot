@@ -3220,6 +3220,32 @@ async def handle_chat_clear(request: web.Request):
     return web.json_response({"ok": True})
 
 
+async def handle_chat_messages_delete(request: web.Request):
+    """Удаление своих сообщений по одному/несколько (как в Telegram).
+    Тело: {"ids": [1, 2, 3]} — серверные int-id. Чужие не удаляются."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
+    raw = body.get("ids")
+    if not isinstance(raw, list) or not raw:
+        return web.json_response({"error": "empty ids"}, status=400)
+    ids: list[int] = []
+    for v in raw[:50]:
+        try:
+            ids.append(int(v))
+        except (TypeError, ValueError):
+            continue
+    deleted = await db.delete_chat_messages(chat_id, user["id"], ids)
+    await cache_delete_pattern(f"chat_msgs:{chat_id}")
+    return web.json_response({"ok": True, "deleted": deleted})
+
+
 async def handle_chat_block(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -4718,6 +4744,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/chat/{chat_id}", handle_chat_messages)
     app.router.add_post("/api/chat/{chat_id}/send", handle_chat_send)
     app.router.add_post("/api/chat/{chat_id}/clear", handle_chat_clear)
+    app.router.add_post("/api/chat/{chat_id}/messages/delete", handle_chat_messages_delete)
     app.router.add_post("/api/chat/{chat_id}/block", handle_chat_block)
     app.router.add_post("/api/chat/{chat_id}/unblock", handle_chat_unblock)
     app.router.add_post("/api/chat/{chat_id}/mute", handle_chat_mute)

@@ -331,6 +331,33 @@ export function useChatMessages(chatId: string | null) {
     })
   }, [chatId])
 
+  // Удаление своих сообщений по одному/несколько (оптимистично).
+  const deleteMessages = useCallback(
+    async (ids: string[]) => {
+      if (!chatId || !ids.length) return
+      const numeric = ids.filter((id) => !id.startsWith("opt-")).map((id) => parseInt(id, 10)).filter((n) => !isNaN(n))
+      if (!numeric.length) return
+      const snapshot = messages
+      setMessages((prev) => {
+        const merged = prev.filter((m) => !numeric.includes(parseInt(m.id, 10)))
+        _msgCache.set(chatId, merged)
+        return merged
+      })
+      try {
+        await api.post(`/api/chat/${chatId}/messages/delete`, { ids: numeric })
+      } catch {
+        // Откат: перечитываем страницу заново
+        try {
+          const data: any = await api.get("/api/chat/" + chatId)
+          const serverMsgs = (data.messages ?? []).map(mapMsg)
+          setMessages(serverMsgs)
+          _msgCache.set(chatId, serverMsgs)
+        } catch {}
+      }
+    },
+    [chatId, messages],
+  )
+
   const clearChat = useCallback(async () => {
     if (!chatId) return
     try {
@@ -373,7 +400,7 @@ export function useChatMessages(chatId: string | null) {
     } catch {}
   }, [chatId])
 
-  return { messages, status, sendMessage, appendServerMessage, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore }
+  return { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore }
 }
 
 export async function sendMessageRaw(chatId: string, text: string): Promise<void> {

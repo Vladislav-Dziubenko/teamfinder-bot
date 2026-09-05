@@ -107,6 +107,16 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
     }
     try {
       const result = await ctrlRef.current.show()
+      // Полный слепок ответа SDK: видно, была ли реклама вообще
+      // (done/state/error), а не только итог boolean.
+      try {
+        reportSdkDiag(
+          "adsgram show result done=" + String((result as any)?.done) +
+          " state=" + String((result as any)?.state) +
+          " error=" + String((result as any)?.error) +
+          " desc=" + String((result as any)?.description ?? "").slice(0, 120),
+        )
+      } catch {}
       if (result.done) {
         onRewardRef.current()
         return true
