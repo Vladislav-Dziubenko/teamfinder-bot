@@ -33,12 +33,17 @@ async def voice_relay(message: Message, db: Database, bot: Bot):
     if message.chat.type != "private" or not message.from_user or not message.voice:
         return
     sender = message.from_user
+    logging.info(
+        "[VOICE] got voice from=%s dur=%s size=%s",
+        sender.id, message.voice.duration, message.voice.file_size,
+    )
 
     if await db.is_globally_banned(sender.id):
         await message.answer("📨 <b>Вы заблокированы.</b> Голосовые недоступны.")
         return
 
     route = await cache_get(f"voice_route:{sender.id}")
+    logging.info("[VOICE] route for %s: %s", sender.id, "found" if route else "missing")
     if not route or not route.get("peer"):
         # Войс без активного маршрута — тихо подсказываем правильный путь.
         await message.answer(
@@ -112,7 +117,19 @@ async def voice_relay(message: Message, db: Database, bot: Bot):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💬 Открыть чат", url=f"https://t.me/{bot_username}?startapp=chat_{a}_{b}")]
         ])
+    logging.info("[VOICE] delivered chat=%s from=%s to=%s", chat_id, sender.id, peer_id)
     await message.answer(f"✅ Голосовое доставлено в лички с <b>{peer_nick}</b>.", reply_markup=kb)
+
+
+@router.message(F.video_note)
+async def video_note_hint(message: Message):
+    if message.chat.type != "private" or not message.from_user:
+        return
+    logging.info("[VOICE] got video_note from=%s (hint sent)", message.from_user.id)
+    await message.answer(
+        "🎥 Это видеокружок — в лички NEXUS уходят только обычные голосовые.\n\n"
+        "Зажми микрофон (не камеру) и пришли голосовое следующим сообщением."
+    )
 
     # Пуш получателю — только если его нет в приложении и он не замутил чат.
     try:

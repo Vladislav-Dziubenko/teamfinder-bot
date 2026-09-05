@@ -60,13 +60,13 @@ def get_bot_and_dp():
         _dp.update.middleware(InjectMiddleware(_db, _settings))
         
         _dp.include_router(start.router)
+        _dp.include_router(voice.router)
         _dp.include_router(profile.router)
         _dp.include_router(search.router)
         _dp.include_router(guides.router)
         _dp.include_router(payments.router)
         _dp.include_router(admin.router)
         _dp.include_router(discord.router)
-        _dp.include_router(voice.router)
         
         _webhook_secret = hashlib.sha256(_settings.bot_token.encode()).hexdigest()
         

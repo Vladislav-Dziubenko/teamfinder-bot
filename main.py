@@ -57,13 +57,15 @@ async def main():
         dp.update.middleware(InjectMiddleware(db, settings))
 
         dp.include_router(start.router)
+        # Войс раньше profile: у FSM-хендлеров анкеты нет фильтра по контенту,
+        # и голосовое посреди заполнения анкеты уходило бы в профиль.
+        dp.include_router(voice.router)
         dp.include_router(profile.router)
         dp.include_router(search.router)
         dp.include_router(guides.router)
         dp.include_router(payments.router)
         dp.include_router(admin.router)
         dp.include_router(discord.router)
-        dp.include_router(voice.router)
         # Последний: апелляции забаненных (без фильтров — только «неизвестный» текст)
         dp.include_router(appeal.router)
 
