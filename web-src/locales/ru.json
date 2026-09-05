@@ -1025,5 +1025,6 @@
   "voice.join_btn": "Зайти",
   "voice.participants": "участники",
   "voice.speaking": "Говорит…",
-  "voice.disabled_by_creator": "Голосовой чат выключен создателем."
+  "voice.disabled_by_creator": "Голосовой чат выключен создателем.",
+  "chat.voice_btn_hint": "Держи — запись • тап — прикрепить аудио"
 }

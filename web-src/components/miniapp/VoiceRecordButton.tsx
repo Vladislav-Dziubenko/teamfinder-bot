@@ -42,6 +42,11 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
   const startTimeRef = useRef<number>(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sentRef = useRef(false)
+  const fileRef = useRef<HTMLInputElement | null>(null)
+  const downTimeRef = useRef(0)
+  // Короткий тап — не холд: открываем системный пиккер (там часто есть
+  // «записать аудио»), вместо отправки пустого куска.
+  const tapPickRef = useRef(false)
   // Подряд идущие отказы микрофона: после 2-го подряд ведём человека
   // на запасной путь (кнопка с роботом), а не крутим один и тот же тост.
   const failCountRef = useRef(0)
@@ -89,7 +94,9 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
     }
     const blob = new Blob(blobParts, { type: mime || "audio/webm" })
     if (blob.size < 500) {
-      setError(t("chat.voice_too_short"))
+      // Короткий тап — ошибку не показываем, вместо этого уже открыт пиккер
+      if (!tapPickRef.current) setError(t("chat.voice_too_short"))
+      tapPickRef.current = false
       cleanup()
       return
     }
@@ -227,6 +234,50 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
     }
   }, [disabled, uploading, recording, finishUpload, cleanup, t])
 
+  const onFilePicked = useCallback(async (file: File) => {
+    if (!file || file.size === 0) return
+    if (file.size > 2 * 1024 * 1024) {
+      setError(t("chat.voice_send_failed"))
+      return
+    }
+    setError(null)
+    // Длительность — из метаданных файла, чтобы пузырь показывал правду
+    let secs = 0
+    try {
+      const url = URL.createObjectURL(file)
+      secs = await new Promise<number>((resolve) => {
+        const a = new Audio()
+        const done = (v: number) => {
+          try {
+            URL.revokeObjectURL(url)
+          } catch {}
+          resolve(v)
+        }
+        a.preload = "metadata"
+        a.onloadedmetadata = () => done(Number.isFinite(a.duration) ? Math.floor(a.duration) : 0)
+        a.onerror = () => done(0)
+        a.src = url
+        setTimeout(() => done(0), 4000)
+      })
+    } catch {
+      secs = 0
+    }
+    const formData = new FormData()
+    const ext = (file.name.split(".").pop() || "m4a").slice(0, 8)
+    formData.append("audio", file, `voice.${ext}`)
+    setUploading(true)
+    try {
+      const res = await api.postForm<{ message: any }>(`/api/chat/${chatId}/voice`, formData, {
+        "X-Duration": String(Math.min(secs, 60)),
+      })
+      if (res?.message) onSend(res.message)
+    } catch (err: any) {
+      setError(err?.message ?? t("chat.voice_send_failed"))
+    } finally {
+      setUploading(false)
+    }
+  }, [chatId, onSend, t])
+
   const handleRelease = useCallback(() => {
     pressActiveRef.current = false
     const rec = mediaRecorderRef.current
@@ -245,16 +296,39 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
 
   return (
     <div className="relative">
+      <input
+        ref={fileRef}
+        type="file"
+        accept="audio/*"
+        className="hidden"
+        aria-hidden
+        tabIndex={-1}
+        onChange={(e) => {
+          const f = e.target.files?.[0]
+          e.target.value = ""
+          if (f) void onFilePicked(f)
+        }}
+      />
       <button
         type="button"
         disabled={disabled || uploading}
         onPointerDown={(e) => {
           e.preventDefault()
+          downTimeRef.current = Date.now()
+          tapPickRef.current = false
           pressActiveRef.current = true
           void handlePress()
         }}
         onPointerUp={(e) => {
           e.preventDefault()
+          // Короткий тап (<280мс): прямой холд не нужен — открываем системный
+          // пиккер аудио прямо в жесте (там обычно есть и запись).
+          if (Date.now() - downTimeRef.current < 280 && !uploading) {
+            tapPickRef.current = true
+            try {
+              fileRef.current?.click()
+            } catch {}
+          }
           handleRelease()
         }}
         onPointerLeave={handleRelease}
@@ -265,6 +339,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
           recording ? "bg-red-500 text-white animate-pulse" : "bg-secondary/60 text-muted-foreground hover:bg-secondary",
         )}
         aria-label={recording ? t("chat.recording") : t("chat.record_voice")}
+        title={t("chat.voice_btn_hint")}
       >
         {uploading ? (
           <Loader2 className="size-5 animate-spin" />
