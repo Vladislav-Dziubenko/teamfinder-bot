@@ -84,7 +84,10 @@ def sanitize(text: str, max_len: int = 0) -> str:
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "no-referrer",
-    "Permissions-Policy": "geolocation=(), camera=(), microphone=(), payment=(), usb=(), magnetometer=(), accelerometer=(), gyroscope=()",
+    # ВАЖНО: microphone=(self) — мини-апп сам записывает войсы.
+    # Было microphone=() — сервер запрещал микрофон собственной странице,
+    # и getUserMedia падал с NotAllowedError при любых разрешениях.
+    "Permissions-Policy": "geolocation=(), camera=(), microphone=(self), payment=(), usb=(), magnetometer=(), accelerometer=(), gyroscope=()",
     "X-XSS-Protection": "0",
     "Cross-Origin-Opener-Policy": "same-origin",
     "Cross-Origin-Resource-Policy": "same-origin",
