@@ -106,7 +106,9 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
       return false
     }
     try {
+      const t0 = Date.now()
       const result = await ctrlRef.current.show()
+      const elapsed = Date.now() - t0
       // Полный слепок ответа SDK: видно, была ли реклама вообще
       // (done/state/error), а не только итог boolean.
       try {
@@ -114,14 +116,21 @@ export function useAdsgram(onReward: () => void, onError?: (err: any) => void) {
           "adsgram show result done=" + String((result as any)?.done) +
           " state=" + String((result as any)?.state) +
           " error=" + String((result as any)?.error) +
+          " elapsed_ms=" + String(elapsed) +
           " desc=" + String((result as any)?.description ?? "").slice(0, 120),
         )
       } catch {}
-      if (result.done) {
-        onRewardRef.current()
-        return true
+      if (!result.done) return false
+      // Защита от мгновенного done=true: ролик физически нельзя
+      // досмотреть быстрее ~3с. Такое — не просмотр, кейс не открываем.
+      if (elapsed < 3000) {
+        try {
+          reportSdkDiag("adsgram too-fast done=true elapsed_ms=" + String(elapsed) + " treated as not watched")
+        } catch {}
+        return false
       }
-      return false
+      onRewardRef.current()
+      return true
     } catch (err: any) {
       reportSdkDiag("adsgram show threw: " + (typeof err === "object" ? JSON.stringify(err) : String(err?.message || err)))
       onErrorRef.current?.(err)
