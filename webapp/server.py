@@ -173,7 +173,7 @@ CAPACITY_SKIP_PATHS = {
     "/api/client-error",
     "/api/diag/env",
 }
-CAPACITY_SKIP_PREFIXES = ("/static/", "/api/games", "/api/leaderboard", "/api/teams", "/api/nexus/shop", "/api/search/count", "/api/online", "/api/discord/callback", "/api/steam/callback")
+CAPACITY_SKIP_PREFIXES = ("/static/", "/ws/", "/api/games", "/api/leaderboard", "/api/teams", "/api/nexus/shop", "/api/search/count", "/api/online", "/api/discord/callback", "/api/steam/callback")
 
 # ---------------------------------------------------------------------------
 # Кэш для публичных read-heavy эндпоинтов — Redis GET/SETEX, TTL 2 сек.
@@ -4889,7 +4889,16 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
         await ws.prepare(request)
 
         db: Database = request.app["db"]
+        # Браузерный WebSocket не умеет в кастомные заголовки, поэтому
+        # initData едет query-параметром ?init_data=... (проверяем HMAC как обычно).
         user = _get_user(request)
+        if not user:
+            init_data_raw = request.query.get("init_data", "")
+            settings = request.app.get("settings")
+            if init_data_raw and settings is not None:
+                parsed = validate_init_data(init_data_raw, settings.bot_token)
+                if parsed and "user" in parsed:
+                    user = parsed["user"]
         if not user:
             await ws.close(code=4001, message=b"unauthorized")
             return ws
@@ -4900,16 +4909,14 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             return ws
         session_id = int(session_id)
 
-        # Check access
-        if not await db.can_access_chat(f"dm-{session_id}", user["id"]) and not await db.is_user_in_session(session_id, user["id"]):
-            # Fallback: check if user is in session
-            in_session = await db.pool.fetchval(
-                "SELECT 1 FROM game_session_players WHERE session_id = $1 AND user_id = $2",
-                session_id, user["id"],
-            )
-            if not in_session:
-                await ws.close(code=4003, message=b"not in session")
-                return ws
+        # Доступ: только участник сессии
+        in_session = await db.pool.fetchval(
+            "SELECT 1 FROM game_session_players WHERE session_id = $1 AND user_id = $2",
+            session_id, user["id"],
+        )
+        if not in_session:
+            await ws.close(code=4003, message=b"not in session")
+            return ws
 
         # Check voice enabled
         if not await db.is_voice_enabled(session_id):
@@ -4922,47 +4929,51 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             request.app[session_ws_key] = {}
         request.app[session_ws_key][user["id"]] = ws
 
+        async def _broadcast(payload: dict, skip_self: bool = True):
+            for uid, conn in list(request.app.get(session_ws_key, {}).items()):
+                if skip_self and uid == user["id"]:
+                    continue
+                try:
+                    if not conn.closed:
+                        await conn.send_json(payload)
+                except Exception:
+                    pass
+
         # Notify others about new participant
-        join_msg = {"type": "user_joined", "user_id": user["id"]}
-        for uid, conn in request.app[session_ws_key].items():
-            if uid != user["id"] and not conn.closed:
-                await conn.send_json(join_msg)
+        await _broadcast({"type": "user_joined", "user_id": user["id"]})
 
         try:
             async for msg in ws:
-                if msg.type == web.WSMsgType.TEXT:
-                    try:
-                        data = msg.json()
-                    except Exception:
-                        continue
+                if msg.type != web.WSMsgType.TEXT:
+                    continue
+                try:
+                    data = msg.json()
+                except Exception:
+                    continue
+                if not isinstance(data, dict):
+                    continue
 
-                    msg_type = data.get("type")
-                    if msg_type in ("offer", "answer", "ice-candidate"):
-                        target_id = data.get("target_id")
-                        if target_id and target_id in request.app[session_ws_key]:
-                            target_ws = request.app[session_ws_key][target_id]
-                            if not target_ws.closed:
-                                await target_ws.send_json({
-                                    "type": msg_type,
-                                    "from_id": user["id"],
-                                    "payload": data.get("payload"),
-                                })
+                msg_type = data.get("type")
+                if msg_type in ("offer", "answer", "ice-candidate"):
+                    target_id = data.get("target_id")
+                    if target_id and target_id in request.app.get(session_ws_key, {}):
+                        target_ws = request.app[session_ws_key][target_id]
+                        if not target_ws.closed:
+                            await target_ws.send_json({
+                                "type": msg_type,
+                                "from_id": user["id"],
+                                "payload": data.get("payload"),
+                            })
                 elif msg_type == "mute":
-                    await db.set_voice_mute(session_id, user["id"], data.get("muted", False))
-                    # Broadcast mute status
-                    for uid, conn in request.app[session_ws_key].items():
-                        if uid != user["id"] and not conn.closed:
-                            await conn.send_json({"type": "mute_changed", "user_id": user["id"], "muted": data.get("muted", False)})
+                    muted = bool(data.get("muted", False))
+                    await db.set_voice_mute(session_id, user["id"], muted)
+                    await _broadcast({"type": "mute_changed", "user_id": user["id"], "muted": muted})
                 elif msg_type == "deafen":
-                    await db.set_voice_deafen(session_id, user["id"], data.get("deafened", False))
-                    for uid, conn in request.app[session_ws_key].items():
-                        if uid != user["id"] and not conn.closed:
-                            await conn.send_json({"type": "deafen_changed", "user_id": user["id"], "deafened": data.get("deafened", False)})
+                    deafened = bool(data.get("deafened", False))
+                    await db.set_voice_deafen(session_id, user["id"], deafened)
+                    await _broadcast({"type": "deafen_changed", "user_id": user["id"], "deafened": deafened})
                 elif msg_type == "speaking":
-                    # Broadcast speaking status
-                    for uid, conn in request.app[session_ws_key].items():
-                        if uid != user["id"] and not conn.closed:
-                            await conn.send_json({"type": "speaking", "user_id": user["id"], "speaking": data.get("speaking", False)})
+                    await _broadcast({"type": "speaking", "user_id": user["id"], "speaking": bool(data.get("speaking", False))})
         finally:
             # Cleanup
             if session_ws_key in request.app and user["id"] in request.app[session_ws_key]:

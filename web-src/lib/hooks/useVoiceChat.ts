@@ -1,436 +1,426 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { api } from "@/lib/api"
+import { api, getInitData } from "@/lib/api"
 
-interface SignalingMessage {
-  type: "offer" | "answer" | "ice-candidate" | "user_joined" | "user_left" | "mute_changed" | "deafen_changed" | "speaking" | "mute_changed" | "deafen_changed"
-  from_id?: number
-  target_id?: number
-  user_id?: number
-  payload?: RTCSessionDescriptionInit | RTCIceCandidateInit
-  muted?: boolean
-  deafened?: boolean
-  speaking?: boolean
+export type VoicePeer = {
+  stream: MediaStream
+  muted: boolean
+  deafened: boolean
+  speaking: boolean
 }
 
-interface PeerConnectionState {
-  pc: RTCPeerConnection
-  remoteStream: MediaStream
+const RTC_CONFIG: RTCConfiguration = {
+  iceServers: [
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:stun1.l.google.com:19302" },
+  ],
+  iceCandidatePoolSize: 10,
 }
 
 export function useVoiceChat(sessionId: number, userId: number, enabled: boolean) {
   const [connected, setConnected] = useState(false)
-  const [participants, setParticipants] = useState<Map<number, { stream: MediaStream; muted: boolean; deafened: boolean; speaking: boolean }>>(new Map())
+  const [participants, setParticipants] = useState<Map<number, VoicePeer>>(new Map())
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [muted, setMuted] = useState(false)
   const [deafened, setDeafened] = useState(false)
   const [speaking, setSpeaking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [names, setNames] = useState<Map<number, { nick?: string | null; avatar?: string | null }>>(new Map())
 
   const wsRef = useRef<WebSocket | null>(null)
-  const pcMapRef = useRef<Map<number, RTCPeerConnection>>(new Map())
-  const streamsRef = useRef<Map<number, MediaStream>>(new Map())
-  const audioContextRef = useRef<AudioContext | null>(null)
+  const pcRef = useRef(new Map<number, RTCPeerConnection>())
+  const localRef = useRef<MediaStream | null>(null)
+  const mutedRef = useRef(false)
+  const speakingRef = useRef(false)
+  const enabledRef = useRef(enabled)
+  enabledRef.current = enabled
+  const userIdRef = useRef(userId)
+  userIdRef.current = userId
+  const audioCtxRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
-  const speakingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const speakTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // STUN servers
-  const rtcConfig: RTCConfiguration = {
-    iceServers: [
-      { urls: "stun:stun.l.google.com:19302" },
-      { urls: "stun:stun1.l.google.com:19302" },
-    ],
-    iceCandidatePoolSize: 10,
-  }
-
-  // Get WebSocket URL
-  const getWsUrl = useCallback(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
-    const host = window.location.host
-    return `${protocol}//${host}/ws/voice/${sessionId}`
-  }, [sessionId])
-
-  // Initialize local media stream
-  const initLocalStream = useCallback(async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
-        video: false,
-      })
-      setLocalStream(stream)
-      return stream
-    } catch (err) {
-      console.error("Failed to get user media:", err)
-      throw new Error("Microphone access denied")
+  const removePeer = useCallback((id: number) => {
+    const pc = pcRef.current.get(id)
+    if (pc) {
+      try {
+        pc.close()
+      } catch {}
+      pcRef.current.delete(id)
     }
+    setParticipants((prev) => {
+      if (!prev.has(id)) return prev
+      const next = new Map(prev)
+      next.delete(id)
+      return next
+    })
   }, [])
 
-  // Create peer connection for a remote user
-  const createPeerConnection = useCallback((remoteId: number) => {
-    const pc = new RTCPeerConnection(rtcConfig)
+  const patchPeer = useCallback((id: number, patch: Partial<VoicePeer>) => {
+    setParticipants((prev) => {
+      const cur = prev.get(id)
+      if (!cur) return prev
+      const next = new Map(prev)
+      next.set(id, { ...cur, ...patch })
+      return next
+    })
+  }, [])
 
-    pc.onicecandidate = (event) => {
-      if (event.candidate) {
-        wsRef.current?.send(JSON.stringify({
-          type: "ice-candidate",
-          target_id: event.candidate ? 0 : 0, // Will be set in sendSignal
-          payload: event.candidate.toJSON(),
-        }))
+  // PeerConnection per remote user. Кандидаты шлём с явным target —
+  // без этого ICE не сходится и звонок немой.
+  const getOrCreatePc = useCallback(
+    (remoteId: number) => {
+      const existing = pcRef.current.get(remoteId)
+      if (existing && existing.signalingState !== "closed") return existing
+      if (existing) {
+        try {
+          existing.close()
+        } catch {}
+        pcRef.current.delete(remoteId)
       }
-    }
-
-    pc.ontrack = (event) => {
-      const remoteStream = event.streams[0]
-      streamsRef.current.set(remoteId, remoteStream)
-      setParticipants((prev) => {
-        const next = new Map(prev)
-        next.set(remoteId, { stream: remoteStream, muted: false, deafened: false, speaking: false })
-        return next
-      })
-    }
-
-    pc.oniceconnectionstatechange = () => {
-      if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed") {
-        console.log(`ICE connection failed for ${remoteId}`)
-        pcMapRef.current.delete(remoteId)
-        streamsRef.current.delete(remoteId)
+      const pc = new RTCPeerConnection(RTC_CONFIG)
+      pc.onicecandidate = (event) => {
+        if (event.candidate) {
+          wsRef.current?.readyState === WebSocket.OPEN &&
+            wsRef.current.send(
+              JSON.stringify({ type: "ice-candidate", target_id: remoteId, payload: event.candidate.toJSON() }),
+            )
+        }
+      }
+      pc.ontrack = (event) => {
+        const remoteStream = event.streams[0]
+        if (!remoteStream) return
         setParticipants((prev) => {
+          const cur = prev.get(remoteId)
           const next = new Map(prev)
-          next.delete(remoteId)
+          next.set(remoteId, {
+            stream: remoteStream,
+            muted: cur?.muted ?? false,
+            deafened: cur?.deafened ?? false,
+            speaking: cur?.speaking ?? false,
+          })
           return next
         })
       }
-    }
-
-    pcMapRef.current.set(remoteId, pc)
-    return pc
-  }, [])
-
-  // Send signaling message
-  const sendSignal = useCallback((type: "offer" | "answer" | "ice-candidate", targetId: number, payload: any) => {
-    if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, target_id: targetId, payload }))
-    }
-  }, [])
-
-  // Create offer for a remote user
-  const createOffer = useCallback(async (remoteId: number) => {
-    const pc = createPeerConnection(remoteId)
-    if (localStream) {
-      localStream.getTracks().forEach((track) => pc.addTrack(track, localStream))
-    }
-    const offer = await pc.createOffer()
-    await pc.setLocalDescription(offer)
-    sendSignal("offer", remoteId, offer)
-  }, [createPeerConnection, localStream, sendSignal])
-
-  // Handle incoming offer
-  const handleOffer = useCallback(async (fromId: number, offer: RTCSessionDescriptionInit) => {
-    const pc = createPeerConnection(fromId)
-    if (localStream) {
-      localStream.getTracks().forEach((track) => pc.addTrack(track, localStream))
-    }
-    await pc.setRemoteDescription(offer)
-    const answer = await pc.createAnswer()
-    await pc.setLocalDescription(answer)
-    wsRef.current?.send(JSON.stringify({ type: "answer", target_id: fromId, payload: answer }))
-  }, [createPeerConnection, localStream])
-
-  // Handle incoming answer
-  const handleAnswer = useCallback(async (fromId: number, answer: RTCSessionDescriptionInit) => {
-    const pc = pcMapRef.current.get(fromId)
-    if (pc) {
-      await pc.setRemoteDescription(answer)
-    }
-  }, [])
-
-  // Handle ICE candidate
-  const handleIceCandidate = useCallback(async (fromId: number, candidate: RTCIceCandidateInit) => {
-    const pc = pcMapRef.current.get(fromId)
-    if (pc) {
-      await pc.addIceCandidate(new RTCIceCandidate(candidate))
-    }
-  }, [])
-
-  // Handle user joined
-  const handleUserJoined = useCallback((userId: number) => {
-    if (userId !== userId && connected) {
-      createOffer(userId)
-    }
-  }, [connected])
-
-  // Handle user left
-  const handleUserLeft = useCallback((userId: number) => {
-    const pc = pcMapRef.current.get(userId)
-    if (pc) {
-      pc.close()
-      pcMapRef.current.delete(userId)
-    }
-    streamsRef.current.delete(userId)
-    setParticipants((prev) => {
-      const next = new Map(prev)
-      next.delete(userId)
-      return next
-    })
-  }, [])
-
-  // Handle mute/deafen changes
-  const handleMuteChanged = useCallback((userId: number, muted: boolean) => {
-    setParticipants((prev) => {
-      const next = new Map(prev)
-      const p = next.get(userId)
-      if (p) next.set(userId, { ...p, muted })
-      return next
-    })
-  }, [])
-
-  const handleDeafenChanged = useCallback((userId: number, deafened: boolean) => {
-    setParticipants((prev) => {
-      const next = new Map(prev)
-      const p = next.get(userId)
-      if (p) next.set(userId, { ...p, deafened })
-      return next
-    })
-  }, [])
-
-  // Handle speaking indicator
-  const handleSpeaking = useCallback((userId: number, speaking: boolean) => {
-    setParticipants((prev) => {
-      const next = new Map(prev)
-      const p = next.get(userId)
-      if (p) next.set(userId, { ...p, speaking })
-      return next
-    })
-  }, [])
-
-  // Mute/unmute local
-  const toggleMute = useCallback(async () => {
-    if (!localStream) return
-    const newMuted = !muted
-    localStream.getAudioTracks().forEach((track) => (track.enabled = !newMuted))
-    setMuted(newMuted)
-    wsRef.current?.send(JSON.stringify({ type: "mute", muted: newMuted }))
-  }, [localStream, muted])
-
-  const toggleDeafen = useCallback(() => {
-    setDeafened((prev) => {
-      const next = !prev
-      wsRef.current?.send(JSON.stringify({ type: "deafen", deafened: next }))
-      return next
-    })
-  }, [])
-
-  // Speaking detection
-  const startSpeakingDetection = useCallback(() => {
-    if (!localStream) return
-    audioContextRef.current = new AudioContext()
-    const source = audioContextRef.current.createMediaStreamSource(localStream)
-    analyserRef.current = audioContextRef.current.createAnalyser()
-    analyserRef.current.fftSize = 256
-    source.connect(analyserRef.current)
-
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
-    const THRESHOLD = 30 // Adjust sensitivity
-
-    speakingIntervalRef.current = setInterval(() => {
-      if (!analyserRef.current) return
-      analyserRef.current.getByteFrequencyData(dataArray)
-      const avg = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
-      const isSpeaking = avg > THRESHOLD
-      if (isSpeaking !== speaking) {
-        setSpeaking(isSpeaking)
-        wsRef.current?.send(JSON.stringify({ type: "speaking", speaking: isSpeaking }))
+      const handleDown = () => removePeer(remoteId)
+      pc.oniceconnectionstatechange = () => {
+        if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed" || pc.iceConnectionState === "closed") {
+          handleDown()
+        }
       }
-    }, 100)
-  }, [speaking])
+      pc.onsignalingstatechange = () => {
+        if (pc.signalingState === "closed") handleDown()
+      }
+      pcRef.current.set(remoteId, pc)
+      return pc
+    },
+    [removePeer],
+  )
+
+  const createOffer = useCallback(
+    async (remoteId: number) => {
+      if (remoteId === userIdRef.current) return
+      try {
+        const pc = getOrCreatePc(remoteId)
+        const local = localRef.current
+        if (local) {
+          const senders = pc.getSenders().map((s) => s.track?.id)
+          local.getTracks().forEach((track) => {
+            if (!senders.includes(track.id)) pc.addTrack(track, local)
+          })
+        }
+        const offer = await pc.createOffer()
+        await pc.setLocalDescription(offer)
+        wsRef.current?.readyState === WebSocket.OPEN &&
+          wsRef.current.send(JSON.stringify({ type: "offer", target_id: remoteId, payload: offer }))
+      } catch (e) {
+        console.error("createOffer failed:", e)
+      }
+    },
+    [getOrCreatePc],
+  )
+
+  const handleOffer = useCallback(
+    async (fromId: number, offer: RTCSessionDescriptionInit) => {
+      try {
+        const pc = getOrCreatePc(fromId)
+        const local = localRef.current
+        if (local) {
+          const senders = pc.getSenders().map((s) => s.track?.id)
+          local.getTracks().forEach((track) => {
+            if (!senders.includes(track.id)) pc.addTrack(track, local)
+          })
+        }
+        await pc.setRemoteDescription(offer)
+        const answer = await pc.createAnswer()
+        await pc.setLocalDescription(answer)
+        wsRef.current?.readyState === WebSocket.OPEN &&
+          wsRef.current.send(JSON.stringify({ type: "answer", target_id: fromId, payload: answer }))
+      } catch (e) {
+        console.error("handleOffer failed:", e)
+      }
+    },
+    [getOrCreatePc],
+  )
+
+  const handleAnswer = useCallback(async (fromId: number, answer: RTCSessionDescriptionInit) => {
+    try {
+      const pc = pcRef.current.get(fromId)
+      if (pc && pc.signalingState === "have-local-offer") {
+        await pc.setRemoteDescription(answer)
+      }
+    } catch (e) {
+      console.error("handleAnswer failed:", e)
+    }
+  }, [])
+
+  const handleIceCandidate = useCallback(async (fromId: number, candidate: RTCIceCandidateInit) => {
+    try {
+      const pc = pcRef.current.get(fromId)
+      if (pc && pc.remoteDescription) {
+        await pc.addIceCandidate(new RTCIceCandidate(candidate))
+      }
+    } catch (e) {
+      console.error("handleIceCandidate failed:", e)
+    }
+  }, [])
 
   const stopSpeakingDetection = useCallback(() => {
-    if (speakingIntervalRef.current) {
-      clearInterval(speakingIntervalRef.current)
-      speakingIntervalRef.current = null
+    if (speakTimerRef.current) {
+      clearInterval(speakTimerRef.current)
+      speakTimerRef.current = null
     }
-    if (audioContextRef.current) {
-      audioContextRef.current.close()
-      audioContextRef.current = null
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {})
+      audioCtxRef.current = null
     }
     analyserRef.current = null
+    speakingRef.current = false
+    setSpeaking(false)
   }, [])
 
-  // Connect to signaling WebSocket
-  const connect = useCallback(async () => {
-    if (!enabled) return
-    setError(null)
+  const startSpeakingDetection = useCallback(
+    (stream: MediaStream) => {
+      stopSpeakingDetection()
+      try {
+        const AC = window.AudioContext || (window as any).webkitAudioContext
+        if (!AC) return
+        const ctx = new AC()
+        const src = ctx.createMediaStreamSource(stream)
+        const an = ctx.createAnalyser()
+        an.fftSize = 256
+        src.connect(an)
+        audioCtxRef.current = ctx
+        analyserRef.current = an
+        const dataArray = new Uint8Array(an.frequencyBinCount)
+        speakTimerRef.current = setInterval(() => {
+          if (!analyserRef.current) return
+          analyserRef.current.getByteFrequencyData(dataArray)
+          let sum = 0
+          for (let i = 0; i < dataArray.length; i++) sum += dataArray[i]
+          const isSpeaking = sum / dataArray.length > 30
+          if (isSpeaking !== speakingRef.current) {
+            speakingRef.current = isSpeaking
+            setSpeaking(isSpeaking)
+            wsRef.current?.readyState === WebSocket.OPEN &&
+              wsRef.current.send(JSON.stringify({ type: "speaking", speaking: isSpeaking }))
+          }
+        }, 150)
+      } catch (e) {
+        console.error("speaking detection failed:", e)
+      }
+    },
+    [stopSpeakingDetection],
+  )
 
+  const disconnect = useCallback(() => {
+    stopSpeakingDetection()
+    if (wsRef.current) {
+      try {
+        wsRef.current.close()
+      } catch {}
+      wsRef.current = null
+    }
+    pcRef.current.forEach((pc) => {
+      try {
+        pc.close()
+      } catch {}
+    })
+    pcRef.current.clear()
+    setParticipants(new Map())
+    setNames(new Map())
+    setConnected(false)
+    const local = localRef.current
+    if (local) {
+      local.getTracks().forEach((t) => {
+        try {
+          t.stop()
+        } catch {}
+      })
+      localRef.current = null
+    }
+    setLocalStream(null)
+    mutedRef.current = false
+    setMuted(false)
+    speakingRef.current = false
+    setSpeaking(false)
+  }, [stopSpeakingDetection])
+
+  const connect = useCallback(async () => {
+    if (!enabledRef.current) return
+    setError(null)
     try {
-      // Get local stream
-      const stream = await initLocalStream()
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+        video: false,
+      })
+      if (!enabledRef.current) {
+        stream.getTracks().forEach((t) => {
+          try {
+            t.stop()
+          } catch {}
+        })
+        return
+      }
+      localRef.current = stream
       setLocalStream(stream)
 
-      // Connect WebSocket
-      const ws = new WebSocket(getWsUrl())
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+      const ws = new WebSocket(
+        `${protocol}//${window.location.host}/ws/voice/${sessionId}?init_data=${encodeURIComponent(getInitData())}`,
+      )
       wsRef.current = ws
 
       ws.onopen = () => {
+        if (!enabledRef.current) {
+          try {
+            ws.close()
+          } catch {}
+          return
+        }
         setConnected(true)
-        console.log("Voice WebSocket connected")
+        // Кто уже в войсе — узнаём из REST (заодно ники/аватарки для списка)
+        // и звоним им сами. Остальных покроют broadcast'ы user_joined с сервера.
+        api
+          .get<{ participants?: Array<{ user_id: number; nick?: string | null; avatar?: string | null }> }>(
+            `/api/sessions/${sessionId}/voice/participants`,
+          )
+          .then((data) => {
+            const list = (data?.participants ?? []).filter((p) => Number(p.user_id) && Number(p.user_id) !== userIdRef.current)
+            setNames((prev) => {
+              const next = new Map(prev)
+              list.forEach((p) => {
+                next.set(Number(p.user_id), { nick: p.nick ?? null, avatar: p.avatar ?? null })
+              })
+              return next
+            })
+            list.forEach((p) => void createOffer(Number(p.user_id)))
+          })
+          .catch(() => {})
       }
 
       ws.onmessage = (event) => {
+        let data: any
         try {
-          const data = JSON.parse(event.data)
-          const type = data.type
-
-          switch (type) {
-            case "user_joined":
-              if (data.user_id !== userId) {
-                createOffer(data.user_id)
-              }
-              break
-            case "user_left":
-              setParticipants((prev) => {
-                const next = new Map(prev)
-                next.delete(data.user_id)
-                return next
-              })
-              break
-            case "offer":
-              handleOffer(data.from_id, data.payload)
-              break
-            case "answer":
-              handleAnswer(data.from_id, data.payload)
-              break
-            case "ice-candidate":
-              handleIceCandidate(data.from_id, data.payload)
-              break
-            case "mute_changed":
-              setParticipants((prev) => {
-                const next = new Map(prev)
-                const p = next.get(data.user_id)
-                if (p) next.set(data.user_id, { ...p, muted: data.muted })
-                return next
-              })
-              break
-            case "deafen_changed":
-              setParticipants((prev) => {
-                const next = new Map(prev)
-                const p = next.get(data.user_id)
-                if (p) next.set(data.user_id, { ...p, deafened: data.deafened })
-                return next
-              })
-              break
-            case "speaking":
-              setParticipants((prev) => {
-                const next = new Map(prev)
-                const p = next.get(data.user_id)
-                if (p) next.set(data.user_id, { ...p, speaking: data.speaking })
-                return next
-              })
-              break
-            case "mute_changed":
-            case "deafen_changed":
-            case "speaking":
-              // Handled above
-              break
-          }
-        } catch (err) {
-          console.error("WS message error:", err)
+          data = JSON.parse(event.data)
+        } catch {
+          return
+        }
+        if (!data || typeof data !== "object") return
+        switch (data.type) {
+          case "user_joined":
+            if (Number(data.user_id) && Number(data.user_id) !== userIdRef.current) {
+              void createOffer(Number(data.user_id))
+            }
+            break
+          case "user_left":
+            removePeer(Number(data.user_id))
+            break
+          case "offer":
+            void handleOffer(Number(data.from_id), data.payload)
+            break
+          case "answer":
+            void handleAnswer(Number(data.from_id), data.payload)
+            break
+          case "ice-candidate":
+            void handleIceCandidate(Number(data.from_id), data.payload)
+            break
+          case "mute_changed":
+            patchPeer(Number(data.user_id), { muted: !!data.muted })
+            break
+          case "deafen_changed":
+            patchPeer(Number(data.user_id), { deafened: !!data.deafened })
+            break
+          case "speaking":
+            patchPeer(Number(data.user_id), { speaking: !!data.speaking })
+            break
+          default:
+            break
         }
       }
 
       ws.onclose = () => {
         setConnected(false)
-        console.log("Voice WebSocket closed")
       }
-
-      ws.onerror = (err) => {
-        console.error("WS error:", err)
+      ws.onerror = () => {
         setError("Connection error")
       }
 
-      // Start speaking detection
-      startSpeakingDetection()
+      startSpeakingDetection(stream)
     } catch (err: any) {
-      setError(err.message)
-    }
-  }, [enabled, getWsUrl, initLocalStream])
-
-  // Disconnect
-  const disconnect = useCallback(() => {
-    stopSpeakingDetection()
-    if (wsRef.current) {
-      wsRef.current.close()
-      wsRef.current = null
-    }
-    pcMapRef.current.forEach((pc) => pc.close())
-    pcMapRef.current.clear()
-    streamsRef.current.clear()
-    setParticipants(new Map())
-    setConnected(false)
-    if (localStream) {
-      localStream.getTracks().forEach((t) => t.stop())
-      setLocalStream(null)
-    }
-    if (audioContextRef.current) {
-      audioContextRef.current.close()
-      audioContextRef.current = null
-    }
-  }, [localStream])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
+      const name = err?.name || ""
+      setError(name === "NotAllowedError" || name === "SecurityError" ? "mic-denied" : err?.message || "mic error")
       disconnect()
     }
-  }, [disconnect])
+  }, [sessionId, createOffer, handleOffer, handleAnswer, handleIceCandidate, removePeer, patchPeer, startSpeakingDetection, disconnect])
 
-  // Effect for enabled changes
+  const toggleMute = useCallback(() => {
+    const local = localRef.current
+    const next = !mutedRef.current
+    mutedRef.current = next
+    setMuted(next)
+    local?.getAudioTracks().forEach((track) => {
+      track.enabled = !next
+    })
+    wsRef.current?.readyState === WebSocket.OPEN && wsRef.current.send(JSON.stringify({ type: "mute", muted: next }))
+  }, [])
+
+  const toggleDeafen = useCallback(() => {
+    setDeafened((prev) => {
+      const next = !prev
+      wsRef.current?.readyState === WebSocket.OPEN && wsRef.current.send(JSON.stringify({ type: "deafen", deafened: next }))
+      return next
+    })
+  }, [])
+
+  const clearError = useCallback(() => setError(null), [])
+
   useEffect(() => {
     if (enabled) {
-      connect()
+      void connect()
     } else {
       disconnect()
     }
   }, [enabled, connect, disconnect])
 
+  useEffect(() => {
+    const d = disconnect
+    return () => d()
+  }, [disconnect])
+
   return {
     connected,
     participants,
+    names,
     localStream,
     muted,
     deafened,
     speaking,
     error,
-    toggleMute: () => {
-      const audioTracks = localStream?.getAudioTracks()
-      if (audioTracks) {
-        const newMuted = !muted
-        audioTracks.forEach((t) => (t.enabled = !newMuted))
-        setMuted(newMuted)
-        wsRef.current?.send(JSON.stringify({ type: "mute", muted: newMuted }))
-      }
-    },
-    toggleDeafen: () => {
-      const newDeafened = !deafened
-      setDeafened(newDeafened)
-      wsRef.current?.send(JSON.stringify({ type: "deafen", deafened: newDeafened }))
-    },
-    toggleSpeaking: () => setSpeaking((p) => {
-      const next = !p
-      wsRef.current?.send(JSON.stringify({ type: "speaking", speaking: next }))
-      return next
-    }),
-    connected,
-    participants,
-    localStream,
-    muted,
-    deafened,
-    speaking,
-    error,
-    clearError: () => setError(null),
+    clearError,
+    toggleMute,
+    toggleDeafen,
+    wsConnected: connected,
   }
 }

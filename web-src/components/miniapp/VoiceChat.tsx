@@ -14,6 +14,36 @@ interface VoiceChatProps {
   onClose: () => void
 }
 
+/** Невидимый аудио-элемент чужого стрима. Без него WebRTC идёт, а звука нет. */
+function RemoteAudio({ stream, muted }: { stream: MediaStream; muted: boolean }) {
+  const ref = useRef<HTMLAudioElement>(null)
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    el.srcObject = stream
+    el.muted = muted
+    const tryPlay = () => el.play().catch(() => {})
+    void tryPlay()
+    // Если автоплей заблокировали — допинаем при первом тапе по экрану.
+    const onFirstTouch = () => void tryPlay()
+    document.addEventListener("pointerdown", onFirstTouch, { once: true })
+    return () => {
+      document.removeEventListener("pointerdown", onFirstTouch)
+      try {
+        el.pause()
+      } catch {}
+      el.srcObject = null
+    }
+  }, [stream])
+
+  useEffect(() => {
+    if (ref.current) ref.current.muted = muted
+  }, [muted])
+
+  return <audio ref={ref} autoPlay playsInline className="hidden" />
+}
+
 export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
   const { t } = useI18n()
   const { userId } = useNexus()
@@ -24,6 +54,7 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
   const {
     connected,
     participants,
+    names,
     localStream,
     muted,
     deafened,
@@ -223,8 +254,9 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
                   {p.speaking ? "LIVE" : ""}
                 </span>
               </div>
+              <RemoteAudio key={`audio-${pid}`} stream={p.stream} muted={deafened} />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-sm">{p.nick || "User" + pid}</p>
+                <p className="truncate font-medium text-sm">{names.get(pid)?.nick || "User" + pid}</p>
                 <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
                   {p.muted && <MicOff className="size-3" />}
                   {p.deafened && <VolumeX className="size-3" />}
