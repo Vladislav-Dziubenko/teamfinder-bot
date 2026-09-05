@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
-import { Play, Pause, Volume2, VolumeX } from "lucide-react"
+import { useState, useRef, useEffect, useCallback } from "react"
+import { Play, Pause, Volume2, VolumeX, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getInitData } from "@/lib/api"
 
@@ -12,12 +12,24 @@ interface VoiceMessagePlayerProps {
   mime?: string
 }
 
+function reportPlayError(extra: string) {
+  try {
+    navigator.sendBeacon?.(
+      "/api/client-error",
+      new Blob([JSON.stringify({ message: `voice play ${extra}`, tab: "chat", url: location.href })], { type: "application/json" }),
+    )
+  } catch {}
+}
+
 export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio/webm" }: VoiceMessagePlayerProps) {
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
   const [volume, setVolume] = useState(1)
   const [muted, setMuted] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [retryKey, setRetryKey] = useState(0)
   const audioRef = useRef<HTMLAudioElement>(null)
   const volumeRef = useRef(1)
   const mutedRef = useRef(false)
@@ -30,22 +42,33 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
     let objectUrl: string | null = null
     let audio: HTMLAudioElement | null = null
 
-    const onLoadedMetadata = () => setLoaded(true)
+    const onLoadedMetadata = () => {
+      setLoaded(true)
+      setLoading(false)
+    }
     const onTimeUpdate = () => {
       if (audio) setCurrentTime(audio.currentTime)
     }
     const onEnded = () => setPlaying(false)
     const onError = () => {
       setPlaying(false)
-      console.error("Audio playback error")
+      setLoading(false)
+      if (!cancelled) {
+        setLoadError("audio-element-error")
+        reportPlayError(`element error src_len=${src.length}`)
+      }
     }
 
     const load = async () => {
+      setLoading(true)
+      setLoadError(null)
+      setLoaded(false)
       try {
         const res = await fetch(src, { headers: { "X-Telegram-Init-Data": getInitData() } })
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const blob = await res.blob()
         if (cancelled) return
+        if (blob.size === 0) throw new Error("empty blob")
         objectUrl = URL.createObjectURL(blob)
         audio = new Audio(objectUrl)
         audio.preload = "metadata"
@@ -56,8 +79,12 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
         audio.addEventListener("timeupdate", onTimeUpdate)
         audio.addEventListener("ended", onEnded)
         audio.addEventListener("error", onError)
-      } catch (e) {
-        if (!cancelled) onError()
+      } catch (e: any) {
+        if (!cancelled) {
+          setLoading(false)
+          setLoadError(e?.message || "load failed")
+          reportPlayError(`load failed: ${e?.message || e}`)
+        }
       }
     }
     void load()
@@ -80,19 +107,29 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
         } catch {}
       }
     }
-  }, [src])
+  }, [src, retryKey])
 
-  const togglePlay = () => {
+  const togglePlay = useCallback(() => {
     const audio = audioRef.current
     if (!audio) return
     if (playing) {
-      audio.pause()
+      try {
+        audio.pause()
+      } catch {}
       setPlaying(false)
-    } else {
-      audio.play().catch(console.error)
-      setPlaying(true)
+      return
     }
-  }
+    // play() — промис: успех подтверждаем только по resolve,
+    // отказ показываем и шлём в логи (раньше глохло молча).
+    audio
+      .play()
+      .then(() => setPlaying(true))
+      .catch((e: any) => {
+        setPlaying(false)
+        setLoadError(e?.name === "NotAllowedError" ? "play-blocked" : `play failed: ${e?.name || e}`)
+        reportPlayError(`play rejected: ${e?.name || e} ${String(e?.message || "").slice(0, 120)}`)
+      })
+  }, [playing])
 
   const seek = (e: React.MouseEvent<HTMLDivElement>) => {
     const audio = audioRef.current
@@ -111,18 +148,25 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
   }
 
   const formatTime = (sec: number) => {
+    if (!Number.isFinite(sec) || sec < 0) sec = 0
     const m = Math.floor(sec / 60)
     const s = Math.floor(sec % 60)
     return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
   }
 
-  const totalDuration = loaded && audioRef.current ? audioRef.current.duration : duration
+  const totalDuration = loaded && audioRef.current && Number.isFinite(audioRef.current.duration) ? audioRef.current.duration : duration
 
   return (
     <div className={cn("flex items-center gap-2", isOwn ? "ml-auto" : "")}>
       <button
         type="button"
-        onClick={togglePlay}
+        onClick={() => {
+          if (loadError) {
+            setRetryKey((k) => k + 1)
+            return
+          }
+          togglePlay()
+        }}
         className={cn(
           "flex items-center justify-center size-8 rounded-xl transition-colors",
           isOwn ? "bg-primary text-primary-foreground" : "bg-secondary/60 text-foreground",
@@ -130,7 +174,15 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
         )}
         aria-label={playing ? "Pause" : "Play"}
       >
-        {playing ? <Pause className="size-5" /> : <Play className="size-5" />}
+        {loading ? (
+          <Loader2 className="size-5 animate-spin" />
+        ) : loadError ? (
+          <Play className="size-5 opacity-60" />
+        ) : playing ? (
+          <Pause className="size-5" />
+        ) : (
+          <Play className="size-5" />
+        )}
       </button>
 
       <div className="flex items-center gap-2 min-w-[140px] max-w-[200px]">
@@ -147,6 +199,12 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
           {formatTime(totalDuration)}
         </span>
       </div>
+
+      {loadError && (
+        <span className="text-[10px] text-red-500 max-w-[90px] leading-tight" title={loadError}>
+          !retry
+        </span>
+      )}
 
       <div className="flex items-center gap-1">
         <button
