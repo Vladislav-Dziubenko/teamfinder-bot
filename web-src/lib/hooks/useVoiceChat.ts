@@ -365,6 +365,11 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
 
       ws.onclose = (ev) => {
         setConnected(false)
+        if (ev.code === 4010) {
+          setError("kicked")
+          enabledRef.current = false
+          return
+        }
         if (enabledRef.current && ev.code !== 4001 && ev.code !== 4003 && ev.code !== 4004) {
           setTimeout(() => {
             if (enabledRef.current) void connect()

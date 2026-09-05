@@ -1047,5 +1047,8 @@
   },
   "market": {
     "already_sold": "This item was already sold"
+  },
+  "voice": {
+    "kicked": "You were removed from voice chat"
   }
 }

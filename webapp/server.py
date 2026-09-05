@@ -2391,6 +2391,31 @@ async def handle_sessions_voice_deafen(request: web.Request):
     return web.json_response({"ok": True, "deafened": deafened})
 
 
+async def handle_sessions_voice_kick(request: web.Request):
+    """Kick a user from voice chat (creator only)."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        session_id = int(request.match_info["session_id"])
+        body = await request.json()
+    except (ValueError, KeyError, Exception):
+        return web.json_response({"error": "bad request"}, status=400)
+    target_id = body.get("target_id")
+    if not isinstance(target_id, int):
+        return web.json_response({"error": "invalid target_id"}, status=400)
+    row = await db.pool.fetchrow("SELECT creator_id FROM game_sessions WHERE id = $1", session_id)
+    if not row or row["creator_id"] != user["id"]:
+        return web.json_response({"error": "only creator can kick"}, status=403)
+    if target_id == user["id"]:
+        return web.json_response({"error": "cannot kick yourself"}, status=400)
+    await db.leave_voice_chat(session_id, target_id)
+    session_ws_key = f"voice:{session_id}"
+    target_ws = request.app.get(session_ws_key, {}).get(target_id)
+    if target_ws and not target_ws.closed:
+        await target_ws.close(code=4010, message=b"kicked")
+    return web.json_response({"ok": True})
+
+
 async def _notify_tg_session_join(request: web.Request, db: Database, session: dict, sender_nick: str) -> None:
     """Push создателю сессии, что к нему присоединились (когда он не в приложении)."""
     try:
@@ -4843,6 +4868,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/sessions/{session_id}/voice/toggle", handle_sessions_voice_toggle)
     app.router.add_post("/api/sessions/{session_id}/voice/mute", handle_sessions_voice_mute)
     app.router.add_post("/api/sessions/{session_id}/voice/deafen", handle_sessions_voice_deafen)
+    app.router.add_post("/api/sessions/{session_id}/voice/kick", handle_sessions_voice_kick)
     app.router.add_post("/api/nexus/quests/claim", handle_nexus_claim_quest_reward)
     app.router.add_post("/api/nexus/quests/claim-all", handle_nexus_claim_all_quests)
     app.router.add_get("/api/nexus/shop", handle_nexus_shop)

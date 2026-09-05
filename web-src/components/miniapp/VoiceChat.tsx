@@ -78,6 +78,13 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
     return () => { active = false; clearInterval(iv) }
   }, [sessionId])
 
+  useEffect(() => {
+    if (error === "kicked") {
+      const tm = setTimeout(() => onClose(), 2000)
+      return () => clearTimeout(tm)
+    }
+  }, [error, onClose])
+
   const handleJoin = useCallback(async () => {
     try {
       await api.post("/api/sessions/" + sessionId + "/voice/join")
@@ -123,6 +130,14 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
       console.error("Deafen error:", err)
     }
   }, [deafened])
+
+  const handleKick = useCallback(async (targetId: number) => {
+    try {
+      await api.post("/api/sessions/" + sessionId + "/voice/kick", { target_id: targetId })
+    } catch (err) {
+      console.error("Kick error:", err)
+    }
+  }, [sessionId])
 
   if (!enabled && !voiceEnabled) {
     return (
@@ -251,7 +266,7 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
 
       {error && (
         <div className="mx-4 mt-2 rounded-xl border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive flex items-center justify-between">
-          <span>{error}</span>
+          <span>{error === "kicked" ? t("voice.kicked") : error}</span>
           <button onClick={clearError} className="text-destructive/70 hover:text-destructive">
             <X className="size-4" />
           </button>
@@ -292,6 +307,14 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
                 {p.muted && <MicOff className="size-4 text-muted-foreground" />}
                 {p.deafened && <VolumeX className="size-4 text-muted-foreground" />}
                 {p.speaking && <span className="text-[10px] font-bold text-primary animate-pulse">LIVE</span>}
+                {isCreator && pid !== userId && (
+                  <button
+                    onClick={() => handleKick(pid)}
+                    className="ml-1 rounded-lg bg-destructive/10 px-2 py-1 text-[10px] font-bold text-destructive active:scale-95"
+                  >
+                    Kick
+                  </button>
+                )}
               </div>
             </div>
           ))}
