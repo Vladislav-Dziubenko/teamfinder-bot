@@ -42,6 +42,9 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
   const startTimeRef = useRef<number>(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const sentRef = useRef(false)
+  // Подряд идущие отказы микрофона: после 2-го подряд ведём человека
+  // на запасной путь (кнопка с роботом), а не крутим один и тот же тост.
+  const failCountRef = useRef(0)
 
   const cleanup = useCallback(() => {
     if (timerRef.current) {
@@ -193,6 +196,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
       }
       startTimeRef.current = Date.now()
       rec.start(100)
+      failCountRef.current = 0
       setRecording(true)
       timerRef.current = setInterval(() => {
         setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000))
@@ -203,9 +207,15 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
       // Диагностика на сервер — в логах будет точная причина
       report(`gUM failed: ${name} ${detail}`)
       if (name === "NotAllowedError" || name === "SecurityError") {
+        failCountRef.current += 1
         // Разрешение вроде есть (perm granted/prompt), а хост всё равно режет —
-        // это блок уровня WebView/приложения, а не сайта.
-        setError(permState === "granted" ? t("chat.mic_webview_blocked") : t("chat.mic_denied"))
+        // это блок уровня WebView/приложения, а не сайта. Со второго подряд
+        // отказа ведём на кнопку с роботом — она работает всегда.
+        if (failCountRef.current >= 2) {
+          setError(t("chat.mic_use_tg_instead"))
+        } else {
+          setError(permState === "granted" ? t("chat.mic_webview_blocked") : t("chat.mic_denied"))
+        }
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {
         setError(t("chat.mic_no_device"))
       } else if (name === "NotSupportedError") {

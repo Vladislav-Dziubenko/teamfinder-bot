@@ -1009,5 +1009,6 @@
   "chat.mic_unsupported": "Voice recording isn't supported here. Open the Mini App in the Telegram app.",
   "chat.mic_webview_blocked": "App webview blocks recording — restart Telegram fully and update it.",
   "chat.mic_ready": "Mic is ready — hold the button to record.",
-  "chat.voice_via_tg": "Record via Telegram (if the mic button fails)"
+  "chat.voice_via_tg": "Record via Telegram (if the mic button fails)",
+  "chat.mic_use_tg_instead": "This browser keeps blocking the mic — tap the robot 🤖 button next to it and record via Telegram."
 }
