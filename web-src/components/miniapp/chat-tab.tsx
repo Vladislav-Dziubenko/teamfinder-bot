@@ -639,6 +639,29 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
   const [gErr, setGErr] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
+  // Multi-select mode for deletion (like in DMs)
+  const [selected, setSelected] = useState<string[] | null>(null)
+
+  const toggleSelect = useCallback((id: string, mine: boolean) => {
+    if (!canModerate && !mine) return
+    setSelected((prev) => {
+      if (prev === null) return [id]
+      if (prev.includes(id)) {
+        const next = prev.filter((x) => x !== id)
+        return next.length ? next : null
+      }
+      return [...prev, id]
+    })
+  }, [canModerate])
+
+  const deleteSelected = useCallback(async () => {
+    if (!selected?.length) return
+    const ids = selected
+    setSelected(null)
+    for (const id of ids) {
+      await deleteMessage(id)
+    }
+  }, [selected, deleteMessage])
 
   useEffect(() => {
     if (!gErr) return
@@ -740,6 +763,22 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
             <Shield className="size-5" />
           </button>
         )}
+        {selected !== null ? (
+          <>
+            <button type="button" onClick={() => setSelected(null)} className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90">
+              <X className="size-5" />
+            </button>
+            <span className="text-sm font-bold">{t("chat.selected_n", { n: selected.length })}</span>
+            <button type="button" onClick={deleteSelected} disabled={!selected.length} className="flex items-center gap-1 rounded-xl bg-destructive/10 px-3 py-2 text-sm font-bold text-destructive active:scale-95 disabled:opacity-40">
+              <Trash2 className="size-4" />
+              {t("chat.delete_selected")}
+            </button>
+          </>
+        ) : (
+          <button type="button" onClick={() => setSelected([])} aria-label={t("chat.select_messages")} className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90">
+            <CheckCheck className="size-5" />
+          </button>
+        )}
       </header>
 
       {meBanned && (
@@ -771,20 +810,31 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
             <p className="text-sm text-muted-foreground">{t("chat.empty_hint")}</p>
           </div>
         )}
-        {messages.map((m) => (
-          <GlobalMsg
-            key={m.id}
-            msg={m}
-            mine={m.userId === "me"}
-            lang={lang}
-            canModerate={m.userId !== "me" && canModerate}
-            canBanThis={m.userId !== "me" && canBan && roleRank(m.role) < myRank}
-            menuFor={menuFor === m.id}
-            onToggleMenu={() => setMenuFor(menuFor === m.id ? null : m.id)}
-            onDelete={() => onDelete(m)}
-            onBan={() => onBan(m)}
-          />
-        ))}
+        {messages.map((m) => {
+          const mine = m.userId === "me"
+          return (
+            <SelectableRow
+              key={m.id}
+              id={m.id}
+              mine={mine}
+              selecting={selected !== null}
+              selected={selected?.includes(m.id) ?? false}
+              onToggle={toggleSelect}
+            >
+              <GlobalMsg
+                msg={m}
+                mine={mine}
+                lang={lang}
+                canModerate={m.userId !== "me" && canModerate}
+                canBanThis={m.userId !== "me" && canBan && roleRank(m.role) < myRank}
+                menuFor={menuFor === m.id}
+                onToggleMenu={() => setMenuFor(menuFor === m.id ? null : m.id)}
+                onDelete={() => onDelete(m)}
+                onBan={() => onBan(m)}
+              />
+            </SelectableRow>
+          )
+        })}
       </div>
 
       {/* Emoji strip */}

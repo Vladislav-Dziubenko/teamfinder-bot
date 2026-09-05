@@ -1037,6 +1037,12 @@
   "chat.delete_selected": "Delete",
   "chat.selected_n": "{n} selected",
   "chat": {
-    "no_stickers": "No stickers yet. Tap sync in admin panel."
+    "no_stickers": "No stickers yet. Tap sync in admin panel.",
+    "chat.no_stickers": "No stickers yet. Tap sync in admin panel.",
+    "chat.delete_selected": "Delete",
+    "chat.selected_n": "{n} selected",
+    "chat.global_delete_msg": "Delete",
+    "chat.select_messages": "Select",
+    "chat.cannot_delete_others": "You can only delete your own messages"
   }
 }
