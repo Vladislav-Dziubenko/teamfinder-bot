@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { Mic, Loader2 } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
@@ -56,6 +56,13 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
     setRecording(false)
     setDuration(0)
   }, [])
+
+  // Ошибка — короткий тост, сама гаснет через 4с, экран не загораживает
+  useEffect(() => {
+    if (!error) return
+    const id = setTimeout(() => setError(null), 4000)
+    return () => clearTimeout(id)
+  }, [error])
 
   const finishUpload = useCallback(async () => {
     const blobParts = chunksRef.current
@@ -236,7 +243,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
       </button>
 
       {error && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 max-w-[220px] text-center text-[10px] text-red-500 whitespace-normal bg-red-500/10 px-2 py-1 rounded">
+        <div className="fixed left-1/2 bottom-36 z-[90] w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 rounded-2xl border border-red-500/30 bg-background/95 px-3 py-2 text-center text-xs text-red-500 shadow-xl backdrop-blur">
           {error}
         </div>
       )}
