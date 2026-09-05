@@ -67,9 +67,15 @@ export function VoiceChat({ sessionId, isCreator, onClose }: VoiceChatProps) {
   } = useVoiceChat(sessionId, userId, enabled)
 
   useEffect(() => {
-    api.get("/api/sessions/" + sessionId).then((res) => {
-      setVoiceEnabled(res?.voice_enabled || false)
-    }).catch(console.error)
+    let active = true
+    const load = () => {
+      api.get("/api/sessions/" + sessionId).then((res) => {
+        if (active) setVoiceEnabled(res?.voice_enabled || false)
+      }).catch(console.error)
+    }
+    load()
+    const iv = setInterval(load, 3000)
+    return () => { active = false; clearInterval(iv) }
   }, [sessionId])
 
   const handleJoin = useCallback(async () => {
