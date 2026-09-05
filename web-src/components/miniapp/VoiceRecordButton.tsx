@@ -108,11 +108,10 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
   const startTimeRef = useRef<number>(0)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const cleanup = useCallback(() => {
-    if (timerRef.current) {
-      clearInterval(timerRef.current)
-      timerRef.current = null
-    }
+  // Отпускаем микрофон полностью: только при уходе из чата.
+  // Пока чат открыт — стрим держим тёплым, чтобы системный диалог
+  // «дать доступ» вылезал один раз за сессию, а не на каждое нажатие.
+  const releaseStream = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((tr) => {
         try {
@@ -122,10 +121,46 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
       streamRef.current = null
     }
     setLiveStream(null)
+  }, [])
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current)
+      releaseStream()
+    }
+  }, [releaseStream])
+
+  const cleanup = useCallback(() => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current)
+      timerRef.current = null
+    }
+    setLiveStream(null)
     mediaRecorderRef.current = null
     cancelledRef.current = false
     setRecording(false)
     setDuration(0)
+  }, [])
+
+  // Тёплый стрим: переиспользуем живой, новый просим только если убит.
+  // Поэтому системный диалог — максимум раз за сессию чата.
+  const getStream = useCallback(async () => {
+    const cur = streamRef.current
+    if (cur && cur.getAudioTracks().some((tr) => tr.readyState === "live")) return cur
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+    streamRef.current = stream
+    stream.getAudioTracks().forEach((tr) => {
+      const prev = tr.onended
+      tr.onended = (ev) => {
+        if (streamRef.current === stream) streamRef.current = null
+        if (typeof prev === "function") {
+          try {
+            ;(prev as any).call(tr, ev)
+          } catch {}
+        }
+      }
+    })
+    return stream
   }, [])
 
   // Ошибка/подсказка — короткие тосты, сами гаснут через 4с
@@ -217,8 +252,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
       return
     }
     try {
-      const stream = await md.getUserMedia({ audio: true })
-      streamRef.current = stream
+      const stream = await getStream()
       const picked = pickMime()
       mimeRef.current = picked.mime
       extRef.current = picked.ext
@@ -237,16 +271,9 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
       }
       // Если палец уже отпущен (вылезло системное окно Telegram и человек
       // отпустил кнопку, чтобы тапнуть «Разрешить») — не стартуем призрачную
-      // запись, а фиксируем: микрофон разблокирован, просим зажать ещё раз.
+      // запись. Стрим при этом НЕ глушим: он тёплый, следующий холд пойдёт
+      // уже без диалога. Просим зажать ещё раз.
       if (!pressActiveRef.current) {
-        try {
-          stream.getTracks().forEach((tr) => {
-            try {
-              tr.stop()
-            } catch {}
-          })
-        } catch {}
-        streamRef.current = null
         mediaRecorderRef.current = null
         setInfo(t("chat.mic_ready"))
         return
@@ -277,7 +304,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram }: V
       }
       cleanup()
     }
-  }, [disabled, uploading, recording, finishUpload, cleanup, t])
+  }, [disabled, uploading, recording, finishUpload, cleanup, getStream, t])
 
   const handleRelease = useCallback(() => {
     pressActiveRef.current = false
