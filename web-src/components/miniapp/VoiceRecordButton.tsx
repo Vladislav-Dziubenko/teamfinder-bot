@@ -101,17 +101,20 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
       setError(t("chat.mic_unsupported"))
       return
     }
-    // Если доступ уже запрещён на уровне браузера/ОС — запрос мгновенно
-    // упадёт без промпта. Сразу говорим человеку, где разблокировать.
+    // Состояние разрешения — только для диагностики, НЕ для раннего выхода:
+    // в WebView оно может врать/застревать, а ранний return лишает браузер
+    // шанса показать промпт заново (и в WebView Телеги нет иконки замка,
+    // чтобы сбросить запрет вручную). Поэтому всегда пробуем getUserMedia —
+    // при реальном запрете он и так упадёт мгновенно.
     let permState = "unknown"
     try {
       const perm = await (navigator as any).permissions?.query?.({ name: "microphone" })
       if (perm?.state) permState = perm.state
-      if (perm?.state === "denied") {
-        setError(t("chat.mic_denied"))
-        return
-      }
     } catch {}
+    if (typeof window.MediaRecorder === "undefined") {
+      setError(t("chat.mic_unsupported"))
+      return
+    }
     // Сколько аудиоустройств вообще видит WebView (без лейблов до разрешения).
     // Ноль = хост режет захват на своём уровне, getUserMedia не поможет.
     let audioInputs = -1
