@@ -55,7 +55,29 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
       setLoading(false)
       if (!cancelled) {
         setLoadError("audio-element-error")
-        reportPlayError(`element error src_len=${src.length}`)
+        // Вскрытие битого файла: код ошибки элемента + магические байты.
+        // EBML webm = 1a45dfa3, Ogg = 4f676753. Иное = в базе мусор.
+        void (async () => {
+          try {
+            const el = audio as HTMLAudioElement | null
+            const code = (el as any)?.error?.code ?? "?"
+            const net = (el as any)?.networkState ?? "?"
+            let magic = "?"
+            let size = -1
+            let btype = ""
+            try {
+              const r2 = await fetch(src, { headers: { "X-Telegram-Init-Data": getInitData() } })
+              const b2 = await r2.blob()
+              size = b2.size
+              btype = b2.type
+              const head = new Uint8Array(await b2.slice(0, 4).arrayBuffer())
+              magic = Array.from(head)
+                .map((x) => x.toString(16).padStart(2, "0"))
+                .join("")
+            } catch {}
+            reportPlayError(`element error code=${code} net=${net} magic=${magic} size=${size} type=${btype}`)
+          } catch {}
+        })()
       }
     }
 
