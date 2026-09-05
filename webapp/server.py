@@ -1829,6 +1829,9 @@ async def handle_nexus_open_case(request: web.Request):
 
             asyncio.create_task(db.bump_achievement_progress(user["id"], "a4", 50, count))
 
+            # Сброс кэша /api/me чтобы refresh() на фронте получил актуальный
+            # case_balance (beta_state) и free_gold_opens после списания.
+            asyncio.create_task(cache_delete(f"me:{user['id']}"))
 
             return web.json_response({
 
