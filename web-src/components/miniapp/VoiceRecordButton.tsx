@@ -103,13 +103,39 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
     }
     // Если доступ уже запрещён на уровне браузера/ОС — запрос мгновенно
     // упадёт без промпта. Сразу говорим человеку, где разблокировать.
+    let permState = "unknown"
     try {
       const perm = await (navigator as any).permissions?.query?.({ name: "microphone" })
+      if (perm?.state) permState = perm.state
       if (perm?.state === "denied") {
         setError(t("chat.mic_denied"))
         return
       }
     } catch {}
+    // Сколько аудиоустройств вообще видит WebView (без лейблов до разрешения).
+    // Ноль = хост режет захват на своём уровне, getUserMedia не поможет.
+    let audioInputs = -1
+    try {
+      const devs = await md.enumerateDevices()
+      audioInputs = devs.filter((d: any) => d.kind === "audioinput").length
+    } catch {}
+    const report = (extra: string) => {
+      try {
+        const inTg = typeof window !== "undefined" && !!(window as any).Telegram?.WebApp
+        navigator.sendBeacon?.(
+          "/api/client-error",
+          new Blob(
+            [JSON.stringify({ message: `mic diag ${extra} | perm=${permState} inputs=${audioInputs} secure=${window.isSecureContext} tg=${inTg}`, tab: "chat", url: location.href })],
+            { type: "application/json" },
+          ),
+        )
+      } catch {}
+    }
+    if (audioInputs === 0) {
+      report("no-audioinput-enumerated")
+      setError(t("chat.mic_no_device"))
+      return
+    }
     try {
       const stream = await md.getUserMedia({ audio: true })
       streamRef.current = stream
@@ -139,14 +165,11 @@ export function VoiceRecordButton({ chatId, onSend, disabled }: VoiceRecordButto
       const name = err?.name || "UnknownError"
       const detail = String(err?.message || "").slice(0, 200)
       // Диагностика на сервер — в логах будет точная причина
-      try {
-        navigator.sendBeacon?.(
-          "/api/client-error",
-          new Blob([JSON.stringify({ message: `mic gUM failed: ${name} ${detail}`, tab: "chat", url: location.href })], { type: "application/json" }),
-        )
-      } catch {}
+      report(`gUM failed: ${name} ${detail}`)
       if (name === "NotAllowedError" || name === "SecurityError") {
-        setError(t("chat.mic_denied"))
+        // Разрешение вроде есть (perm granted/prompt), а хост всё равно режет —
+        // это блок уровня WebView/приложения, а не сайта.
+        setError(permState === "granted" ? t("chat.mic_webview_blocked") : t("chat.mic_denied"))
       } else if (name === "NotFoundError" || name === "OverconstrainedError") {
         setError(t("chat.mic_no_device"))
       } else if (name === "NotSupportedError") {

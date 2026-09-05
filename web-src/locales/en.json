@@ -1006,5 +1006,6 @@
   "chat.voice_send_failed": "Couldn't send the voice message",
   "chat.mic_denied": "Mic is blocked (browser remembers the ban and won't ask again). Android: phone Settings → Apps → Telegram → Permissions → Microphone → Allow. Browser: tap the lock icon in the address bar → allow mic. Then hold the button again.",
   "chat.mic_no_device": "No microphone found on this device.",
-  "chat.mic_unsupported": "Voice recording isn't supported here. Open the Mini App in the Telegram app."
+  "chat.mic_unsupported": "Voice recording isn't supported here. Open the Mini App in the Telegram app.",
+  "chat.mic_webview_blocked": "The system says mic is allowed, but the app's webview still blocks recording. Fully close Telegram and reopen it (swipe away from recents), update Telegram to the latest version, then hold the button again. As a fallback, open the Mini App in Chrome."
 }
