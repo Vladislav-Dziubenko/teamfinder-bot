@@ -27,3 +27,12 @@ export function getAutumnRemaining(now: number = Date.now()): AutumnRemaining {
 // Какие кейсы показываем в хабе события: обычный осенний (за звёзды)
 // + золотой осенний (за 3 ключа). Порядок = порядок карточек.
 export const AUTUMN_SHOWCASE_CASES = ["autumn", "autumn-gold"] as const
+
+// Ключи, открывающие Autumn Gold: основной autumn-key + legacy-ключи старых
+// выдач батл-пасса (бэкенд-миграция перекладывает их в autumn-key, фолбэк —
+// на случай, если фронт обновился раньше бэкенда).
+const AUTUMN_KEY_ITEM_KEYS = ["autumn-key", "bp8p", "bp13p", "bp18p", "bp22p", "bp24p", "bp27p", "bp29p"]
+
+export function countAutumnKeys(inventory: Array<{ key: string }>): number {
+  return inventory.filter((i) => AUTUMN_KEY_ITEM_KEYS.includes(i.key)).length
+}

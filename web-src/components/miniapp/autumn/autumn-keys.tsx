@@ -3,11 +3,12 @@
 import { KeyRound } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
+import { countAutumnKeys } from "./autumn-event"
 
 export function AutumnKeys() {
   const { t } = useI18n()
   const { inventory } = useNexus()
-  const keys = inventory.filter((i) => i.key === "autumn-key").length
+  const keys = countAutumnKeys(inventory)
   const filled = Math.min(3, keys)
 
   return (

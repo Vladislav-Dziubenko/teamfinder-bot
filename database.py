@@ -727,6 +727,23 @@ class Database:
         except asyncpg.PostgresError as e:
             print(f"Migration warning while backfilling battlepass completed_at: {e}")
 
+        # Ключи БП раньше падали в инвентарь под ключами bp8p/bp13p/... — их не видел
+        # счётчик и Gold-кейс (ждут item_key='autumn-key'). Дублируем недоданный второй
+        # ключ за 29 тир («×2» выдавала 1 шт), затем всё перекладываем в autumn-key.
+        # Идемпотентно: после первого прогона строк bp29p/bp8p... не остаётся.
+        try:
+            await conn.execute(
+                "INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, grants_premium, acquired_at) "
+                "SELECT user_id, 'bp29p_bonus', 'Autumn Key', 'epic', 5000, 0, acquired_at "
+                "FROM user_inventory WHERE item_key = 'bp29p'"
+            )
+            await conn.execute(
+                "UPDATE user_inventory SET item_key = 'autumn-key', item_name = 'Autumn Key' "
+                "WHERE item_key IN ('bp8p', 'bp13p', 'bp18p', 'bp22p', 'bp24p', 'bp27p', 'bp29p', 'bp29p_bonus')"
+            )
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning while fixing battlepass keys: {e}")
+
         # Migrate existing beta_tester role -> is_beta flag (separate from staff role)
         try:
             await conn.execute(
@@ -3585,15 +3602,25 @@ WHERE user_quests.completed = 0
                     break
             await self.set_pro_status(user_id, days=1, conn=conn)
         elif rtype == "item":
-            await self.add_to_inventory(
-                user_id,
-                reward["key"],
-                reward["name"],
-                reward.get("rarity", "rare"),
-                40,
-                reward.get("rarity") in ("premium", "epic"),
-                conn=conn,
-            )
+            # item_key: физический ключ предмета в инвентаре (ключи БП кладутся
+            # как autumn-key, чтобы их видел счётчик и Gold-кейс); key награды
+            # остаётся уникальным для claimed_tiers. count — штук за раз.
+            inv_key = reward.get("item_key") or reward["key"]
+            inv_count = reward.get("count", 1)
+            try:
+                inv_count = max(1, min(10, int(inv_count)))
+            except (TypeError, ValueError):
+                inv_count = 1
+            for _ in range(inv_count):
+                await self.add_to_inventory(
+                    user_id,
+                    inv_key,
+                    reward["name"],
+                    reward.get("rarity", "rare"),
+                    40,
+                    reward.get("rarity") in ("premium", "epic"),
+                    conn=conn,
+                )
             if reward.get("rarity") in ("premium", "epic"):
                 await self.set_pro_status(user_id, days=1, conn=conn)
         elif rtype == "model":

@@ -6,7 +6,7 @@ import { rarityMeta, type CaseItem, type LootCase } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { caseNameKey, itemNameKey } from "../cases-tab"
-import { AUTUMN_SHOWCASE_CASES } from "./autumn-event"
+import { AUTUMN_SHOWCASE_CASES, countAutumnKeys } from "./autumn-event"
 
 function costLabel(c: LootCase, t: (k: string, v?: Record<string, string | number>) => string) {
   if (c.id === "autumn-gold") return t("event.gold_key_cost")
@@ -41,7 +41,7 @@ export function AutumnCases({
   async function open(box: LootCase) {
     if (busyId) return
     if (box.id === "autumn-gold") {
-      const have = inventory.filter((i) => i.key === "autumn-key").length
+      const have = countAutumnKeys(inventory)
       if (have < 3) {
         onToast(t("cases.need_keys", { have }))
         return

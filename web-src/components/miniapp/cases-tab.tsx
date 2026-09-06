@@ -12,6 +12,7 @@ import { tick, win as winSfx, whoosh, setMuted, isMuted, ensureAudio } from "@/l
 import { formatNum } from "@/lib/format"
 import { TopUpSheet } from "./top-up-sheet"
 import { MarketListSheet } from "./market-list-sheet"
+import { countAutumnKeys } from "./autumn/autumn-event"
 import { FairSheet, type FairEntry } from "./fair-sheet"
 import type { FairProof } from "@/lib/crypto"
 import { useAdsgram } from "@/lib/use-adsgram"
@@ -188,7 +189,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     // Autumn Gold — только по 1 шт. и только с 3 ключами: проверяем ДО анимации,
     // чтобы спиннер не крутился впустую перед ошибкой сервера.
     if (c.id === "autumn-gold") {
-      const have = inventory.filter((i) => i.key === "autumn-key").length
+      const have = countAutumnKeys(inventory)
       if (have < 3) {
         onToast(t("cases.need_keys", { have }))
         return
@@ -438,7 +439,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                     )
                   ) : c.id === "autumn-gold" ? (
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars tabular-nums">
-                      {t("event.gold_key_cost")} · {inventory.filter((i) => i.key === "autumn-key").length}/3
+                      {t("event.gold_key_cost")} · {countAutumnKeys(inventory)}/3
                     </p>
                   ) : (
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars">
