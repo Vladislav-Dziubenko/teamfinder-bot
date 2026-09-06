@@ -2296,6 +2296,29 @@ async def handle_sessions_leave(request: web.Request):
     return web.json_response({"ok": True})
 
 
+async def handle_sessions_kick(request: web.Request):
+    """Kick a player from session (creator only)."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        session_id = int(request.match_info["session_id"])
+        body = await request.json()
+    except (ValueError, KeyError, Exception):
+        return web.json_response({"error": "bad request"}, status=400)
+    target_id = body.get("target_id")
+    if not isinstance(target_id, int):
+        return web.json_response({"error": "invalid target_id"}, status=400)
+    row = await db.pool.fetchrow("SELECT creator_id FROM game_sessions WHERE id = $1", session_id)
+    if not row or row["creator_id"] != user["id"]:
+        return web.json_response({"error": "only creator can kick"}, status=403)
+    if target_id == user["id"]:
+        return web.json_response({"error": "cannot kick yourself"}, status=400)
+    await db.leave_game_session(session_id, target_id)
+    # Also kick from voice chat if in one
+    await db.leave_voice_chat(session_id, target_id)
+    return web.json_response({"ok": True})
+
+
 async def handle_sessions_voice_join(request: web.Request):
     """Присоединиться к голосовому чату сессии."""
     db: Database = request.app["db"]
@@ -4862,6 +4885,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/sessions", handle_sessions_create)
     app.router.add_post("/api/sessions/{session_id}/join", handle_sessions_join)
     app.router.add_post("/api/sessions/{session_id}/leave", handle_sessions_leave)
+    app.router.add_post("/api/sessions/{session_id}/kick", handle_sessions_kick)
     app.router.add_post("/api/sessions/{session_id}/voice/join", handle_sessions_voice_join)
     app.router.add_post("/api/sessions/{session_id}/voice/leave", handle_sessions_voice_leave)
     app.router.add_get("/api/sessions/{session_id}/voice/participants", handle_sessions_voice_participants)

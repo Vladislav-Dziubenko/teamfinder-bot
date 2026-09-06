@@ -132,6 +132,16 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
     }
   }
 
+  async function kickPlayer(sessionId: number, targetId: number) {
+    try {
+      await api.post(`/api/sessions/${sessionId}/kick`, { target_id: targetId })
+      await load()
+      onToast(t("sessions.kicked"))
+    } catch (err: any) {
+      onToast(err?.message || t("sessions.kick_failed"))
+    }
+  }
+
   function timeLeft(s: GameSession): string {
     const raw = s.expires_at ?? ""
     const normalized = /[zZ]|[+-]\d\d:?\d\d$/.test(raw) ? raw : raw + "Z"
@@ -285,11 +295,11 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
         </div>
       )}
 
-      {mySession && <SessionCard s={mySession} mine userId={userId} onJoin={join} onLeave={leave} busy={joiningId} timeLeft={timeLeft} t={t} />}
+      {mySession && <SessionCard s={mySession} mine userId={userId} onJoin={join} onLeave={leave} onKick={kickPlayer} busy={joiningId} timeLeft={timeLeft} t={t} />}
 
       <div className="space-y-2.5">
         {others.map((s) => (
-          <SessionCard key={s.id} s={s} mine={false} userId={userId} onJoin={join} onLeave={leave} busy={joiningId} timeLeft={timeLeft} t={t} />
+          <SessionCard key={s.id} s={s} mine={false} userId={userId} onJoin={join} onLeave={leave} onKick={kickPlayer} busy={joiningId} timeLeft={timeLeft} t={t} />
         ))}
       </div>
     </div>
@@ -311,6 +321,7 @@ function SessionCard({
   userId,
   onJoin,
   onLeave,
+  onKick,
   busy,
   timeLeft,
   t,
@@ -320,6 +331,7 @@ function SessionCard({
   userId: number
   onJoin: (s: GameSession) => void
   onLeave: (s: GameSession) => void
+  onKick: (sessionId: number, targetId: number) => void
   busy: number | null
   timeLeft: (s: GameSession) => string
   t: (k: string, vars?: Record<string, string | number>) => string
@@ -348,20 +360,31 @@ function SessionCard({
 
       <div className="mt-2.5 flex items-center justify-between gap-2">
         <div className="flex items-center">
-          <div className="flex -space-x-2">
-            {s.players.slice(0, (s.max_players || 6)).map((p) => (
-              <img
-                key={p.user_id}
-                src={p.avatar || `/player-${((p.user_id % 4) + 1)}.webp`}
-                alt={p.nick}
-                title={p.nick}
-                className="size-7 rounded-full border-2 border-card object-cover"
-              />
-            ))}
+          <div className="relative flex items-center">
+            <div className="flex -space-x-2">
+              {s.players.slice(0, (s.max_players || 6)).map((p) => (
+                <div key={p.user_id} className="relative group">
+                  <img
+                    src={p.avatar || `/player-${((p.user_id % 4) + 1)}.webp`}
+                    alt={p.nick}
+                    title={p.nick}
+                    className="size-7 rounded-full border-2 border-card object-cover"
+                  />
+                  {mine && s.creator_id === userId && p.user_id !== userId && (
+                    <button
+                      onClick={() => onKick(s.id, p.user_id)}
+                      className="absolute bottom-full right-0 mb-1 opacity-0 group-hover:opacity-100 transition-opacity rounded bg-destructive px-2 py-1 text-[10px] font-bold text-destructive-foreground"
+                    >
+                      Kick
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            <span className="ml-2 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
+              <Users className="size-3" /> {s.players_count}/{s.max_players || 6}
+            </span>
           </div>
-          <span className="ml-2 flex items-center gap-1 text-[11px] font-semibold text-muted-foreground">
-            <Users className="size-3" /> {s.players_count}/{s.max_players || 6}
-          </span>
         </div>
         {joined ? (
           <button

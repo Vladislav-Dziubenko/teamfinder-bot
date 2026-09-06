@@ -1050,5 +1050,9 @@
   },
   "voice": {
     "kicked": "You were removed from voice chat"
+  },
+  "sessions": {
+    "sessions.kicked": "Player kicked",
+    "sessions.kick_failed": "Failed to kick player"
   }
 }
