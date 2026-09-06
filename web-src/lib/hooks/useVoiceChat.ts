@@ -346,9 +346,13 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
                   return next
                 })
               }
-              // Only higher ID creates offer to avoid collision
+              // Lower ID: pre-create PC so it can receive ICE candidates from higher ID's offer
+              // Higher ID: create offer
               if (userIdRef.current > remoteId) {
                 void createOffer(remoteId)
+              } else {
+                // Pre-create PC to catch early ICE candidates
+                getOrCreatePc(remoteId)
               }
             }
             break
