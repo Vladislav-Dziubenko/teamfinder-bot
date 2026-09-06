@@ -1054,5 +1054,8 @@
   "sessions": {
     "sessions.kicked": "Player kicked",
     "sessions.kick_failed": "Failed to kick player"
+  },
+  "topbar": {
+    "topbar.updates": "Updates"
   }
 }

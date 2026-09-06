@@ -1,16 +1,25 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Star } from "lucide-react"
+import { Star, Bell } from "lucide-react"
 import { useNexus } from "@/lib/store"
 import { useI18n } from "@/lib/i18n"
 import { formatNum } from "@/lib/format"
+import { cn } from "@/lib/utils"
 
-export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () => void }) {
+export function TopBar({
+  onStars,
+  onCoins,
+  onChangelog,
+  hasUpdate,
+}: {
+  onStars: () => void
+  onCoins: () => void
+  onChangelog: () => void
+  hasUpdate: boolean
+}) {
   const { t } = useI18n()
   const { stars, coins } = useNexus()
-  // Читаем window только в effect (после гидратации) — иначе статический HTML
-  // и клиентский рендер не совпадают (React hydration error #418).
   const [tgPhoto, setTgPhoto] = useState<string | null>(null)
   useEffect(() => {
     try {
@@ -41,8 +50,21 @@ export function TopBar({ onStars, onCoins }: { onStars: () => void; onCoins: () 
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Nexus-монетки */}
+        <div className="flex items-center gap-1.5">
+          {/* Changelog bell */}
+          <button
+            type="button"
+            onClick={onChangelog}
+            className="relative grid size-9 place-items-center rounded-xl text-muted-foreground hover:bg-secondary/50 active:scale-90"
+            aria-label={t("topbar.updates")}
+          >
+            <Bell className="size-5" />
+            {hasUpdate && (
+              <span className="absolute right-1 top-1 size-2 rounded-full bg-red-500 ring-2 ring-background animate-pulse" />
+            )}
+          </button>
+
+          {/* Nexus coins */}
           <button
             type="button"
             onClick={onCoins}

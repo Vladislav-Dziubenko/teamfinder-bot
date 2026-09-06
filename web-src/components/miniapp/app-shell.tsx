@@ -7,6 +7,7 @@ import { NexusProvider } from "@/lib/store"
 import { TopBar } from "./top-bar"
 import { BottomNav, type TabId } from "./bottom-nav"
 import { MoreSheet } from "./more-sheet"
+import { ChangelogSheet } from "./changelog-sheet"
 import { HomeTab } from "./home-tab"
 import { MatchTab } from "./match-tab"
 import { CasesTab } from "./cases-tab"
@@ -25,6 +26,7 @@ import { api, getInitDataUser } from "@/lib/api"
 import { hapticTap } from "@/lib/webapp"
 import { analytics } from "@/lib/telegram-analytics"
 import { useMe, useNexus, CONSENT_VERSION } from "@/lib/store"
+import { hasNewUpdate, hasMajorUpdate, STORAGE_KEY, CURRENT_VERSION } from "@/lib/changelog"
 import type { Player, Team } from "@/lib/data"
 
 // Ленивая загрузка тяжёлых вкладок: Three.js (~600KB), Recharts (~400KB)
@@ -62,6 +64,8 @@ function Shell() {
   const [chatOpen, setChatOpen] = useState<{ chatId: string; player: Player } | null>(null)
   const [sharedProfileId, setSharedProfileId] = useState<number | null>(null)
   const [leaderboardOpen, setLeaderboardOpen] = useState(false)
+  const [changelogOpen, setChangelogOpen] = useState(false)
+  const [hasUpdate, setHasUpdate] = useState(false)
   const [welcomeShown, setWelcomeShown] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
@@ -77,6 +81,18 @@ function Shell() {
     markOnboardingDone()
     setOnboardingDone(true)
   }
+
+  // Check for new updates and auto-show changelog for major updates
+  useEffect(() => {
+    if (!loaded || banned || consentVersion < CONSENT_VERSION) return
+    try {
+      const lastSeen = localStorage.getItem(STORAGE_KEY)
+      setHasUpdate(hasNewUpdate(lastSeen))
+      if (hasMajorUpdate(lastSeen)) {
+        setChangelogOpen(true)
+      }
+    } catch {}
+  }, [loaded, banned, consentVersion])
 
   // Приветственный бонус (первый вход): показываем тост с составом награды.
   useEffect(() => {
@@ -188,7 +204,7 @@ function Shell() {
 
   return (
     <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background md:shadow-[0_0_90px_-25px_color-mix(in_oklch,var(--primary)_45%,transparent)]">
-      <TopBar onStars={() => goTab("donate")} onCoins={() => goTab("cases")} />
+      <TopBar onStars={() => goTab("donate")} onCoins={() => goTab("cases")} onChangelog={() => setChangelogOpen(true)} hasUpdate={hasUpdate} />
 
       <main id="miniapp-scroll" className="flex-1 overflow-y-auto pb-24">
         {tab === "home" && <HomeTab onGo={goTab} onConnect={setContact} onToast={setToast} />}
@@ -219,6 +235,11 @@ function Shell() {
         onSelect={goTab}
         onClose={() => setMoreOpen(false)}
       />
+
+      <ChangelogSheet open={changelogOpen} onClose={() => {
+        setChangelogOpen(false)
+        setHasUpdate(false)
+      }} />
 
       <ContactSheet player={contact} onClose={() => setContact(null)} />
 

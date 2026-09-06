@@ -1054,5 +1054,8 @@
   "sessions": {
     "sessions.kicked": "Игрок удален",
     "sessions.kick_failed": "Не удалось удалить игрока"
+  },
+  "topbar": {
+    "topbar.updates": "Обновления"
   }
 }
