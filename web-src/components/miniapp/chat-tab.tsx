@@ -453,7 +453,7 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
   const canSend = !blockedByOther
 
   return (
-    <div className="fixed inset-x-0 top-0 bottom-[60px] z-10 mx-auto flex max-w-md flex-col bg-background pb-[env(safe-area-inset-bottom)]">
+    <div className="fixed inset-x-0 top-0 bottom-[60px] z-50 mx-auto flex max-w-md flex-col bg-background pb-[env(safe-area-inset-bottom)]" style={{ isolation: "isolate" }}>
       {/* Header */}
       <header className="flex items-center gap-3 border-b border-border bg-card/85 px-3 py-3 backdrop-blur-xl">
         <button type="button" onClick={onBack} aria-label={t("chat.back")} className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90">
@@ -740,7 +740,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
   }
 
   return (
-    <div className="fixed inset-x-0 top-0 bottom-[60px] z-10 mx-auto flex max-w-md flex-col bg-background pb-[env(safe-area-inset-bottom)]">
+    <div className="fixed inset-x-0 top-0 bottom-[60px] z-50 mx-auto flex max-w-md flex-col bg-background pb-[env(safe-area-inset-bottom)]" style={{ isolation: "isolate" }}>
       {/* Header */}
       <header className="flex items-center gap-3 border-b border-border bg-card/85 px-3 py-3 backdrop-blur-xl">
         <button type="button" onClick={onBack} aria-label={t("chat.back")} className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90">
@@ -1505,7 +1505,7 @@ const GlobalMsg = memo(function GlobalMsg({
             <img
               src={`/api/stickers/img/${msg.text.split(":")[2]}`}
               alt="sticker"
-              className="max-h-[140px] object-contain drop-shadow-md"
+              className="max-h-[140px] object-contain"
             />
           ) : (
             <p className="select-none text-6xl leading-none">{msg.text.trim()}</p>
