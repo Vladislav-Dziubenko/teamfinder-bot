@@ -135,7 +135,10 @@ async def admin_donate_delete(message: Message, db: Database, settings: Settings
 
 @router.message(Command("giveitem"))
 async def admin_give_item(message: Message, db: Database, settings: Settings):
+    import logging
+    logging.info("[GIVEITEM] user=%s admin_ids=%s text=%r", message.from_user.id, settings.admin_ids, message.text)
     if message.from_user.id not in settings.admin_ids:
+        logging.info("[GIVEITEM] DENIED: user=%s not in admin_ids", message.from_user.id)
         return
 
     args = message.text.strip().split()
