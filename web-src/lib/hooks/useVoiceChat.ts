@@ -336,6 +336,12 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
 
   const connect = useCallback(async () => {
     if (!enabledRef.current) return
+    // Невалидный id (0/NaN) — в такую комнату не коннектимся, иначе WS сразу
+    // закроется 4003, а UI покажет мёртвую комнату без объяснений.
+    if (!Number.isFinite(sessionId) || sessionId <= 0) {
+      setError("bad-session")
+      return
+    }
     setError(null)
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -451,6 +457,16 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
         if (ev.code === 4010) {
           setError("kicked")
           enabledRef.current = false
+          return
+        }
+        // Видимые ошибки вместо молчаливой мёртвой комнаты:
+        // 4003 — нет в сессии (комната 0/чужая), 4004 — войс выключен.
+        if (ev.code === 4003) {
+          setError("not-in-session")
+          return
+        }
+        if (ev.code === 4004) {
+          setError("voice-disabled")
           return
         }
         if (enabledRef.current && ev.code !== 4001 && ev.code !== 4003 && ev.code !== 4004) {

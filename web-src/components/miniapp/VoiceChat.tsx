@@ -203,7 +203,7 @@ export function VoiceChat({ sessionId, isCreator, initialVoiceEnabled, onClose }
     <div className="fixed inset-0 z-50 flex flex-col bg-black/60">
       <header className="flex items-center justify-between gap-2 border-b border-border/50 bg-card/95 backdrop-blur-xl px-4 py-3">
         <div className="flex items-center gap-3">
-          <button onClick={handleLeave} className="grid size-9 place-items-center rounded-xl text-muted-foreground hover:bg-secondary/50 active:scale-90">
+          <button onClick={() => { void handleLeave(); onClose() }} className="grid size-9 place-items-center rounded-xl text-muted-foreground hover:bg-secondary/50 active:scale-90">
             <X className="size-5" />
           </button>
           <div>
@@ -261,7 +261,15 @@ export function VoiceChat({ sessionId, isCreator, initialVoiceEnabled, onClose }
 
       {error && (
         <div className="mx-4 mt-2 rounded-xl border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive flex items-center justify-between">
-          <span>{error === "kicked" ? t("voice.kicked") : error}</span>
+          <span>
+            {error === "kicked"
+              ? t("voice.kicked")
+              : error === "bad-session" || error === "not-in-session"
+                ? t("voice.session_gone")
+                : error === "voice-disabled"
+                  ? t("voice.voice_disabled")
+                  : error}
+          </span>
           <button onClick={clearError} className="text-destructive/70 hover:text-destructive">
             <X className="size-4" />
           </button>

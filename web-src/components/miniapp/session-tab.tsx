@@ -46,6 +46,10 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
   const [joiningId, setJoiningId] = useState<number | null>(null)
   const [joiningPassword, setJoiningPassword] = useState("")
   const [voiceChatOpen, setVoiceChatOpen] = useState(false)
+  // Сессия для войса фиксируется В МОМЕНТ открытия модалки и больше не следует
+  // за живым mySession: иначе рефреш списка/истечение сессии роняет звонок
+  // в комнату 0 (WS 4003, participants 403) — оба молчат в мёртвой комнате.
+  const [voiceSession, setVoiceSession] = useState<GameSession | null>(null)
   const [voiceEnabled, setVoiceEnabled] = useState(false)
   const [, setTick] = useState(0)
 
@@ -268,7 +272,11 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
       <div className="mt-3 flex items-center justify-between">
         <button
           type="button"
-          onClick={() => setVoiceChatOpen(true)}
+          onClick={() => {
+            if (!mySession) return
+            setVoiceSession(mySession)
+            setVoiceChatOpen(true)
+          }}
           disabled={!mySession || !mySession.voice_enabled}
           className={cn(
             "w-full flex items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold transition-colors active:scale-[0.98] disabled:opacity-50",
@@ -303,12 +311,15 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
         ))}
       </div>
     </div>
-      {voiceChatOpen && (
+      {voiceChatOpen && voiceSession && voiceSession.id > 0 && (
         <VoiceChat
-          sessionId={mySession?.id || 0}
-          isCreator={mySession?.creator_id === userId}
-          initialVoiceEnabled={mySession?.voice_enabled ?? false}
-          onClose={() => setVoiceChatOpen(false)}
+          sessionId={voiceSession.id}
+          isCreator={voiceSession.creator_id === userId}
+          initialVoiceEnabled={voiceSession.voice_enabled ?? false}
+          onClose={() => {
+            setVoiceChatOpen(false)
+            setVoiceSession(null)
+          }}
         />
       )}
     </>
