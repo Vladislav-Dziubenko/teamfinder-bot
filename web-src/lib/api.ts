@@ -9,6 +9,10 @@ declare global {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE || ""
 import { getServerBusySetter } from "./store"
 
+// Глобальный обработчик 401 — вызывается при невалидном/expired initData.
+let _onAuthError: (() => void) | null = null
+export function setOnAuthError(fn: (() => void) | null) { _onAuthError = fn }
+
 export function getInitData(): string {
   if (typeof window === "undefined") return ""
   const wa = window.Telegram?.WebApp
@@ -94,6 +98,7 @@ async function request(method: string, path: string, body?: unknown, attempt = 0
     if (!res.ok) {
       const err = new Error(data.error || `HTTP ${res.status}`) as any
       err.status = res.status
+      if (res.status === 401 && _onAuthError) _onAuthError()
       throw err
     }
 
@@ -126,6 +131,7 @@ export const api = {
       if (!res.ok) {
         const err = new Error((data as any).error || `HTTP ${res.status}`) as any
         err.status = res.status
+        if (res.status === 401 && _onAuthError) _onAuthError()
         throw err
       }
       return data as T

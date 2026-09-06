@@ -1,9 +1,10 @@
 "use client"
 
 import { Suspense, lazy, useEffect, useState } from "react"
-import { Check, Loader2, ExternalLink } from "lucide-react"
+import { Check, Loader2, ExternalLink, RotateCcw } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { NexusProvider } from "@/lib/store"
+import { setOnAuthError } from "@/lib/api"
 import { TopBar } from "./top-bar"
 import { BottomNav, type TabId } from "./bottom-nav"
 import { MoreSheet } from "./more-sheet"
@@ -332,10 +333,51 @@ function NoTelegramGate() {
   )
 }
 
+function AuthExpiredGate() {
+  const wa = typeof window !== "undefined" ? window.Telegram?.WebApp : undefined
+  const botUsername = wa?.initDataUnsafe?.user?.username || ""
+  const deepLink = botUsername ? `https://t.me/${botUsername}?startapp` : ""
+  const handleReopen = () => {
+    if (wa?.openTelegramLink && deepLink) {
+      wa.openTelegramLink(deepLink)
+    } else if (deepLink) {
+      window.location.href = deepLink
+    }
+  }
+  return (
+    <div className="flex min-h-dvh flex-col items-center justify-center bg-background px-6 text-center">
+      <div className="grid size-16 place-items-center rounded-3xl bg-destructive/10 text-destructive mb-6">
+        <RotateCcw className="size-7" />
+      </div>
+      <h1 className="font-display text-xl font-bold">Сессия истекла</h1>
+      <p className="mt-2 max-w-xs text-sm text-muted-foreground">
+        Авторизация устарела. Переоткройте Mini App из Telegram.
+      </p>
+      {deepLink && (
+        <button
+          type="button"
+          onClick={handleReopen}
+          className="mt-4 flex items-center gap-2 rounded-2xl bg-primary px-6 py-3 font-display text-sm font-bold text-primary-foreground active:scale-95"
+        >
+          <RotateCcw className="size-4" /> Переоткрыть
+        </button>
+      )}
+      {!deepLink && (
+        <p className="mt-2 text-xs text-muted-foreground/60">
+          Найдите бота в Telegram и нажмите «Открыть» в чате.
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function AppShell() {
   const [hasTelegram, setHasTelegram] = useState<boolean | null>(null)
+  const [authExpired, setAuthExpired] = useState(false)
   useEffect(() => {
     setHasTelegram(!!getInitDataUser())
+    setOnAuthError(() => setAuthExpired(true))
+    return () => setOnAuthError(null)
   }, [])
   if (hasTelegram === null) {
     return (
@@ -345,6 +387,7 @@ export function AppShell() {
     )
   }
   if (!hasTelegram) return <NoTelegramGate />
+  if (authExpired) return <AuthExpiredGate />
   return (
     <NexusProvider>
       <Shell />
