@@ -438,7 +438,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                     )
                   ) : c.id === "autumn-gold" ? (
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars tabular-nums">
-                      🗝️ {t("event.gold_key_cost")} · {inventory.filter((i) => i.key === "autumn-key").length}/3
+                      {t("event.gold_key_cost")} · {inventory.filter((i) => i.key === "autumn-key").length}/3
                     </p>
                   ) : (
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars">
@@ -488,9 +488,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                     </>
                   )
                 ) : c.id === "autumn-gold" ? (
-                  <>
-                    <span className="text-lg leading-none">🗝️</span> {t("event.gold_key_open")}
-                  </>
+                  <>{t("event.gold_key_open")}</>
                 ) : (
                   <>
                     {c.costCoins && c.costCoins > 0 ? (

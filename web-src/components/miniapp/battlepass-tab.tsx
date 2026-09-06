@@ -332,7 +332,13 @@ function TierColumn({
       </div>
 
       {/* Free reward */}
-      <RewardChip reward={free} track="free" dim={state === "locked"} claimed={state === "claimed"} />
+      <RewardChip
+        reward={free}
+        track="free"
+        dim={state === "locked"}
+        claimed={state === "claimed"}
+        mystery={state === "locked" && !!free && (free.type === "model" || free.rarity === "legendary")}
+      />
       {/* Premium reward */}
       <RewardChip
         reward={premium}
@@ -340,6 +346,7 @@ function TierColumn({
         dim={state === "locked" || !bpPremium}
         claimed={state === "claimed" && bpPremium}
         premiumLocked={!bpPremium}
+        mystery={state === "locked" && (premium.type === "model" || premium.rarity === "legendary")}
       />
     </div>
   )
@@ -351,20 +358,48 @@ function RewardChip({
   dim,
   claimed,
   premiumLocked,
+  mystery,
 }: {
   reward: BattlePassReward | null
   track: "free" | "premium"
   dim: boolean
   claimed: boolean
   premiumLocked?: boolean
+  mystery?: boolean
 }) {
-  const { tl } = useI18n()
+  const { t, tl } = useI18n()
   const isPremium = track === "premium"
 
   if (!reward) {
     return (
       <div className="flex h-[4.5rem] w-full items-center justify-center rounded-2xl border border-dashed border-border text-[10px] text-muted-foreground">
         —
+      </div>
+    )
+  }
+
+  // Неполученная легендарка/модель — скрыта под "?" (как в v0 Collection).
+  // После клейма станет видна. Редкость показываем для азарта.
+  if (mystery) {
+    return (
+      <div
+        className={cn(
+          "relative flex w-full flex-col items-center gap-1 rounded-2xl border border-stars/35 bg-gradient-to-b from-stars/10 to-transparent p-1.5 text-center",
+          dim && "opacity-70",
+        )}
+      >
+        {isPremium && <Crown className="absolute right-1 top-1 size-3 fill-stars text-stars" />}
+        <span className="grid size-10 place-items-center rounded-xl bg-background/70 text-xl font-black text-stars drop-shadow-[0_0_10px_var(--stars)]">
+          ?
+        </span>
+        <p className="line-clamp-2 text-[9px] font-semibold leading-tight text-muted-foreground text-balance">
+          {t("event.locked_name")}
+        </p>
+        {reward.rarity && (
+          <span className="text-[8px] font-bold" style={{ color: rarityMeta[reward.rarity].color }}>
+            {tl(`rarity.${reward.rarity}`, rarityMeta[reward.rarity].label)}
+          </span>
+        )}
       </div>
     )
   }
