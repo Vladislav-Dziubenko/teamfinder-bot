@@ -185,6 +185,15 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
     if (spin || openBusyRef.current) return
     // Во время кулдауна бесплатный кейс можно открыть только за рекламу.
     if (c.free && caseReadyInT(c.id) > 0) return
+    // Autumn Gold — только по 1 шт. и только с 3 ключами: проверяем ДО анимации,
+    // чтобы спиннер не крутился впустую перед ошибкой сервера.
+    if (c.id === "autumn-gold") {
+      const have = inventory.filter((i) => i.key === "autumn-key").length
+      if (have < 3) {
+        onToast(t("cases.need_keys", { have }))
+        return
+      }
+    }
     openBusyRef.current = true
     const betaPays = !c.free && isBeta && c.id === "gold" && betaBalance >= 1
     const freeGoldPays = c.id === "gold" && freeGoldOpens >= 1
@@ -427,6 +436,10 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                         <Sparkles className="size-3" /> {t("cases.free_ready")}
                       </p>
                     )
+                  ) : c.id === "autumn-gold" ? (
+                    <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars tabular-nums">
+                      🗝️ {t("event.gold_key_cost")} · {inventory.filter((i) => i.key === "autumn-key").length}/3
+                    </p>
                   ) : (
                     <p className="mt-1.5 flex items-center gap-1 text-[11px] font-medium text-stars">
                       {c.costCoins && c.costCoins > 0 ? (
@@ -474,6 +487,10 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                       <Package className="size-5" /> {t("cases.open_free")}
                     </>
                   )
+                ) : c.id === "autumn-gold" ? (
+                  <>
+                    <span className="text-lg leading-none">🗝️</span> {t("event.gold_key_open")}
+                  </>
                 ) : (
                   <>
                     {c.costCoins && c.costCoins > 0 ? (
@@ -510,7 +527,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                 </button>
               )}
 
-              {!c.free && (c.gold || (c.costCoins && c.costCoins > 0)) && (
+              {!c.free && c.id !== "autumn-gold" && (c.gold || (c.costCoins && c.costCoins > 0)) && (
                 <div className="mt-2">
                   <p className="mb-1.5 text-[11px] font-semibold text-muted-foreground">{t("cases.multi_hint")}</p>
                   <div className="grid grid-cols-5 gap-1.5">

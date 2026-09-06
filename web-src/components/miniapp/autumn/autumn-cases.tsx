@@ -30,7 +30,7 @@ export function AutumnCases({
   onGoCases: () => void
 }) {
   const { t, tl } = useI18n()
-  const { lootCases, openCase } = useNexus()
+  const { lootCases, openCase, inventory } = useNexus()
   const [reveal, setReveal] = useState<{ item: CaseItem; box: LootCase } | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
@@ -40,6 +40,13 @@ export function AutumnCases({
 
   async function open(box: LootCase) {
     if (busyId) return
+    if (box.id === "autumn-gold") {
+      const have = inventory.filter((i) => i.key === "autumn-key").length
+      if (have < 3) {
+        onToast(t("cases.need_keys", { have }))
+        return
+      }
+    }
     setBusyId(box.id)
     const res = await openCase(box.id)
     setBusyId(null)
