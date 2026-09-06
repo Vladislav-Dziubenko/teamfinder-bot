@@ -1416,6 +1416,47 @@ CASES_CONFIG = {
             {"key": "stars-1200", "name": "1200 ⭐", "desc": "1200 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 10, "kind": "stars", "stars": 1200},
             {"key": "nexus-model", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
         ]
+    },
+    "autumn": {
+        "id": "autumn",
+        "name": "Nexus Autumn Case",
+        "subtitle": "Осенний кейс · Ключи с шансом 0.5%",
+        "image": "/case-autumn.webp",
+        "gold": False,
+        "costStars": 50,
+        "free": False,
+        "dailyLimit": 99,
+        "items": [
+            {"key": "autumn-leaf", "name": "Autumn Leaf", "desc": "Осенний лист — символ смены сезонов", "icon": "🍂", "rarity": "common", "sell": 10, "weight": 25},
+            {"key": "harvest-moon", "name": "Harvest Moon", "desc": "Урожайная луна светит над полями", "icon": "🌕", "rarity": "common", "sell": 12, "weight": 20},
+            {"key": "maple-spirit", "name": "Maple Spirit", "desc": "Дух клёна — хранитель леса", "icon": "🍁", "rarity": "rare", "sell": 25, "weight": 15},
+            {"key": "ember-crown", "name": "Ember Crown", "desc": "Корона из угасающих углей", "icon": "👑", "rarity": "rare", "sell": 30, "weight": 12},
+            {"key": "storm-blade", "name": "Storm Blade", "desc": "Клинок, выкованный в буре", "image": "/storm-blade.webp", "rarity": "epic", "sell": 100, "weight": 8},
+            {"key": "pumpkin-guardian", "name": "Pumpkin Guardian", "desc": "Страж тыквенных полей", "icon": "🎃", "rarity": "epic", "sell": 80, "weight": 6},
+            {"key": "moonlit-shadow", "name": "Moonlit Shadow", "desc": "Тень в лунном свете", "image": "/moonlit-shadow.webp", "rarity": "epic", "sell": 120, "weight": 5},
+            {"key": "phantom-whisper", "name": "Phantom Whisper", "desc": "Шёпот призрака осени", "image": "/phantom-whisper.webp", "rarity": "legendary", "sell": 500, "weight": 3},
+            {"key": "stars-200", "name": "200 ⭐", "desc": "200 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 10, "kind": "stars", "stars": 200},
+            {"key": "stars-500", "name": "500 ⭐", "desc": "500 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 5, "kind": "stars", "stars": 500},
+            {"key": "autumn-key", "name": "Autumn Key", "desc": "Ключ к Autumn Gold кейсу. Соберите 3 ключа, чтобы открыть золотой осенний кейс с лимитированными 3D-моделями", "icon": "🗝️", "rarity": "epic", "sell": 5000, "weight": 0.5, "kind": "inventory"},
+        ]
+    },
+    "autumn-gold": {
+        "id": "autumn-gold",
+        "name": "Nexus Autumn Gold",
+        "subtitle": "Открывается 3 ключами · 3 лимитированные модели",
+        "image": "/case-autumn-gold.webp",
+        "gold": True,
+        "costStars": 0,
+        "free": False,
+        "dailyLimit": 99,
+        "items": [
+            {"key": "autumn-phantom", "name": "Autumn Phantom", "desc": "Призрак осени. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "icon": "🍂", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
+            {"key": "autumn-blaze", "name": "Autumn Blaze", "desc": "Огненная осень. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "icon": "🔥", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
+            {"key": "autumn-sentinel", "name": "Autumn Sentinel", "desc": "Страж осени. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "icon": "🛡️", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
+            {"key": "stars-1000", "name": "1000 ⭐", "desc": "1000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 30, "kind": "stars", "stars": 1000},
+            {"key": "stars-2000", "name": "2000 ⭐", "desc": "2000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 15, "kind": "stars", "stars": 2000},
+            {"key": "premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастомные фото, свой текст, до 4 открытий кейсов", "image": "/premium-reveal.webp", "rarity": "premium", "sell": 100, "weight": 10, "grantsPremium": True},
+        ]
     }
 }
 
@@ -1643,6 +1684,31 @@ async def handle_nexus_open_case(request: web.Request):
                                 total_cost = case_config["costCoins"] * count
                                 if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):
                                     return web.json_response({"error": "not enough coins"}, status=400)
+                            elif case_id == "autumn-gold":
+                                # Осенний Gold кейс открывается 3 ключами autumn-key
+                                if count != 1:
+                                    return web.json_response({"error": "autumn-gold можно открывать только по одному (3 ключа за открытие)"}, status=400)
+                                # Проверяем наличие 3 ключей в инвентаре
+                                key_count = await conn.fetchval(
+                                    "SELECT COUNT(*) FROM user_inventory WHERE user_id = $1 AND item_key = $2",
+                                    user["id"], "autumn-key"
+                                ) or 0
+                                if key_count < 3:
+                                    return web.json_response({"error": "Нужно 3 Autumn Key для открытия Autumn Gold"}, status=400)
+                                # Списываем 3 ключа
+                                await conn.execute(
+                                    """
+                                    DELETE FROM user_inventory
+                                    WHERE user_id = $1 AND item_key = $2
+                                    AND uid IN (
+                                        SELECT uid FROM user_inventory
+                                        WHERE user_id = $1 AND item_key = $2
+                                        ORDER BY acquired_at ASC
+                                        LIMIT 3
+                                    )
+                                    """,
+                                    user["id"], "autumn-key"
+                                )
                             else:
                                 total_cost = case_config["costStars"] * count
                                 if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
@@ -1686,8 +1752,10 @@ async def handle_nexus_open_case(request: web.Request):
                             rolled_item, pick, jackpot_value = _fair_pick(server_seed, client_seed, nonce_i, case_config["items"])
                             model_token = None
                             granted_role = None
+                            model_id = None
                             if jackpot_item and jackpot_value == 0:
-                                token = await db.next_limited_token(conn)
+                                model_id = jackpot_item.get("key")
+                                token = await db.next_limited_token(conn, model_id)
                                 if token is not None:
                                     rolled_item = jackpot_item
                                     model_token = token
@@ -1703,7 +1771,7 @@ async def handle_nexus_open_case(request: web.Request):
                             elif kind == "model":
                                 settings = request.app.get("settings")
                                 dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
-                                granted_role = await db.grant_limited_model(conn, user["id"], model_token, dev_id)
+                                granted_role = await db.grant_limited_model(conn, user["id"], model_token, dev_id, model_id)
                             else:
                                 inventory_batch.append((
                                     rolled_item["key"],
@@ -1725,11 +1793,13 @@ async def handle_nexus_open_case(request: web.Request):
                                 )
                                 claimed_now = await conn.fetchval(
                                     "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
-                                    "nexus-model",
+                                    model_id,
                                 )
+                                supply = 20 if model_id == "nexus-model" else 10
+                                model_name = jackpot_item.get("name", "3D Model")
                                 await db.send_global_message(
                                     user["id"],
-                                    f"выбил Mini Boss bro #{model_token} из кейса NEXUS TeamHub Premium! Тираж: {claimed_now}/20",
+                                    f"выбил {model_name} #{model_token} из кейса! Тираж: {claimed_now}/{supply}",
                                     kind="system",
                                     conn=conn,
                                 )

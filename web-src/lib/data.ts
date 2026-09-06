@@ -492,6 +492,47 @@ export const lootCases: LootCase[] = [
       { key: "nexus-model", name: "Mini Boss bro", desc: "Лимитированная 3D-модель персонажа. Появляется в профиле владельца. Доход: 50-100 ⭐ в день через вкладку «Модель». Можно продать системе за 55 000 ⭐.", icon: "💎", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
     ],
   },
+  {
+    id: "autumn",
+    name: "Nexus Autumn Case",
+    subtitle: "Осенний кейс · Ключи с шансом 0.5%",
+    image: "/case-autumn.webp",
+    gold: false,
+    costStars: 50,
+    free: false,
+    dailyLimit: 99,
+    items: [
+      { key: "autumn-leaf", name: "Autumn Leaf", desc: "Осенний лист — символ смены сезонов", icon: "🍂", rarity: "common", sell: 10, weight: 25 },
+      { key: "harvest-moon", name: "Harvest Moon", desc: "Урожайная луна светит над полями", icon: "🌕", rarity: "common", sell: 12, weight: 20 },
+      { key: "maple-spirit", name: "Maple Spirit", desc: "Дух клёна — хранитель леса", icon: "🍁", rarity: "rare", sell: 25, weight: 15 },
+      { key: "ember-crown", name: "Ember Crown", desc: "Корона из угасающих углей", icon: "👑", rarity: "rare", sell: 30, weight: 12 },
+      { key: "storm-blade", name: "Storm Blade", desc: "Клинок, выкованный в буре", image: "/storm-blade.webp", rarity: "epic", sell: 100, weight: 8 },
+      { key: "pumpkin-guardian", name: "Pumpkin Guardian", desc: "Страж тыквенных полей", icon: "🎃", rarity: "epic", sell: 80, weight: 6 },
+      { key: "moonlit-shadow", name: "Moonlit Shadow", desc: "Тень в лунном свете", image: "/moonlit-shadow.webp", rarity: "epic", sell: 120, weight: 5 },
+      { key: "phantom-whisper", name: "Phantom Whisper", desc: "Шёпот призрака осени", image: "/phantom-whisper.webp", rarity: "legendary", sell: 500, weight: 3 },
+      { key: "stars-200", name: "200 ⭐", desc: "200 звёзд на баланс", icon: "⭐", rarity: "common", sell: 0, weight: 10, kind: "stars", stars: 200 },
+      { key: "stars-500", name: "500 ⭐", desc: "500 звёзд на баланс", icon: "⭐", rarity: "rare", sell: 0, weight: 5, kind: "stars", stars: 500 },
+      { key: "autumn-key", name: "Autumn Key", desc: "Ключ к Autumn Gold кейсу. Соберите 3 ключа, чтобы открыть золотой осенний кейс с лимитированными 3D-моделями", icon: "🗝️", rarity: "epic", sell: 5000, weight: 0.5, kind: "inventory" },
+    ],
+  },
+  {
+    id: "autumn-gold",
+    name: "Nexus Autumn Gold",
+    subtitle: "Открывается 3 ключами · 3 лимитированные модели",
+    image: "/case-autumn-gold.webp",
+    gold: true,
+    costStars: 0,
+    free: false,
+    dailyLimit: 99,
+    items: [
+      { key: "autumn-phantom", name: "Autumn Phantom", desc: "Призрак осени. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/денй", icon: "🍂", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
+      { key: "autumn-blaze", name: "Autumn Blaze", desc: "Огненная осень. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", icon: "🔥", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
+      { key: "autumn-sentinel", name: "Autumn Sentinel", desc: "Страж осени. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", icon: "🛡️", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
+      { key: "stars-1000", name: "1000 ⭐", desc: "1000 звёзд на баланс", icon: "⭐", rarity: "epic", sell: 0, weight: 30, kind: "stars", stars: 1000 },
+      { key: "stars-2000", name: "2000 ⭐", desc: "2000 звёзд на баланс", icon: "⭐", rarity: "epic", sell: 0, weight: 15, kind: "stars", stars: 2000 },
+      { key: "premium-card", name: "Премиум-анкета", desc: "Максимальный премиум на 1 день: кастомные фото, свой текст, до 4 открытий кейсов", image: "/premium-reveal.webp", rarity: "premium", sell: 100, weight: 10, grantsPremium: true },
+    ],
+  },
 ]
 
 // Магазин: продажа карточек за монетки
@@ -573,6 +614,7 @@ export type BattlePassReward = {
   type: "coins" | "stars" | "item" | "premium" | "decoration" | "model"
   amount?: number
   rarity?: Rarity
+  desc?: string
 }
 
 export type BattlePassTier = {
@@ -583,70 +625,41 @@ export type BattlePassTier = {
 }
 
 // Сезонный батл-пасс: премиум-трек выдаёт вещи из премиум-контейнера
-export const battlePassPriceStars = 250
+// Nexus Autumn Battle Pass — 30 tiers
+export const battlePassPriceStars = 125
 export const battlePassXpPerLevel = 100
 
 export const battlePassTiers: BattlePassTier[] = [
-  {
-    level: 1,
-    xp: 100,
-    free: { key: "bp1f", name: "50 монет", type: "coins", amount: 50, icon: "🪙" },
-    premium: { key: "bp1p", name: "Скин AK-47", type: "item", image: "/ak47.webp", rarity: "rare" },
-  },
-  {
-    level: 2,
-    xp: 200,
-    free: { key: "bp2f", name: "Иконка «Пламя»", type: "item", icon: "🔥", rarity: "common" },
-    premium: { key: "bp2p", name: "120 монет", type: "coins", amount: 120, icon: "🪙" },
-  },
-  {
-    level: 3,
-    xp: 300,
-    free: null,
-    premium: { key: "bp3p", name: "Премиум средний", type: "item", image: "/premium-x4.webp", rarity: "epic" },
-  },
-  {
-    level: 4,
-    xp: 400,
-    free: { key: "bp4f", name: "25 звёзд", type: "stars", amount: 25, icon: "⭐" },
-    premium: { key: "bp4p", name: "Украшение «Cyber»", type: "decoration", amount: 0, icon: "✨" },
-  },
-  {
-    level: 5,
-    xp: 500,
-    free: { key: "bp5f", name: "Иконка «Корона»", type: "item", icon: "👑", rarity: "common" },
-    premium: { key: "bp5p", name: "Премиум", type: "item", image: "/premium-card.webp", rarity: "epic" },
-  },
-  {
-    level: 6,
-    xp: 600,
-    free: null,
-    premium: { key: "bp6p", name: "200 монет", type: "coins", amount: 200, icon: "🪙" },
-  },
-  {
-    level: 7,
-    xp: 700,
-    free: { key: "bp7f", name: "35 монет", type: "coins", amount: 35, icon: "🪙" },
-    premium: { key: "bp7p", name: "Украшение «Blood»", type: "decoration", amount: 0, icon: "✨" },
-  },
-  {
-    level: 8,
-    xp: 800,
-    free: { key: "bp8f", name: "Иконка «Молния»", type: "item", icon: "⚡", rarity: "common" },
-    premium: { key: "bp8p", name: "50 звёзд", type: "stars", amount: 50, icon: "⭐" },
-  },
-  {
-    level: 9,
-    xp: 900,
-    free: null,
-    premium: { key: "bp9p", name: "Премиум средний", type: "item", image: "/premium-x4.webp", rarity: "epic" },
-  },
-  {
-    level: 10,
-    xp: 1000,
-    free: { key: "bp10f", name: "100 монет", type: "coins", amount: 100, icon: "🪙" },
-    premium: { key: "bp10p", name: "Премиум-анкета", type: "item", image: "/premium-reveal.webp", rarity: "premium" },
-  },
+  { level: 1, xp: 100, free: { key: "bp1f", name: "50 монет", type: "coins", amount: 50, icon: "🪙" }, premium: { key: "bp1p", name: "Autumn Leaf", type: "item", icon: "🍂", rarity: "common" } },
+  { level: 2, xp: 200, free: { key: "bp2f", name: "Иконка «Клён»", type: "item", icon: "🍁", rarity: "common" }, premium: { key: "bp2p", name: "120 монет", type: "coins", amount: 120, icon: "🪙" } },
+  { level: 3, xp: 300, free: null, premium: { key: "bp3p", name: "25 ⭐", type: "stars", amount: 25, icon: "⭐" } },
+  { level: 4, xp: 400, free: { key: "bp4f", name: "40 монет", type: "coins", amount: 40, icon: "🪙" }, premium: { key: "bp4p", name: "Harvest Moon", type: "item", icon: "🌕", rarity: "common" } },
+  { level: 5, xp: 500, free: { key: "bp5f", name: "Иконка «Тыква»", type: "item", icon: "🎃", rarity: "common" }, premium: { key: "bp5p", name: "Maple Spirit", type: "item", icon: "🍁", rarity: "rare" } },
+  { level: 6, xp: 600, free: null, premium: { key: "bp6p", name: "75 монет", type: "coins", amount: 75, icon: "🪙" } },
+  { level: 7, xp: 700, free: { key: "bp7f", name: "15 ⭐", type: "stars", amount: 15, icon: "⭐" }, premium: { key: "bp7p", name: "Ember Crown", type: "item", icon: "👑", rarity: "rare" } },
+  { level: 8, xp: 800, free: null, premium: { key: "bp8p", name: "Autumn Key", type: "item", icon: "🗝️", rarity: "epic" } },
+  { level: 9, xp: 900, free: { key: "bp9f", name: "60 монет", type: "coins", amount: 60, icon: "🪙" }, premium: { key: "bp9p", name: "50 ⭐", type: "stars", amount: 50, icon: "⭐" } },
+  { level: 10, xp: 1000, free: { key: "bp10f", name: "Иконка «Призрак»", type: "item", icon: "👻", rarity: "common" }, premium: { key: "bp10p", name: "Storm Blade", type: "item", image: "/storm-blade.webp", rarity: "epic" } },
+  { level: 11, xp: 1100, free: null, premium: { key: "bp11p", name: "100 монет", type: "coins", amount: 100, icon: "🪙" } },
+  { level: 12, xp: 1200, free: { key: "bp12f", name: "20 ⭐", type: "stars", amount: 20, icon: "⭐" }, premium: { key: "bp12p", name: "Pumpkin Guardian", type: "item", icon: "🎃", rarity: "epic" } },
+  { level: 13, xp: 1300, free: null, premium: { key: "bp13p", name: "Autumn Key", type: "item", icon: "🗝️", rarity: "epic" } },
+  { level: 14, xp: 1400, free: { key: "bp14f", name: "80 монет", type: "coins", amount: 80, icon: "🪙" }, premium: { key: "bp14p", name: "Moonlit Shadow", type: "item", image: "/moonlit-shadow.webp", rarity: "epic" } },
+  { level: 15, xp: 1500, free: { key: "bp15f", name: "Иконка «Огонь»", type: "item", icon: "🔥", rarity: "common" }, premium: { key: "bp15p", name: "100 ⭐", type: "stars", amount: 100, icon: "⭐" } },
+  { level: 16, xp: 1600, free: null, premium: { key: "bp16p", name: "150 монет", type: "coins", amount: 150, icon: "🪙" } },
+  { level: 17, xp: 1700, free: { key: "bp17f", name: "30 ⭐", type: "stars", amount: 30, icon: "⭐" }, premium: { key: "bp17p", name: "Phantom Whisper", type: "item", image: "/phantom-whisper.webp", rarity: "legendary" } },
+  { level: 18, xp: 1800, free: null, premium: { key: "bp18p", name: "Autumn Key", type: "item", icon: "🗝️", rarity: "epic" } },
+  { level: 19, xp: 1900, free: { key: "bp19f", name: "100 монет", type: "coins", amount: 100, icon: "🪙" }, premium: { key: "bp19p", name: "Премиум средний", type: "item", image: "/premium-x4.webp", rarity: "epic" } },
+  { level: 20, xp: 2000, free: { key: "bp20f", name: "Иконка «Щит»", type: "item", icon: "🛡️", rarity: "common" }, premium: { key: "bp20p", name: "200 ⭐", type: "stars", amount: 200, icon: "⭐" } },
+  { level: 21, xp: 2100, free: null, premium: { key: "bp21p", name: "200 монет", type: "coins", amount: 200, icon: "🪙" } },
+  { level: 22, xp: 2200, free: { key: "bp22f", name: "40 ⭐", type: "stars", amount: 40, icon: "⭐" }, premium: { key: "bp22p", name: "Autumn Key", type: "item", icon: "🗝️", rarity: "epic" } },
+  { level: 23, xp: 2300, free: null, premium: { key: "bp23p", name: "Премиум", type: "item", image: "/premium-card.webp", rarity: "epic" } },
+  { level: 24, xp: 2400, free: { key: "bp24f", name: "150 монет", type: "coins", amount: 150, icon: "🪙" }, premium: { key: "bp24p", name: "Autumn Key", type: "item", icon: "🗝️", rarity: "epic" } },
+  { level: 25, xp: 2500, free: { key: "bp25f", name: "Иконка «Лист»", type: "item", icon: "🍂", rarity: "common" }, premium: { key: "bp25p", name: "300 ⭐", type: "stars", amount: 300, icon: "⭐" } },
+  { level: 26, xp: 2600, free: null, premium: { key: "bp26p", name: "250 монет", type: "coins", amount: 250, icon: "🪙" } },
+  { level: 27, xp: 2700, free: { key: "bp27f", name: "50 ⭐", type: "stars", amount: 50, icon: "⭐" }, premium: { key: "bp27p", name: "Autumn Key", type: "item", icon: "🗝️", rarity: "epic" } },
+  { level: 28, xp: 2800, free: null, premium: { key: "bp28p", name: "Премиум-анкета", type: "item", image: "/premium-reveal.webp", rarity: "premium" } },
+  { level: 29, xp: 2900, free: { key: "bp29f", name: "200 монет", type: "coins", amount: 200, icon: "🪙" }, premium: { key: "bp29p", name: "Autumn Key ×2", type: "item", icon: "🗝️", rarity: "epic" } },
+  { level: 30, xp: 3000, free: { key: "bp30f", name: "Иконка «Страж»", type: "item", icon: "🛡️", rarity: "common" }, premium: { key: "bp30p", name: "Autumn Phantom", desc: "Лимитированная 3D-модель. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", type: "model", icon: "🍂", rarity: "legendary" } },
 ]
 
 /* ---------- Реферальная программа ---------- */

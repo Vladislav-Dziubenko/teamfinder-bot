@@ -2304,10 +2304,30 @@ class Database:
             "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день",
             "glb": "/nexus-model.glb",
         },
+        "autumn-phantom": {
+            "name": "Autumn Phantom",
+            "icon": "🍂",
+            "desc": "Призрак осени. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день",
+            "glb": "/autumn-phantom.glb",
+        },
+        "autumn-blaze": {
+            "name": "Autumn Blaze",
+            "icon": "🔥",
+            "desc": "Огненная осень. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день",
+            "glb": "/autumn-blaze.glb",
+        },
+        "autumn-sentinel": {
+            "name": "Autumn Sentinel",
+            "icon": "🛡️",
+            "desc": "Страж осени. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день",
+            "glb": "/autumn-sentinel.glb",
+        },
     }
     LIMITED_MODEL_ID = "nexus-model"
     LIMITED_MODEL_SUPPLY = 20
     LIMITED_MODEL_WIN_STARS = 10000
+    # Настройки для осенних моделей (отдельные тиражи по 10 шт. каждая)
+    AUTUMN_MODEL_SUPPLY = 10
     # Комиссия с продажи, уходящая разработчику (комиссия платформы + роялти 1-5%).
     LIMITED_MODEL_SALE_CUT = 0.05
     # Фиксированная плата (в звёздах) за передачу модели другому пользователю.
@@ -2315,19 +2335,21 @@ class Database:
     # Выкуп модели разработчиком: владелец получает эту сумму звёзд на баланс, модель удаляется.
     LIMITED_MODEL_SELL_PRICE = 55000
 
-    async def next_limited_token(self, conn: asyncpg.Connection) -> int | None:
+    async def next_limited_token(self, conn: asyncpg.Connection, model_id: str = "nexus-model") -> int | None:
         """Выдаёт следующий свободный номер экземпляра (1..SUPPLY) или None, если тираж распродан.
         Требует активной транзакции на conn (advisory lock исключает гонки)."""
-        await conn.execute("SELECT pg_advisory_xact_lock(hashtext('nexus-limited-model-claim'))")
+        supply = self.LIMITED_MODEL_SUPPLY if model_id == "nexus-model" else self.AUTUMN_MODEL_SUPPLY
+        lock_key = f"nexus-limited-model-claim-{model_id}"
+        await conn.execute(f"SELECT pg_advisory_xact_lock(hashtext('{lock_key}'))")
         count = await conn.fetchval(
             "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
-            self.LIMITED_MODEL_ID,
+            model_id,
         )
-        if count >= self.LIMITED_MODEL_SUPPLY:
+        if count >= supply:
             return None
         mx = await conn.fetchval(
             "SELECT COALESCE(MAX(token_id), 0) FROM limited_models WHERE model_id = $1",
-            self.LIMITED_MODEL_ID,
+            model_id,
         )
         return mx + 1
 
@@ -2347,15 +2369,15 @@ class Database:
             model_id, token_id, user_id, nick, event_type, details, datetime.utcnow().isoformat(),
         )
 
-    async def grant_limited_model(self, conn: asyncpg.Connection, user_id: int, token_id: int, dev_id: int | None) -> str:
+    async def grant_limited_model(self, conn: asyncpg.Connection, user_id: int, token_id: int, dev_id: int | None, model_id: str = "nexus-model") -> str:
         """Внутри текущей транзакции: владение моделью + 10 000 ⭐ + роль модератор/админ + пожизненный премиум.
         Возвращает выданную роль."""
         now = datetime.utcnow().isoformat()
         await conn.execute(
             "INSERT INTO limited_models (model_id, token_id, owner_id, acquired_at) VALUES ($1, $2, $3, $4)",
-            self.LIMITED_MODEL_ID, token_id, user_id, now,
+            model_id, token_id, user_id, now,
         )
-        await self._log_model_event(conn, self.LIMITED_MODEL_ID, token_id, user_id, "claimed")
+        await self._log_model_event(conn, model_id, token_id, user_id, "claimed")
         await self._adjust_currency_conn(conn, user_id, stars=self.LIMITED_MODEL_WIN_STARS)
         role = random.choice(["moderator", "admin"])
         await conn.execute(
@@ -2371,33 +2393,52 @@ class Database:
         return role
 
     async def get_limited_models_state(self, user_id: int) -> dict:
+        """Возвращает состояние всех лимитированных моделей для пользователя."""
         async with self.pool.acquire() as conn:
-            mine_rows = await conn.fetch(
-                "SELECT token_id, acquired_at, sale_price_stars, last_income_at FROM limited_models "
-                "WHERE model_id = $1 AND owner_id = $2 ORDER BY token_id",
-                self.LIMITED_MODEL_ID, user_id,
-            )
-            market_rows = await conn.fetch(
-                """SELECT lm.token_id, lm.sale_price_stars, lm.listed_at,
-                          COALESCE(mp.nick, '') AS seller_nick, mp.avatar
-                   FROM limited_models lm
-                   LEFT JOIN mini_app_profiles mp ON mp.user_id = lm.owner_id
-                   WHERE lm.model_id = $1 AND lm.sale_price_stars > 0
-                   ORDER BY lm.sale_price_stars ASC""",
-                self.LIMITED_MODEL_ID,
-            )
-            claimed = await conn.fetchval(
-                "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
-                self.LIMITED_MODEL_ID,
-            )
-            meta = self.LIMITED_MODELS.get(self.LIMITED_MODEL_ID, {})
+            all_mine = []
+            all_market = []
+            total_claimed = 0
+            total_supply = 0
+            # Собираем данные по всем моделям
+            for model_id, meta in self.LIMITED_MODELS.items():
+                supply = self.LIMITED_MODEL_SUPPLY if model_id == "nexus-model" else self.AUTUMN_MODEL_SUPPLY
+                mine_rows = await conn.fetch(
+                    "SELECT token_id, acquired_at, sale_price_stars, last_income_at FROM limited_models "
+                    "WHERE model_id = $1 AND owner_id = $2 ORDER BY token_id",
+                    model_id, user_id,
+                )
+                for r in mine_rows:
+                    d = dict(r)
+                    d["model_id"] = model_id
+                    all_mine.append(d)
+                market_rows = await conn.fetch(
+                    """SELECT lm.token_id, lm.sale_price_stars, lm.listed_at,
+                              COALESCE(mp.nick, '') AS seller_nick, mp.avatar
+                       FROM limited_models lm
+                       LEFT JOIN mini_app_profiles mp ON mp.user_id = lm.owner_id
+                       WHERE lm.model_id = $1 AND lm.sale_price_stars > 0
+                       ORDER BY lm.sale_price_stars ASC""",
+                    model_id,
+                )
+                for r in market_rows:
+                    d = dict(r)
+                    d["model_id"] = model_id
+                    all_market.append(d)
+                claimed = await conn.fetchval(
+                    "SELECT COUNT(*) FROM limited_models WHERE model_id = $1",
+                    model_id,
+                )
+                total_claimed += claimed
+                total_supply += supply
+            # Meta для первой модели (backward compat) или можно вернуть список
+            primary_meta = self.LIMITED_MODELS.get("nexus-model", {})
             return {
-                "mine": [dict(r) for r in mine_rows],
-                "market": [dict(r) for r in market_rows],
-                "claimed": claimed,
-                "remaining": max(0, self.LIMITED_MODEL_SUPPLY - claimed),
-                "supply": self.LIMITED_MODEL_SUPPLY,
-                "meta": meta,
+                "mine": all_mine,
+                "market": all_market,
+                "claimed": total_claimed,
+                "remaining": max(0, total_supply - total_claimed),
+                "supply": total_supply,
+                "meta": primary_meta,
             }
 
     async def get_limited_model_history(self) -> list[dict]:
@@ -2417,15 +2458,16 @@ class Database:
                         "ORDER BY created_at DESC, id DESC",
                         model_id,
                     )
+                    supply = self.LIMITED_MODEL_SUPPLY if model_id == "nexus-model" else self.AUTUMN_MODEL_SUPPLY
                     out.append({
                         "model_id": model_id,
                         "name": meta["name"],
                         "icon": meta["icon"],
                         "desc": meta["desc"],
                         "glb": meta["glb"],
-                        "supply": self.LIMITED_MODEL_SUPPLY,
+                        "supply": supply,
                         "claimed": claimed,
-                        "remaining": max(0, self.LIMITED_MODEL_SUPPLY - claimed),
+                        "remaining": max(0, supply - claimed),
                         "events": [dict(e) for e in events],
                     })
                 return out
