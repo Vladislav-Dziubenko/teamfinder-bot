@@ -158,6 +158,27 @@ export function HomeTab({
         </div>
       </section>
 
+      <button
+        type="button"
+        onClick={() => onGo("event")}
+        className="relative block w-full overflow-hidden rounded-3xl border border-primary/30 text-left active:scale-[0.99]"
+      >
+        <img src="/autumn-hero.webp" alt="" className="h-28 w-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-r from-background via-background/70 to-background/10" />
+        <div className="absolute inset-0 flex items-center justify-between gap-3 p-4">
+          <div className="min-w-0">
+            <p className="text-[10px] font-medium uppercase tracking-widest text-primary">
+              {t("home.event_dates")}
+            </p>
+            <p className="font-display text-lg font-bold leading-tight">{t("home.event_title")}</p>
+            <p className="truncate text-xs text-muted-foreground">{t("home.event_sub")}</p>
+          </div>
+          <span className="shrink-0 rounded-2xl bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground">
+            {t("home.event_cta")}
+          </span>
+        </div>
+      </button>
+
       <section className="grid grid-cols-2 gap-3">
         <MiniStat icon={Trophy} value={wins ?? "—"} label={t("stats.wins")} tint="var(--primary)" />
         <MiniStat icon={Flame} value={level != null ? `LVL ${level}` : "—"} label={t("common.level")} tint="var(--stars)" />

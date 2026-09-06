@@ -41,6 +41,7 @@ const GuidesTab = lazy(() => import("./guides-tab").then((m) => ({ default: m.Gu
 const ReviewTab = lazy(() => import("./review-tab").then((m) => ({ default: m.ReviewTab })))
 const MarketTab = lazy(() => import("./market-tab").then((m) => ({ default: m.MarketTab })))
 const SessionTab = lazy(() => import("./session-tab").then((m) => ({ default: m.SessionTab })))
+const AutumnTab = lazy(() => import("./autumn/autumn-tab").then((m) => ({ default: m.AutumnTab })))
 
 function TabFallback() {
   return (
@@ -128,6 +129,7 @@ function Shell() {
         import("./review-tab"),
         import("./guides-tab"),
         import("./predictions-tab"),
+        import("./autumn/autumn-tab"),
       ])
       setTimeout(() => {
         import("./model-tab").catch(() => {})
@@ -228,6 +230,7 @@ function Shell() {
         {tab === "review" && <Suspense fallback={<TabFallback />}><ReviewTab onToast={setToast} /></Suspense>}
         {tab === "market" && <Suspense fallback={<TabFallback />}><MarketTab onToast={setToast} /></Suspense>}
         {tab === "sessions" && <Suspense fallback={<TabFallback />}><SessionTab onToast={setToast} /></Suspense>}
+        {tab === "event" && <Suspense fallback={<TabFallback />}><AutumnTab onToast={setToast} onGo={goTab} /></Suspense>}
       </main>
 
       <BottomNav active={tab} onChange={goTab} onMore={() => setMoreOpen(true)} />

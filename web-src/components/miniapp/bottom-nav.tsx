@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Swords, MessageCircle, Package, User, LayoutGrid, Trophy, BarChart3, TrendingUp, Ticket, Users, Gem, Star, BookOpen, Store, Timer } from "lucide-react"
+import { Home, Swords, MessageCircle, Package, User, LayoutGrid, Trophy, BarChart3, TrendingUp, Ticket, Users, Gem, Star, BookOpen, Store, Timer, Leaf } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useTotalUnread } from "@/lib/chat"
 import { hapticTap } from "@/lib/webapp"
@@ -23,6 +23,7 @@ export type TabId =
   | "review"
   | "market"
   | "sessions"
+  | "event"
 
 // Основные вкладки — всегда видны на панели. Остальные — в меню «Ещё».
 export const MAIN_TABS: { id: TabId; labelKey: string; icon: typeof Home }[] = [
@@ -35,6 +36,7 @@ export const MAIN_TABS: { id: TabId; labelKey: string; icon: typeof Home }[] = [
 
 // Вкладки в меню «Ещё»: порядок = порядок отображения в сетке.
 export const MORE_TABS: { id: TabId; labelKey: string; descKey: string; icon: typeof Home }[] = [
+  { id: "event", labelKey: "nav.event", descKey: "more.desc_event", icon: Leaf },
   { id: "predictions", labelKey: "nav.predictions", descKey: "more.desc_predictions", icon: TrendingUp },
   { id: "stats", labelKey: "nav.stats", descKey: "more.desc_stats", icon: BarChart3 },
   { id: "battlepass", labelKey: "nav.battlepass", descKey: "more.desc_battlepass", icon: Trophy },

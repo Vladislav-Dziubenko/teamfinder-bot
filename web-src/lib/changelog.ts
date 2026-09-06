@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = "1.2"
+export const CURRENT_VERSION = "1.3"
 export const STORAGE_KEY = "nexus_last_seen_version"
 
 export interface ChangelogItem {
@@ -10,6 +10,26 @@ export interface ChangelogItem {
 }
 
 export const updates: ChangelogItem[] = [
+  {
+    version: "1.3",
+    date: "6 Sep 2026",
+    isMajor: true,
+    title: { en: "Nexus Autumn — Season Event", ru: "Nexus Autumn — осенний сезон" },
+    items: {
+      en: [
+        "Season event hub (1 Sep – 30 Nov) with live countdown",
+        "Seasonal Battle Pass showcase",
+        "Autumn cases with quick open",
+        "Event collection: inventory and 3D models",
+      ],
+      ru: [
+        "Хаб сезонного ивента (1 сен – 30 ноя) с живым таймером",
+        "Витрина сезонного боевого пропуска",
+        "Осенние кейсы с быстрым открытием",
+        "Коллекция события: инвентарь и 3D-модели",
+      ],
+    },
+  },
   {
     version: "1.2",
     date: "6 Sep 2026",
