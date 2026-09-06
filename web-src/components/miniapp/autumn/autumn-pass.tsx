@@ -51,6 +51,7 @@ export function AutumnPass({
 
   return (
     <section className="relative overflow-hidden rounded-3xl border border-stars/40 bg-gradient-to-br from-stars/10 to-primary/5 p-5">
+      <img src="/autumn-pass.webp" alt="" className="-mx-5 -mt-5 mb-4 h-32 w-[calc(100%+2.5rem)] max-w-none object-cover" />
       <div className="pointer-events-none absolute -right-8 -top-8 size-32 rounded-full bg-stars/20 blur-3xl" />
       <div className="relative">
         <div className="flex items-center justify-between">
