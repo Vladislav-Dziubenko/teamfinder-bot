@@ -92,33 +92,6 @@ async def main():
         from handlers.notifier import notifier_loop
         asyncio.create_task(notifier_loop(bot, db, interval_seconds=1800, discord_bot=discord_bot))
 
-        # ---- Шаг 4: открываем порт МГНОВЕННО (без БД) ----
-        port = int(os.getenv("PORT", settings.webapp_port))
-        logging.info("PORT=%s  WEBAPP_PORT=%s → resolved port=%d", os.getenv("PORT"), settings.webapp_port, port)
-        runner = web.AppRunner(web_app)
-        await runner.setup()
-        site = web.TCPSite(runner, settings.webapp_host, port)
-        await site.start()
-        logging.info("TIMING site.start() done  +%.2fs  port=%d", time.monotonic() - _PROCESS_START, port)
-        logging.info(f"WebApp сервер запущен на http://{settings.webapp_host}:{port}")
-
-        # ---- Шаг 5: инициализация БД в фоне (не блокирует порт) ----
-        async def _init_db():
-            # Ретраи: при деплое Render поднимает контейнер и БД одновременно,
-            # первый connect часто падает (БД ещё не готова). Без ретраев
-            # db_ready навсегда остаётся False и все /api/* отдают 503/502.
-            for attempt in range(1, 31):
-                try:
-                    await db.connect()
-                    web_app["db_ready"] = True
-                    logging.info("TIMING db.connect() done  +%.2fs (attempt %d)", time.monotonic() - _PROCESS_START, attempt)
-                    return
-                except Exception as e:
-                    logging.warning("DB init attempt %d/30 failed: %s", attempt, e)
-                    await asyncio.sleep(5)
-
-        asyncio.create_task(_init_db())
-
         # ---- Шаг 6: удаляем старый webhook (если был) и регистрируем новый ----
         # Хардкодим правильный URL чтобы не прыгал между -1 и -9pol из-за старого WEBAPP_URL/кэша
         _hardcoded = "https://teamfinder-bot-1-9pol.onrender.com"
@@ -161,6 +134,33 @@ async def main():
                         await asyncio.sleep(3)
         else:
             logging.warning("WEBAPP_URL / RENDER_EXTERNAL_URL не задан — webhook не зарегистрирован")
+
+        # ---- Шаг 5: открываем порт ПОСЛЕ установки webhook (чтобы обновления не падали в 503) ----
+        port = int(os.getenv("PORT", settings.webapp_port))
+        logging.info("PORT=%s  WEBAPP_PORT=%s → resolved port=%d", os.getenv("PORT"), settings.webapp_port, port)
+        runner = web.AppRunner(web_app)
+        await runner.setup()
+        site = web.TCPSite(runner, settings.webapp_host, port)
+        await site.start()
+        logging.info("TIMING site.start() done  +%.2fs  port=%d", time.monotonic() - _PROCESS_START, port)
+        logging.info(f"WebApp сервер запущен на http://{settings.webapp_host}:{port}")
+
+        # ---- Шаг 6: инициализация БД в фоне (не блокирует порт) ----
+        async def _init_db():
+            # Ретраи: при деплое Render поднимает контейнер и БД одновременно,
+            # первый connect часто падает (БД ещё не готова). Без ретраев
+            # db_ready навсегда остаётся False и все /api/* отдают 503/502.
+            for attempt in range(1, 31):
+                try:
+                    await db.connect()
+                    web_app["db_ready"] = True
+                    logging.info("TIMING db.connect() done  +%.2fs (attempt %d)", time.monotonic() - _PROCESS_START, attempt)
+                    return
+                except Exception as e:
+                    logging.warning("DB init attempt %d/30 failed: %s", attempt, e)
+                    await asyncio.sleep(5)
+
+        asyncio.create_task(_init_db())
 
         # ---- Шаг 6b: watchdog — каждые 10 мин сверяет webhook, чинит если слетел на старый -1 ----
         async def _webhook_watchdog():
