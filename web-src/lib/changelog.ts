@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = "1.3"
+export const CURRENT_VERSION = "1.4"
 export const STORAGE_KEY = "nexus_last_seen_version"
 
 export interface ChangelogItem {
@@ -10,6 +10,32 @@ export interface ChangelogItem {
 }
 
 export const updates: ChangelogItem[] = [
+  {
+    version: "1.4",
+    date: "6 Sep 2026",
+    isMajor: true,
+    title: { en: "Autumn Cases, Keys & Instant Pass", ru: "Осенние кейсы, ключи и мгновенный пасс" },
+    items: {
+      en: [
+        "New cases: Nexus Autumn Case + Autumn Gold (3 keys to open)",
+        "3 legendary models: AURELIA // 09, NOCTURNE REAPER, VERDANT SINGULARITY",
+        "Autumn Keys (0.5% drop) with 0/3 progress widget",
+        "Battle pass completes once — no second run",
+        "Instant tier claim for stars (premium, 50 ⭐ per tier)",
+        "Star drops rebalanced to ~1.5% — win-or-lose gamble",
+        "Fixed key spending and multi-model jackpot roll",
+      ],
+      ru: [
+        "Новые кейсы: Nexus Autumn Case + Autumn Gold (открытие за 3 ключа)",
+        "3 легендарные модели: AURELIA // 09, NOCTURNE REAPER, VERDANT SINGULARITY",
+        "Ключи Autumn (дроп 0.5%) с виджетом прогресса 0/3",
+        "Батл-пасс проходится один раз — второй круг закрыт",
+        "Мгновенный забор тиров за звёзды (премиум, 50 ⭐ за уровень)",
+        "Шанс звёзд снижен до ~1.5% — азарт: в минус или в плюс",
+        "Пофикшено списание ключей и джекпот-ролл нескольких моделей",
+      ],
+    },
+  },
   {
     version: "1.3",
     date: "6 Sep 2026",
