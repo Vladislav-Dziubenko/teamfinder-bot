@@ -4,8 +4,7 @@ import { useEffect, useState } from "react"
 import { Star, Bell } from "lucide-react"
 import { useNexus } from "@/lib/store"
 import { useI18n } from "@/lib/i18n"
-import { formatNum } from "@/lib/format"
-import { cn } from "@/lib/utils"
+import { formatCompact } from "@/lib/format"
 
 export function TopBar({
   onStars,
@@ -28,10 +27,10 @@ export function TopBar({
   }, [])
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl">
-      <div className="flex items-center justify-between px-4 py-3">
-        <div className="flex items-center gap-2.5">
-          <div className="relative grid size-9 place-items-center overflow-hidden rounded-xl bg-primary font-display text-lg font-bold text-primary-foreground">
+    <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur-xl overflow-hidden">
+      <div className="flex items-center justify-between gap-2 px-3 py-3 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 shrink">
+          <div className="relative grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-primary font-display text-lg font-bold text-primary-foreground">
             {tgPhoto ? (
               <img src={tgPhoto} alt="" className="size-full object-cover" />
             ) : (
@@ -39,7 +38,7 @@ export function TopBar({
             )}
             <span className="absolute -right-0.5 -top-0.5 size-2.5 rounded-full bg-accent ring-2 ring-background" />
           </div>
-          <div className="leading-tight">
+          <div className="leading-tight min-w-0">
             <div className="flex items-baseline gap-1.5">
               <p className="font-display text-lg font-bold tracking-wide">NEXUS</p>
               <span className="rounded-md bg-primary/15 px-1.5 py-0.5 font-display text-[11px] font-bold uppercase tracking-[0.18em] text-primary">
@@ -50,17 +49,17 @@ export function TopBar({
           </div>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1 shrink-0">
           {/* Changelog bell */}
           <button
             type="button"
             onClick={onChangelog}
-            className="relative grid size-9 place-items-center rounded-xl text-muted-foreground hover:bg-secondary/50 active:scale-90"
+            className="relative grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-secondary/50 active:scale-90"
             aria-label={t("topbar.updates")}
           >
-            <Bell className="size-5" />
+            <Bell className="size-4" />
             {hasUpdate && (
-              <span className="absolute right-1 top-1 size-2 rounded-full bg-red-500 ring-2 ring-background animate-pulse" />
+              <span className="absolute right-0.5 top-0.5 size-2 rounded-full bg-red-500 ring-2 ring-background animate-pulse" />
             )}
           </button>
 
@@ -68,21 +67,21 @@ export function TopBar({
           <button
             type="button"
             onClick={onCoins}
-            className="flex items-center gap-1.5 rounded-xl border border-primary/30 bg-primary/10 px-2.5 py-2 text-sm font-semibold text-primary transition-transform active:scale-95"
+            className="flex shrink-0 items-center gap-1 rounded-xl border border-primary/30 bg-primary/10 px-2 py-1.5 text-xs font-semibold text-primary transition-transform active:scale-95"
             aria-label={t("topbar.coins")}
           >
-            <img src="/nexus-coin.webp" alt="" className="size-5 rounded-full object-cover" />
-            {formatNum(coins)}
+            <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full object-cover" />
+            {formatCompact(coins)}
           </button>
           {/* Telegram Stars */}
           <button
             type="button"
             onClick={onStars}
-            className="flex items-center gap-1.5 rounded-xl border border-stars/30 bg-stars/10 px-2.5 py-2 text-sm font-semibold text-stars transition-transform active:scale-95"
+            className="flex shrink-0 items-center gap-1 rounded-xl border border-stars/30 bg-stars/10 px-2 py-1.5 text-xs font-semibold text-stars transition-transform active:scale-95"
             aria-label={t("topbar.stars")}
           >
-            <Star className="size-4 fill-stars" />
-            {formatNum(stars)}
+            <Star className="size-3.5 fill-stars" />
+            {formatCompact(stars)}
           </button>
         </div>
       </div>

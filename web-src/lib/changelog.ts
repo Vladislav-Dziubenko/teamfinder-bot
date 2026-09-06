@@ -90,6 +90,8 @@ export function hasMajorUpdate(lastSeenVersion: string | null): boolean {
     const latest = updates[0]
     return latest?.isMajor ?? false
   }
-  const unseen = updates.filter((u) => u.version !== lastSeenVersion)
-  return unseen.some((u) => u.isMajor)
+  // Проверяем ТОЛЬКО последнюю версию — если она major и ещё не просмотрена
+  const latest = updates[0]
+  if (!latest) return false
+  return latest.isMajor && latest.version !== lastSeenVersion
 }
