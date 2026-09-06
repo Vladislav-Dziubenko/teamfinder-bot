@@ -1594,44 +1594,51 @@ async def handle_nexus_open_case(request: web.Request):
                             # ошибкой "not enough beta cases" при case_balance=0.
                             is_beta = await _effective_is_beta(request, db, user["id"])
                             wants_beta = bool(body.get("beta_free"))
-                            if is_beta and wants_beta and case_id == "gold":
-                                beta_state = await db.get_beta_state(user["id"])
-                                if beta_state and beta_state["case_balance"] >= count:
-                                    # Списываем бета-кейс ВНЕ основной транзакции (отдельным коннектом),
-                                    # чтобы списание не откатилось при ошибках дальше (seed, inventory и т.д.)
-                                    if not await db.consume_beta_case(user["id"], count):
-                                        return web.json_response({"error": "not enough beta cases"}, status=400)
-                                else:
-                                    return web.json_response({"error": "not enough beta cases"}, status=400)
-                            elif case_id == "gold":
 
-
-                                # Обычная оплата звездами (для всех, включая бету) — free_gold_opens → звезды
-
+                            # Сначала проверяем free_gold_opens — они в приоритете
+                            # перед beta balance, чтобы не копились бесконечно.
+                            if case_id == "gold":
                                 free_opens = await conn.fetchval(
-
-                                "SELECT free_gold_opens FROM users WHERE user_id = $1", user["id"],
-
+                                    "SELECT free_gold_opens FROM users WHERE user_id = $1", user["id"],
                                 ) or 0
 
                                 if free_opens >= count:
                                     await conn.execute(
-
-                                "UPDATE users SET free_gold_opens = free_gold_opens - $1 WHERE user_id = $2",
-                                count, user["id"],
-                                )
-                                else:
+                                        "UPDATE users SET free_gold_opens = free_gold_opens - $1 WHERE user_id = $2",
+                                        count, user["id"],
+                                    )
+                                elif free_opens > 0:
+                                    # Часть за free_gold_opens, остаток — за beta или звёзды
+                                    await conn.execute(
+                                        "UPDATE users SET free_gold_opens = 0 WHERE user_id = $1", user["id"],
+                                    )
                                     remaining = count - free_opens
-
-                                    if free_opens > 0:
-                                        await conn.execute(
-                                            "UPDATE users SET free_gold_opens = 0 WHERE user_id = $1", user["id"],
-                                )
-                                    total_cost = case_config["costStars"] * remaining
-
-                                    if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
-
-                                        return web.json_response({"error": "not enough stars"}, status=400)
+                                    if is_beta and wants_beta:
+                                        beta_state = await db.get_beta_state(user["id"])
+                                        if beta_state and beta_state["case_balance"] >= remaining:
+                                            if not await db.consume_beta_case(user["id"], remaining):
+                                                return web.json_response({"error": "not enough beta cases"}, status=400)
+                                        else:
+                                            total_cost = case_config["costStars"] * remaining
+                                            if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
+                                                return web.json_response({"error": "not enough stars"}, status=400)
+                                    else:
+                                        total_cost = case_config["costStars"] * remaining
+                                        if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
+                                            return web.json_response({"error": "not enough stars"}, status=400)
+                                else:
+                                    # free_gold_opens == 0 — beta или звёзды
+                                    if is_beta and wants_beta:
+                                        beta_state = await db.get_beta_state(user["id"])
+                                        if beta_state and beta_state["case_balance"] >= count:
+                                            if not await db.consume_beta_case(user["id"], count):
+                                                return web.json_response({"error": "not enough beta cases"}, status=400)
+                                        else:
+                                            return web.json_response({"error": "not enough beta cases"}, status=400)
+                                    else:
+                                        total_cost = case_config["costStars"] * count
+                                        if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
+                                            return web.json_response({"error": "not enough stars"}, status=400)
                             elif case_config.get("costCoins"):
                                 total_cost = case_config["costCoins"] * count
                                 if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):
