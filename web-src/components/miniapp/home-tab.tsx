@@ -68,9 +68,9 @@ export function HomeTab({
       } catch {}
     }
     load()
-    // Число в поиске обновляется почти мгновенно: лёгкий полл раз в 3с + рефреш
+    // Число в поиске обновляется почти мгновенно: лёгкий полл раз в 1.5с + рефреш
     // сразу при возврате на вкладку/фокусе окна (игрок зашёл → видим сразу).
-    const poll = setInterval(refreshOnline, 3_000)
+    const poll = setInterval(refreshOnline, 1_500)
     const onVisible = () => {
       if (typeof document !== "undefined" && document.visibilityState === "visible") refreshOnline()
     }
