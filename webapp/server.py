@@ -1681,13 +1681,16 @@ async def handle_nexus_open_case(request: web.Request):
                                 if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):
                                     return web.json_response({"error": "not enough coins"}, status=400)
                             elif case_id == "autumn-gold":
-                                # Осенний Gold кейс открывается 3 ключами autumn-key
+                                # Осенний Gold кейс открывается 3 ключами. Считаем autumn-key +
+                                # legacy-ключи старых выдач БП (на случай, если миграция
+                                # ещё не прошла): сначала тратим autumn-key, потом legacy.
                                 if count != 1:
                                     return web.json_response({"error": "autumn-gold можно открывать только по одному (3 ключа за открытие)"}, status=400)
+                                key_pool = ["autumn-key", "bp8p", "bp13p", "bp18p", "bp22p", "bp24p", "bp27p", "bp29p"]
                                 # Проверяем наличие 3 ключей в инвентаре
                                 key_count = await conn.fetchval(
-                                    "SELECT COUNT(*) FROM user_inventory WHERE user_id = $1 AND item_key = $2",
-                                    user["id"], "autumn-key"
+                                    "SELECT COUNT(*) FROM user_inventory WHERE user_id = $1 AND item_key = ANY($2)",
+                                    user["id"], key_pool
                                 ) or 0
                                 if key_count < 3:
                                     return web.json_response({"error": "Нужно 3 Autumn Key для открытия Autumn Gold"}, status=400)
@@ -1697,12 +1700,12 @@ async def handle_nexus_open_case(request: web.Request):
                                     DELETE FROM user_inventory
                                     WHERE id IN (
                                         SELECT id FROM user_inventory
-                                        WHERE user_id = $1 AND item_key = $2
-                                        ORDER BY acquired_at ASC
+                                        WHERE user_id = $1 AND item_key = ANY($2)
+                                        ORDER BY CASE WHEN item_key = 'autumn-key' THEN 0 ELSE 1 END, acquired_at ASC
                                         LIMIT 3
                                     )
                                     """,
-                                    user["id"], "autumn-key"
+                                    user["id"], key_pool
                                 )
                             else:
                                 total_cost = case_config["costStars"] * count
