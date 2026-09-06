@@ -85,18 +85,26 @@ export function MoreSheet({
         className={`absolute inset-0 bg-background/70 backdrop-blur-sm transition-opacity duration-300 ${closing ? "opacity-0" : "opacity-100"}`}
       />
       <div
-        className={`relative mx-auto w-full max-w-md rounded-t-3xl border-t border-border bg-card p-5 pb-8 ${!dragging && !closing ? "animate-rise" : ""}`}
+        className={`relative mx-auto flex max-h-[82dvh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border-t border-border bg-card p-5 pb-8 ${!dragging && !closing ? "animate-rise" : ""}`}
         style={{
           transform: closing ? "translateY(100%)" : dragY > 0 ? `translateY(${dragY}px)` : undefined,
           transition: dragging ? "none" : "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.3s ease",
           opacity: closing ? 0 : 1,
         }}
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-        onTouchCancel={onTouchEnd}
       >
-        <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-muted-foreground/40" />
+        {/* Зона жеста закрытия — только шапка, чтобы свайп по списку скроллил, а не закрывал */}
+        <div
+          className="shrink-0"
+          style={{ touchAction: "pan-y" }}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+          onTouchCancel={onTouchEnd}
+        >
+          <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-muted-foreground/40" />
+          <h3 className="mb-1 font-display text-lg font-bold">{t("more.title")}</h3>
+          <p className="mb-4 text-sm text-muted-foreground">{t("more.subtitle")}</p>
+        </div>
         <button
           type="button"
           onClick={handleClose}
@@ -105,10 +113,8 @@ export function MoreSheet({
         >
           <X className="size-4" />
         </button>
-        <h3 className="mb-1 font-display text-lg font-bold">{t("more.title")}</h3>
-        <p className="mb-4 text-sm text-muted-foreground">{t("more.subtitle")}</p>
 
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid min-h-0 flex-1 grid-cols-2 content-start gap-2.5 overflow-y-auto pb-1" style={{ touchAction: "pan-y" }}>
           {MORE_TABS.map(({ id, labelKey, descKey, icon: Icon }) => {
             const isActive = active === id
             return (
