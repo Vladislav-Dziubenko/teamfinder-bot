@@ -10,8 +10,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_BASE || ""
 import { getServerBusySetter } from "./store"
 
 // Глобальный обработчик 401 — вызывается при невалидном/expired initData.
-let _onAuthError: (() => void) | null = null
-export function setOnAuthError(fn: (() => void) | null) { _onAuthError = fn }
+let _onAuthError: ((banInfo?: { reason: string; expiresAt: string }) => void) | null = null
+export function setOnAuthError(fn: ((banInfo?: { reason: string; expiresAt: string }) => void) | null) { _onAuthError = fn }
 
 export function getInitData(): string {
   if (typeof window === "undefined") return ""
@@ -99,6 +99,7 @@ async function request(method: string, path: string, body?: unknown, attempt = 0
       const err = new Error(data.error || `HTTP ${res.status}`) as any
       err.status = res.status
       if (res.status === 401 && _onAuthError) _onAuthError()
+      if (res.status === 403 && data.banned && _onAuthError) _onAuthError({ reason: data.ban_reason || "", expiresAt: data.ban_expires_at || "" })
       throw err
     }
 
@@ -132,6 +133,7 @@ export const api = {
         const err = new Error((data as any).error || `HTTP ${res.status}`) as any
         err.status = res.status
         if (res.status === 401 && _onAuthError) _onAuthError()
+        if (res.status === 403 && (data as any).banned && _onAuthError) _onAuthError({ reason: (data as any).ban_reason || "", expiresAt: (data as any).ban_expires_at || "" })
         throw err
       }
       return data as T

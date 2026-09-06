@@ -196,6 +196,33 @@ async def admin_give_item(message: Message, db: Database, settings: Settings):
 
     name, rarity, sell, grants_premium = ITEMS[item_key]
 
+    # nexus-model — лимитированная 3D-модель, живёт в limited_models, а не user_inventory
+    if item_key == "nexus-model":
+        granted = 0
+        for _ in range(count):
+            async with db.pool.acquire() as conn:
+                token = await db.next_limited_token(conn)
+                if token is None:
+                    await message.answer("❌ <b>Тираж распродан</b> — все 20 моделей уже заняты.")
+                    return
+                await conn.execute(
+                    "INSERT INTO limited_models (model_id, token_id, owner_id, acquired_at) VALUES ($1, $2, $3, $4)",
+                    "nexus-model", token, target_id, datetime.utcnow().isoformat(),
+                )
+                await conn.execute(
+                    "INSERT INTO limited_model_events (model_id, token_id, user_id, event_type, details, created_at) VALUES ($1, $2, $3, $4, $5, $6)",
+                    "nexus-model", token, target_id, "granted", f"Выдано админом #{message.from_user.id}", datetime.utcnow().isoformat(),
+                )
+            granted += 1
+        await db.audit_log(message.from_user.id, "admin_give_item", f"target={target_id} item={item_key} count={count}")
+        await message.answer(
+            "✅ <b>3D-модель выдана!</b>\n\n"
+            f"👤 Пользователь: <code>{target_id}</code>\n"
+            f"🎁 Предмет: <b>{name}</b> (<code>{item_key}</code>)\n"
+            f"🔢 Количество: <b>{granted}</b>"
+        )
+        return
+
     for _ in range(count):
         await db.add_to_inventory(target_id, item_key, name, rarity, sell, grants_premium)
 

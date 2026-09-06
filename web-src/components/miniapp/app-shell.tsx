@@ -374,9 +374,16 @@ function AuthExpiredGate() {
 export function AppShell() {
   const [hasTelegram, setHasTelegram] = useState<boolean | null>(null)
   const [authExpired, setAuthExpired] = useState(false)
+  const [banFromApi, setBanFromApi] = useState<{ reason: string; expiresAt: string } | null>(null)
   useEffect(() => {
     setHasTelegram(!!getInitDataUser())
-    setOnAuthError(() => setAuthExpired(true))
+    setOnAuthError((banInfo) => {
+      if (banInfo) {
+        setBanFromApi(banInfo)
+      } else {
+        setAuthExpired(true)
+      }
+    })
     return () => setOnAuthError(null)
   }, [])
   if (hasTelegram === null) {
@@ -387,6 +394,7 @@ export function AppShell() {
     )
   }
   if (!hasTelegram) return <NoTelegramGate />
+  if (banFromApi) return <BannedSheet reason={banFromApi.reason} expiresAt={banFromApi.expiresAt} />
   if (authExpired) return <AuthExpiredGate />
   return (
     <NexusProvider>
