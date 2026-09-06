@@ -1064,6 +1064,31 @@ class Database:
         )
         if not already_applied:
             try:
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS limited_models (
+                        model_id TEXT NOT NULL DEFAULT 'nexus-model',
+                        token_id INTEGER NOT NULL,
+                        owner_id BIGINT NOT NULL,
+                        acquired_at TEXT NOT NULL DEFAULT '',
+                        sale_price_stars INTEGER NOT NULL DEFAULT 0,
+                        listed_at TEXT,
+                        last_income_at TEXT,
+                        PRIMARY KEY (model_id, token_id)
+                    )
+                """)
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS limited_model_events (
+                        id SERIAL PRIMARY KEY,
+                        model_id TEXT NOT NULL,
+                        token_id INTEGER,
+                        user_id BIGINT,
+                        nick TEXT DEFAULT '',
+                        event_type TEXT NOT NULL,
+                        details TEXT DEFAULT '',
+                        created_at TEXT NOT NULL
+                    )
+                """)
+                await conn.execute("CREATE INDEX IF NOT EXISTS idx_limited_model_events_model ON limited_model_events (model_id, created_at)")
                 async with conn.transaction():
                     for model_id in self.LIMITED_MODELS:
                         exists = await conn.fetchval(
