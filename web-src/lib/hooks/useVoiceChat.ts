@@ -156,6 +156,16 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
           })
         }
         await pc.setRemoteDescription(offer)
+        // Flush queued ICE candidates
+        const queue = iceCandidateQueueRef.current.get(fromId)
+        if (queue) {
+          for (const cand of queue) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(cand))
+            } catch {}
+          }
+          iceCandidateQueueRef.current.delete(fromId)
+        }
         const answer = await pc.createAnswer()
         await pc.setLocalDescription(answer)
         wsRef.current?.readyState === WebSocket.OPEN &&
@@ -172,17 +182,34 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
       const pc = pcRef.current.get(fromId)
       if (pc && pc.signalingState === "have-local-offer") {
         await pc.setRemoteDescription(answer)
+        // Flush queued ICE candidates
+        const queue = iceCandidateQueueRef.current.get(fromId)
+        if (queue) {
+          for (const cand of queue) {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(cand))
+            } catch {}
+          }
+          iceCandidateQueueRef.current.delete(fromId)
+        }
       }
     } catch (e) {
       console.error("handleAnswer failed:", e)
     }
   }, [])
 
+  const iceCandidateQueueRef = useRef<Map<number, RTCIceCandidateInit[]>>(new Map())
+
   const handleIceCandidate = useCallback(async (fromId: number, candidate: RTCIceCandidateInit) => {
     try {
       const pc = pcRef.current.get(fromId)
       if (pc && pc.remoteDescription) {
         await pc.addIceCandidate(new RTCIceCandidate(candidate))
+      } else if (pc) {
+        // Queue candidate until remoteDescription is set
+        const queue = iceCandidateQueueRef.current.get(fromId) || []
+        queue.push(candidate)
+        iceCandidateQueueRef.current.set(fromId, queue)
       }
     } catch (e) {
       console.error("handleIceCandidate failed:", e)
