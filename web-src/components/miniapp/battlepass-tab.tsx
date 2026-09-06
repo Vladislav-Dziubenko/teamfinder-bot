@@ -15,6 +15,9 @@ function formatCountdown(ms: number) {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`
 }
 
+// Цена мгновенного забора тира (должна совпадать с BP_INSTANT_CLAIM_STARS_PER_TIER в data/games.py).
+const INSTANT_STARS_PER_TIER = 50
+
 export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
   const { t, tl } = useI18n()
   const {
@@ -23,14 +26,18 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
     bpCanClaim,
     bpNextClaimIn,
     bpLastClaimAt,
+    bpCompleted,
     buyBattlePass,
     claimNextBpTier,
+    claimInstantBpTier,
     stars,
     battlePassTiers,
     battlePassPriceStars,
   } = useNexus()
   const [claiming, setClaiming] = useState(false)
   const [buying, setBuying] = useState(false)
+  const [instantLevels, setInstantLevels] = useState(1)
+  const [instantBusy, setInstantBusy] = useState(false)
   const [, setTick] = useState(0)
 
   // Локальный секундный тикер: отсчёт до следующей награды обновляется
@@ -46,8 +53,26 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
   const total = battlePassTiers.length
   const claimed = bpClaimedCount
   const seasonPct = total > 0 ? Math.round((claimed / total) * 100) : 0
-  const allDone = total > 0 && claimed >= total
+  const allDone = bpCompleted || (total > 0 && claimed >= total)
   const nextTier = battlePassTiers[claimed] ?? null
+  const remaining = Math.max(0, total - claimed)
+
+  async function claimInstant() {
+    if (instantBusy || !bpPremium || allDone) return
+    const n = Math.min(Math.max(1, instantLevels), remaining)
+    if (stars < INSTANT_STARS_PER_TIER * n) {
+      onToast(t("match.error_not_enough_stars"))
+      return
+    }
+    setInstantBusy(true)
+    const res = await claimInstantBpTier(n)
+    setInstantBusy(false)
+    if (!res.ok) onToast(res.error ?? t("battlepass.claim_failed"))
+    else {
+      setInstantLevels(1)
+      onToast(t("battlepass.instant_done"))
+    }
+  }
 
   async function buy() {
     if (buying) return
@@ -104,6 +129,11 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
           </div>
 
           {!bpPremium ? (
+            allDone ? (
+              <p className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-secondary py-3 text-sm font-bold text-muted-foreground">
+                <Check className="size-4" /> {t("battlepass.completed_badge")}
+              </p>
+            ) : (
             <button
               type="button"
               onClick={buy}
@@ -121,6 +151,7 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
                 </>
               )}
             </button>
+            )
           ) : (
             <p className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-stars/15 py-3 text-sm font-bold text-stars">
               <Crown className="size-4 fill-stars" /> {t("battlepass.premium_active")}
@@ -144,9 +175,14 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
         </div>
 
         {allDone ? (
-          <p className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-secondary py-3 text-sm font-bold text-muted-foreground">
-            <Check className="size-4" /> {t("battlepass.all_claimed")}
-          </p>
+          <div>
+            <p className="mt-3 flex items-center justify-center gap-2 rounded-2xl bg-secondary py-3 text-sm font-bold text-muted-foreground">
+              <Check className="size-4" /> {t("battlepass.all_claimed")}
+            </p>
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">
+              {t("battlepass.completed_desc")}
+            </p>
+          </div>
         ) : bpCanClaim ? (
           <button
             type="button"
@@ -170,6 +206,64 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
           </p>
         )}
       </section>
+
+      {/* Instant claim for stars (premium only): skip the 48h wait */}
+      {bpPremium && !allDone && (
+        <section className="rounded-3xl border border-stars/30 bg-stars/5 p-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-stars/15 text-stars">
+              <Star className="size-5 fill-stars" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold">{t("battlepass.instant_title")}</p>
+              <p className="text-[11px] text-muted-foreground text-pretty">
+                {t("battlepass.instant_desc")}
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setInstantLevels((v) => Math.max(1, v - 1))}
+              disabled={instantLevels <= 1}
+              className="grid size-10 shrink-0 place-items-center rounded-2xl border border-border bg-secondary text-lg font-bold active:scale-95 disabled:opacity-40"
+              aria-label="−"
+            >
+              −
+            </button>
+            <div className="min-w-0 flex-1 text-center">
+              <p className="text-sm font-bold tabular-nums">
+                {t("battlepass.instant_levels", { n: Math.min(instantLevels, remaining) })}
+              </p>
+              <p className="text-[11px] text-stars tabular-nums">
+                {INSTANT_STARS_PER_TIER * Math.min(instantLevels, remaining)} ⭐
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setInstantLevels((v) => Math.min(remaining, v + 1))}
+              disabled={instantLevels >= remaining}
+              className="grid size-10 shrink-0 place-items-center rounded-2xl border border-border bg-secondary text-lg font-bold active:scale-95 disabled:opacity-40"
+              aria-label="+"
+            >
+              +
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={claimInstant}
+            disabled={instantBusy || remaining === 0}
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl bg-stars py-3 font-display text-base font-bold text-background shadow-[0_10px_30px_-8px_var(--stars)] active:scale-[0.98] disabled:opacity-60"
+          >
+            {instantBusy ? (
+              <span className="size-4 animate-spin rounded-full border-2 border-background border-t-transparent" />
+            ) : (
+              <Star className="size-5 fill-background" />
+            )}
+            {t("battlepass.instant_claim", { cost: INSTANT_STARS_PER_TIER * Math.min(instantLevels, remaining) })}
+          </button>
+        </section>
+      )}
 
       {/* Track legend */}
       <div className="flex items-center justify-center gap-4 text-[11px] font-medium text-muted-foreground">

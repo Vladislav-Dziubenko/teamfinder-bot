@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS user_battlepass (
     claimed_tiers TEXT DEFAULT '[]',
     claimed_count INTEGER DEFAULT 0,
     last_claim_at TEXT,
+    completed_at TEXT,
     updated_at TEXT NOT NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
@@ -661,6 +662,7 @@ class Database:
             ("user_battlepass", "claimed_tiers", "TEXT NOT NULL DEFAULT '[]'"),
             ("user_battlepass", "claimed_count", "INTEGER NOT NULL DEFAULT 0"),
             ("user_battlepass", "last_claim_at", "TEXT"),
+            ("user_battlepass", "completed_at", "TEXT"),
             ("user_battlepass", "updated_at", "TEXT NOT NULL DEFAULT ''"),
 
             ("promo_codes", "reward_json", "TEXT NOT NULL DEFAULT '{}'"),
@@ -712,6 +714,18 @@ class Database:
                 await conn.execute(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} {col_type}")
             except asyncpg.PostgresError as e:
                 print(f"Migration warning for {table}.{column}: {e}")
+
+        # Батл-пасс проходится один раз: помечаем уже завершённые пассы,
+        # чтобы их нельзя было пройти второй раз после добавления флага.
+        try:
+            from data.games import BATTLE_PASS_TIERS as _BP_TIERS
+            await conn.execute(
+                "UPDATE user_battlepass SET completed_at = COALESCE(updated_at, '') "
+                "WHERE completed_at IS NULL AND claimed_count >= $1",
+                len(_BP_TIERS),
+            )
+        except asyncpg.PostgresError as e:
+            print(f"Migration warning while backfilling battlepass completed_at: {e}")
 
         # Migrate existing beta_tester role -> is_beta flag (separate from staff role)
         try:
@@ -2304,23 +2318,23 @@ class Database:
             "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день",
             "glb": "/nexus-model.glb",
         },
-        "autumn-phantom": {
-            "name": "Autumn Phantom",
-            "icon": "🍂",
-            "desc": "Призрак осени. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день",
-            "glb": "/autumn-phantom.glb",
+        "aurelia-09": {
+            "name": "AURELIA // 09",
+            "icon": "◈",
+            "desc": "Легендарная модель. Солнечное ядро, запечатанное в чёрном стекле. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день",
+            "glb": "/aurelia-09.glb",
         },
-        "autumn-blaze": {
-            "name": "Autumn Blaze",
-            "icon": "🔥",
-            "desc": "Огненная осень. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день",
-            "glb": "/autumn-blaze.glb",
+        "nocturne-reaper": {
+            "name": "NOCTURNE REAPER",
+            "icon": "✦",
+            "desc": "Легендарная модель. Последний охотник осеннего протокола. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день",
+            "glb": "/nocturne-reaper.glb",
         },
-        "autumn-sentinel": {
-            "name": "Autumn Sentinel",
-            "icon": "🛡️",
-            "desc": "Страж осени. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день",
-            "glb": "/autumn-sentinel.glb",
+        "verdant-singularity": {
+            "name": "VERDANT SINGULARITY",
+            "icon": "⬡",
+            "desc": "Легендарная модель. Древо данных, пережившее коллапс. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день",
+            "glb": "/verdant-singularity.glb",
         },
     }
     LIMITED_MODEL_ID = "nexus-model"
@@ -3514,6 +3528,7 @@ WHERE user_quests.completed = 0
                     "claimed_tiers": [],
                     "claimed_count": 0,
                     "last_claim_at": None,
+                    "completed_at": None,
                 }
             import json
             return {
@@ -3522,16 +3537,20 @@ WHERE user_quests.completed = 0
                 "claimed_tiers": json.loads(row["claimed_tiers"]) if row["claimed_tiers"] else [],
                 "claimed_count": row["claimed_count"],
                 "last_claim_at": row["last_claim_at"],
+                "completed_at": row["completed_at"] if "completed_at" in row.keys() else None,
             }
 
     async def buy_battlepass_premium(self, user_id: int, price_stars: int) -> bool:
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
-                    "SELECT bp_premium FROM user_battlepass WHERE user_id = $1 FOR UPDATE",
+                    "SELECT bp_premium, completed_at FROM user_battlepass WHERE user_id = $1 FOR UPDATE",
                     user_id,
                 )
                 if row and row["bp_premium"]:
+                    return False
+                # Пройденный пасс купить заново нельзя — награды уже забраны.
+                if row and "completed_at" in row.keys() and row["completed_at"]:
                     return False
                 if not await self._adjust_currency_conn(conn, user_id, stars=-price_stars):
                     return False
@@ -3578,13 +3597,14 @@ WHERE user_quests.completed = 0
             if reward.get("rarity") in ("premium", "epic"):
                 await self.set_pro_status(user_id, days=1, conn=conn)
         elif rtype == "model":
-            # Владение лимитированной 3D-моделью (тираж 20 шт) — без джекпот-бонусов
-            # кейса (роль админа, 10 000 ⭐, пожизненный премиум), только сама модель.
-            token = await self.next_limited_token(conn)
+            # Лимитированная 3D-модель: model_id берём из награды (БП-финал — AURELIA),
+            # иначе базовая модель. Без джекпот-бонусов кейса, только сама модель.
+            mid = reward.get("model_id") or self.LIMITED_MODEL_ID
+            token = await self.next_limited_token(conn, mid)
             if token is not None:
                 await conn.execute(
                     "INSERT INTO limited_models (model_id, token_id, owner_id, acquired_at) VALUES ($1, $2, $3, $4)",
-                    self.LIMITED_MODEL_ID, token, user_id, datetime.utcnow().isoformat(),
+                    mid, token, user_id, datetime.utcnow().isoformat(),
                 )
             else:
                 # Тираж распродан — компенсация вместо модели.
@@ -3600,12 +3620,14 @@ WHERE user_quests.completed = 0
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
-                    "SELECT bp_premium, bp_xp, claimed_tiers FROM user_battlepass WHERE user_id = $1 FOR UPDATE",
+                    "SELECT bp_premium, bp_xp, claimed_tiers, completed_at FROM user_battlepass WHERE user_id = $1 FOR UPDATE",
                     user_id,
                 )
                 bp_premium = bool(row["bp_premium"]) if row else False
                 bp_xp = row["bp_xp"] if row else 0
                 claimed_tiers = json.loads(row["claimed_tiers"]) if row and row["claimed_tiers"] else []
+                if row and "completed_at" in row.keys() and row["completed_at"]:
+                    return False
                 if bp_xp < tier["xp"]:
                     return False
                 if is_premium and not bp_premium:
@@ -3626,7 +3648,7 @@ WHERE user_quests.completed = 0
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
-                    "SELECT bp_premium, bp_xp, claimed_tiers, claimed_count, last_claim_at FROM user_battlepass WHERE user_id = $1 FOR UPDATE",
+                    "SELECT bp_premium, bp_xp, claimed_tiers, claimed_count, last_claim_at, completed_at FROM user_battlepass WHERE user_id = $1 FOR UPDATE",
                     user_id,
                 )
                 if not row:
@@ -3635,16 +3657,18 @@ WHERE user_quests.completed = 0
                     claimed_tiers = []
                     claimed_count = 0
                     last_claim_at = None
+                    completed_at = None
                 else:
                     bp_premium = bool(row["bp_premium"])
                     bp_xp = row["bp_xp"]
                     claimed_tiers = json.loads(row["claimed_tiers"]) if row["claimed_tiers"] else []
                     claimed_count = row["claimed_count"]
                     last_claim_at = row["last_claim_at"]
+                    completed_at = row["completed_at"] if "completed_at" in row.keys() else None
 
                 from data.games import BATTLE_PASS_TIERS, BATTLE_PASS_XP_PER_LEVEL
-                if claimed_count >= len(BATTLE_PASS_TIERS):
-                    return {"ok": False, "error": "Все награды сезона собраны"}
+                if completed_at or claimed_count >= len(BATTLE_PASS_TIERS):
+                    return {"ok": False, "error": "Пас уже пройден — второй раз пройти нельзя"}
 
                 if last_claim_at:
                     last = datetime.fromisoformat(last_claim_at)
@@ -3656,25 +3680,94 @@ WHERE user_quests.completed = 0
                 claimed_tiers.append(tier_key)
                 new_claimed_count = claimed_count + 1
                 new_bp_xp = bp_xp + BATTLE_PASS_XP_PER_LEVEL
+                # Последний тир — пасс пройден, второй раз пройти нельзя.
+                new_completed_at = now if new_claimed_count >= len(BATTLE_PASS_TIERS) else None
 
                 await conn.execute(
                     """
-                    INSERT INTO user_battlepass (user_id, bp_premium, bp_xp, claimed_tiers, claimed_count, last_claim_at, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    INSERT INTO user_battlepass (user_id, bp_premium, bp_xp, claimed_tiers, claimed_count, last_claim_at, completed_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                     ON CONFLICT (user_id) DO UPDATE SET
                         bp_premium = EXCLUDED.bp_premium,
                         bp_xp = EXCLUDED.bp_xp,
                         claimed_tiers = EXCLUDED.claimed_tiers,
                         claimed_count = EXCLUDED.claimed_count,
                         last_claim_at = EXCLUDED.last_claim_at,
+                        completed_at = COALESCE(user_battlepass.completed_at, EXCLUDED.completed_at),
                         updated_at = EXCLUDED.updated_at
                     """,
-                    user_id, int(bp_premium), new_bp_xp, json.dumps(claimed_tiers), new_claimed_count, now, now,
+                    user_id, int(bp_premium), new_bp_xp, json.dumps(claimed_tiers), new_claimed_count, now, new_completed_at, now,
                 )
                 await self._apply_reward_conn(conn, user_id, tier["free"])
                 if bp_premium:
                     await self._apply_reward_conn(conn, user_id, tier["premium"])
                 return {"ok": True, "tier": tier, "bp_premium": bp_premium, "bp_xp": new_bp_xp}
+
+    async def claim_instant_battlepass_tier(self, user_id: int, levels: int) -> dict:
+        """Мгновенный забор следующих тиров за звёзды (только премиум-пасс).
+
+        Пропускает 48-часовое ожидание: levels тиров сразу, цена —
+        BP_INSTANT_CLAIM_STARS_PER_TIER за каждый. last_claim_at обновляется,
+        дальше бесплатный таймер идёт заново. Пасс проходится один раз.
+        """
+        import json
+        from data.games import BATTLE_PASS_TIERS, BATTLE_PASS_XP_PER_LEVEL, BP_INSTANT_CLAIM_STARS_PER_TIER
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT bp_premium, bp_xp, claimed_tiers, claimed_count, completed_at FROM user_battlepass WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                bp_premium = bool(row["bp_premium"]) if row else False
+                bp_xp = row["bp_xp"] if row else 0
+                claimed_tiers = json.loads(row["claimed_tiers"]) if row and row["claimed_tiers"] else []
+                claimed_count = row["claimed_count"] if row else 0
+                completed_at = (row["completed_at"] if row and "completed_at" in row.keys() else None)
+
+                if completed_at or claimed_count >= len(BATTLE_PASS_TIERS):
+                    return {"ok": False, "error": "Пас уже пройден — второй раз пройти нельзя"}
+                if not bp_premium:
+                    return {"ok": False, "error": "Мгновенный забор — только для премиум-пасса"}
+
+                remaining = len(BATTLE_PASS_TIERS) - claimed_count
+                if not isinstance(levels, int) or levels < 1 or levels > remaining:
+                    return {"ok": False, "error": "Некорректное число уровней"}
+
+                cost = BP_INSTANT_CLAIM_STARS_PER_TIER * levels
+                if not await self._adjust_currency_conn(conn, user_id, stars=-cost):
+                    return {"ok": False, "error": "not enough stars"}
+
+                claimed_levels: list[int] = []
+                new_bp_xp = bp_xp
+                new_claimed_count = claimed_count
+                for _ in range(levels):
+                    tier = BATTLE_PASS_TIERS[new_claimed_count]
+                    claimed_tiers.append((tier["premium"] or tier["free"])["key"])
+                    await self._apply_reward_conn(conn, user_id, tier["free"])
+                    if bp_premium:
+                        await self._apply_reward_conn(conn, user_id, tier["premium"])
+                    new_bp_xp += BATTLE_PASS_XP_PER_LEVEL
+                    new_claimed_count += 1
+                    claimed_levels.append(tier["level"])
+                new_completed_at = now if new_claimed_count >= len(BATTLE_PASS_TIERS) else None
+
+                await conn.execute(
+                    """
+                    INSERT INTO user_battlepass (user_id, bp_premium, bp_xp, claimed_tiers, claimed_count, last_claim_at, completed_at, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                    ON CONFLICT (user_id) DO UPDATE SET
+                        bp_premium = EXCLUDED.bp_premium,
+                        bp_xp = EXCLUDED.bp_xp,
+                        claimed_tiers = EXCLUDED.claimed_tiers,
+                        claimed_count = EXCLUDED.claimed_count,
+                        last_claim_at = EXCLUDED.last_claim_at,
+                        completed_at = COALESCE(user_battlepass.completed_at, EXCLUDED.completed_at),
+                        updated_at = EXCLUDED.updated_at
+                    """,
+                    user_id, int(bp_premium), new_bp_xp, json.dumps(claimed_tiers), new_claimed_count, now, new_completed_at, now,
+                )
+                return {"ok": True, "levels": claimed_levels, "cost": cost, "bp_xp": new_bp_xp}
 
     async def add_battlepass_xp(self, user_id: int, xp: int, conn: asyncpg.Connection | None = None) -> None:
         now = datetime.utcnow().isoformat()

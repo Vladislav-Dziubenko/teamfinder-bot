@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils"
 import type { TabId } from "../bottom-nav"
 import { AutumnHero } from "./autumn-hero"
 import { AutumnCases } from "./autumn-cases"
+import { AutumnKeys } from "./autumn-keys"
 import { AutumnPass } from "./autumn-pass"
 import { AutumnCollection } from "./autumn-collection"
 
@@ -55,10 +56,16 @@ export function AutumnTab({
       {tab === "overview" && (
         <div className="space-y-5">
           <AutumnCases onToast={onToast} onGoCases={() => setTab("cases")} />
+          <AutumnKeys />
           <AutumnPass onToast={onToast} onGoPass={() => onGo("battlepass")} />
         </div>
       )}
-      {tab === "cases" && <AutumnCases onToast={onToast} onGoCases={() => onGo("cases")} />}
+      {tab === "cases" && (
+        <div className="space-y-5">
+          <AutumnCases onToast={onToast} onGoCases={() => onGo("cases")} />
+          <AutumnKeys />
+        </div>
+      )}
       {tab === "pass" && <AutumnPass onToast={onToast} onGoPass={() => onGo("battlepass")} />}
       {tab === "collection" && <AutumnCollection />}
     </div>

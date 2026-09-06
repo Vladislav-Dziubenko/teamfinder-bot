@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Crown, Gift } from "lucide-react"
+import { Crown, Gift, Check } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 
@@ -17,6 +17,7 @@ export function AutumnPass({
     bpPremium,
     bpClaimedCount,
     bpCanClaim,
+    bpCompleted,
     buyBattlePass,
     claimNextBpTier,
     battlePassTiers,
@@ -28,6 +29,7 @@ export function AutumnPass({
   const total = battlePassTiers.length
   const claimed = bpClaimedCount
   const pct = total > 0 ? Math.round((claimed / total) * 100) : 0
+  const allDone = bpCompleted || (total > 0 && claimed >= total)
   const nextTier = battlePassTiers[claimed] ?? null
 
   async function buy() {
@@ -74,6 +76,11 @@ export function AutumnPass({
         </div>
 
         {!bpPremium ? (
+          allDone ? (
+            <p className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-secondary py-3 text-sm font-bold text-muted-foreground">
+              <Check className="size-4" /> {t("event.pass_completed")}
+            </p>
+          ) : (
           <button
             type="button"
             onClick={buy}
@@ -82,6 +89,7 @@ export function AutumnPass({
           >
             <Crown className="size-5" /> {t("battlepass.buy_premium", { price: battlePassPriceStars })}
           </button>
+          )
         ) : bpCanClaim && nextTier ? (
           <button
             type="button"
@@ -91,6 +99,10 @@ export function AutumnPass({
           >
             <Gift className="size-5" /> {t("battlepass.claim_tier", { level: nextTier.level })}
           </button>
+        ) : allDone ? (
+          <p className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-secondary py-3 text-sm font-bold text-muted-foreground">
+            <Check className="size-4" /> {t("event.pass_completed")}
+          </p>
         ) : (
           <p className="mt-4 flex items-center justify-center gap-2 rounded-2xl bg-stars/15 py-3 text-sm font-bold text-stars">
             <Crown className="size-4" /> {t("battlepass.premium_active")}

@@ -1411,9 +1411,9 @@ CASES_CONFIG = {
             {"key": "premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастомные фото, свой текст и украшения карточки без ограничений, до 4 открытий кейсов, приоритет в поиске, расширенные анкеты игроков",         "image": "/premium-reveal.webp", "rarity": "premium", "sell": 100, "weight": 4, "grantsPremium": True},
             {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус на 1 день: приоритет в поиске тиммейтов, расширенные анкеты игроков, больше результатов в поиске",         "image": "/premium-card.webp", "rarity": "epic", "sell": 45, "weight": 10, "grantsPremium": True},
             {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков",         "image": "/premium-x4.webp", "rarity": "epic", "sell": 75, "weight": 10, "grantsPremium": True},
-            {"key": "stars-150", "name": "150 ⭐", "desc": "150 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 40, "kind": "stars", "stars": 150},
-            {"key": "stars-400", "name": "400 ⭐", "desc": "400 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 25, "kind": "stars", "stars": 400},
-            {"key": "stars-1200", "name": "1200 ⭐", "desc": "1200 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 10, "kind": "stars", "stars": 1200},
+            {"key": "stars-150", "name": "150 ⭐", "desc": "150 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 0.2, "kind": "stars", "stars": 150},
+            {"key": "stars-400", "name": "400 ⭐", "desc": "400 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 0.1, "kind": "stars", "stars": 400},
+            {"key": "stars-1200", "name": "1200 ⭐", "desc": "1200 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 0.07, "kind": "stars", "stars": 1200},
             {"key": "nexus-model", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
         ]
     },
@@ -1421,22 +1421,18 @@ CASES_CONFIG = {
         "id": "autumn",
         "name": "Nexus Autumn Case",
         "subtitle": "Осенний кейс · Ключи с шансом 0.5%",
-        "image": "/case-autumn.webp",
+        "image": "/autumn-hero.webp",
         "gold": False,
         "costStars": 50,
         "free": False,
         "dailyLimit": 99,
         "items": [
-            {"key": "autumn-leaf", "name": "Autumn Leaf", "desc": "Осенний лист — символ смены сезонов", "icon": "🍂", "rarity": "common", "sell": 10, "weight": 25},
-            {"key": "harvest-moon", "name": "Harvest Moon", "desc": "Урожайная луна светит над полями", "icon": "🌕", "rarity": "common", "sell": 12, "weight": 20},
-            {"key": "maple-spirit", "name": "Maple Spirit", "desc": "Дух клёна — хранитель леса", "icon": "🍁", "rarity": "rare", "sell": 25, "weight": 15},
-            {"key": "ember-crown", "name": "Ember Crown", "desc": "Корона из угасающих углей", "icon": "👑", "rarity": "rare", "sell": 30, "weight": 12},
-            {"key": "storm-blade", "name": "Storm Blade", "desc": "Клинок, выкованный в буре", "image": "/storm-blade.webp", "rarity": "epic", "sell": 100, "weight": 8},
-            {"key": "pumpkin-guardian", "name": "Pumpkin Guardian", "desc": "Страж тыквенных полей", "icon": "🎃", "rarity": "epic", "sell": 80, "weight": 6},
-            {"key": "moonlit-shadow", "name": "Moonlit Shadow", "desc": "Тень в лунном свете", "image": "/moonlit-shadow.webp", "rarity": "epic", "sell": 120, "weight": 5},
-            {"key": "phantom-whisper", "name": "Phantom Whisper", "desc": "Шёпот призрака осени", "image": "/phantom-whisper.webp", "rarity": "legendary", "sell": 500, "weight": 3},
-            {"key": "stars-200", "name": "200 ⭐", "desc": "200 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 10, "kind": "stars", "stars": 200},
-            {"key": "stars-500", "name": "500 ⭐", "desc": "500 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 5, "kind": "stars", "stars": 500},
+            {"key": "mossbyte-scout", "name": "Mossbyte Scout", "desc": "Разведчик. Тихий модуль для охоты в тумане", "icon": "◈", "rarity": "common", "sell": 10, "weight": 32},
+            {"key": "rustveil-kunoichi", "name": "Rustveil Kunoichi", "desc": "Куноити. Клинки, закалённые в багряном свете", "icon": "✦", "rarity": "rare", "sell": 25, "weight": 22},
+            {"key": "cinderwing", "name": "Cinderwing MK-II", "desc": "Дрон. Пепельные крылья и импульсный след", "icon": "△", "rarity": "epic", "sell": 100, "weight": 11},
+            {"key": "maple-warden", "name": "Maple Warden", "desc": "Страж. Броня, собранная из осеннего сплава", "icon": "⬡", "rarity": "epic", "sell": 120, "weight": 9},
+            {"key": "stars-200", "name": "200 ⭐", "desc": "200 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 1, "kind": "stars", "stars": 200},
+            {"key": "stars-500", "name": "500 ⭐", "desc": "500 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 0.5, "kind": "stars", "stars": 500},
             {"key": "autumn-key", "name": "Autumn Key", "desc": "Ключ к Autumn Gold кейсу. Соберите 3 ключа, чтобы открыть золотой осенний кейс с лимитированными 3D-моделями", "icon": "🗝️", "rarity": "epic", "sell": 5000, "weight": 0.5, "kind": "inventory"},
         ]
     },
@@ -1444,17 +1440,17 @@ CASES_CONFIG = {
         "id": "autumn-gold",
         "name": "Nexus Autumn Gold",
         "subtitle": "Открывается 3 ключами · 3 лимитированные модели",
-        "image": "/case-autumn-gold.webp",
+        "image": "/case-gold.webp",
         "gold": True,
         "costStars": 0,
         "free": False,
         "dailyLimit": 99,
         "items": [
-            {"key": "autumn-phantom", "name": "Autumn Phantom", "desc": "Призрак осени. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "icon": "🍂", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
-            {"key": "autumn-blaze", "name": "Autumn Blaze", "desc": "Огненная осень. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "icon": "🔥", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
-            {"key": "autumn-sentinel", "name": "Autumn Sentinel", "desc": "Страж осени. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "icon": "🛡️", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
-            {"key": "stars-1000", "name": "1000 ⭐", "desc": "1000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 30, "kind": "stars", "stars": 1000},
-            {"key": "stars-2000", "name": "2000 ⭐", "desc": "2000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 15, "kind": "stars", "stars": 2000},
+            {"key": "aurelia-09", "name": "AURELIA // 09", "desc": "Легендарная модель. Солнечное ядро, запечатанное в чёрном стекле. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "icon": "◈", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
+            {"key": "nocturne-reaper", "name": "NOCTURNE REAPER", "desc": "Легендарная модель. Последний охотник осеннего протокола. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "icon": "✦", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
+            {"key": "verdant-singularity", "name": "VERDANT SINGULARITY", "desc": "Легендарная модель. Древо данных, пережившее коллапс. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "icon": "⬡", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
+            {"key": "stars-1000", "name": "1000 ⭐", "desc": "1000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 0.1, "kind": "stars", "stars": 1000},
+            {"key": "stars-2000", "name": "2000 ⭐", "desc": "2000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 0.05, "kind": "stars", "stars": 2000},
             {"key": "premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастомные фото, свой текст, до 4 открытий кейсов", "image": "/premium-reveal.webp", "rarity": "premium", "sell": 100, "weight": 10, "grantsPremium": True},
         ]
     }
@@ -1699,9 +1695,8 @@ async def handle_nexus_open_case(request: web.Request):
                                 await conn.execute(
                                     """
                                     DELETE FROM user_inventory
-                                    WHERE user_id = $1 AND item_key = $2
-                                    AND uid IN (
-                                        SELECT uid FROM user_inventory
+                                    WHERE id IN (
+                                        SELECT id FROM user_inventory
                                         WHERE user_id = $1 AND item_key = $2
                                         ORDER BY acquired_at ASC
                                         LIMIT 3
@@ -1714,7 +1709,7 @@ async def handle_nexus_open_case(request: web.Request):
                                 if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
                                     return web.json_response({"error": "not enough stars"}, status=400)
 
-                        jackpot_item = next((i for i in case_config["items"] if i.get("jackpot")), None)
+                        jackpot_items = [i for i in case_config["items"] if i.get("jackpot")]
 
                         rolled_items: list[dict] = []
                         stars_won = 0
@@ -1747,18 +1742,21 @@ async def handle_nexus_open_case(request: web.Request):
                         nonce_start = seed_row["nonce"]
 
                         for idx in range(count):
-                            # Джекпот-ролл (0.1%) — лимитированная 3D-модель, если тираж не распродан.
                             nonce_i = nonce_start + idx + 1
                             rolled_item, pick, jackpot_value = _fair_pick(server_seed, client_seed, nonce_i, case_config["items"])
                             model_token = None
                             granted_role = None
                             model_id = None
-                            if jackpot_item and jackpot_value == 0:
-                                model_id = jackpot_item.get("key")
-                                token = await db.next_limited_token(conn, model_id)
-                                if token is not None:
-                                    rolled_item = jackpot_item
-                                    model_token = token
+                            # Джекпот-ролл (0.1%) — случайная нераспроданная модель из джекпотов кейса.
+                            if jackpot_items and jackpot_value == 0:
+                                for cand in random.sample(jackpot_items, len(jackpot_items)):
+                                    mid = cand.get("key")
+                                    token = await db.next_limited_token(conn, mid)
+                                    if token is not None:
+                                        rolled_item = cand
+                                        model_token = token
+                                        model_id = mid
+                                        break
 
                             kind = rolled_item.get("kind", "inventory")
                             if kind == "stars":
@@ -1796,7 +1794,7 @@ async def handle_nexus_open_case(request: web.Request):
                                     model_id,
                                 )
                                 supply = 20 if model_id == "nexus-model" else 10
-                                model_name = jackpot_item.get("name", "3D Model")
+                                model_name = rolled_item.get("name", "3D Model")
                                 await db.send_global_message(
                                     user["id"],
                                     f"выбил {model_name} #{model_token} из кейса! Тираж: {claimed_now}/{supply}",
@@ -2713,7 +2711,7 @@ async def handle_battlepass_buy(request: web.Request):
     logging.info(f"[DEBUG] handle_battlepass_buy user: {user.get('id') if user else None}")
     ok = await db.buy_battlepass_premium(user["id"], BATTLE_PASS_PRICE_STARS)
     if not ok:
-        return web.json_response({"error": "already premium or not enough stars"}, status=400)
+        return web.json_response({"error": "pass completed, already premium or not enough stars"}, status=400)
     return web.json_response({"ok": True, "state": await db.get_battlepass(user["id"])})
 
 
@@ -2757,6 +2755,29 @@ async def handle_battlepass_claim_next(request: web.Request):
     return web.json_response({
         "ok": True,
         "tierLevel": result["tier"]["level"],
+        "state": await db.get_battlepass(user["id"]),
+    })
+
+
+async def handle_battlepass_claim_instant(request: web.Request):
+    """Мгновенный забор следующих тиров за звёзды (премиум-пасс, без ожидания 48ч)."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        levels = int(body.get("levels", 1))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "Некорректное число уровней"}, status=400)
+    result = await db.claim_instant_battlepass_tier(user["id"], levels)
+    if not result["ok"]:
+        return web.json_response({"error": result["error"]}, status=400)
+    return web.json_response({
+        "ok": True,
+        "levels": result["levels"],
+        "cost": result["cost"],
         "state": await db.get_battlepass(user["id"]),
     })
 
@@ -4999,6 +5020,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/battlepass/buy", handle_battlepass_buy)
     app.router.add_post("/api/battlepass/claim-tier", handle_battlepass_claim_tier)
     app.router.add_post("/api/battlepass/claim-next", handle_battlepass_claim_next)
+    app.router.add_post("/api/battlepass/claim-instant", handle_battlepass_claim_instant)
     app.router.add_get("/api/promo/list", handle_promo_list)
     app.router.add_post("/api/promo/redeem", handle_promo_redeem)
     app.router.add_post("/api/promo/create", handle_promo_create)

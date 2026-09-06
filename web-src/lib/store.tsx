@@ -26,6 +26,7 @@ export type LimitedModel = {
   last_income_at: string | null
   seller_nick?: string
   avatar?: string | null
+  model_id?: string
 }
 
 export type ModelState = {
@@ -93,6 +94,7 @@ type MeResponse = {
     claimed_tiers: string[]
     claimed_count: number
     last_claim_at: string | null
+    completed_at?: string | null
   }
   streak: { streak_day: number; last_streak_at: string | null }
   referral: { referral_code: string; invited_count: number; referral_earned_coins: number }
@@ -152,6 +154,7 @@ type PersistedState = {
   claimedTiers: string[]
   bpClaimedCount: number
   bpLastClaimAt: number
+  bpCompleted: boolean
   promoCodes: PromoCode[]
   redeemedCodes: string[]
   referralCode: string
@@ -323,6 +326,7 @@ function defaultState(): PersistedState {
     claimedTiers: [],
     bpClaimedCount: 0,
     bpLastClaimAt: 0,
+    bpCompleted: false,
     promoCodes: [],
     redeemedCodes: [],
     referralCode: "",
@@ -412,6 +416,7 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     claimedTiers: bp.claimed_tiers || [],
     bpClaimedCount: bp.claimed_count || 0,
     bpLastClaimAt: bp.last_claim_at ? parseIsoTs(bp.last_claim_at) : 0,
+    bpCompleted: Boolean(bp.completed_at),
     promoCodes,
     redeemedCodes,
     referralCode: ref.referral_code || makeReferralCode(),
@@ -530,6 +535,7 @@ type Nexus = PersistedState & {
   buyBattlePass: () => Promise<boolean>
   claimTier: (key: string) => Promise<{ ok: boolean; error?: string }>
   claimNextBpTier: () => Promise<{ ok: boolean; tierLevel?: number; error?: string }>
+  claimInstantBpTier: (levels: number) => Promise<{ ok: boolean; levels?: number[]; cost?: number; error?: string }>
   createPromo: (code: string, reward: PromoCode["reward"], maxUses: number) => Promise<{ ok: boolean; error?: string }>
   redeemPromo: (code: string) => Promise<{ ok: boolean; error?: string; reward?: PromoCode["reward"] }>
   simulateInvite: () => void
@@ -680,7 +686,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
 
   const value = useMemo<Nexus>(() => {
     const bpLevel = Math.max(s.bpClaimedCount, s.battlePassTiers.filter((t) => s.bpXp >= t.xp).length)
-    const allBpClaimed = s.bpClaimedCount >= s.battlePassTiers.length
+    const allBpClaimed = s.bpCompleted || s.bpClaimedCount >= s.battlePassTiers.length
     const bpNextClaimIn = s.bpLastClaimAt ? Math.max(0, s.bpLastClaimAt + BP_CLAIM_INTERVAL - now) : 0
     const bpCanClaim = !allBpClaimed && bpNextClaimIn === 0
 
@@ -1047,6 +1053,16 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    const claimInstantBpTier = async (levels: number): Promise<{ ok: boolean; levels?: number[]; cost?: number; error?: string }> => {
+      try {
+        const data = await api.post("/api/battlepass/claim-instant", { levels })
+        await refresh()
+        return { ok: true, levels: data.levels, cost: data.cost }
+      } catch (e: any) {
+        return { ok: false, error: e.message || "Не удалось забрать" }
+      }
+    }
+
     const createPromo = async (
       code: string,
       reward: PromoCode["reward"],
@@ -1167,6 +1183,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       buyBattlePass,
       claimTier,
       claimNextBpTier,
+      claimInstantBpTier,
       createPromo,
       redeemPromo,
       simulateInvite,

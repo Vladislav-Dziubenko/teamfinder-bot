@@ -24,6 +24,6 @@ export function getAutumnRemaining(now: number = Date.now()): AutumnRemaining {
   }
 }
 
-// Какие существующие кейсы показываем в хабе события:
-// обычный (за монеты) + золотой (за звёзды). Порядок = порядок карточек.
-export const AUTUMN_SHOWCASE_CASES = ["jet", "gold"] as const
+// Какие кейсы показываем в хабе события: обычный осенний (за звёзды)
+// + золотой осенний (за 3 ключа). Порядок = порядок карточек.
+export const AUTUMN_SHOWCASE_CASES = ["autumn", "autumn-gold"] as const
