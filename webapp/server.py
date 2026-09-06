@@ -1833,12 +1833,17 @@ async def handle_nexus_open_case(request: web.Request):
             # case_balance (beta_state) и free_gold_opens после списания.
             await cache_delete(f"me:{user['id']}")
 
-            return web.json_response({
+            # Вернуть актуальный баланс бета-кейсов и free_gold_opens
+            resp_beta = await db.get_beta_state(user["id"])
+            resp_free_gold = await db.get_free_gold_opens(user["id"])
 
-        "item": rolled_items[0],
-        "items": rolled_items if count > 1 else None,
-        "last_open_at": datetime.utcnow().isoformat(),
-        "fair": fair_proof,
+            return web.json_response({
+                "item": rolled_items[0],
+                "items": rolled_items if count > 1 else None,
+                "last_open_at": datetime.utcnow().isoformat(),
+                "fair": fair_proof,
+                "beta_balance": resp_beta["case_balance"] if resp_beta else 0,
+                "free_gold_opens": resp_free_gold,
             })
 
         except (asyncpg.exceptions.PostgresError, asyncio.TimeoutError, ConnectionError) as e:

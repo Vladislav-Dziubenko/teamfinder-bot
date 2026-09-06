@@ -865,11 +865,12 @@ export function NexusProvider({ children }: { children: ReactNode }) {
             caseCooldown: { ...p.caseCooldown, [caseId]: until },
           }))
         }
-        // Оптимистично уменьшаем счётчики чтобы "бесплатно осталось" не лагало до refresh()
-        if (betaPays) {
-          setS((p: PersistedState) => ({ ...p, betaBalance: Math.max(0, (p as any).betaBalance - count) }))
-        } else if (hasFreeGold) {
-          setS((p: PersistedState) => ({ ...p, freeGoldOpens: Math.max(0, (p as any).freeGoldOpens - count) }))
+        // Обновляем баланс из ответа сервера (атомарно, без гонок)
+        if (typeof data.beta_balance === "number") {
+          setS((p: PersistedState) => ({ ...p, betaBalance: data.beta_balance }))
+        }
+        if (typeof data.free_gold_opens === "number") {
+          setS((p: PersistedState) => ({ ...p, freeGoldOpens: data.free_gold_opens }))
         }
         refresh()
         if (Array.isArray(data.items) && data.items.length > 0) {
