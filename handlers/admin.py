@@ -188,6 +188,15 @@ async def admin_give_item(message: Message, db: Database, settings: Settings):
         "icon-target": ("Target Icon", "common", 10, False),
         "icon-bolt": ("Bolt Icon", "common", 10, False),
         "icon-star": ("Star Icon", "common", 10, False),
+        "autumn-key": ("Autumn Key", "epic", 5000, False),
+        "mossbyte-scout": ("Mossbyte Scout", "common", 10, False),
+        "rustveil-kunoichi": ("Rustveil Kunoichi", "rare", 25, False),
+        "cinderwing": ("Cinderwing MK-II", "epic", 100, False),
+        "maple-warden": ("Maple Warden", "epic", 120, False),
+        "stars-200": ("200 Stars", "common", 0, False),
+        "stars-500": ("500 Stars", "rare", 0, False),
+        "stars-1000": ("1000 Stars", "epic", 0, False),
+        "stars-2000": ("2000 Stars", "epic", 0, False),
     }
 
     if item_key not in ITEMS:
