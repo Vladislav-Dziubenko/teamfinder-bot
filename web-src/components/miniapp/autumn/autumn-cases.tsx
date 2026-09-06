@@ -189,15 +189,19 @@ export function AutumnCases({
                   <span className="absolute h-24 w-64 rotate-[24deg] rounded-full border border-stars/40" />
                   <span className="absolute h-20 w-56 -rotate-[18deg] rounded-full border border-primary/40" />
                   <span
-                    className="relative grid size-28 animate-bounce place-items-center border bg-gradient-to-b from-secondary to-background [animation-duration:1.8s]"
+                    className="relative grid size-28 animate-bounce place-items-center overflow-hidden border bg-gradient-to-b from-secondary to-background [animation-duration:1.8s]"
                     style={{
                       borderColor: "rgba(245,191,105,.7)",
                       boxShadow: "0 0 44px rgba(245,191,105,.35), inset 0 0 24px rgba(245,191,105,.12)",
                     }}
                   >
-                    <span className="font-display text-6xl font-black text-stars drop-shadow-[0_0_18px_var(--stars)]">
-                      {reveal.item.icon}
-                    </span>
+                    {reveal.item.image ? (
+                      <img src={reveal.item.image} alt="" className="size-full object-cover" />
+                    ) : (
+                      <span className="font-display text-6xl font-black text-stars drop-shadow-[0_0_18px_var(--stars)]">
+                        {reveal.item.icon}
+                      </span>
+                    )}
                   </span>
                   <span className="absolute right-[24%] top-[18%] animate-bounce text-xl text-stars">✦</span>
                 </div>

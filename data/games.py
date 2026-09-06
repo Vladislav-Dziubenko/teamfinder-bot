@@ -105,7 +105,7 @@ BATTLE_PASS_TIERS = [
 
     # Tier 16-20: премиум-контент
     {"level": 16, "xp": 1600, "free": None, "premium": {"key": "bp16p", "name": "150 монет", "type": "coins", "amount": 150, "icon": "🪙"}},
-    {"level": 17, "xp": 1700, "free": {"key": "bp17f", "name": "30 ⭐", "type": "stars", "amount": 30, "icon": "⭐"}, "premium": {"key": "bp17p", "name": "Verdant Singularity", "type": "item", "icon": "⬡", "rarity": "legendary"}},
+    {"level": 17, "xp": 1700, "free": {"key": "bp17f", "name": "30 ⭐", "type": "stars", "amount": 30, "icon": "⭐"}, "premium": {"key": "bp17p", "name": "Verdant Singularity", "type": "item", "image": "/verdant.webp", "rarity": "legendary"}},
     {"level": 18, "xp": 1800, "free": None, "premium": {"key": "bp18p", "name": "Autumn Key", "type": "item", "icon": "🗝️", "rarity": "epic"}},
     {"level": 19, "xp": 1900, "free": {"key": "bp19f", "name": "100 монет", "type": "coins", "amount": 100, "icon": "🪙"}, "premium": {"key": "bp19p", "name": "Премиум средний", "type": "item", "image": "/premium-x4.webp", "rarity": "epic"}},
     {"level": 20, "xp": 2000, "free": {"key": "bp20f", "name": "Иконка «Щит»", "type": "item", "icon": "🛡️", "rarity": "common"}, "premium": {"key": "bp20p", "name": "200 ⭐", "type": "stars", "amount": 200, "icon": "⭐"}},
@@ -122,7 +122,7 @@ BATTLE_PASS_TIERS = [
     {"level": 27, "xp": 2700, "free": {"key": "bp27f", "name": "50 ⭐", "type": "stars", "amount": 50, "icon": "⭐"}, "premium": {"key": "bp27p", "name": "Autumn Key", "type": "item", "icon": "🗝️", "rarity": "epic"}},
     {"level": 28, "xp": 2800, "free": None, "premium": {"key": "bp28p", "name": "Премиум-анкета", "type": "item", "image": "/premium-reveal.webp", "rarity": "premium"}},
     {"level": 29, "xp": 2900, "free": {"key": "bp29f", "name": "200 монет", "type": "coins", "amount": 200, "icon": "🪙"}, "premium": {"key": "bp29p", "name": "Autumn Key ×2", "type": "item", "icon": "🗝️", "rarity": "epic"}},
-    {"level": 30, "xp": 3000, "free": {"key": "bp30f", "name": "Иконка «Страж»", "type": "item", "icon": "🛡️", "rarity": "common"}, "premium": {"key": "bp30p", "name": "AURELIA // 09", "desc": "Легендарная модель. Солнечное ядро, запечатанное в чёрном стекле. Лимит 10 шт. Доход 50-100 ⭐/день", "type": "model", "model_id": "aurelia-09", "icon": "◈", "rarity": "legendary"}},
+    {"level": 30, "xp": 3000, "free": {"key": "bp30f", "name": "Иконка «Страж»", "type": "item", "icon": "🛡️", "rarity": "common"}, "premium": {"key": "bp30p", "name": "AURELIA // 09", "desc": "Легендарная модель. Солнечное ядро, запечатанное в чёрном стекле. Лимит 10 шт. Доход 50-100 ⭐/день", "type": "model", "model_id": "aurelia-09", "image": "/aurelia.webp", "rarity": "legendary"}},
 ]
 
 DAILY_STREAK_REWARDS = [

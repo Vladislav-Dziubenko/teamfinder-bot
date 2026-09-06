@@ -521,9 +521,9 @@ export const lootCases: LootCase[] = [
     free: false,
     dailyLimit: 99,
     items: [
-      { key: "aurelia-09", name: "AURELIA // 09", desc: "Легендарная модель. Солнечное ядро, запечатанное в чёрном стекле. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", icon: "◈", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
-      { key: "nocturne-reaper", name: "NOCTURNE REAPER", desc: "Легендарная модель. Последний охотник осеннего протокола. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", icon: "✦", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
-      { key: "verdant-singularity", name: "VERDANT SINGULARITY", desc: "Легендарная модель. Древо данных, пережившее коллапс. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", icon: "⬡", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
+      { key: "aurelia-09", name: "AURELIA // 09", desc: "Легендарная модель. Солнечное ядро, запечатанное в чёрном стекле. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", image: "/aurelia.webp", icon: "◈", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
+      { key: "nocturne-reaper", name: "NOCTURNE REAPER", desc: "Легендарная модель. Последний охотник осеннего протокола. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", image: "/nocturne.webp", icon: "✦", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
+      { key: "verdant-singularity", name: "VERDANT SINGULARITY", desc: "Легендарная модель. Древо данных, пережившее коллапс. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", image: "/verdant.webp", icon: "⬡", rarity: "legendary", sell: 55000, weight: 0.1, jackpot: true, kind: "model" },
       { key: "stars-1000", name: "1000 ⭐", desc: "1000 звёзд на баланс", icon: "⭐", rarity: "epic", sell: 0, weight: 0.1, kind: "stars", stars: 1000 },
       { key: "stars-2000", name: "2000 ⭐", desc: "2000 звёзд на баланс", icon: "⭐", rarity: "epic", sell: 0, weight: 0.05, kind: "stars", stars: 2000 },
       { key: "premium-card", name: "Премиум-анкета", desc: "Максимальный премиум на 1 день: кастомные фото, свой текст, до 4 открытий кейсов", image: "/premium-reveal.webp", rarity: "premium", sell: 100, weight: 10, grantsPremium: true },
@@ -642,7 +642,7 @@ export const battlePassTiers: BattlePassTier[] = [
   { level: 14, xp: 1400, free: { key: "bp14f", name: "80 монет", type: "coins", amount: 80, icon: "🪙" }, premium: { key: "bp14p", name: "Maple Warden", type: "item", icon: "⬡", rarity: "epic" } },
   { level: 15, xp: 1500, free: { key: "bp15f", name: "Иконка «Огонь»", type: "item", icon: "🔥", rarity: "common" }, premium: { key: "bp15p", name: "100 ⭐", type: "stars", amount: 100, icon: "⭐" } },
   { level: 16, xp: 1600, free: null, premium: { key: "bp16p", name: "150 монет", type: "coins", amount: 150, icon: "🪙" } },
-  { level: 17, xp: 1700, free: { key: "bp17f", name: "30 ⭐", type: "stars", amount: 30, icon: "⭐" }, premium: { key: "bp17p", name: "Verdant Singularity", type: "item", icon: "⬡", rarity: "legendary" } },
+  { level: 17, xp: 1700, free: { key: "bp17f", name: "30 ⭐", type: "stars", amount: 30, icon: "⭐" }, premium: { key: "bp17p", name: "Verdant Singularity", type: "item", image: "/verdant.webp", rarity: "legendary" } },
   { level: 18, xp: 1800, free: null, premium: { key: "bp18p", name: "Autumn Key", type: "item", icon: "🗝️", rarity: "epic" } },
   { level: 19, xp: 1900, free: { key: "bp19f", name: "100 монет", type: "coins", amount: 100, icon: "🪙" }, premium: { key: "bp19p", name: "Премиум средний", type: "item", image: "/premium-x4.webp", rarity: "epic" } },
   { level: 20, xp: 2000, free: { key: "bp20f", name: "Иконка «Щит»", type: "item", icon: "🛡️", rarity: "common" }, premium: { key: "bp20p", name: "200 ⭐", type: "stars", amount: 200, icon: "⭐" } },
@@ -655,7 +655,7 @@ export const battlePassTiers: BattlePassTier[] = [
   { level: 27, xp: 2700, free: { key: "bp27f", name: "50 ⭐", type: "stars", amount: 50, icon: "⭐" }, premium: { key: "bp27p", name: "Autumn Key", type: "item", icon: "🗝️", rarity: "epic" } },
   { level: 28, xp: 2800, free: null, premium: { key: "bp28p", name: "Премиум-анкета", type: "item", image: "/premium-reveal.webp", rarity: "premium" } },
   { level: 29, xp: 2900, free: { key: "bp29f", name: "200 монет", type: "coins", amount: 200, icon: "🪙" }, premium: { key: "bp29p", name: "Autumn Key ×2", type: "item", icon: "🗝️", rarity: "epic" } },
-  { level: 30, xp: 3000, free: { key: "bp30f", name: "Иконка «Страж»", type: "item", icon: "🛡️", rarity: "common" }, premium: { key: "bp30p", name: "AURELIA // 09", desc: "Легендарная модель. Солнечное ядро, запечатанное в чёрном стекле. Лимит 10 шт. Доход 50-100 ⭐/день", type: "model", icon: "◈", rarity: "legendary" } },
+  { level: 30, xp: 3000, free: { key: "bp30f", name: "Иконка «Страж»", type: "item", icon: "🛡️", rarity: "common" }, premium: { key: "bp30p", name: "AURELIA // 09", desc: "Легендарная модель. Солнечное ядро, запечатанное в чёрном стекле. Лимит 10 шт. Доход 50-100 ⭐/день", type: "model", image: "/aurelia.webp", rarity: "legendary" } },
 ]
 
 /* ---------- Реферальная программа ---------- */
