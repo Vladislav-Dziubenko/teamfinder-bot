@@ -11,14 +11,31 @@ export type VoicePeer = {
 }
 
 const RTC_CONFIG: RTCConfiguration = {
-  iceServers: [
+  iceServers: buildIceServers(),
+  iceCandidatePoolSize: 10,
+}
+
+// STUN пробивает только «дружественный» NAT. За симметричным NAT мобильных
+// операторов прямое P2P невозможно — нужен TURN-релей, иначе звонок немой
+// при живом сигналинге. Свой TURN задаётся через env, иначе бесплатный fallback.
+function buildIceServers(): RTCIceServer[] {
+  const servers: RTCIceServer[] = [
     { urls: "stun:stun.l.google.com:19302" },
     { urls: "stun:stun1.l.google.com:19302" },
-    { urls: "stun:stun2.l.google.com:19302" },
-    { urls: "stun:stun3.l.google.com:19302" },
-    { urls: "stun:stun4.l.google.com:19302" },
-  ],
-  iceCandidatePoolSize: 10,
+  ]
+  const turnUrl = process.env.NEXT_PUBLIC_TURN_URL
+  const turnUser = process.env.NEXT_PUBLIC_TURN_USER
+  const turnCred = process.env.NEXT_PUBLIC_TURN_CREDENTIAL
+  if (turnUrl && turnUser && turnCred) {
+    servers.push({ urls: turnUrl, username: turnUser, credential: turnCred })
+  } else {
+    servers.push(
+      { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
+      { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
+      { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" },
+    )
+  }
+  return servers
 }
 
 export function useVoiceChat(sessionId: number, userId: number, enabled: boolean) {
@@ -43,6 +60,9 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
   const audioCtxRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const speakTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // Пиры, для которых уже пробовали пересборку ICE (по 1 попытке на заход в комнату)
+  const iceRetryRef = useRef(new Set<number>())
+  const createOfferRef = useRef<(remoteId: number) => void>(() => {})
 
   const removePeer = useCallback((id: number) => {
     const pc = pcRef.current.get(id)
@@ -52,6 +72,7 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
       } catch {}
       pcRef.current.delete(id)
     }
+    iceRetryRef.current.delete(id)
     setParticipants((prev) => {
       if (!prev.has(id)) return prev
       const next = new Map(prev)
@@ -108,7 +129,22 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
       }
       const handleDown = () => removePeer(remoteId)
       pc.oniceconnectionstatechange = () => {
-        if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "failed" || pc.iceConnectionState === "closed") {
+        if (pc.iceConnectionState === "failed") {
+          // Одна попытка пересобрать соединение (свежий сбор кандидатов, уже с TURN)
+          // вместо молчаливого дропа пира.
+          if (!iceRetryRef.current.has(remoteId)) {
+            iceRetryRef.current.add(remoteId)
+            setTimeout(() => {
+              try {
+                pc.close()
+              } catch {}
+              pcRef.current.delete(remoteId)
+              void createOfferRef.current(remoteId)
+            }, 800)
+            return
+          }
+          handleDown()
+        } else if (pc.iceConnectionState === "disconnected" || pc.iceConnectionState === "closed") {
           handleDown()
         }
       }
@@ -143,6 +179,7 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
     },
     [getOrCreatePc],
   )
+  createOfferRef.current = createOffer
 
   const handleOffer = useCallback(
     async (fromId: number, offer: RTCSessionDescriptionInit) => {
