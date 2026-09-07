@@ -1080,6 +1080,8 @@
   "chat.release_to_send": "Release to send",
   "chat.voice_too_short": "Hold the button longer to record",
   "chat.voice_send_failed": "Couldn't send the voice message",
+  "chat.muted_send": "🔇 Muted until {until}. Reason: {reason}",
+  "chat.muted_voice": "🔇 You are muted and can't send voice messages.",
   "chat.mic_denied": "No mic access — allow it and hold the button again.",
   "chat.mic_no_device": "No microphone found on this device.",
   "chat.mic_unsupported": "Voice recording isn't supported here. Open the Mini App in the Telegram app.",

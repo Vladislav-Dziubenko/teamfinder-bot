@@ -531,8 +531,8 @@ export function useGlobalChat() {
     }
   }, [])
 
-  const sendGlobal = useCallback(async (text: string): Promise<boolean> => {
-    if (!text.trim() || sending) return false
+  const sendGlobal = useCallback(async (text: string): Promise<{ ok: boolean; muteUntil?: string; muteReason?: string }> => {
+    if (!text.trim() || sending) return { ok: false }
     setSending(true)
     try {
       const res: any = await api.post("/api/global/send", { text })
@@ -549,14 +549,18 @@ export function useGlobalChat() {
         // Полл мог уже подхватить сообщение — без проверки будет дубль с тем же key.
         setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : dedupeAndSort([...prev, msg])))
         if (!_globalCache.some((m) => m.id === msg.id)) _globalCache.push(msg)
-        return true
+        return { ok: true }
       }
-    } catch {
-      return false
+    } catch (e: any) {
+      const data = e?.data ?? {}
+      if (String(e?.message ?? "") === "muted") {
+        return { ok: false, muteUntil: String(data.mute_until ?? ""), muteReason: String(data.mute_reason ?? "") }
+      }
+      return { ok: false }
     } finally {
       setSending(false)
     }
-    return false
+    return { ok: false }
   }, [sending, meRole])
 
   const sendGlobalVoice = useCallback(async (blob: Blob, duration: number, mime: string): Promise<boolean> => {

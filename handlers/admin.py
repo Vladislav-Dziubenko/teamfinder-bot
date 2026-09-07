@@ -247,3 +247,35 @@ async def admin_give_item(message: Message, db: Database, settings: Settings):
         f"🔢 Количество: <b>{count}</b>\n"
         f"🎨 Редкость: <b>{rarity}</b>"
     )
+
+
+@router.message(Command("aiundo"))
+async def admin_ai_undo(message: Message, db: Database, settings: Settings):
+    """Отмена наказания Стража: снимает мут и бан. Только админы."""
+    if message.from_user.id not in settings.admin_ids:
+        return
+
+    args = message.text.strip().split()
+    if len(args) < 2:
+        await message.answer(
+            "❌ <b>Неверный формат</b>\n\n"
+            "Использование:\n"
+            "<code>/aiundo &lt;user_id&gt;</code>\n\n"
+            "Снимает мут и бан (например, ложное срабатывание Стража)."
+        )
+        return
+
+    try:
+        target_id = int(args[1])
+    except ValueError:
+        await message.answer("❌ <b>Ошибка:</b> user_id должен быть числом.")
+        return
+
+    await db.unmute_user(target_id)
+    await db.unban_global(target_id)
+    await db.audit_log(message.from_user.id, "admin_ai_undo", f"target={target_id}")
+    await message.answer(
+        "✅ <b>Наказание снято!</b>\n\n"
+        f"👤 Пользователь: <code>{target_id}</code>\n"
+        "🔓 Мут и бан сняты."
+    )

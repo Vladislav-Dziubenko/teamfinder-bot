@@ -223,7 +223,8 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram, cus
       }
       setError(null)
     } catch (err: any) {
-      setError(err?.message ?? t("chat.voice_send_failed"))
+      const msg = String(err?.message ?? "")
+      setError(msg.includes("muted") ? t("chat.muted_voice") : msg || t("chat.voice_send_failed"))
     } finally {
       setUploading(false)
       cleanup()

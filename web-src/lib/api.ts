@@ -98,6 +98,7 @@ async function request(method: string, path: string, body?: unknown, attempt = 0
     if (!res.ok) {
       const err = new Error(data.error || `HTTP ${res.status}`) as any
       err.status = res.status
+      err.data = data
       if (res.status === 401 && _onAuthError) _onAuthError()
       if (res.status === 403 && data.banned && _onAuthError) _onAuthError({ reason: data.ban_reason || "", expiresAt: data.ban_expires_at || "" })
       throw err
@@ -132,6 +133,7 @@ export const api = {
       if (!res.ok) {
         const err = new Error((data as any).error || `HTTP ${res.status}`) as any
         err.status = res.status
+        err.data = data
         if (res.status === 401 && _onAuthError) _onAuthError()
         if (res.status === 403 && (data as any).banned && _onAuthError) _onAuthError({ reason: (data as any).ban_reason || "", expiresAt: (data as any).ban_expires_at || "" })
         throw err

@@ -33,6 +33,15 @@ class Settings:
     discord_verified_role_id: int
     steam_web_api_key: str
     steam_redirect_uri: str
+    # --- AI-модератор «Страж» (free: Gemini Flash / Groq) ---
+    ai_mod_enabled: bool
+    ai_mod_shadow: bool
+    ai_provider: str
+    gemini_api_key: str
+    groq_api_key: str
+    ai_mod_score_low: float
+    ai_mod_score_high: float
+    ai_mod_night_cap: int
 
 
 def _parse_admin_ids(raw: str) -> set[int]:
@@ -125,4 +134,12 @@ def load_settings() -> Settings:
         discord_verified_role_id=int(os.getenv("DISCORD_VERIFIED_ROLE_ID", "0")),
         steam_web_api_key=os.getenv("STEAM_WEB_API_KEY", "").strip(),
         steam_redirect_uri=os.getenv("STEAM_REDIRECT_URI", "").strip(),
+        ai_mod_enabled=os.getenv("AI_MOD_ENABLED", "0").strip() == "1",
+        ai_mod_shadow=os.getenv("AI_MOD_SHADOW", "1").strip() == "1",
+        ai_provider=os.getenv("AI_PROVIDER", "gemini").strip().lower() or "gemini",
+        gemini_api_key=os.getenv("GEMINI_API_KEY", "").strip(),
+        groq_api_key=os.getenv("GROQ_API_KEY", "").strip(),
+        ai_mod_score_low=float(os.getenv("AI_MOD_SCORE_LOW", "0.3") or 0.3),
+        ai_mod_score_high=float(os.getenv("AI_MOD_SCORE_HIGH", "0.8") or 0.8),
+        ai_mod_night_cap=int(os.getenv("AI_MOD_NIGHT_CAP", "30") or 30),
     )

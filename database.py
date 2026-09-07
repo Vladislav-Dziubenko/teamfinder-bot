@@ -318,6 +318,15 @@ CREATE TABLE IF NOT EXISTS global_bans (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
+CREATE TABLE IF NOT EXISTS user_mutes (
+    user_id BIGINT PRIMARY KEY,
+    until TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    strikes INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
 CREATE TABLE IF NOT EXISTS match_predictions (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -696,6 +705,12 @@ class Database:
             ("global_messages", "kind", "TEXT NOT NULL DEFAULT 'user'"),
 
             ("user_roles", "is_beta", "INTEGER NOT NULL DEFAULT 0"),
+
+            ("user_mutes", "user_id", "BIGINT"),
+            ("user_mutes", "until", "TEXT NOT NULL DEFAULT ''"),
+            ("user_mutes", "reason", "TEXT NOT NULL DEFAULT ''"),
+            ("user_mutes", "strikes", "INTEGER NOT NULL DEFAULT 0"),
+            ("user_mutes", "updated_at", "TEXT NOT NULL DEFAULT ''"),
 
             ("beta_state", "user_id", "BIGINT"),
             ("beta_state", "case_balance", "INTEGER NOT NULL DEFAULT 0"),
@@ -4709,6 +4724,68 @@ WHERE user_quests.completed = 0
                 user_id,
             )
 
+    # ---------- Временный мут общего чата (лестница AI-модератора) ----------
+    async def mute_user(self, user_id: int, seconds: int, reason: str = "") -> str:
+        """Мут на seconds секунд. Возвращает ISO-дату окончания."""
+        until = (datetime.utcnow() + timedelta(seconds=max(60, seconds))).isoformat()
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                """INSERT INTO user_mutes (user_id, until, reason, strikes, updated_at)
+                   VALUES ($1, $2, $3, 1, $4)
+                   ON CONFLICT (user_id) DO UPDATE SET
+                       until = EXCLUDED.until, reason = EXCLUDED.reason,
+                       strikes = user_mutes.strikes + 1, updated_at = EXCLUDED.updated_at""",
+                user_id, until, reason[:200], now,
+            )
+        return until
+
+    async def unmute_user(self, user_id: int) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute("DELETE FROM user_mutes WHERE user_id = $1", user_id)
+
+    async def get_mute(self, user_id: int) -> dict | None:
+        """Активный мут (until + reason) или None. Просрочка чистится лениво."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT until, reason, strikes FROM user_mutes WHERE user_id = $1", user_id,
+            )
+            if not row:
+                return None
+            try:
+                if datetime.utcnow() >= datetime.fromisoformat(row["until"]):
+                    await conn.execute("DELETE FROM user_mutes WHERE user_id = $1", user_id)
+                    return None
+            except (ValueError, TypeError):
+                return None
+            return {"until": row["until"], "reason": row["reason"] or "", "strikes": row["strikes"] or 0}
+
+    async def count_recent_punishments(self, user_id: int, hours: int = 24) -> int:
+        """Сколько AI/human-наказаний у юзера за последние hours часов (лестница)."""
+        cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+        async with self.pool.acquire() as conn:
+            try:
+                return await conn.fetchval(
+                    "SELECT COUNT(*) FROM audit_log WHERE user_id = $1 AND created_at >= $2 "
+                    "AND action IN ('ai_delete', 'ai_mute', 'ai_ban', 'mod_mute', 'mod_ban')",
+                    user_id, cutoff,
+                ) or 0
+            except Exception:
+                return 0
+
+    async def count_today_ai_actions(self) -> int:
+        """Сколько авто-наказаний ИИ выдал сегодня (ночной кап)."""
+        day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        async with self.pool.acquire() as conn:
+            try:
+                return await conn.fetchval(
+                    "SELECT COUNT(*) FROM audit_log WHERE created_at >= $1 "
+                    "AND action IN ('ai_delete', 'ai_mute', 'ai_ban')",
+                    day_start,
+                ) or 0
+            except Exception:
+                return 0
+
     async def is_globally_banned(self, user_id: int) -> bool:
         async with self.pool.acquire() as conn:
             row = await conn.fetchval(
@@ -5128,6 +5205,21 @@ WHERE user_quests.completed = 0
                 )
         except Exception:
             pass  # non-critical, silently ignore
+
+    async def get_today_ai_actions(self) -> list[dict]:
+        """Действия ИИ-модератора за сегодня (для утреннего дайджеста)."""
+        day_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+        async with self.pool.acquire() as conn:
+            try:
+                rows = await conn.fetch(
+                    "SELECT user_id, action, details, created_at FROM audit_log "
+                    "WHERE created_at >= $1 AND action LIKE 'ai\\_%' ESCAPE '\\' "
+                    "ORDER BY created_at DESC LIMIT 200",
+                    day_start,
+                )
+                return [dict(r) for r in rows]
+            except Exception:
+                return []
 
     async def get_general_stats(self, user_id: int, days: int) -> dict:
         """Return aggregated stats for the given period."""

@@ -38,6 +38,7 @@ from data.games import (
 )
 from data.guides import GUIDES
 from database import Database
+from services.ai_moderation import score_message
 from services.matching import find_matches, score_match
 from webapp.auth import validate_init_data
 from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
@@ -3589,6 +3590,30 @@ async def handle_voice_route(request: web.Request):
 GLOBAL_SEND_LIMIT = 10   # сообщений
 GLOBAL_SEND_WINDOW = 60  # секунд
 
+# ---------------------------------------------------------------------------
+# AI-модератор «Страж»: лестница наказаний (полный автопилот ночью).
+# Тяжкие категории -> сразу бан 7 дней; остальное high-score идёт по
+# рецидивам: удаление+предупреждение -> мут 10 мин -> мут 1 час -> мут 24 часа.
+# Пермамент — только человек. Счётчик рецидивов сгорает за 24ч чистоты.
+# ---------------------------------------------------------------------------
+AI_HEAVY_CATEGORIES = {"scam", "doxing", "adult", "threat"}
+AI_BAN_DAYS = 7
+AI_MUTE_STEPS = (600, 3600, 24 * 3600)  # 10 мин, 1 час, 24 часа
+AI_MUTE_STEP_NAMES = ("10 минут", "1 час", "24 часа")
+
+AI_CATEGORY_RU = {
+    "spam": "спам",
+    "scam": "мошенничество",
+    "insult": "оскорбления",
+    "adult": "18+ контент",
+    "threat": "угрозы",
+    "doxing": "личные данные",
+    "flood": "флуд",
+    "caps": "капс",
+    "links": "рекламная ссылка",
+    "ok": "нарушение",
+}
+
 
 def _is_developer(request: web.Request, user_id: int) -> bool:
     settings = request.app.get("settings")
@@ -3606,6 +3631,109 @@ async def _effective_is_beta(request: web.Request, db: Database, user_id: int) -
     """Разработчик (bot ADMIN_IDS) автоматически получает бонусы бета-тестера:
     ежедневные 200 кейсов + 10 000 ⭐, безлимитный поиск, бесплатный gold-кейс."""
     return await db.get_beta(user_id) or _is_developer(request, user_id)
+
+
+# ---------------------------------------------------------------------------
+# AI-модератор «Страж»: фоновая проверка + лестница наказаний.
+# Вызывается fire-and-forget из handle_global_send — отправку не тормозит.
+# ---------------------------------------------------------------------------
+async def _ai_nick(db: Database, user_id: int) -> str:
+    try:
+        nick = await db.pool.fetchval(
+            "SELECT COALESCE(nick, '') FROM mini_app_profiles WHERE user_id = $1", user_id,
+        )
+        return nick or f"User{user_id}"
+    except Exception:
+        return f"User{user_id}"
+
+
+async def _ai_announce(db: Database, offender_id: int, text: str) -> None:
+    try:
+        await db.send_global_message(offender_id, text, kind="system")
+        await cache_delete_pattern("global_chat_msgs")
+    except Exception as exc:
+        logging.warning("[ai-mod] announce failed: %s", exc)
+
+
+async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text: str, msg_id: int | None) -> None:
+    """Одна проверка одного сообщения. Никогда не кидает исключений наружу."""
+    try:
+        if not settings.ai_mod_enabled:
+            return
+        verdict = await score_message(text, user_id, settings)
+        score = verdict.get("score", 0.0)
+        category = verdict.get("category", "ok") or "ok"
+        reason = verdict.get("reason", "") or ""
+        if score < settings.ai_mod_score_low:
+            return
+
+        # Shadow mode: только вердикт в аудит, ноль действий.
+        if settings.ai_mod_shadow:
+            await db.audit_log(user_id, "ai_shadow", f"score={score:.2f} cat={category} msg={msg_id} {reason}")
+            return
+
+        # Неприкасаемые: staff и developer — только в очередь человеку.
+        try:
+            role = await db.get_role(user_id)
+        except Exception:
+            role = ""
+        if user_id in settings.admin_ids or db.ROLE_RANK.get(role, 0) >= 1:
+            await db.audit_log(user_id, "ai_skip_staff", f"score={score:.2f} cat={category} {reason}")
+            return
+
+        # Ночной кап: дальше только очередь к утру.
+        try:
+            if await db.count_today_ai_actions() >= max(1, settings.ai_mod_night_cap):
+                await db.audit_log(user_id, "ai_deferred", f"cap score={score:.2f} cat={category} msg={msg_id} {reason}")
+                return
+        except Exception as exc:
+            logging.warning("[ai-mod] cap check failed: %s", exc)
+
+        reason_ru = AI_CATEGORY_RU.get(category, category)
+        if reason:
+            reason_ru = f"{reason_ru} ({reason})"
+        nick = await _ai_nick(db, user_id)
+        strikes = await db.count_recent_punishments(user_id)
+
+        # Тяжкие категории — сразу бан 7 дней.
+        if category in AI_HEAVY_CATEGORIES and score >= settings.ai_mod_score_high:
+            expires = (datetime.utcnow() + timedelta(days=AI_BAN_DAYS)).isoformat()
+            await db.ban_global(user_id, 0, f"[AI] {reason_ru}", expires)
+            await cache_delete(f"gban:{user_id}")
+            await db.audit_log(user_id, "ai_ban", f"score={score:.2f} cat={category} msg={msg_id} {reason} by=ai")
+            await _ai_announce(db, user_id, f"⛔ {nick} забанен на 7 дней. Причина: {reason_ru}. Апелляция — в личке бота.")
+            logging.info("[ai-mod] ban user=%s cat=%s score=%.2f", user_id, category, score)
+            return
+
+        # Пограничный скор — только очередь к утру, без действий.
+        if score < settings.ai_mod_score_high:
+            await db.audit_log(user_id, "ai_queue", f"score={score:.2f} cat={category} msg={msg_id} {reason}")
+            return
+
+        # Высокий скор, нетяжкая категория — лестница по рецидивам.
+        if strikes <= 0:
+            if msg_id:
+                try:
+                    await db.delete_global_message(msg_id)
+                    await cache_delete_pattern("global_chat_msgs")
+                except Exception as exc:
+                    logging.warning("[ai-mod] delete failed: %s", exc)
+            await db.audit_log(user_id, "ai_delete", f"score={score:.2f} cat={category} msg={msg_id} {reason}")
+            await _ai_announce(db, user_id, f"🧹 Сообщение {nick} удалено: {reason_ru}. Это предупреждение — дальше мут.")
+            return
+
+        step = min(strikes - 1, len(AI_MUTE_STEPS) - 1)
+        seconds = AI_MUTE_STEPS[step]
+        until = await db.mute_user(user_id, seconds, reason_ru)
+        await db.audit_log(user_id, "ai_mute", f"score={score:.2f} cat={category} msg={msg_id} {seconds}s strikes={strikes} {reason}")
+        await _ai_announce(
+            db, user_id,
+            f"🔇 {nick} замучен на {AI_MUTE_STEP_NAMES[step]}. Причина: {reason_ru}. "
+            f"Нарушение {strikes + 1} за сутки. Апелляция — /start → Написать модерации.",
+        )
+        logging.info("[ai-mod] mute user=%s %ss cat=%s score=%.2f", user_id, seconds, category, score)
+    except Exception as exc:
+        logging.warning("[ai-mod] moderate failed: %s", exc)
 
 
 async def handle_global_messages(request: web.Request):
@@ -3645,6 +3773,12 @@ async def handle_global_send(request: web.Request):
     user = _get_user(request)
     if await db.is_globally_banned(user["id"]):
         return web.json_response({"error": "banned"}, status=403)
+    mute = await db.get_mute(user["id"])
+    if mute:
+        return web.json_response(
+            {"error": "muted", "mute_until": mute["until"], "mute_reason": mute["reason"]},
+            status=403,
+        )
     if await rate_limit_check(f"gsend:{user['id']}", GLOBAL_SEND_LIMIT, GLOBAL_SEND_WINDOW):
         return web.json_response({"error": "slow down"}, status=429)
     body = await request.json()
@@ -3655,6 +3789,13 @@ async def handle_global_send(request: web.Request):
     msg["user_id"] = "me"
     # Сбрасываем кэш глобальных сообщений — чтобы poller сразу видел новое.
     await cache_delete_pattern("global_chat_msgs")
+    # AI-модератор: фоновая проверка, отправку не тормозит.
+    try:
+        settings = request.app.get("settings")
+        if settings is not None and settings.ai_mod_enabled:
+            asyncio.create_task(_ai_moderate(db, settings, request.app.get("bot"), user["id"], text, msg.get("id")))
+    except Exception as exc:
+        logging.warning("[ai-mod] hook failed: %s", exc)
     return web.json_response({"message": msg})
 
 
@@ -3663,6 +3804,12 @@ async def handle_global_voice_upload(request: web.Request):
     user = _get_user(request)
     if await db.is_globally_banned(user["id"]):
         return web.json_response({"error": "banned"}, status=403)
+    mute = await db.get_mute(user["id"])
+    if mute:
+        return web.json_response(
+            {"error": "muted", "mute_until": mute["until"], "mute_reason": mute["reason"]},
+            status=403,
+        )
     if await rate_limit_check(f"gsend:{user['id']}", GLOBAL_SEND_LIMIT, GLOBAL_SEND_WINDOW):
         return web.json_response({"error": "slow down"}, status=429)
     reader = await request.multipart()
@@ -3806,6 +3953,10 @@ async def handle_global_delete(request: web.Request):
         if db.ROLE_RANK.get(author_role, 0) >= db.ROLE_RANK.get(role, 0):
             return web.json_response({"error": "cannot delete same or higher role"}, status=403)
     await db.delete_global_message(message_id)
+    try:
+        await db.audit_log(user["id"], "mod_delete", f"msg={message_id} author={author_id}")
+    except Exception:
+        pass
     return web.json_response({"ok": True})
 
 
@@ -3841,6 +3992,10 @@ async def handle_global_ban(request: web.Request):
     await db.ban_global(target_id, user["id"], reason, expires_at)
     await cache_delete(f"gban:{target_id}")
     logging.info("[BAN] admin=%s target=%s reason=%r duration=%s OK expires=%s", user["id"], target_id, reason, duration, expires_at)
+    try:
+        await db.audit_log(user["id"], "mod_ban", f"target={target_id} reason={reason} duration={duration}")
+    except Exception:
+        pass
     return web.json_response({"ok": True, "expires_at": expires_at})
 
 
@@ -3857,6 +4012,30 @@ async def handle_global_unban(request: web.Request):
         return web.json_response({"error": "invalid user_id"}, status=400)
     await db.unban_global(target_id)
     await cache_delete(f"gban:{target_id}")
+    try:
+        await db.audit_log(user["id"], "mod_unban", f"target={target_id}")
+    except Exception:
+        pass
+    return web.json_response({"ok": True})
+
+
+async def handle_mod_unmute(request: web.Request):
+    """Снять мут (модератор+). Используется и кнопкой отмены из дайджеста."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    role = await _effective_role(request, db, user["id"])
+    if db.ROLE_RANK.get(role, 0) < 1:
+        return web.json_response({"error": "forbidden"}, status=403)
+    body = await request.json()
+    try:
+        target_id = int(body.get("user_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    await db.unmute_user(target_id)
+    try:
+        await db.audit_log(user["id"], "mod_unmute", f"target={target_id}")
+    except Exception:
+        pass
     return web.json_response({"ok": True})
 
 
@@ -4236,6 +4415,72 @@ async def _start_prediction_settler(app: web.Application) -> None:
 
 async def _stop_prediction_settler(app: web.Application) -> None:
     task = app.get("prediction_task")
+    if task:
+        task.cancel()
+        try:
+            await task
+        except Exception:
+            pass
+
+
+async def _ai_send_digest(app: web.Application) -> None:
+    """Утренний дайджест ночных действий Стража первому админу (08:00 МСК)."""
+    db: Database = app["db"]
+    settings = app.get("settings")
+    bot = app.get("bot")
+    if not settings or not bot or not getattr(settings, "admin_ids", None):
+        return
+    try:
+        actions = await db.get_today_ai_actions()
+    except Exception as exc:
+        logging.warning("[ai-mod] digest query failed: %s", exc)
+        return
+    if not actions:
+        return
+    counts: dict[str, int] = {}
+    for a in actions:
+        counts[a.get("action", "?")] = counts.get(a.get("action", "?"), 0) + 1
+    summary = ", ".join(f"{k}: {v}" for k, v in sorted(counts.items()))
+    lines = [
+        f"• {a.get('action')} user={a.get('user_id')} {(a.get('details') or '')[:120]}"
+        for a in actions[:15]
+    ]
+    text = (
+        f"🌙 <b>Ночной страж: итоги</b>\n{summary}\n\n"
+        + "\n".join(lines)
+        + "\n\nОтмена наказания: /aiundo user_id"
+    )
+    try:
+        await bot.send_message(next(iter(settings.admin_ids)), text)
+    except Exception as exc:
+        logging.warning("[ai-mod] digest send failed: %s", exc)
+
+
+async def _ai_digest_loop(app: web.Application) -> None:
+    sent: set[str] = set()
+    while True:
+        try:
+            await asyncio.sleep(60)
+            now = datetime.utcnow()
+            day = now.date().isoformat()
+            # 05:00 UTC = 08:00 МСК
+            if now.hour == 5 and day not in sent:
+                sent.add(day)
+                if len(sent) > 3:
+                    sent = {day}
+                await _ai_send_digest(app)
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logging.warning("[ai-mod] digest loop failed: %s", exc)
+
+
+async def _start_ai_digest(app: web.Application) -> None:
+    app["ai_digest_task"] = asyncio.create_task(_ai_digest_loop(app))
+
+
+async def _stop_ai_digest(app: web.Application) -> None:
+    task = app.get("ai_digest_task")
     if task:
         task.cancel()
         try:
@@ -4937,9 +5182,11 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.on_startup.append(lambda _app: init_redis())
     app.on_startup.append(_start_prediction_settler)
     app.on_startup.append(_start_model_income)
+    app.on_startup.append(_start_ai_digest)
     app.on_cleanup.append(lambda _app: close_redis())
     app.on_cleanup.append(_stop_prediction_settler)
     app.on_cleanup.append(_stop_model_income)
+    app.on_cleanup.append(_stop_ai_digest)
     app.on_cleanup.append(lambda _app: _app["session"].close())
 
     app.router.add_get("/", handle_index)
@@ -5056,6 +5303,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/global/delete", handle_global_delete)
     app.router.add_post("/api/global/ban", handle_global_ban)
     app.router.add_post("/api/global/unban", handle_global_unban)
+    app.router.add_post("/api/mod/unmute", handle_mod_unmute)
     app.router.add_get("/api/stickers", handle_sticker_sets)
     app.router.add_post("/api/stickers/sync", handle_sticker_sync)
     app.router.add_get("/api/stickers/img/{file_id}", handle_sticker_image)

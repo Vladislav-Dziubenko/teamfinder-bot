@@ -637,6 +637,22 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
   const [showStickers, setShowStickers] = useState(false)
   const [adminOpen, setAdminOpen] = useState(false)
   const [gErr, setGErr] = useState<string | null>(null)
+
+  /** ISO-дата мута -> короткое локальное время для тоста. */
+  function formatMuteUntil(iso: string): string {
+    try {
+      const d = new Date(iso.includes("T") ? iso : iso + "Z")
+      if (isNaN(d.getTime())) return iso
+      return d.toLocaleString(lang === "ru" ? "ru-RU" : "en-US", {
+        day: "numeric",
+        month: "short",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    } catch {
+      return iso
+    }
+  }
   const scrollRef = useRef<HTMLDivElement>(null)
   const [menuFor, setMenuFor] = useState<string | null>(null)
   // Multi-select mode for deletion (like in DMs)
@@ -698,8 +714,9 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
   }
 
   async function sendSticker(sticker: string) {
-    const ok = await sendGlobal(sticker)
-    if (ok) setShowStickers(false)
+    const res = await sendGlobal(sticker)
+    if (res.ok) setShowStickers(false)
+    else if (res.muteUntil) setGErr(t("chat.muted_send", { until: formatMuteUntil(res.muteUntil), reason: res.muteReason || "" }))
   }
 
   // Войс уже добавлен в список внутри sendGlobalVoice (с дедупом по id) —
@@ -714,8 +731,9 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
 
   async function submit() {
     if (!draft.trim() || meBanned) return
-    const ok = await sendGlobal(draft)
-    if (ok) setDraft("")
+    const res = await sendGlobal(draft)
+    if (res.ok) setDraft("")
+    else if (res.muteUntil) setGErr(t("chat.muted_send", { until: formatMuteUntil(res.muteUntil), reason: res.muteReason || "" }))
   }
 
   async function onDelete(m: GlobalMessage) {
