@@ -28,10 +28,15 @@ RETURN_COOLDOWN = timedelta(days=3)
 
 async def _send(bot: Bot, user_id: int, text: str) -> bool:
     try:
-        await bot.send_message(user_id, text)
+        # parse_mode явно: тексты содержат <b>, полагаться на дефолт бота нельзя.
+        await bot.send_message(user_id, text, parse_mode="HTML")
+        # Микропауза против FloodWait при массовой побудке.
+        await asyncio.sleep(0.05)
         return True
     except Exception as e:
         logger.warning("notify send failed user=%s: %s", user_id, e)
+        # Ошибка сети-лимита тоже гасится паузой, чтобы не долбить Telegram.
+        await asyncio.sleep(0.2)
         return False
 
 
@@ -57,6 +62,7 @@ async def _notify_battlepass_ready(bot: Bot, db: Database, discord_bot=None) -> 
         FROM user_battlepass b
         JOIN users u ON u.user_id = b.user_id
         WHERE b.bp_xp > 0
+        LIMIT 200
         """
     )
     for r in rows:
@@ -105,6 +111,7 @@ async def _notify_return_bonus(bot: Bot, db: Database, discord_bot=None) -> None
         FROM discord_connections dc
         JOIN users u ON u.user_id = dc.user_id
         WHERE COALESCE(u.last_active_at, '') < $1
+        LIMIT 200
         """,
         cutoff,
     )
@@ -142,6 +149,7 @@ async def _notify_daily_case(bot: Bot, db: Database, discord_bot=None) -> None:
             SELECT 1 FROM case_opens co
             WHERE co.user_id = u.user_id AND co.case_id = 'blue' AND co.opened_at >= $1
           )
+        LIMIT 200
         """,
         cutoff,
     )

@@ -28,7 +28,7 @@ export function MarketListSheet({
   const it = item
 
   const parsed = parseInt(price, 10)
-  const valid = Number.isInteger(parsed) && parsed >= 1 && parsed <= 1_000_000
+  const valid = Number.isInteger(parsed) && parsed >= 10 && parsed <= 1_000_000
 
   async function submit() {
     if (!valid || busy) return

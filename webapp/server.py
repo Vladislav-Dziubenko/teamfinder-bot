@@ -2345,8 +2345,10 @@ async def handle_market_list(request: web.Request):
     price = body.get("price_coins")
     if not isinstance(inventory_id, int) or not isinstance(price, int):
         return web.json_response({"error": "invalid payload"}, status=400)
-    if price < 1 or price > 1_000_000:
-        return web.json_response({"error": "price out of range"}, status=400)
+    # Минимальная цена 10: лоты за 1 монету — пыль с нулевой комиссией,
+    # удобная для wash-сделок между твинками (перелив фармленых монет).
+    if price < 10 or price > 1_000_000:
+        return web.json_response({"error": "price out of range (10..1000000)"}, status=400)
     item = next((i for i in await db.get_inventory(user["id"]) if i["id"] == inventory_id), None)
     if not item:
         return web.json_response({"error": "item not found"}, status=400)
@@ -5007,6 +5009,9 @@ async def handle_stats_rank(request: web.Request):
 
 
 async def handle_leaderboard(request: web.Request):
+    # Лидерборд — чувствительные данные (id/ник/балансы) — только авторизованно.
+    if not _get_user(request):
+        return web.json_response({"error": "unauthorized"}, status=401)
     if _public_rate_limit(request):
         return web.json_response({"error": "rate limit exceeded"}, status=429)
     try:
