@@ -35,6 +35,19 @@ async def main():
     try:
         settings = load_settings()
 
+        # Диагностика AI-модератора при старте: только факты наличия,
+        # никаких секретов (длина ключа вместо значения).
+        try:
+            _ai_key = settings.gemini_api_key if settings.ai_provider == "gemini" else settings.groq_api_key
+            logging.info(
+                "AI-MOD config: enabled=%s shadow=%s provider=%s key_len=%d chat=%s low=%.2f high=%.2f cap=%d",
+                settings.ai_mod_enabled, settings.ai_mod_shadow, settings.ai_provider,
+                len(_ai_key or ""), settings.ai_chat_enabled,
+                settings.ai_mod_score_low, settings.ai_mod_score_high, settings.ai_mod_night_cap,
+            )
+        except Exception as exc:
+            logging.warning("AI-MOD config log failed: %s", exc)
+
         # ---- Шаг 1: создаём db-объект (пул НЕ подключён) ----
         db = Database(settings.database_url, bot_token=settings.bot_token, fernet_key=settings.fernet_key)
 

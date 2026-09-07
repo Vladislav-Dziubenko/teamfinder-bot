@@ -292,6 +292,17 @@ async def admin_ai_status(message: Message, db: Database, settings: Settings):
     provider = getattr(settings, "ai_provider", "gemini") or "gemini"
     key = (getattr(settings, "gemini_api_key", "") or "") if provider == "gemini" else (getattr(settings, "groq_api_key", "") or "")
     masked = (key[:4] + "…" + key[-4:]) if len(key) > 8 else ("задан" if key else "НЕ ЗАДАН")
+    # Локальная проверка формата (бесплатно, без запросов): ловит вставку
+    # ключа от другого сервиса или мусор при копипасте.
+    import re as _re
+    if not key:
+        key_fmt = "✗ нет ключа"
+    elif provider == "gemini" and _re.fullmatch(r"AIza[0-9A-Za-z_-]{35}", key):
+        key_fmt = "✓ похож на Gemini"
+    elif provider == "groq" and key.startswith("gsk_"):
+        key_fmt = "✓ похож на Groq"
+    else:
+        key_fmt = "✗ НЕ похож на ключ провайдера (Gemini ждёт AIza..., Groq ждёт gsk_...)"
     try:
         today = await db.count_today_ai_actions()
     except Exception:
@@ -311,7 +322,7 @@ async def admin_ai_status(message: Message, db: Database, settings: Settings):
         f"Включён: <b>{'да' if enabled else 'нет'}</b>\n"
         f"Режим: <b>{mode}</b>\n"
         f"Провайдер: <code>{provider}</code>\n"
-        f"Ключ: <code>{masked}</code>\n"
+        f"Ключ: <code>{masked}</code> ({key_fmt})\n"
         f"Собеседник в чате: <b>{'да' if chat_on else 'нет'}</b>\n"
         f"Авто-действий сегодня: <b>{today}</b>\n"
         f"В очереди к утру: <b>{queued}</b>\n\n"

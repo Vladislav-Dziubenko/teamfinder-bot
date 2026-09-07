@@ -3665,15 +3665,29 @@ _AI_CHAT_LAST = 0.0
 
 
 async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: str) -> None:
-    """Страж-собеседник: отвечает на упоминания («страж») в общем чате."""
+    """Страж-собеседник: отвечает на упоминания («страж») в общем чате.
+
+    Каждый пропуск аудитится как ai_chat_skip с причиной — тишина становится
+    видимой в карточке/счётчиках вместо «ноль реакций, хз почему».
+    """
+    async def _skip(why: str) -> None:
+        try:
+            await db.audit_log(user_id, "ai_chat_skip", f"why={why}")
+        except Exception:
+            pass
+
     try:
-        if not settings.ai_chat_enabled or not is_guard_mention(text):
+        if not settings.ai_chat_enabled:
+            return
+        if not is_guard_mention(text):
             return
         global _AI_CHAT_LAST
         now = time.time()
         if now - _AI_CHAT_LAST < max(10, settings.ai_chat_cooldown_s):
+            await _skip("cooldown")
             return
         if await db.count_audit_action("ai_chat", 1) >= max(1, settings.ai_chat_max_per_hour):
+            await _skip("cap")
             return
         try:
             recent = await db.get_global_messages(12)
@@ -3688,12 +3702,14 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
         from services.ai_moderation import chat_reply
         reply = await chat_reply(history, settings)
         if not reply:
+            # Чаще всего: нет/невалиден ключ (судья недоступен).
+            await _skip("judge_fail")
             return
         _AI_CHAT_LAST = now
         await db.send_global_message(AI_PERSONA_ID, reply, kind="user")
         await cache_delete_pattern("global_chat_msgs")
         await db.audit_log(user_id, "ai_chat", f"reply_to={user_id} len={len(reply)}")
-        logging.info("[ai-mod] chat reply sent")
+        logging.info("[ai-mod] chat reply sent to user=%s", user_id)
     except Exception as exc:
         logging.warning("[ai-mod] chat reply failed: %s", exc)
 
@@ -3707,10 +3723,15 @@ async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text
         score = verdict.get("score", 0.0)
         category = verdict.get("category", "ok") or "ok"
         reason = verdict.get("reason", "") or ""
+        source = verdict.get("source", "?")
         if score < settings.ai_mod_score_low:
             # Чисто — может, зовут собеседника.
             await _ai_chat_reply(db, settings, user_id, text)
             return
+        logging.info(
+            "[ai-mod] trigger user=%s score=%.2f cat=%s src=%s msg=%s",
+            user_id, score, category, source, msg_id,
+        )
 
         # Shadow mode: только вердикт в аудит, ноль действий.
         if settings.ai_mod_shadow:
