@@ -4090,6 +4090,40 @@ async def handle_mod_unmute(request: web.Request):
     return web.json_response({"ok": True})
 
 
+async def handle_mod_status(request: web.Request):
+    """Статус Стража для админ-панели: флаги + счётчики + свежие действия."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not _is_developer(request, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    settings = request.app.get("settings")
+    actions = await db.get_today_ai_actions()
+    counts: dict[str, int] = {}
+    for a in actions:
+        counts[a.get("action", "?")] = counts.get(a.get("action", "?"), 0) + 1
+    provider = (getattr(settings, "ai_provider", "gemini") or "gemini") if settings else "gemini"
+    if settings is not None and provider == "gemini":
+        key_set = bool(getattr(settings, "gemini_api_key", ""))
+    elif settings is not None:
+        key_set = bool(getattr(settings, "groq_api_key", ""))
+    else:
+        key_set = False
+    recent = [
+        {"user_id": a.get("user_id"), "action": a.get("action"),
+         "details": (a.get("details") or "")[:160], "created_at": a.get("created_at")}
+        for a in actions[:15]
+    ]
+    return web.json_response({
+        "enabled": bool(settings and settings.ai_mod_enabled),
+        "shadow": bool(settings is None or settings.ai_mod_shadow),
+        "provider": provider,
+        "key_set": key_set,
+        "chat_enabled": bool(settings and settings.ai_chat_enabled),
+        "counts": counts,
+        "recent": recent,
+    })
+
+
 async def handle_admin_role(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -5355,6 +5389,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/global/ban", handle_global_ban)
     app.router.add_post("/api/global/unban", handle_global_unban)
     app.router.add_post("/api/mod/unmute", handle_mod_unmute)
+    app.router.add_get("/api/mod/status", handle_mod_status)
     app.router.add_get("/api/stickers", handle_sticker_sets)
     app.router.add_post("/api/stickers/sync", handle_sticker_sync)
     app.router.add_get("/api/stickers/img/{file_id}", handle_sticker_image)

@@ -912,6 +912,92 @@ type AdminUser = {
   banned: boolean
 }
 
+type AiAction = { user_id: number; action: string; details: string; created_at: string }
+
+function AiStatusCard() {
+  const { t } = useI18n()
+  const [st, setSt] = useState<null | {
+    enabled: boolean; shadow: boolean; provider: string; key_set: boolean;
+    chat_enabled: boolean; counts: Record<string, number>; recent: AiAction[]
+  }>(null)
+  const [busy, setBusy] = useState<number | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    api.get("/api/mod/status").then((d: any) => {
+      if (!cancelled && d && typeof d === "object") setSt(d)
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  async function undo(a: AiAction) {
+    if (busy !== null || !a.user_id) return
+    setBusy(a.user_id)
+    try {
+      if (a.action === "ai_ban") {
+        await api.post("/api/global/unban", { user_id: a.user_id })
+      } else {
+        await api.post("/api/mod/unmute", { user_id: a.user_id })
+      }
+      setMsg(t("mod.ai_undone", { id: a.user_id }))
+      setSt((prev) => (prev ? { ...prev, recent: prev.recent.filter((x) => x.user_id !== a.user_id || x.action !== a.action) } : prev))
+    } catch {
+      setMsg(t("mod.ai_undo_failed"))
+    }
+    setBusy(null)
+  }
+
+  if (!st) return null
+  const total = Object.values(st.counts).reduce((s, n) => s + n, 0)
+  return (
+    <div className="mb-3 rounded-2xl border border-[#ffd700]/40 bg-gradient-to-br from-[#ffd700]/10 to-transparent p-3">
+      <div className="flex items-center gap-2">
+        <span className="grid size-8 shrink-0 place-items-center rounded-xl bg-[#ffd700]/20 text-base">🛡️</span>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-[#ffd700]">{t("mod.ai_title")}</p>
+          <p className="truncate text-[11px] text-muted-foreground">
+            {!st.enabled
+              ? t("mod.ai_disabled")
+              : st.shadow
+                ? t("mod.ai_shadow")
+                : t("mod.ai_auto", { provider: st.provider })}
+            {!st.key_set && st.enabled ? ` · ${t("mod.ai_no_key")}` : ""}
+          </p>
+        </div>
+        <span className="shrink-0 rounded-lg bg-secondary px-2 py-1 text-[11px] font-bold tabular-nums">
+          {t("mod.ai_today", { n: total })}
+        </span>
+      </div>
+      {st.recent.length > 0 && (
+        <div className="mt-2 space-y-1.5">
+          {st.recent.slice(0, 5).map((a, i) => (
+            <div key={`${a.user_id}-${a.action}-${i}`} className="flex items-center gap-2 rounded-xl bg-background/60 px-2.5 py-1.5">
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[11px] font-bold">
+                  {a.action} · ID {a.user_id}
+                </p>
+                <p className="truncate text-[10px] text-muted-foreground">{a.details}</p>
+              </div>
+              {(a.action === "ai_mute" || a.action === "ai_ban") && (
+                <button
+                  type="button"
+                  disabled={busy !== null}
+                  onClick={() => undo(a)}
+                  className="shrink-0 rounded-lg border border-emerald-500/40 bg-emerald-500/10 px-2 py-1 text-[10px] font-bold text-emerald-400 active:scale-95 disabled:opacity-50"
+                >
+                  {busy === a.user_id ? "…" : t("mod.ai_undo")}
+                </button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {msg && <p className="mt-2 text-[11px] font-semibold text-accent">{msg}</p>}
+    </div>
+  )
+}
+
 function AdminPanel({ userId }: { userId: number }) {
   const { t } = useI18n()
   const [query, setQuery] = useState("")
@@ -1055,7 +1141,8 @@ function AdminPanel({ userId }: { userId: number }) {
 
   return (
     <div className="max-h-[45vh] overflow-y-auto border-b border-border bg-card/85 px-3 py-3 backdrop-blur-xl">
-      <div className="mb-2 flex items-center gap-2">
+      <AiStatusCard />
+      <div className="mb-2 mt-3 flex items-center gap-2">
         <Search className="size-4 shrink-0 text-muted-foreground" />
         <input
           value={query}
