@@ -365,7 +365,11 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
       )
       wsRef.current = ws
 
+      // Флаг живого соединения для onclose: ретраим только разрыв рабочей
+      // сессии, отказ handshake (HTTP 401/403) — нет.
+      let didOpen = false
       ws.onopen = () => {
+        didOpen = true
         if (!enabledRef.current) {
           try {
             ws.close()
@@ -469,10 +473,15 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
           setError("voice-disabled")
           return
         }
-        if (enabledRef.current && ev.code !== 4001 && ev.code !== 4003 && ev.code !== 4004) {
+        // Переподключаем только живой разрыв (сокет успевал открыться).
+        // Отказ handshake (HTTP 401/403, сокет не открылся) — не ретраим,
+        // иначе вечный шторм реконнектов у забаненного/постороннего.
+        if (didOpen && enabledRef.current && ev.code !== 4001 && ev.code !== 4003 && ev.code !== 4004) {
           setTimeout(() => {
             if (enabledRef.current) void connect()
           }, 2000)
+        } else if (!didOpen) {
+          setError("Connection error")
         }
       }
       ws.onerror = () => {
