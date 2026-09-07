@@ -2823,27 +2823,12 @@ class Database:
                 if coins < row["price_coins"]:
                     return False, f"not enough coins: have {coins}, need {row['price_coins']}"
                 now = datetime.utcnow().isoformat()
-                await conn.execute(
-                    """
-                    INSERT INTO user_currency (user_id, coins, stars, points, updated_at)
-                    VALUES ($1, -$2, 0, 0, $3)
-                    ON CONFLICT (user_id) DO UPDATE SET
-                        coins = user_currency.coins - $2,
-                        updated_at = $3
-                    """,
-                    buyer_id, row["price_coins"], now,
-                )
+                # Списываем у покупателя через транзакционный хелпер — он же
+                # делает SELECT FOR UPDATE и проверку баланса.
+                if not await self._adjust_currency_conn(conn, buyer_id, coins=-int(row["price_coins"])):
+                    return False, "not enough coins"
                 seller_gain = max(1, int(row["price_coins"] * 0.95))
-                await conn.execute(
-                    """
-                    INSERT INTO user_currency (user_id, coins, stars, points, updated_at)
-                    VALUES ($1, $2, 0, 0, $3)
-                    ON CONFLICT (user_id) DO UPDATE SET
-                        coins = user_currency.coins + $2,
-                        updated_at = $3
-                    """,
-                    row["seller_id"], seller_gain, now,
-                )
+                await self._adjust_currency_conn(conn, row["seller_id"], coins=seller_gain)
                 await conn.execute(
                     """
                     INSERT INTO user_inventory (user_id, item_key, item_name, item_rarity, sell_price, acquired_at)
