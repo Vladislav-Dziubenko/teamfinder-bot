@@ -94,7 +94,7 @@
   "topbar.stars": "Telegrammsterne",
   "topbar.language": "Sprache",
   "lang.title": "App-Sprache",
-  "lang.subtitle": "Wählen Sie aus 35 Sprachen",
+  "lang.subtitle": "Wählen Sie aus {count} Sprachen",
   "lang.search": "Sprache suchen…",
   "theme.title": "App-Design",
   "theme.subtitle": "Designstil",

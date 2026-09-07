@@ -94,7 +94,7 @@
   "topbar.stars": "Telgraf Yıldızları",
   "topbar.language": "Dil",
   "lang.title": "Uygulama dili",
-  "lang.subtitle": "35 dil arasından seçim yapın",
+  "lang.subtitle": "{count} dil arasından seçim yapın",
   "lang.search": "Dil ara…",
   "theme.title": "Tema",
   "theme.subtitle": "Arayüz stili",

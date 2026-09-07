@@ -94,7 +94,7 @@
   "topbar.stars": "Telegramové hviezdy",
   "topbar.language": "Jazyk",
   "lang.title": "Jazyk aplikácie",
-  "lang.subtitle": "Vyberte si z 35 jazykov",
+  "lang.subtitle": "Vyberte si z {count} jazykov",
   "lang.search": "Jazyk vyhľadávania…",
   "theme.title": "Téma aplikácie",
   "theme.subtitle": "Štýl rozhrania",

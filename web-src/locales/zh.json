@@ -94,7 +94,7 @@
   "topbar.stars": "电报之星",
   "topbar.language": "语言",
   "lang.title": "应用语言",
-  "lang.subtitle": "从 35 种语言中选择",
+  "lang.subtitle": "从 {count} 种语言中选择",
   "lang.search": "搜索语言…",
   "theme.title": "应用主题",
   "theme.subtitle": "界面风格",

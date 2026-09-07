@@ -94,7 +94,7 @@
   "topbar.stars": "ٹیلیگرام ستارے۔",
   "topbar.language": "زبان",
   "lang.title": "ایپ کی زبان",
-  "lang.subtitle": "35 زبانوں میں سے انتخاب کریں۔",
+  "lang.subtitle": "{count} زبانوں میں سے انتخاب کریں۔",
   "lang.search": "زبان تلاش کریں…",
   "theme.title": "ایپ تھیم",
   "theme.subtitle": "انٹرفیس اسٹائل",

@@ -94,7 +94,7 @@
   "topbar.stars": "כוכבי טלגרם",
   "topbar.language": "שפה",
   "lang.title": "שפת האפליקציה",
-  "lang.subtitle": "בחר מתוך 35 שפות",
+  "lang.subtitle": "בחר מתוך {count} שפות",
   "lang.search": "חפש שפה…",
   "theme.title": "ערכת נושא",
   "theme.subtitle": "סגנון ממשק",

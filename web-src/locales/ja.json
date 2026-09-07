@@ -94,7 +94,7 @@
   "topbar.stars": "テレグラムスター",
   "topbar.language": "言語",
   "lang.title": "アプリの言語",
-  "lang.subtitle": "35 言語から選択",
+  "lang.subtitle": "{count} 言語から選択",
   "lang.search": "言語を検索…",
   "theme.title": "アプリのテーマ",
   "theme.subtitle": "インターフェーススタイル",

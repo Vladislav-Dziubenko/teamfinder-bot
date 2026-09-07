@@ -94,7 +94,7 @@
   "topbar.stars": "Telegram Ulduzları",
   "topbar.language": "Dil",
   "lang.title": "Tətbiqin dili",
-  "lang.subtitle": "35 dildən seçin",
+  "lang.subtitle": "{count} dildən seçin",
   "lang.search": "Dil axtar…",
   "theme.title": "Tətbiq mövzusu",
   "theme.subtitle": "İnterfeys üslubu",

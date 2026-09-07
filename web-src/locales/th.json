@@ -94,7 +94,7 @@
   "topbar.stars": "โทรเลขดาว",
   "topbar.language": "ภาษา",
   "lang.title": "ภาษาแอป",
-  "lang.subtitle": "เลือกจาก 35 ภาษา",
+  "lang.subtitle": "เลือกจาก {count} ภาษา",
   "lang.search": "ค้นหาภาษา…",
   "theme.title": "ธีมแอป",
   "theme.subtitle": "สไตล์อินเทอร์เฟซ",

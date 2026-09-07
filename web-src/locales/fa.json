@@ -94,7 +94,7 @@
   "topbar.stars": "ستاره های تلگرام",
   "topbar.language": "زبان",
   "lang.title": "زبان برنامه",
-  "lang.subtitle": "از بین 35 زبان انتخاب کنید",
+  "lang.subtitle": "از بین {count} زبان انتخاب کنید",
   "lang.search": "جستجوی زبان…",
   "theme.title": "تم برنامه",
   "theme.subtitle": "سبک رابط",

@@ -94,7 +94,7 @@
   "topbar.stars": "Telegramsterren",
   "topbar.language": "Taal",
   "lang.title": "App-taal",
-  "lang.subtitle": "Kies uit 35 talen",
+  "lang.subtitle": "Kies uit {count} talen",
   "lang.search": "Zoek taal…",
   "theme.title": "App-thema",
   "theme.subtitle": "Interface-stijl",

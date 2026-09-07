@@ -94,7 +94,7 @@
   "topbar.stars": "텔레그램 스타",
   "topbar.language": "언어",
   "lang.title": "앱 언어",
-  "lang.subtitle": "35개 언어 중에서 선택하세요",
+  "lang.subtitle": "{count}개 언어 중에서 선택하세요",
   "lang.search": "언어 검색…",
   "theme.title": "앱 테마",
   "theme.subtitle": "인터페이스 스타일",

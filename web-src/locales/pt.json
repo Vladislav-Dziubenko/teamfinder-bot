@@ -94,7 +94,7 @@
   "topbar.stars": "Estrelas do telegrama",
   "topbar.language": "Idioma",
   "lang.title": "Idioma do app",
-  "lang.subtitle": "Escolha entre 35 idiomas",
+  "lang.subtitle": "Escolha entre {count} idiomas",
   "lang.search": "Pesquisar idioma…",
   "theme.title": "Tema do app",
   "theme.subtitle": "Estilo da interface",

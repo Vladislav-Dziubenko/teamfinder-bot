@@ -94,7 +94,7 @@
   "topbar.stars": "टेलीग्राम सितारे",
   "topbar.language": "भाषा",
   "lang.title": "ऐप भाषा",
-  "lang.subtitle": "35 भाषाओं में से चुनें",
+  "lang.subtitle": "{count} भाषाओं में से चुनें",
   "lang.search": "भाषा खोजें…",
   "theme.title": "ऐप थीम",
   "theme.subtitle": "इंटरफ़ेस शैली",

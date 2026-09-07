@@ -94,7 +94,7 @@
   "topbar.stars": "Étoiles du télégramme",
   "topbar.language": "Langue",
   "lang.title": "Langue de l'app",
-  "lang.subtitle": "Choisissez parmi 35 langues",
+  "lang.subtitle": "Choisissez parmi {count} langues",
   "lang.search": "Chercher une langue…",
   "theme.title": "Thème de l'app",
   "theme.subtitle": "Style de l'interface",

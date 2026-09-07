@@ -94,7 +94,7 @@
   "topbar.stars": "Telegram zvijezde",
   "topbar.language": "Jezik",
   "lang.title": "Jezik aplikacije",
-  "lang.subtitle": "Birajte između 35 jezika",
+  "lang.subtitle": "Birajte između {count} jezika",
   "lang.search": "Jezik pretraživanja…",
   "theme.title": "Tema aplikacije",
   "theme.subtitle": "Stil sučelja",

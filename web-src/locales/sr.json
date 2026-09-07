@@ -94,7 +94,7 @@
   "topbar.stars": "Телеграм Старс",
   "topbar.language": "Језик",
   "lang.title": "Језик апликације",
-  "lang.subtitle": "Бирајте између 35 језика",
+  "lang.subtitle": "Бирајте између {count} језика",
   "lang.search": "Претражи језик…",
   "theme.title": "Тема апликације",
   "theme.subtitle": "Стил интерфејса",

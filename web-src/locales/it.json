@@ -94,7 +94,7 @@
   "topbar.stars": "Stelle di Telegram",
   "topbar.language": "Lingua",
   "lang.title": "Lingua dell'app",
-  "lang.subtitle": "Scegli tra 35 lingue",
+  "lang.subtitle": "Scegli tra {count} lingue",
   "lang.search": "Cerca lingua…",
   "theme.title": "Tema dell'app",
   "theme.subtitle": "Stile dell'interfaccia",

@@ -94,7 +94,7 @@
   "topbar.stars": "Telegram csillagok",
   "topbar.language": "Nyelv",
   "lang.title": "Alkalmazás nyelve",
-  "lang.subtitle": "Válasszon 35 nyelv közül",
+  "lang.subtitle": "Válasszon {count} nyelv közül",
   "lang.search": "Nyelv keresése…",
   "theme.title": "Alkalmazás témája",
   "theme.subtitle": "Felületi stílus",

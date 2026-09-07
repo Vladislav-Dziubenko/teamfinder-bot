@@ -94,7 +94,7 @@
   "topbar.stars": "Gwiazdy telegramu",
   "topbar.language": "Język",
   "lang.title": "Język aplikacji",
-  "lang.subtitle": "Wybierz jeden z 35 języków",
+  "lang.subtitle": "Wybierz jeden z {count} języków",
   "lang.search": "Szukaj języka…",
   "theme.title": "Motyw aplikacji",
   "theme.subtitle": "Styl interfejsu",

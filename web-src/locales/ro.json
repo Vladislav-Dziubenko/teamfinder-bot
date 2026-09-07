@@ -94,7 +94,7 @@
   "topbar.stars": "Telegram Stars",
   "topbar.language": "Limbă",
   "lang.title": "Limba aplicației",
-  "lang.subtitle": "Alegeți dintre 35 de limbi",
+  "lang.subtitle": "Alegeți dintre {count} de limbi",
   "lang.search": "Căutați limba…",
   "theme.title": "Tema aplicației",
   "theme.subtitle": "Stilul interfeței",

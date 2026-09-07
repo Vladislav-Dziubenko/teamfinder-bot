@@ -94,7 +94,7 @@
   "topbar.stars": "Telegramin tähdet",
   "topbar.language": "Kieli",
   "lang.title": "Sovelluksen kieli",
-  "lang.subtitle": "Valitse 35 kielestä",
+  "lang.subtitle": "Valitse {count} kielestä",
   "lang.search": "Etsi kieltä…",
   "theme.title": "Sovelluksen teema",
   "theme.subtitle": "Käyttöliittymän tyyli",

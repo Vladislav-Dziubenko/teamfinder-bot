@@ -94,7 +94,7 @@
   "topbar.stars": "Telegram stjerner",
   "topbar.language": "Sprog",
   "lang.title": "App-sprog",
-  "lang.subtitle": "Vælg mellem 35 sprog",
+  "lang.subtitle": "Vælg mellem {count} sprog",
   "lang.search": "Søg sprog…",
   "theme.title": "App-tema",
   "theme.subtitle": "Grænsefladestil",

@@ -94,7 +94,7 @@
   "topbar.stars": "Телеграмски ѕвезди",
   "topbar.language": "Јазик",
   "lang.title": "Јазик на апликацијата",
-  "lang.subtitle": "Изберете од 35 јазици",
+  "lang.subtitle": "Изберете од {count} јазици",
   "lang.search": "Јазик за пребарување…",
   "theme.title": "Тема на апликацијата",
   "theme.subtitle": "Стил на интерфејсот",

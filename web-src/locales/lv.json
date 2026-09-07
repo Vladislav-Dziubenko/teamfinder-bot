@@ -94,7 +94,7 @@
   "topbar.stars": "Telegrammas zvaigznes",
   "topbar.language": "Valoda",
   "lang.title": "Lietotnes valoda",
-  "lang.subtitle": "Izvēlieties kādu no 35 valodām",
+  "lang.subtitle": "Izvēlieties kādu no {count} valodām",
   "lang.search": "Meklēt valodu…",
   "theme.title": "Aplikācijas tēma",
   "theme.subtitle": "Saskarnes stils",

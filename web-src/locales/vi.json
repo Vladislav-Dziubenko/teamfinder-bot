@@ -94,7 +94,7 @@
   "topbar.stars": "Ngôi sao điện tín",
   "topbar.language": "Ngôn ngữ",
   "lang.title": "Ngôn ngữ ứng dụng",
-  "lang.subtitle": "Chọn từ 35 ngôn ngữ",
+  "lang.subtitle": "Chọn từ {count} ngôn ngữ",
   "lang.search": "Tìm ngôn ngữ…",
   "theme.title": "Chủ đề ứng dụng",
   "theme.subtitle": "Phong cách giao diện",

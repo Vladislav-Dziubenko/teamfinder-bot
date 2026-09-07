@@ -94,7 +94,7 @@
   "topbar.stars": "Telegram Stars",
   "topbar.language": "Мова",
   "lang.title": "Мова застосунку",
-  "lang.subtitle": "Вибирайте з 35 мов",
+  "lang.subtitle": "Вибирайте з {count} мов",
   "lang.search": "Пошук мови…",
   "theme.title": "Тема",
   "theme.subtitle": "Стиль інтерфейсу",

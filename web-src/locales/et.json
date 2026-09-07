@@ -94,7 +94,7 @@
   "topbar.stars": "Telegrami tähed",
   "topbar.language": "Keel",
   "lang.title": "Rakenduse keel",
-  "lang.subtitle": "Valige 35 keele hulgast",
+  "lang.subtitle": "Valige {count} keele hulgast",
   "lang.search": "Otsi keel…",
   "theme.title": "Rakenduse teema",
   "theme.subtitle": "Liidese stiil",

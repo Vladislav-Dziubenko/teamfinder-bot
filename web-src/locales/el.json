@@ -94,7 +94,7 @@
   "topbar.stars": "Telegram Stars",
   "topbar.language": "Γλώσσα",
   "lang.title": "Γλώσσα εφαρμογής",
-  "lang.subtitle": "Επιλέξτε από 35 γλώσσες",
+  "lang.subtitle": "Επιλέξτε από {count} γλώσσες",
   "lang.search": "Αναζήτηση γλώσσας…",
   "theme.title": "Θέμα εφαρμογής",
   "theme.subtitle": "Στυλ διεπαφής",

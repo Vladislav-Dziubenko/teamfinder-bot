@@ -94,7 +94,7 @@
   "topbar.stars": "Bintang Telegram",
   "topbar.language": "Bahasa",
   "lang.title": "Bahasa aplikasi",
-  "lang.subtitle": "Pilih dari 35 bahasa",
+  "lang.subtitle": "Pilih dari {count} bahasa",
   "lang.search": "Cari bahasa…",
   "theme.title": "Tema aplikasi",
   "theme.subtitle": "Gaya antarmuka",

@@ -94,7 +94,7 @@
   "topbar.stars": "Mga Bituin sa Telegram",
   "topbar.language": "Wika",
   "lang.title": "Wika ng app",
-  "lang.subtitle": "Pumili mula sa 35 mga wika",
+  "lang.subtitle": "Pumili mula sa {count} mga wika",
   "lang.search": "Maghanap ng wika…",
   "theme.title": "Tema ng app",
   "theme.subtitle": "Estilo ng interface",

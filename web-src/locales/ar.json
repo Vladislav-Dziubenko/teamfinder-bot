@@ -94,7 +94,7 @@
   "topbar.stars": "نجوم التليجرام",
   "topbar.language": "اللغة",
   "lang.title": "لغة التطبيق",
-  "lang.subtitle": "اختر من بين 35 لغة",
+  "lang.subtitle": "اختر من بين {count} لغة",
   "lang.search": "ابحث عن لغة…",
   "theme.title": "سمة التطبيق",
   "theme.subtitle": "نمط الواجهة",

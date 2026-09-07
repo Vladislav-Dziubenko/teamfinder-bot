@@ -94,7 +94,7 @@
   "topbar.stars": "টেলিগ্রাম স্টারস",
   "topbar.language": "ভাষা",
   "lang.title": "অ্যাপের ভাষা",
-  "lang.subtitle": "35টি ভাষা থেকে বেছে নিন",
+  "lang.subtitle": "{count}টি ভাষা থেকে বেছে নিন",
   "lang.search": "ভাষা অনুসন্ধান…",
   "theme.title": "আপের থিম",
   "theme.subtitle": "ইন্টারফেস স্টাইল",

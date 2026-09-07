@@ -94,7 +94,7 @@
   "topbar.stars": "Telegramos žvaigždės",
   "topbar.language": "Kalba",
   "lang.title": "Programos kalba",
-  "lang.subtitle": "Pasirinkite iš 35 kalbų",
+  "lang.subtitle": "Pasirinkite iš {count} kalbų",
   "lang.search": "Ieškoti kalba…",
   "theme.title": "Programos tema",
   "theme.subtitle": "Sąsajos stilius",

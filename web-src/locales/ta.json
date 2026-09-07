@@ -94,7 +94,7 @@
   "topbar.stars": "டெலிகிராம் நட்சத்திரங்கள்",
   "topbar.language": "மொழி",
   "lang.title": "பயன்பாட்டு மொழி",
-  "lang.subtitle": "35 மொழிகளில் இருந்து தேர்வு செய்யவும்",
+  "lang.subtitle": "{count} மொழிகளில் இருந்து தேர்வு செய்யவும்",
   "lang.search": "மொழியைத் தேடு…",
   "theme.title": "ஆப் தீம்",
   "theme.subtitle": "இடைமுக பாணி",
