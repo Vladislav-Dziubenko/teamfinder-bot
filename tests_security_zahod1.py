@@ -77,6 +77,22 @@ check("tip amount", _expected_payment_amount("tip:50", _s) == 50)
 check("unknown payload -> None", _expected_payment_amount("hack:free", _s) is None)
 check("empty payload -> None", _expected_payment_amount("", _s) is None)
 
+# --- Заход 3: avatar allowlist ---
+from webapp.server import _valid_avatar, KNOWN_DECOS
+
+check("avatar relative ok", _valid_avatar("/ak47.webp"))
+check("avatar traversal rejected", not _valid_avatar("/../../etc/passwd"))
+check("avatar protocol-relative rejected", not _valid_avatar("//evil.com/x.png"))
+check("avatar javascript rejected", not _valid_avatar("javascript:alert(1)"))
+check("avatar data-text rejected", not _valid_avatar("data:text/html,<h1>x</h1>"))
+check("avatar data-png ok", _valid_avatar("data:image/png;base64,iVBORw0KGgo="))
+check("avatar t.me ok", _valid_avatar("https://t.me/i/userpic/320/abc.svg"))
+check("avatar evil host rejected", not _valid_avatar("https://evil.com/a.png"))
+check("avatar subdomain spoof rejected", not _valid_avatar("https://t.me.evil.com/a.png"))
+check("avatar empty rejected", not _valid_avatar(""))
+check("avatar non-string rejected", not _valid_avatar(None))
+check("deco set exact", KNOWN_DECOS == {"orange", "cyan", "crimson", "gold"})
+
 print()
 if failures:
     print(f"FAILURES: {len(failures)}")

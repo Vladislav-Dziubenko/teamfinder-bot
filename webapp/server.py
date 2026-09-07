@@ -46,7 +46,7 @@ from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
 from webapp.steam import (build_auth_url as build_steam_auth_url, extract_steamid64,
                           verify_openid, fetch_player_summary, fetch_cs2_stats, fetch_owned_games)
 from webapp.redis_client import (
-    init_redis, close_redis,
+    init_redis, close_redis, get_redis,
     rate_limit_check, rate_limit_checks,
     counter_incr,
     cache_get, cache_set, cache_delete, cache_delete_pattern,
@@ -56,15 +56,23 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 
 def _resolve_allowed_origins(settings: Settings) -> set[str]:
-    """Разрешённые CORS-origin — домен самого приложения + локальная разработка."""
+    """Разрешённые CORS-origin — только HTTPS-домены самого приложения.
+    http-зеркало и localhost — только для локальной разработки (DEV_CORS=1),
+    иначе любой http-сайт в той же сети может читать ответы с initData."""
+    import os
     origins = set()
     for url in (settings.webapp_url, getattr(settings, "public_app_url", None)):
         if url:
             parsed = url.rstrip("/")
-            origins.add(parsed)
             if parsed.startswith("https://"):
-                origins.add(parsed.replace("https://", "http://"))
-    origins.add("http://localhost:3000")
+                origins.add(parsed)
+    if os.getenv("DEV_CORS", "") == "1":
+        for url in (settings.webapp_url, getattr(settings, "public_app_url", None)):
+            if url:
+                parsed = url.rstrip("/")
+                if parsed.startswith("https://"):
+                    origins.add(parsed.replace("https://", "http://"))
+        origins.add("http://localhost:3000")
     return origins
 
 
@@ -199,10 +207,11 @@ STAR_PACKS: dict[str, dict] = {
 
 def _client_ip(request: web.Request) -> str:
     """Возвращает IP клиента с учётом Render/nginx proxy (X-Forwarded-For).
-    Берём только первый IP из заголовка — реальный клиент,
-    остальные могут быть промежуточными прокси."""
+    Берём ПОСЛЕДНИЙ IP из цепочки — его дописал наш прокси, а первый элемент
+    клиент подделывает freely (спуфинг первого = обход IP-лимитов и бонусов)."""
     forwarded = request.headers.get("X-Forwarded-For", "")
-    ip = forwarded.split(",")[0].strip() if forwarded else ""
+    parts = [p.strip() for p in forwarded.split(",") if p.strip()] if forwarded else []
+    ip = parts[-1] if parts else ""
     return ip or request.remote or "unknown"
 
 
@@ -554,10 +563,20 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
         welcome_bonus = False
     elif await db.welcome_claimed(user["id"]):
         welcome_bonus = False
-    elif await counter_incr(f"wbon:{_client_ip(request)}", WELCOME_BONUS_IP_WINDOW) > WELCOME_BONUS_IP_LIMIT:
-        welcome_bonus = False
     else:
-        welcome_bonus = await db.claim_welcome_bonus(user["id"])
+        # Антифарм альтов: лимит выдач с IP. Redis недоступен -> DB-фолбэк,
+        # а не выдача всем (counter_incr возвращает 0 при упавшем Redis).
+        ip_over = False
+        if get_redis() is not None:
+            ip_over = await counter_incr(f"wbon:{_client_ip(request)}", WELCOME_BONUS_IP_WINDOW) > WELCOME_BONUS_IP_LIMIT
+        else:
+            today = datetime.utcnow().strftime("%Y-%m-%d")
+            ip_over = await db.incr_ip_counter(_client_ip(request), today, WELCOME_BONUS_IP_LIMIT)
+        if ip_over:
+            logging.warning(f"WELCOME-BONUS ip cap user={user['id']}")
+            welcome_bonus = False
+        else:
+            welcome_bonus = await db.claim_welcome_bonus(user["id"])
 
     # Независимые запросы выполняются параллельно — пул max=10,
     # gather использует до 9 коннектов одновременно, остальные ждут.
@@ -807,6 +826,27 @@ async def handle_hide_profile(request: web.Request):
     return web.json_response({"ok": True})
 
 
+# Известные оформления (синхронизировано с _unlock_decoration_conn в database.py).
+KNOWN_DECOS = {"orange", "cyan", "crimson", "gold"}
+
+# Аватар уходит в <img src> — принимаем только безопасные формы, иначе
+# javascript:/data:text/html-инъекции и мусор в БД.
+_AVATAR_HOSTS = ("t.me", "cdn.discordapp.com", "avatars.steamstatic.com", "api.telegram.org")
+
+
+def _valid_avatar(v: object) -> bool:
+    if not isinstance(v, str) or not v or len(v) > 300_000:
+        return False
+    if v.startswith("data:image/"):
+        return v.startswith(("data:image/png;", "data:image/jpeg;", "data:image/webp;"))
+    if v.startswith("/") and not v.startswith("//") and ".." not in v:
+        return bool(re.fullmatch(r"/[\w\-./]{1,128}", v))
+    if v.startswith("https://"):
+        host = v[len("https://"):].split("/", 1)[0].lower()
+        return host in _AVATAR_HOSTS or host.endswith(tuple("." + h for h in _AVATAR_HOSTS))
+    return False
+
+
 async def handle_customize_profile(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -819,9 +859,17 @@ async def handle_customize_profile(request: web.Request):
             if k in ("nick", "bio"):
                 data[k] = sanitize(v, 64 if k == "nick" else 500)
             elif k == "games":
-                if isinstance(v, list):
-                    data[k] = v
-            else:
+                if not isinstance(v, list):
+                    return web.json_response({"error": "invalid games"}, status=400)
+                clean_games = [g for g in v if isinstance(g, str) and g in GAMES][:10]
+                data[k] = clean_games
+            elif k == "deco":
+                if v not in KNOWN_DECOS:
+                    return web.json_response({"error": "invalid deco"}, status=400)
+                data[k] = v
+            elif k == "avatar":
+                if not _valid_avatar(v):
+                    return web.json_response({"error": "invalid avatar"}, status=400)
                 data[k] = v
     await db.save_mini_app_profile(user["id"], data)
     return web.json_response({"profile": await db.get_mini_app_profile(user["id"])})
@@ -1596,14 +1644,18 @@ async def handle_nexus_open_case(request: web.Request):
                     async with conn.transaction():
                         # Идемпотентность: если этот request_id уже обработан (клиент мог
                         # повторить запрос после обрыва сети), возвращаем сохранённый результат
-                        # и ничего не списываем повторно.
+                        # и ничего не списываем повторно. Ключ привязан к паре
+                        # (case_id, count): переиспользование id дешёвого кейса на
+                        # дорогом отклоняется — иначе вернулся бы чужой дроп.
                         if request_id:
-                            existing = await conn.fetchval(
-                                "SELECT result FROM case_open_requests WHERE request_id = $1 AND user_id = $2",
+                            existing = await conn.fetchrow(
+                                "SELECT case_id, count, result FROM case_open_requests WHERE request_id = $1 AND user_id = $2",
                                 request_id, user["id"],
                             )
                             if existing is not None:
-                                return web.json_response(json.loads(existing))
+                                if existing["case_id"] != case_id or existing["count"] != count:
+                                    return web.json_response({"error": "request_id reuse across cases"}, status=400)
+                                return web.json_response(json.loads(existing["result"]))
 
                         if case_config["free"]:
                             last_open = await db.get_last_case_open(user["id"], case_id, conn)
@@ -2023,13 +2075,14 @@ def _render_share_image(item_name: str, rarity: str, icon: str, image: str | Non
         card_draw.rounded_rectangle([0, 0, card.width, card.height], radius=40, fill=(24, 24, 34, 255), outline=color, width=6)
         img.paste(card, (60, 260), card)
 
-        # Item image or emoji
+        # Item image or emoji. Строгий jail: только файлы внутри static/,
+        # только картинки, без .. — иначе path traversal наружу.
         item_img = None
-        if image:
+        if image and isinstance(image, str):
             try:
-                base = Path(__file__).parent / "static"
-                p = base / image.lstrip("/")
-                if p.exists():
+                base = (Path(__file__).parent / "static").resolve()
+                p = (base / image.lstrip("/")).resolve()
+                if p.is_relative_to(base) and p.suffix.lower() in {".png", ".webp", ".jpg", ".jpeg"} and p.exists():
                     item_img = Image.open(p).convert("RGBA")
                     ratio = min(480 / item_img.width, 480 / item_img.height)
                     item_img = item_img.resize((int(item_img.width * ratio), int(item_img.height * ratio)))
@@ -4030,6 +4083,10 @@ async def handle_sticker_sync(request: web.Request):
 
 async def handle_sticker_image(request: web.Request):
     file_id = request.match_info["file_id"]
+    # file_id — только формат Telegram file_id: иначе SSRF-подобные выходки
+    # и мусор в кэше; ошибки — generic, чтобы str(e) не утащил URL с BOT_TOKEN.
+    if not isinstance(file_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{10,128}", file_id):
+        return web.json_response({"error": "invalid file_id"}, status=400)
     token = (os.getenv("BOT_TOKEN") or "").strip()
     if not token:
         return web.json_response({"error": "no bot token"}, status=500)
@@ -4057,11 +4114,14 @@ async def handle_sticker_image(request: web.Request):
                 if resp.status != 200:
                     return web.json_response({"error": "download failed"}, status=502)
                 img_bytes = await resp.read()
+                if len(img_bytes) > 2 * 1024 * 1024:
+                    return web.json_response({"error": "file too large"}, status=502)
                 ct = resp.content_type or "image/webp"
                 await cache_set(cache_key, (img_bytes, ct), ttl=86400 * 30)
                 return web.Response(body=img_bytes, content_type=ct, headers={"Cache-Control": "public, max-age=2592000"})
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=500)
+    except Exception:
+        # Generic: str(e) от aiohttp содержит URL запроса с BOT_TOKEN.
+        return web.json_response({"error": "download failed"}, status=502)
 
 
 async def handle_global_delete(request: web.Request):
@@ -4364,15 +4424,24 @@ async def handle_translate(request: web.Request):
     target = (data.get("target") or "en").strip()
     if not text:
         return web.json_response({"error": "empty text"}, status=400)
+    # target — строго код языка: иначе инъекция параметров в URL Google
+    # (target="en&dt=t&q=evil") и сжигание квоты километ ровыми текстами.
+    if not re.fullmatch(r"[a-z]{2,8}(-[A-Z]{2})?", target):
+        return web.json_response({"error": "invalid target"}, status=400)
+    if len(text) > 1000:
+        return web.json_response({"error": "text too long"}, status=400)
+    user = _get_user(request)
+    if user and await rate_limit_check(f"tr:{user['id']}", 20, 60):
+        return web.json_response({"error": "slow down"}, status=429)
     try:
         url = ("https://translate.googleapis.com/translate_a/single"
-               "?client=gtx&sl=auto&tl=" + target + "&dt=t&q=" + quote(text))
+               "?client=gtx&sl=auto&tl=" + quote(target, safe="") + "&dt=t&q=" + quote(text))
         async with request.app["session"].get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=ClientTimeout(total=10)) as resp:
             result = await resp.json()
             translated = "".join(part[0] for part in result[0] if part[0])
             return web.json_response({"translated": translated})
-    except Exception as e:
-        return web.json_response({"error": str(e)}, status=502)
+    except Exception:
+        return web.json_response({"error": "translate failed"}, status=502)
 
 async def handle_user_search(request: web.Request):
     db: Database = request.app["db"]
@@ -4909,7 +4978,10 @@ async def handle_discord_callback(request: web.Request):
         bot = request.app.get("bot")
         bot_username = getattr(bot, "username", None) or "teamfinder_bot"
         link = f"https://t.me/{bot_username}"
-        title = "✅ Discord привязан!" if ok else f"❌ Ошибка: {reason}"
+        # reason частично приходит из ?error= (attacker-controlled) —
+        # whitelist + escape, иначе отражённый XSS.
+        safe_reason = re.sub(r"[^a-z_]", "", reason)[:32] or "error"
+        title = "✅ Discord привязан!" if ok else f"❌ Ошибка: {html.escape(safe_reason)}"
         msg = "Вернись в Telegram — Mini App обновится автоматически." if ok else "Попробуй снова из Telegram: Профиль → Привязать Discord."
         return web.Response(text=f"""<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title><style>body{{background:#0f1115;color:#fff;font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}}a{{display:inline-block;margin-top:16px;padding:12px 24px;background:#5865F2;color:#fff;border-radius:10px;text-decoration:none;font-weight:600}}p{{color:#9aa0a6;max-width:360px}}</style></head><body><h2>{title}</h2><p>{msg}</p><a href="{link}">Открыть Telegram</a><script>setTimeout(()=>{{try{{window.close()}}catch(e){{}}}},1200)</script></body></html>""", content_type="text/html")
 
@@ -4944,10 +5016,11 @@ async def handle_discord_callback(request: web.Request):
     # Exchange code for token
     token_data = await exchange_code(settings.discord_client_id, settings.discord_client_secret, settings.discord_redirect_uri, code)
     if not token_data or "access_token" not in token_data:
-        logging.error(f"[discord.callback] token_exchange status=failed body={str(token_data)[:300]}")
+        # НИКОГДА не логируем тело ответа: там access_token/refresh_token.
+        logging.error("[discord.callback] token_exchange status=failed")
         return _discord_html(False, "token")
 
-    logging.info(f"[discord.callback] token_exchange status=200 body={str(token_data)[:300]}")
+    logging.info("[discord.callback] token_exchange status=200")
 
     # Fetch Discord user
     discord_user = await fetch_discord_user(token_data["access_token"])
@@ -5188,7 +5261,9 @@ async def handle_steam_callback(request: web.Request):
         bot = request.app.get("bot")
         bot_username = getattr(bot, "username", None) or "teamfinder_bot"
         link = f"https://t.me/{bot_username}"
-        title = "✅ Steam привязан!" if ok else f"❌ Ошибка: {reason}"
+        # reason частично приходит из query (?error=) — whitelist + escape.
+        safe_reason = re.sub(r"[^a-z_]", "", reason)[:32] or "error"
+        title = "✅ Steam привязан!" if ok else f"❌ Ошибка: {html.escape(safe_reason)}"
         msg = "Вернись в Telegram — Mini App обновится автоматически." if ok else "Попробуй снова из Telegram: Профиль → Привязать Steam."
         return web.Response(text=f"""<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{title}</title><style>body{{background:#0f1115;color:#fff;font-family:system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:24px;text-align:center}}a{{display:inline-block;margin-top:16px;padding:12px 24px;background:#111;color:#fff;border:1px solid #333;border-radius:10px;text-decoration:none;font-weight:600}}p{{color:#9aa0a6;max-width:360px}}</style></head><body><h2>{title}</h2><p>{msg}</p><a href="{link}">Открыть Telegram</a><script>setTimeout(()=>{{try{{window.close()}}catch(e){{}}}},1200)</script></body></html>""", content_type="text/html")
 
@@ -5309,15 +5384,21 @@ async def handle_steam_unlink(request: web.Request):
 
 
 async def handle_client_error(request: web.Request):
+    # Публичный эндпоинт (работает и без авторизации) — режем объём и частоту,
+    # иначе это бесплатный спам в логи сервера.
+    if await rate_limit_check(f"cerr:{_client_ip(request)}", 30, 60):
+        return web.json_response({"error": "slow down"}, status=429)
     try:
         body = await request.json()
     except Exception:
         body = {}
-    message = body.get("message", "")
-    stack = body.get("stack", "")
-    component_stack = body.get("componentStack", "")
-    tab = body.get("tab", "unknown")
-    url = body.get("url", "")
+    def _clip(v: object, n: int = 500) -> str:
+        return str(v or "")[:n]
+    message = _clip(body.get("message", ""))
+    stack = _clip(body.get("stack", ""), 1500)
+    component_stack = _clip(body.get("componentStack", ""))
+    tab = _clip(body.get("tab", "unknown"), 40)
+    url = _clip(body.get("url", ""))
     stack_preview = "\n".join(stack.split("\n")[:3]) if stack else "(no stack)"
     logging.error(
         "[CLIENT_ERROR] tab=%s message=%s stack=%s",
@@ -5644,12 +5725,13 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # WebSocket для голосового сигналинга
     # -----------------------------------------------------------------------
     async def handle_voice_websocket(request: web.Request) -> web.WebSocketResponse:
-        ws = web.WebSocketResponse()
-        await ws.prepare(request)
-
         db: Database = request.app["db"]
+        # Вся авторизация — ДО upgrade: анонимные сокеты не держим, комнату 0
+        # и чужие сессии режем обычным HTTP 401/403/404.
         # Браузерный WebSocket не умеет в кастомные заголовки, поэтому
         # initData едет query-параметром ?init_data=... (проверяем HMAC как обычно).
+        if await rate_limit_check(f"ws:{_client_ip(request)}", 30, 60):
+            return web.json_response({"error": "slow down"}, status=429)
         user = _get_user(request)
         if not user:
             init_data_raw = request.query.get("init_data", "")
@@ -5659,14 +5741,14 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
                 if parsed and "user" in parsed:
                     user = parsed["user"]
         if not user:
-            await ws.close(code=4001, message=b"unauthorized")
-            return ws
+            return web.json_response({"error": "unauthorized"}, status=401)
 
-        session_id = request.match_info.get("session_id")
-        if not session_id or not session_id.isdigit():
-            await ws.close(code=4002, message=b"invalid session")
-            return ws
-        session_id = int(session_id)
+        session_id_raw = request.match_info.get("session_id")
+        if not session_id_raw or not session_id_raw.isdigit():
+            return web.json_response({"error": "invalid session"}, status=400)
+        session_id = int(session_id_raw)
+        if session_id <= 0:
+            return web.json_response({"error": "invalid session"}, status=400)
 
         # Доступ: только участник сессии
         in_session = await db.pool.fetchval(
@@ -5674,13 +5756,14 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             session_id, user["id"],
         )
         if not in_session:
-            await ws.close(code=4003, message=b"not in session")
-            return ws
+            return web.json_response({"error": "not in session"}, status=403)
 
         # Check voice enabled
         if not await db.is_voice_enabled(session_id):
-            await ws.close(code=4004, message=b"voice not enabled")
-            return ws
+            return web.json_response({"error": "voice not enabled"}, status=403)
+
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
 
         # Register connection
         session_ws_key = f"voice:{session_id}"
@@ -5709,9 +5792,15 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             "avatar": profile["avatar"] if profile else None,
         })
 
+        # Троттлинг сообщений: флуд SDP/ICE вешает комнату всем участникам.
+        # ~20 обычных сигнал-сообщений на звонок с запасом; дальше — кик сокета.
+        msg_count = 0
+        msg_window_start = time()
         try:
             async for msg in ws:
                 if msg.type != web.WSMsgType.TEXT:
+                    continue
+                if len(msg.data) > 8192:
                     continue
                 try:
                     data = msg.json()
@@ -5719,10 +5808,23 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
                     continue
                 if not isinstance(data, dict):
                     continue
+                now_ts = time()
+                if now_ts - msg_window_start > 10:
+                    msg_window_start = now_ts
+                    msg_count = 0
+                msg_count += 1
+                if msg_count > 60:
+                    try:
+                        await ws.close(code=4008, message=b"rate limited")
+                    except Exception:
+                        pass
+                    break
 
                 msg_type = data.get("type")
                 if msg_type in ("offer", "answer", "ice-candidate"):
                     target_id = data.get("target_id")
+                    if not isinstance(target_id, int):
+                        continue
                     if target_id and target_id in request.app.get(session_ws_key, {}):
                         target_ws = request.app[session_ws_key][target_id]
                         if not target_ws.closed:

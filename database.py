@@ -432,6 +432,13 @@ CREATE TABLE IF NOT EXISTS user_ad_watches (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
+CREATE TABLE IF NOT EXISTS ip_counters (
+    ip TEXT NOT NULL,
+    day TEXT NOT NULL,
+    count INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (ip, day)
+);
+
 CREATE TABLE IF NOT EXISTS user_activity_log (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -1650,6 +1657,18 @@ class Database:
             return bool(await conn.fetchval(
                 "SELECT welcome_claimed FROM users WHERE user_id = $1", user_id
             ))
+
+    async def incr_ip_counter(self, ip: str, day: str, limit: int) -> bool:
+        """DB-фолбэк IP-лимита когда Redis недоступен (counter_incr тогда
+        возвращает 0 = «никого не блокируем»). Возвращает True если лимит превышен."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "INSERT INTO ip_counters (ip, day, count) VALUES ($1, $2, 1) "
+                "ON CONFLICT (ip, day) DO UPDATE SET count = ip_counters.count + 1 "
+                "RETURNING count",
+                (ip or "unknown")[:64], day,
+            )
+            return (row["count"] if row else 0) > limit
 
     async def consume_free_contact_open(self, user_id: int, conn: asyncpg.Connection | None = None) -> bool:
         """Списывает одно бесплатное открытие анкеты, если есть. True — списано."""
@@ -3899,14 +3918,26 @@ WHERE user_quests.completed = 0
                 if redemption:
                     return None
                 promo_row = await conn.fetchrow(
-                    "SELECT reward_json, max_uses, uses FROM promo_codes WHERE code = $1 FOR UPDATE",
+                    "SELECT reward_json, max_uses, uses, created_by_user_id FROM promo_codes WHERE code = $1 FOR UPDATE",
                     code,
                 )
                 if not promo_row:
                     return None
                 if promo_row["uses"] >= promo_row["max_uses"]:
                     return None
+                # Создатель не выкупает свой код (иначе минт самому себе).
+                if promo_row["created_by_user_id"] == user_id:
+                    return None
                 reward = json.loads(promo_row["reward_json"])
+                # Защита от legacy-строк с мусором: только положительные целые.
+                clean = {}
+                for k in ("coins", "stars", "xp"):
+                    v = reward.get(k, 0)
+                    if isinstance(v, bool) or not isinstance(v, int) or v < 0:
+                        return None
+                    clean[k] = v
+                if sum(clean.values()) <= 0:
+                    return None
                 await conn.execute(
                     "UPDATE promo_codes SET uses = uses + 1 WHERE code = $1",
                     code,
@@ -3915,14 +3946,16 @@ WHERE user_quests.completed = 0
                     "INSERT INTO promo_redemptions (user_id, code, redeemed_at) VALUES ($1, $2, $3)",
                     user_id, code, now,
                 )
-                await self._adjust_currency_conn(
+                # Начисление обязано успеть, иначе откатываем uses/redemption тоже.
+                if not await self._adjust_currency_conn(
                     conn,
                     user_id,
-                    coins=reward.get("coins", 0),
-                    stars=reward.get("stars", 0),
-                    points=reward.get("xp", 0),
-                )
-                return reward
+                    coins=clean["coins"],
+                    stars=clean["stars"],
+                    points=clean["xp"],
+                ):
+                    raise RuntimeError("promo currency adjust failed")
+                return clean
 
     # ---------- Referrals ----------
 
@@ -3966,15 +3999,19 @@ WHERE user_quests.completed = 0
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 already = await conn.fetchrow(
-                    "SELECT 1 FROM referrals WHERE user_id = $1 AND referred_by IS NOT NULL",
+                    "SELECT 1 FROM referrals WHERE user_id = $1 AND referred_by IS NOT NULL FOR UPDATE",
                     referred_user_id,
                 )
                 if already:
                     return False
-                await conn.execute(
-                    "UPDATE referrals SET referred_by = $1, referred_at = $2, updated_at = $2 WHERE user_id = $3",
+                # Гонка двух клеймов: второй ждёт блокировку строки, после коммита
+                # первого предикат referred_by IS NULL уже ложен → UPDATE 0.
+                result = await conn.execute(
+                    "UPDATE referrals SET referred_by = $1, referred_at = $2, updated_at = $2 WHERE user_id = $3 AND referred_by IS NULL",
                     referrer_user_id, now, referred_user_id,
                 )
+                if result != "UPDATE 1":
+                    return False
                 await conn.execute(
                     "UPDATE referrals SET invited_count = invited_count + 1, updated_at = $1 WHERE user_id = $2",
                     now, referrer_user_id,
