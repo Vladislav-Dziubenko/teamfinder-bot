@@ -3647,9 +3647,14 @@ async def _ai_nick(db: Database, user_id: int) -> str:
         return f"User{user_id}"
 
 
-async def _ai_announce(db: Database, offender_id: int, text: str) -> None:
+# Зарезервированный автор системных сообщений Стража. Реального юзера
+# с id 0 не существует — в ленте он рисуется как персона «Страж» (роль ai).
+AI_PERSONA_ID = 0
+
+
+async def _ai_announce(db: Database, text: str) -> None:
     try:
-        await db.send_global_message(offender_id, text, kind="system")
+        await db.send_global_message(AI_PERSONA_ID, text, kind="system")
         await cache_delete_pattern("global_chat_msgs")
     except Exception as exc:
         logging.warning("[ai-mod] announce failed: %s", exc)
@@ -3701,7 +3706,7 @@ async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text
             await db.ban_global(user_id, 0, f"[AI] {reason_ru}", expires)
             await cache_delete(f"gban:{user_id}")
             await db.audit_log(user_id, "ai_ban", f"score={score:.2f} cat={category} msg={msg_id} {reason} by=ai")
-            await _ai_announce(db, user_id, f"⛔ {nick} забанен на 7 дней. Причина: {reason_ru}. Апелляция — в личке бота.")
+            await _ai_announce(db, f"⛔ {nick} забанен на 7 дней. Причина: {reason_ru}. Апелляция — в личке бота.")
             logging.info("[ai-mod] ban user=%s cat=%s score=%.2f", user_id, category, score)
             return
 
@@ -3719,7 +3724,7 @@ async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text
                 except Exception as exc:
                     logging.warning("[ai-mod] delete failed: %s", exc)
             await db.audit_log(user_id, "ai_delete", f"score={score:.2f} cat={category} msg={msg_id} {reason}")
-            await _ai_announce(db, user_id, f"🧹 Сообщение {nick} удалено: {reason_ru}. Это предупреждение — дальше мут.")
+            await _ai_announce(db, f"🧹 Сообщение {nick} удалено: {reason_ru}. Это предупреждение — дальше мут.")
             return
 
         step = min(strikes - 1, len(AI_MUTE_STEPS) - 1)
@@ -3727,7 +3732,7 @@ async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text
         until = await db.mute_user(user_id, seconds, reason_ru)
         await db.audit_log(user_id, "ai_mute", f"score={score:.2f} cat={category} msg={msg_id} {seconds}s strikes={strikes} {reason}")
         await _ai_announce(
-            db, user_id,
+            db,
             f"🔇 {nick} замучен на {AI_MUTE_STEP_NAMES[step]}. Причина: {reason_ru}. "
             f"Нарушение {strikes + 1} за сутки. Апелляция — /start → Написать модерации.",
         )
@@ -3972,6 +3977,8 @@ async def handle_global_ban(request: web.Request):
         target_id = int(body.get("user_id"))
     except (ValueError, TypeError):
         return web.json_response({"error": "invalid user_id"}, status=400)
+    if target_id <= 0:
+        return web.json_response({"error": "invalid user_id"}, status=400)
     if _is_developer(request, target_id):
         logging.info("[BAN] admin=%s target=%s denied (target is developer)", user["id"], target_id)
         return web.json_response({"error": "cannot ban developer"}, status=403)
@@ -4010,6 +4017,8 @@ async def handle_global_unban(request: web.Request):
         target_id = int(body.get("user_id"))
     except (ValueError, TypeError):
         return web.json_response({"error": "invalid user_id"}, status=400)
+    if target_id <= 0:
+        return web.json_response({"error": "invalid user_id"}, status=400)
     await db.unban_global(target_id)
     await cache_delete(f"gban:{target_id}")
     try:
@@ -4030,6 +4039,8 @@ async def handle_mod_unmute(request: web.Request):
     try:
         target_id = int(body.get("user_id"))
     except (ValueError, TypeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    if target_id <= 0:
         return web.json_response({"error": "invalid user_id"}, status=400)
     await db.unmute_user(target_id)
     try:

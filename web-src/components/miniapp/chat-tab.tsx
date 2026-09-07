@@ -1476,12 +1476,18 @@ const GlobalMsg = memo(function GlobalMsg({
   }
 
   if (msg.kind === "system") {
+    const isGuard = msg.role === "ai"
     return (
       <div className="flex justify-center px-6">
         <div className="w-full max-w-[92%] rounded-2xl border border-[#ffd700]/40 bg-gradient-to-r from-[#ffd700]/15 via-[#ff9d00]/10 to-[#ffd700]/15 px-4 py-3 text-center">
           <p className="flex items-center justify-center gap-1.5 text-sm font-bold text-[#ffd700]">
-            <span className="text-lg leading-none">💎</span>
-            <span className="truncate">{msg.nick}</span>
+            <span className="text-lg leading-none">{isGuard ? "🛡️" : "💎"}</span>
+            <span className="truncate">{isGuard ? t("chat.ai_guard_name") : msg.nick}</span>
+            {isGuard && (
+              <span className="rounded-md bg-[#ffd700]/20 px-1.5 py-0.5 text-[9px] font-black tracking-widest text-[#ffd700]">
+                AI
+              </span>
+            )}
           </p>
           <p className="mt-1 text-[13px] leading-relaxed text-card-foreground">{msg.text}</p>
           <p className="mt-1 text-[10px] text-muted-foreground">{relativeTime(msg.ts, lang)}</p>

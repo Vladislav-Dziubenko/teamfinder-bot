@@ -4534,8 +4534,10 @@ WHERE user_quests.completed = 0
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
                 """SELECT gm.id, gm.user_id, gm.text, gm.created_at, gm.kind,
-                          COALESCE(mp.nick, '') AS nick, mp.avatar,
-                          COALESCE(ur.role, '') AS role, mp.deco,
+                          CASE WHEN gm.user_id = 0 THEN '' ELSE COALESCE(mp.nick, '') END AS nick,
+                          CASE WHEN gm.user_id = 0 THEN NULL ELSE mp.avatar END AS avatar,
+                          CASE WHEN gm.user_id = 0 THEN 'ai' ELSE COALESCE(ur.role, '') END AS role,
+                          mp.deco,
                           COALESCE(gm.is_global_voice, FALSE) AS is_voice,
                           COALESCE(gm.global_voice_duration, 0) AS voice_duration,
                           COALESCE(gm.global_voice_mime, 'audio/webm') AS voice_mime

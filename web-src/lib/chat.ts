@@ -467,14 +467,16 @@ export function preloadGlobalChat(): void {
 }
 
 function mapGlobalMsg(m: any): GlobalMessage {
+  const role = m.role ?? ""
   return {
     id: String(m.id ?? ""),
     userId: m.user_id === "me" ? "me" : String(m.user_id ?? ""),
     text: m.text ?? "",
     ts: m.created_at ? parseIsoTs(m.created_at) : Date.now(),
-    nick: m.nick || (m.user_id === "me" ? "You" : "Player"),
+    // Персона Стража (role ai): пустой ник не затираем — имя подставит лента по локали.
+    nick: m.nick || (role === "ai" ? "" : m.user_id === "me" ? "You" : "Player"),
     avatar: m.avatar ?? null,
-    role: m.role ?? "",
+    role,
     deco: m.deco ?? "",
     kind: m.kind === "system" ? "system" : "user",
     isVoice: Boolean(m.is_voice),
