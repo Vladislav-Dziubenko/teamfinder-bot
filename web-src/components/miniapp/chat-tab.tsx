@@ -758,7 +758,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
           <p className="truncate font-display text-sm font-bold">{t("chat.global_title")}</p>
           <p className="text-[11px] text-muted-foreground">{t("chat.global_subtitle")}</p>
         </div>
-        {isDev && (
+        {canModerate && (
           <button
             type="button"
             onClick={() => setAdminOpen((v) => !v)}
@@ -795,7 +795,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
         </div>
       )}
 
-      {adminOpen && isDev && <AdminPanel userId={me.userId} />}
+      {adminOpen && canModerate && <AdminPanel userId={me.userId} canBan={canBan} isDev={isDev} />}
 
       {gErr && (
         <div className="border-b border-destructive/40 bg-destructive/15 px-4 py-2 text-center text-xs font-semibold text-destructive">
@@ -941,7 +941,7 @@ function aiCategoryLabel(t: (k: string, v?: any) => string, cat: string): string
   return v === key ? cat : v
 }
 
-function AiStatusCard() {
+function AiStatusCard({ canBan }: { canBan: boolean }) {
   const { t } = useI18n()
   const [st, setSt] = useState<null | {
     enabled: boolean; shadow: boolean; provider: string; key_set: boolean;
@@ -960,6 +960,8 @@ function AiStatusCard() {
 
   async function undo(a: AiAction) {
     if (busy !== null || !a.user_id) return
+    // Разбан — только админ+, размут — любому из стаффа (панель видна с rank>=1).
+    if (a.action === "ai_ban" && !canBan) return
     setBusy(a.user_id)
     try {
       if (a.action === "ai_ban") {
@@ -1011,7 +1013,7 @@ function AiStatusCard() {
                   {catLabel ? `${catLabel} · ` : ""}{reason}
                 </p>
               </div>
-              {(a.action === "ai_mute" || a.action === "ai_ban") && (
+              {(a.action === "ai_mute" || (a.action === "ai_ban" && canBan)) && (
                 <button
                   type="button"
                   disabled={busy !== null}
@@ -1031,7 +1033,7 @@ function AiStatusCard() {
   )
 }
 
-function AdminPanel({ userId }: { userId: number }) {
+function AdminPanel({ userId, canBan, isDev }: { userId: number; canBan: boolean; isDev: boolean }) {
   const { t } = useI18n()
   const [query, setQuery] = useState("")
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -1174,7 +1176,7 @@ function AdminPanel({ userId }: { userId: number }) {
 
   return (
     <div className="max-h-[45vh] overflow-y-auto border-b border-border bg-card/85 px-3 py-3 backdrop-blur-xl">
-      <AiStatusCard />
+      <AiStatusCard canBan={canBan} />
       <div className="mb-2 mt-3 flex items-center gap-2">
         <Search className="size-4 shrink-0 text-muted-foreground" />
         <input
@@ -1218,20 +1220,25 @@ function AdminPanel({ userId }: { userId: number }) {
                   )}
                   {u.banned && <span className="text-destructive"> · {t("role.banned")}</span>}
                 </p>
-                <button
-                  type="button"
-                  disabled={tgBusy !== null}
-                  onClick={() => requestTgProfile(u)}
-                  className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary transition-colors active:scale-95 disabled:opacity-50"
-                >
-                  {tgBusy === u.id ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
-                  {t("role.tg_profile")}
-                </button>
+                {isDev && (
+                  <button
+                    type="button"
+                    disabled={tgBusy !== null}
+                    onClick={() => requestTgProfile(u)}
+                    className="mt-1.5 inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/10 px-2 py-1 text-[10px] font-bold text-primary transition-colors active:scale-95 disabled:opacity-50"
+                  >
+                    {tgBusy === u.id ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
+                    {t("role.tg_profile")}
+                  </button>
+                )}
                 {tgMsg && <p className="mt-1 text-[10px] font-medium text-accent">{tgMsg}</p>}
               </div>
               {busyId === u.id && <Loader2 className="size-4 shrink-0 animate-spin text-muted-foreground" />}
             </div>
+            {(isDev || canBan) && (
             <div className="mt-2 grid grid-cols-4 gap-1.5">
+              {isDev && (
+              <>
               <button
                 type="button"
                 onClick={() => setConfirm({ u, action: "role", role: u.role === "moderator" ? "" : "moderator" })}
@@ -1268,6 +1275,9 @@ function AdminPanel({ userId }: { userId: number }) {
               >
                 {u.isBeta ? t("role.remove") : "β " + t("role.beta_tester")}
               </button>
+              </>
+              )}
+              {canBan && (
               <button
                 type="button"
                 onClick={() => (u.banned ? setConfirm({ u, action: "ban" }) : setBanModal({ u }))}
@@ -1280,7 +1290,9 @@ function AdminPanel({ userId }: { userId: number }) {
               >
                 {u.banned ? t("role.unban") : t("role.ban")}
               </button>
+              )}
             </div>
+            )}
           </div>
         ))}
         {!loading && users.length === 0 && (

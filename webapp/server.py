@@ -4115,7 +4115,8 @@ async def handle_mod_status(request: web.Request):
     """Статус Стража для админ-панели: флаги + счётчики + свежие действия."""
     db: Database = request.app["db"]
     user = _get_user(request)
-    if not _is_developer(request, user["id"]):
+    role = await _effective_role(request, db, user["id"])
+    if db.ROLE_RANK.get(role, 0) < 1:
         return web.json_response({"error": "forbidden"}, status=403)
     settings = request.app.get("settings")
     actions = await db.get_today_ai_actions()
@@ -4179,7 +4180,10 @@ async def handle_admin_role(request: web.Request):
 async def handle_admin_users(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    if not _is_developer(request, user["id"]):
+    # Поиск юзеров — чтение, доступен всему стаффу (модератор+).
+    # Выдача ролей (handle_admin_role) остаётся только разработчику.
+    role = await _effective_role(request, db, user["id"])
+    if db.ROLE_RANK.get(role, 0) < 1:
         return web.json_response({"error": "forbidden"}, status=403)
     query = request.query.get("q", "").strip().lower()
     users = await db.search_users_with_roles(query or "%", 30)
