@@ -42,6 +42,10 @@ class Settings:
     ai_mod_score_low: float
     ai_mod_score_high: float
     ai_mod_night_cap: int
+    # --- Страж-собеседник в общем чате ---
+    ai_chat_enabled: bool
+    ai_chat_cooldown_s: int
+    ai_chat_max_per_hour: int
 
 
 def _parse_admin_ids(raw: str) -> set[int]:
@@ -142,4 +146,7 @@ def load_settings() -> Settings:
         ai_mod_score_low=float(os.getenv("AI_MOD_SCORE_LOW", "0.3") or 0.3),
         ai_mod_score_high=float(os.getenv("AI_MOD_SCORE_HIGH", "0.8") or 0.8),
         ai_mod_night_cap=int(os.getenv("AI_MOD_NIGHT_CAP", "30") or 30),
+        ai_chat_enabled=os.getenv("AI_CHAT_ENABLED", "0").strip() == "1",
+        ai_chat_cooldown_s=int(os.getenv("AI_CHAT_COOLDOWN_S", "90") or 90),
+        ai_chat_max_per_hour=int(os.getenv("AI_CHAT_MAX_PER_HOUR", "15") or 15),
     )

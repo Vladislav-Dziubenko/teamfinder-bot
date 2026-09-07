@@ -305,12 +305,14 @@ async def admin_ai_status(message: Message, db: Database, settings: Settings):
         queued = "?"
 
     mode = "👻 SHADOW (только лог)" if shadow else "🛡️ АВТОПИЛОТ"
+    chat_on = bool(getattr(settings, "ai_chat_enabled", False))
     await message.answer(
         "🤖 <b>Страж: статус</b>\n\n"
         f"Включён: <b>{'да' if enabled else 'нет'}</b>\n"
         f"Режим: <b>{mode}</b>\n"
         f"Провайдер: <code>{provider}</code>\n"
         f"Ключ: <code>{masked}</code>\n"
+        f"Собеседник в чате: <b>{'да' if chat_on else 'нет'}</b>\n"
         f"Авто-действий сегодня: <b>{today}</b>\n"
         f"В очереди к утру: <b>{queued}</b>\n\n"
         f"Пороги: {getattr(settings, 'ai_mod_score_low', 0.3)}/{getattr(settings, 'ai_mod_score_high', 0.8)}, "

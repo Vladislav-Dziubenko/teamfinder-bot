@@ -38,7 +38,7 @@ from data.games import (
 )
 from data.guides import GUIDES
 from database import Database
-from services.ai_moderation import score_message
+from services.ai_moderation import is_guard_mention, score_message
 from services.matching import find_matches, score_match
 from webapp.auth import validate_init_data
 from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
@@ -3660,6 +3660,44 @@ async def _ai_announce(db: Database, text: str) -> None:
         logging.warning("[ai-mod] announce failed: %s", exc)
 
 
+# Глобальный кулдаун ответов собеседника (защита free-лимитов).
+_AI_CHAT_LAST = 0.0
+
+
+async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: str) -> None:
+    """Страж-собеседник: отвечает на упоминания («страж») в общем чате."""
+    try:
+        if not settings.ai_chat_enabled or not is_guard_mention(text):
+            return
+        global _AI_CHAT_LAST
+        now = time.time()
+        if now - _AI_CHAT_LAST < max(10, settings.ai_chat_cooldown_s):
+            return
+        if await db.count_audit_action("ai_chat", 1) >= max(1, settings.ai_chat_max_per_hour):
+            return
+        try:
+            recent = await db.get_global_messages(12)
+        except Exception:
+            recent = []
+        history = [
+            {"nick": "Страж" if m.get("user_id") == 0 else (m.get("nick") or "?"),
+             "text": m.get("text", "")}
+            for m in recent if (m.get("text") or "").strip()
+        ]
+        history.append({"nick": "user", "text": text.strip()[:300]})
+        from services.ai_moderation import chat_reply
+        reply = await chat_reply(history, settings)
+        if not reply:
+            return
+        _AI_CHAT_LAST = now
+        await db.send_global_message(AI_PERSONA_ID, reply, kind="user")
+        await cache_delete_pattern("global_chat_msgs")
+        await db.audit_log(user_id, "ai_chat", f"reply_to={user_id} len={len(reply)}")
+        logging.info("[ai-mod] chat reply sent")
+    except Exception as exc:
+        logging.warning("[ai-mod] chat reply failed: %s", exc)
+
+
 async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text: str, msg_id: int | None) -> None:
     """Одна проверка одного сообщения. Никогда не кидает исключений наружу."""
     try:
@@ -3670,6 +3708,8 @@ async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text
         category = verdict.get("category", "ok") or "ok"
         reason = verdict.get("reason", "") or ""
         if score < settings.ai_mod_score_low:
+            # Чисто — может, зовут собеседника.
+            await _ai_chat_reply(db, settings, user_id, text)
             return
 
         # Shadow mode: только вердикт в аудит, ноль действий.

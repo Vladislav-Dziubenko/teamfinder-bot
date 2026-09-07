@@ -4788,6 +4788,18 @@ WHERE user_quests.completed = 0
             except Exception:
                 return 0
 
+    async def count_audit_action(self, action: str, hours: int = 1) -> int:
+        """Сколько записей action в audit_log за последние hours часов (капы)."""
+        cutoff = (datetime.utcnow() - timedelta(hours=max(1, hours))).isoformat()
+        async with self.pool.acquire() as conn:
+            try:
+                return await conn.fetchval(
+                    "SELECT COUNT(*) FROM audit_log WHERE action = $1 AND created_at >= $2",
+                    action, cutoff,
+                ) or 0
+            except Exception:
+                return 0
+
     async def is_globally_banned(self, user_id: int) -> bool:
         async with self.pool.acquire() as conn:
             row = await conn.fetchval(

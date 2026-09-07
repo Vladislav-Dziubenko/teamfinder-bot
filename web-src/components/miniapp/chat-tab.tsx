@@ -1508,8 +1508,16 @@ const GlobalMsg = memo(function GlobalMsg({
       >
         {!mine && (
           <div className="mb-1 flex items-center gap-1.5">
-            <img src={msg.avatar || "/placeholder.svg"} alt={msg.nick} className="size-4 rounded-full object-cover" />
-            <span className="text-[11px] font-bold text-accent">{msg.nick}</span>
+            {msg.role === "ai" ? (
+              <span className="grid size-4 place-items-center rounded-full bg-[#ffd700]/20 text-[10px] leading-none">
+                🛡️
+              </span>
+            ) : (
+              <img src={msg.avatar || "/placeholder.svg"} alt={msg.nick} className="size-4 rounded-full object-cover" />
+            )}
+            <span className="text-[11px] font-bold text-accent">
+              {msg.role === "ai" ? t("chat.ai_guard_name") : msg.nick}
+            </span>
             <RoleBadge role={msg.role} />
           </div>
         )}

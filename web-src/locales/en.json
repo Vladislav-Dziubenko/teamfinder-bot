@@ -383,6 +383,7 @@
   "role.developer": "Developer",
   "role.admin": "Administrator",
   "role.moderator": "Moderator",
+  "role.ai": "AI Guardian",
   "role.title": "Administration",
   "role.admin_panel": "Admin panel",
   "role.search_placeholder": "Search by nick or ID…",
