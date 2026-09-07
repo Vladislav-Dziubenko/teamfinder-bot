@@ -279,3 +279,77 @@ async def admin_ai_undo(message: Message, db: Database, settings: Settings):
         f"👤 Пользователь: <code>{target_id}</code>\n"
         "🔓 Мут и бан сняты."
     )
+
+
+@router.message(Command("aistatus"))
+async def admin_ai_status(message: Message, db: Database, settings: Settings):
+    """Статус AI-модератора: включён ли, режим, провайдер, ключ, счётчик за сегодня."""
+    if message.from_user.id not in settings.admin_ids:
+        return
+
+    enabled = bool(getattr(settings, "ai_mod_enabled", False))
+    shadow = bool(getattr(settings, "ai_mod_shadow", True))
+    provider = getattr(settings, "ai_provider", "gemini") or "gemini"
+    key = (getattr(settings, "gemini_api_key", "") or "") if provider == "gemini" else (getattr(settings, "groq_api_key", "") or "")
+    masked = (key[:4] + "…" + key[-4:]) if len(key) > 8 else ("задан" if key else "НЕ ЗАДАН")
+    try:
+        today = await db.count_today_ai_actions()
+    except Exception:
+        today = "?"
+    try:
+        queued = await db.pool.fetchval(
+            "SELECT COUNT(*) FROM audit_log WHERE action = 'ai_queue' AND created_at >= $1",
+            datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0).isoformat(),
+        )
+    except Exception:
+        queued = "?"
+
+    mode = "👻 SHADOW (только лог)" if shadow else "🛡️ АВТОПИЛОТ"
+    await message.answer(
+        "🤖 <b>Страж: статус</b>\n\n"
+        f"Включён: <b>{'да' if enabled else 'нет'}</b>\n"
+        f"Режим: <b>{mode}</b>\n"
+        f"Провайдер: <code>{provider}</code>\n"
+        f"Ключ: <code>{masked}</code>\n"
+        f"Авто-действий сегодня: <b>{today}</b>\n"
+        f"В очереди к утру: <b>{queued}</b>\n\n"
+        f"Пороги: {getattr(settings, 'ai_mod_score_low', 0.3)}/{getattr(settings, 'ai_mod_score_high', 0.8)}, "
+        f"кап: {getattr(settings, 'ai_mod_night_cap', 30)}/ночь\n"
+        "Тест скоринга: <code>/aiscore текст сообщения</code>"
+    )
+
+
+@router.message(Command("aiscore"))
+async def admin_ai_score(message: Message, db: Database, settings: Settings):
+    """Прогнать произвольный текст через скоринг Стража (видно как он решит)."""
+    if message.from_user.id not in settings.admin_ids:
+        return
+
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer(
+            "❌ <b>Неверный формат</b>\n\nИспользование:\n<code>/aiscore какой-то текст для проверки</code>"
+        )
+        return
+
+    from services.ai_moderation import score_message
+    try:
+        verdict = await score_message(parts[1].strip()[:500], message.from_user.id, settings)
+    except Exception as exc:
+        await message.answer(f"❌ <b>Скоринг упал:</b> <code>{exc}</code>")
+        return
+
+    score = verdict.get("score", 0.0)
+    category = verdict.get("category", "ok")
+    reason = verdict.get("reason", "") or "—"
+    source = verdict.get("source", "?")
+    low = getattr(settings, "ai_mod_score_low", 0.3)
+    high = getattr(settings, "ai_mod_score_high", 0.8)
+    action = "ничего" if score < low else ("очередь человеку" if score < high else "авто-наказание по лестнице")
+    await message.answer(
+        "🤖 <b>Вердикт Стража</b>\n\n"
+        f"Скор: <b>{score:.2f}</b> (источник: <code>{source}</code>)\n"
+        f"Категория: <code>{category}</code>\n"
+        f"Причина: {reason}\n"
+        f"Решение: <b>{action}</b>"
+    )
