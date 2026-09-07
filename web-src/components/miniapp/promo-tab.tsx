@@ -5,11 +5,15 @@ import { Ticket, Gift, Plus, Check, Star, Sparkles, Copy, Users2 } from "lucide-
 import { useNexus } from "@/lib/store"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
+import { roleRank } from "./role-badge"
 
 export function PromoTab({ onToast }: { onToast: (m: string) => void }) {
   const { t } = useI18n()
-  const { promoCodes, redeemedCodes, redeemPromo, createPromo } = useNexus()
+  const { promoCodes, redeemedCodes, redeemPromo, createPromo, role } = useNexus()
   const [tab, setTab] = useState<"redeem" | "create">("redeem")
+  // Создание кодов = минт валюты: сервер пускает только админ+ (rank>=2).
+  // Остальным вкладку не показываем, чтобы не упирались в 403.
+  const canCreatePromo = roleRank(role) >= 2
 
   // redeem
   const [code, setCode] = useState("")
@@ -66,23 +70,25 @@ export function PromoTab({ onToast }: { onToast: (m: string) => void }) {
       </div>
 
       {/* Segmented control */}
-      <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card p-1">
-        {(["redeem", "create"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className={cn(
-              "rounded-xl py-2.5 text-sm font-semibold transition-all",
-              tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground",
-            )}
-          >
-            {t === "redeem" ? "Активировать" : "Создать"}
-          </button>
-        ))}
-      </div>
+      {canCreatePromo && (
+        <div className="grid grid-cols-2 gap-1 rounded-2xl border border-border bg-card p-1">
+          {(["redeem", "create"] as const).map((t) => (
+            <button
+              key={t}
+              type="button"
+              onClick={() => setTab(t)}
+              className={cn(
+                "rounded-xl py-2.5 text-sm font-semibold transition-all",
+                tab === t ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              )}
+            >
+              {t === "redeem" ? "Активировать" : "Создать"}
+            </button>
+          ))}
+        </div>
+      )}
 
-      {tab === "redeem" ? (
+      {tab === "redeem" || !canCreatePromo ? (
         <>
           {/* Redeem box */}
           <section className="rounded-3xl border border-border bg-card p-4">

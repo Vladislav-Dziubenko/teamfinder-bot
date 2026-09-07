@@ -432,23 +432,32 @@ async def ip_rate_limit_middleware(request: web.Request, handler):
     return await handler(request)
 
 
-PUBLIC_API_PREFIXES = (
+# Точные публичные пути (без X-Telegram-Init-Data): только то, что реально
+# нужно анонимно. Префикс-матч ЗАПРЕЩЁН: раньше "/api/teams" открывал заодно
+# POST create/apply, а "/api/nexus/shop" — POST buy (мутации без авторизации).
+PUBLIC_API_PATHS = {
     "/api/games",
     "/api/leaderboard",
-    "/api/teams",
     "/api/nexus/shop",
     "/api/search/count",
     "/api/online",
     "/api/discord/callback",
     "/api/steam/callback",
     "/api/client-error",
-    "/api/diag/env",
-)
+}
+# Витрина команд публична только на чтение списка; создание, заявки
+# и заявки-капитану — строго по авторизации.
+PUBLIC_API_GET_PATHS = {
+    "/api/teams",
+}
 
 @web.middleware
 async def auth_middleware(request: web.Request, handler):
     if request.path.startswith("/api/"):
-        is_public = any(request.path.startswith(p) for p in PUBLIC_API_PREFIXES)
+        is_public = (
+            request.path in PUBLIC_API_PATHS
+            or (request.method == "GET" and request.path in PUBLIC_API_GET_PATHS)
+        )
         settings: Settings = request.app["settings"]
         init_data_raw = request.headers.get("X-Telegram-Init-Data", "")
         parsed = validate_init_data(init_data_raw, settings.bot_token)
@@ -3081,9 +3090,33 @@ async def handle_promo_redeem(request: web.Request):
     return web.json_response({"ok": True, "reward": reward})
 
 
+# Капы наград промокодов: создаются только админом (см. handle_promo_create),
+# но лимиты дублируются здесь как второй рубеж (defense in depth).
+PROMO_REWARD_CAPS = {"coins": 500, "stars": 50, "xp": 100}
+
+
+def validate_promo_reward(reward: object) -> dict | None:
+    """Возвращает очищенную награду {coins, stars, xp} или None если невалидна."""
+    if not isinstance(reward, dict):
+        return None
+    clean: dict = {}
+    for k, cap in PROMO_REWARD_CAPS.items():
+        v = reward.get(k, 0)
+        if isinstance(v, bool) or not isinstance(v, int) or v < 0 or v > cap:
+            return None
+        clean[k] = v
+    if sum(clean.values()) <= 0:
+        return None
+    return clean
+
+
 async def handle_promo_create(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
+    # Промокоды с наградой = минт валюты: только админ+ (иначе печать звёзд).
+    role = await _effective_role(request, db, user["id"])
+    if db.ROLE_RANK.get(role, 0) < 2:
+        return web.json_response({"error": "forbidden"}, status=403)
     body = await request.json()
     code = body.get("code", "").strip().upper()
     reward = body.get("reward")
@@ -3091,8 +3124,10 @@ async def handle_promo_create(request: web.Request):
 
     if len(code) < 3:
         return web.json_response({"error": "code too short"}, status=400)
-    if not isinstance(reward, dict) or "coins" not in reward:
-        return web.json_response({"error": "invalid reward"}, status=400)
+    # Whitelist наград с капами: только эти ключи, целые, неотрицательные.
+    clean_reward = validate_promo_reward(reward)
+    if clean_reward is None:
+        return web.json_response({"error": "invalid reward (allowed: coins 0..500, stars 0..50, xp 0..100, total > 0)"}, status=400)
     if not isinstance(max_uses, int) or max_uses < 1 or max_uses > 1000:
         return web.json_response({"error": "invalid max_uses"}, status=400)
 
@@ -3101,12 +3136,12 @@ async def handle_promo_create(request: web.Request):
     if created_today >= 5:
         return web.json_response({"error": "daily promo creation limit reached"}, status=429)
 
-    ok = await db.create_promo_code(code, reward, max_uses, user["id"])
+    ok = await db.create_promo_code(code, clean_reward, max_uses, user["id"])
     if not ok:
         return web.json_response({"error": "code already exists"}, status=400)
 
     ip = _client_ip(request)
-    await db.audit_log(user["id"], "promo_create", f"code={code} reward={reward} max_uses={max_uses}", ip)
+    await db.audit_log(user["id"], "promo_create", f"code={code} reward={clean_reward} max_uses={max_uses}", ip)
     return web.json_response({"ok": True, "code": code})
 
 
@@ -3219,15 +3254,26 @@ async def handle_achievements_claim(request: web.Request):
     user = _get_user(request)
     body = await request.json()
     achievement_id = body.get("achievement_id")
-    points = body.get("points", 0)
-    coins = body.get("coins", 0)
 
     if not achievement_id or not isinstance(achievement_id, str):
         return web.json_response({"error": "invalid achievement_id"}, status=400)
-    if not isinstance(points, int) or not isinstance(coins, int) or points < 0 or coins < 0:
-        return web.json_response({"error": "invalid reward values"}, status=400)
+    # Награды и цель — только с сервера: суммы из тела запроса игнорируются
+    # (иначе клиент печатает себе любые points/coins).
+    conf = next((a for a in ACHIEVEMENTS_CONFIG if a["id"] == achievement_id), None)
+    if not conf:
+        return web.json_response({"error": "unknown achievement"}, status=404)
+    # Прогресс: a6/a7 — из профиля, остальные — из счётчиков bump_achievement_progress.
+    if achievement_id == "a6" or achievement_id == "a7":
+        sources = await db.get_achievement_sources(user["id"])
+        progress = sources.get("invited_count", 0) if achievement_id == "a6" else sources.get("level", 0)
+    else:
+        rows = await db.get_user_achievements(user["id"])
+        row = next((r for r in rows if r["achievement_id"] == achievement_id), None)
+        progress = (row["progress"] if row else 0) or 0
+    if progress < conf["target"]:
+        return web.json_response({"error": "not completed yet"}, status=400)
 
-    ok = await db.claim_achievement(user["id"], achievement_id, points, coins)
+    ok = await db.claim_achievement(user["id"], achievement_id, conf["points"], conf["coins"])
     if not ok:
         return web.json_response({"error": "already claimed or failed"}, status=400)
 
@@ -5475,6 +5521,11 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # Диагностика — проверка env + статус webhook
     async def handle_diag_env(request: web.Request) -> web.Response:
         import os
+        # Диагностика инфры — только разработчик: отдаёт хосты БД, webhook,
+        # состояние пула. Публичный доступ = разведка для атакующего.
+        user = _get_user(request)
+        if not _is_developer(request, user["id"]):
+            return web.json_response({"error": "forbidden"}, status=403)
         bot = request.app.get("bot")
         db_obj = request.app.get("db")
         webhook_info = None
