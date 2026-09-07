@@ -91,7 +91,7 @@
   "topbar.stars": "Telegram Stars",
   "topbar.language": "Язык",
   "lang.title": "Язык приложения",
-  "lang.subtitle": "Выберите язык из 35 доступных",
+  "lang.subtitle": "Выберите язык из {count} доступных",
   "lang.search": "Поиск языка…",
   "theme.title": "Тема",
   "theme.subtitle": "Стиль интерфейса",

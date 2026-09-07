@@ -701,7 +701,7 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
         <Globe className="size-5 text-primary" />
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium">{t("lang.title")}</p>
-          <p className="text-xs text-muted-foreground">{t("lang.subtitle")}</p>
+          <p className="text-xs text-muted-foreground">{t("lang.subtitle", { count: LANGUAGES.length })}</p>
         </div>
         <ChevronRight className="size-4 text-muted-foreground shrink-0" />
       </button>
