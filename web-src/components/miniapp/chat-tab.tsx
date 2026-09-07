@@ -702,20 +702,10 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
     if (ok) setShowStickers(false)
   }
 
-  async function handleGlobalVoiceSent(serverMsg: any) {
-    if (!serverMsg) return
-    const msg: GlobalMessage = {
-      id: String(serverMsg.id ?? ""),
-      userId: "me",
-      text: serverMsg.text ?? "",
-      ts: serverMsg.created_at ? parseIsoTs(serverMsg.created_at) : Date.now(),
-      nick: "You",
-      avatar: "",
-      role: meRole,
-      isVoice: Boolean(serverMsg.is_voice),
-      voiceDuration: Number(serverMsg.voice_duration ?? 0) || 0,
-      voiceMime: String(serverMsg.voice_mime ?? "audio/webm"),
-    }
+  // Войс уже добавлен в список внутри sendGlobalVoice (с дедупом по id) —
+  // сюда прилетает лишь boolean-результат customUpload, класть нечего.
+  async function handleGlobalVoiceSent(_result: any) {
+    return
   }
 
   const uploadGlobalVoice = useCallback(async (blob: Blob, duration: number, mime: string) => {

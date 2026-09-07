@@ -132,6 +132,27 @@ function mapMsg(m: any): ChatMessage {
   }
 }
 
+/** Убирает дубли по id (побеждает последняя версия) и сортирует по ts ↑
+ * (фолбэк — числовой id). Чинит «старые как новые»: без сортировки
+ * keptOld из пагинации оказывался в конце списка, а гонка
+ * «полл между POST и заменой opt-» давала два сообщения с одним id. */
+function dedupeAndSort<T extends { id: string; ts: number }>(list: T[]): T[] {
+  const byId = new Map<string, T>()
+  for (const m of list) {
+    if (!m || !m.id) continue
+    byId.set(m.id, m)
+  }
+  return Array.from(byId.values()).sort((a, b) => {
+    const ta = Number.isFinite(a.ts) ? a.ts : 0
+    const tb = Number.isFinite(b.ts) ? b.ts : 0
+    if (ta !== tb) return ta - tb
+    const ia = parseInt(a.id, 10)
+    const ib = parseInt(b.id, 10)
+    if (!isNaN(ia) && !isNaN(ib)) return ia - ib
+    return a.id < b.id ? -1 : 1
+  })
+}
+
 const _msgCache = new Map<string, ChatMessage[]>()
 
 const _prefetchedChats = new Set<string>()
@@ -213,7 +234,9 @@ export function useChatMessages(chatId: string | null) {
               return !isNaN(idNum) && firstServer > 0 && idNum < firstServer
             })
             const keptOpt = prev.filter((m) => m.id.startsWith("opt-") && !serverIds.has(m.id))
-            const merged = [...serverMsgs, ...keptOpt, ...keptOld]
+            // dedupeAndSort: старые из пагинации встают наверх по ts,
+            // а дубль «полл + ещё не заменённый opt-» схлопывается.
+            const merged = dedupeAndSort([...serverMsgs, ...keptOpt, ...keptOld])
             _msgCache.set(cid, merged)
             return merged
           })
@@ -258,7 +281,7 @@ export function useChatMessages(chatId: string | null) {
       const olderMsgs = (data.messages ?? []).map(mapMsg)
       if (olderMsgs.length) {
         setMessages((prev) => {
-          const merged = [...olderMsgs, ...prev]
+          const merged = dedupeAndSort([...olderMsgs, ...prev])
           _msgCache.set(chatId, merged)
           return merged
         })
@@ -298,7 +321,9 @@ export function useChatMessages(chatId: string | null) {
           status: "sent",
         }
         setMessages((prev) => {
-          const merged = prev.map((m) => (m.id === id ? real : m))
+          // Заменяем opt- на реальное + выкидываем возможные дубли того же
+          // реального id (полл мог успеть подхватить его до замены).
+          const merged = dedupeAndSort(prev.map((m) => (m.id === id ? real : m)))
           _msgCache.set(chatId, merged)
           return merged
         })
@@ -325,7 +350,9 @@ export function useChatMessages(chatId: string | null) {
     }
     setMessages((prev) => {
       if (prev.some((m) => m.id === mapped.id)) return prev
-      const merged = [...prev, mapped]
+      // Войс может прийти с серверным ts старше хвоста (задержка загрузки) —
+      // сортируем, чтобы не лепился вниз как «новый».
+      const merged = dedupeAndSort([...prev, mapped])
       _msgCache.set(chatId, merged)
       return merged
     })
@@ -472,7 +499,7 @@ export function useGlobalChat() {
         if (cancelled) return
         setMeRole(data.me_role ?? "")
         setMeBanned(Boolean(data.me_banned))
-        const list: GlobalMessage[] = (data.messages ?? []).map(mapGlobalMsg)
+        const list: GlobalMessage[] = dedupeAndSort((data.messages ?? []).map(mapGlobalMsg))
         setMessages(list)
         _globalCache.length = 0
         _globalCache.push(...list)
@@ -519,8 +546,9 @@ export function useGlobalChat() {
           avatar: "",
           role: meRole,
         }
-        setMessages((prev) => [...prev, msg])
-        _globalCache.push(msg)
+        // Полл мог уже подхватить сообщение — без проверки будет дубль с тем же key.
+        setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : dedupeAndSort([...prev, msg])))
+        if (!_globalCache.some((m) => m.id === msg.id)) _globalCache.push(msg)
         return true
       }
     } catch {
@@ -550,8 +578,8 @@ export function useGlobalChat() {
           voiceDuration: res.message.voice_duration ?? duration,
           voiceMime: res.message.voice_mime ?? mime,
         }
-        setMessages((prev) => [...prev, msg])
-        _globalCache.push(msg)
+        setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : dedupeAndSort([...prev, msg])))
+        if (!_globalCache.some((m) => m.id === msg.id)) _globalCache.push(msg)
         return true
       }
     } catch {}
