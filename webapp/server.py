@@ -4135,12 +4135,14 @@ async def handle_mod_status(request: web.Request):
          "details": (a.get("details") or "")[:160], "created_at": a.get("created_at")}
         for a in actions[:15]
     ]
+    deployed = (os.getenv("RENDER_GIT_COMMIT", "") or "")[:7] or "n/a"
     return web.json_response({
         "enabled": bool(settings and settings.ai_mod_enabled),
         "shadow": bool(settings is None or settings.ai_mod_shadow),
         "provider": provider,
         "key_set": key_set,
         "chat_enabled": bool(settings and settings.ai_chat_enabled),
+        "deployed": deployed,
         "counts": counts,
         "recent": recent,
     })

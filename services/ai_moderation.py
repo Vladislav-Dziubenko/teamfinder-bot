@@ -202,22 +202,12 @@ async def score_message(text: str, user_id: int, settings) -> dict:
     if not clean:
         return {"score": 0.0, "category": "ok", "reason": "", "source": "empty"}
 
-    # Кэш по точному тексту — повторный спам бесплатный.
     digest = hashlib.sha256(clean.lower().encode()).hexdigest()
-    hit = _verdict_cache.get(digest)
     now = time.time()
-    if hit and now - hit[0] < _CACHE_TTL:
-        return {**hit[1], "source": "cache"}
-    if len(_verdict_cache) > _CACHE_MAX:
-        _verdict_cache.clear()
 
-    # Троттлинг на юзера — защита free-лимитов.
-    last = _user_last.get(user_id, 0)
-    if now - last < _USER_THROTTLE:
-        return {"score": 0.0, "category": "ok", "reason": "", "source": "throttled"}
-    _user_last[user_id] = now
-
-    # Слой 0: флуд и эвристики — без API.
+    # Слой 0: флуд ПЕРВЫМ — иначе закэшированный 0.0 задушит детект повторов.
+    # Эвристики и троттлинг — после. Троттлинг гасит только платный вызов
+    # судьи, иначе rapid-спам (2-3-4 сообщение за 5 сек) проскочит без скоринга.
     flood = _flood_check(user_id, clean)
     if flood:
         _verdict_cache[digest] = (now, flood)
@@ -227,11 +217,25 @@ async def score_message(text: str, user_id: int, settings) -> dict:
         _verdict_cache[digest] = (now, heur)
         return {**heur, "source": "heuristic"}
 
+    # Кэш по точному тексту — повторный спам бесплатный.
+    hit = _verdict_cache.get(digest)
+    if hit and now - hit[0] < _CACHE_TTL:
+        return {**hit[1], "source": "cache"}
+    if len(_verdict_cache) > _CACHE_MAX:
+        _verdict_cache.clear()
+
+    # Троттлинг гасит только платный/лимитный вызов судьи, не весь скоринг.
+    last = _user_last.get(user_id, 0)
+    if now - last < _USER_THROTTLE:
+        verdict = heur or {"score": 0.0, "category": "ok", "reason": ""}
+        return {**verdict, "source": "throttled"}
+
     # Слой 1: судья (нужен ключ провайдера).
     provider = (getattr(settings, "ai_provider", "gemini") or "gemini").lower()
     api_key = (getattr(settings, "gemini_api_key", "") or "") if provider == "gemini" else (getattr(settings, "groq_api_key", "") or "")
     verdict: dict | None = None
     if api_key:
+        _user_last[user_id] = now
         try:
             timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 2)
             async with aiohttp.ClientSession(timeout=timeout) as session:

@@ -317,8 +317,11 @@ async def admin_ai_status(message: Message, db: Database, settings: Settings):
 
     mode = "👻 SHADOW (только лог)" if shadow else "🛡️ АВТОПИЛОТ"
     chat_on = bool(getattr(settings, "ai_chat_enabled", False))
+    import os as _os
+    deployed = (_os.getenv("RENDER_GIT_COMMIT", "") or "")[:7] or "n/a"
     await message.answer(
         "🤖 <b>Страж: статус</b>\n\n"
+        f"Деплой: <code>{deployed}</code>\n"
         f"Включён: <b>{'да' if enabled else 'нет'}</b>\n"
         f"Режим: <b>{mode}</b>\n"
         f"Провайдер: <code>{provider}</code>\n"
