@@ -378,9 +378,17 @@ function PvpMode({
                 if (!res.ok) onToast?.(res.error ?? "Не удалось")
                 else onToast?.("Вызов принят!")
               }}
-              onResolve={(winnerId) => {
-                p.confirmResult(c.id, winnerId)
-                onToast?.("Результат подтверждён")
+              onResolve={async (winnerId) => {
+                const res = await p.confirmResult(c.id, winnerId)
+                if (!res.ok) onToast?.(res.error ?? t("common.error"))
+                else if (res.state === "waiting") onToast?.(t("predictions.pvp_vote_waiting"))
+                else if (res.state === "disputed") onToast?.(t("predictions.pvp_disputed"))
+                else onToast?.(t("predictions.pvp_result_done"))
+              }}
+              onCancel={async () => {
+                const res = await p.cancelChallenge(c.id)
+                if (!res.ok) onToast?.(res.error ?? t("common.error"))
+                else onToast?.(t("predictions.pvp_cancelled"))
               }}
             />
           ))
@@ -394,10 +402,12 @@ function ChallengeCard({
   challenge,
   onAccept,
   onResolve,
+  onCancel,
 }: {
   challenge: PvpChallenge
   onAccept: () => void
   onResolve: (winnerId: string) => void
+  onCancel: () => void
 }) {
   const { t } = useI18n()
   const isCreator = challenge.creatorId === ME_ID
@@ -406,8 +416,13 @@ function ChallengeCard({
   const statusMeta = {
     open: { label: t("predictions.pvp_status_open"), cls: "bg-stars/15 text-stars" },
     active: { label: t("predictions.pvp_status_active"), cls: "bg-accent/15 text-accent" },
+    waiting: { label: t("predictions.pvp_status_waiting"), cls: "bg-accent/15 text-accent" },
     finished: { label: t("predictions.pvp_status_finished"), cls: "bg-secondary text-muted-foreground" },
-  }[challenge.status]
+    disputed: { label: t("predictions.pvp_status_disputed"), cls: "bg-destructive/15 text-destructive" },
+    expired: { label: t("predictions.pvp_status_expired"), cls: "bg-secondary text-muted-foreground" },
+    refunded: { label: t("predictions.pvp_status_refunded"), cls: "bg-secondary text-muted-foreground" },
+    cancelled: { label: t("predictions.pvp_status_cancelled"), cls: "bg-secondary text-muted-foreground" },
+  }[challenge.status] ?? { label: challenge.status, cls: "bg-secondary text-muted-foreground" }
 
   const iWon = challenge.status === "finished" && challenge.winnerId === ME_ID
 
@@ -444,6 +459,15 @@ function ChallengeCard({
         {challenge.status === "open" && isCreator && (
           <span className="text-xs text-muted-foreground">{t("predictions.pvp_waiting")}</span>
         )}
+        {challenge.status === "open" && isCreator && (
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded-xl border border-border px-4 py-2 text-sm font-bold text-muted-foreground active:scale-95"
+          >
+            {t("predictions.pvp_cancel")}
+          </button>
+        )}
       </div>
 
       {/* Соперник */}
@@ -453,8 +477,8 @@ function ChallengeCard({
         </p>
       )}
 
-      {/* Подтверждение результата — только создатель */}
-      {challenge.status === "active" && isCreator && (
+      {/* Подтверждение результата — обе стороны (выплата только при совпадении) */}
+      {(challenge.status === "active" || challenge.status === "waiting") && (
         <div className="mt-3">
           {!resolving ? (
             <button
@@ -470,22 +494,31 @@ function ChallengeCard({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => onResolve(ME_ID)}
+                  onClick={() => { onResolve(ME_ID); setResolving(false) }}
                   className="rounded-2xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-95"
                 >
                   {t("predictions.pvp_me")}
                 </button>
                 <button
                   type="button"
-                  onClick={() => onResolve(challenge.opponentId ?? "opp")}
+                  onClick={() => { onResolve(isCreator ? (challenge.opponentId ?? "opp") : challenge.creatorId); setResolving(false) }}
                   className="rounded-2xl border border-border bg-secondary/60 py-2.5 text-sm font-bold active:scale-95"
                 >
-                  {challenge.opponentNick ?? t("predictions.pvp_opponent_label")}
+                  {isCreator ? (challenge.opponentNick ?? t("predictions.pvp_opponent_label")) : (challenge.creatorNick || t("predictions.pvp_opponent_label"))}
                 </button>
               </div>
             </div>
           )}
         </div>
+      )}
+      {challenge.status === "waiting" && (
+        <p className="mt-2 text-center text-[11px] text-muted-foreground">{t("predictions.pvp_wait_opponent")}</p>
+      )}
+      {challenge.status === "disputed" && (
+        <p className="mt-2 rounded-2xl bg-destructive/10 px-3 py-2 text-center text-[11px] font-semibold text-destructive">{t("predictions.pvp_disputed_hint")}</p>
+      )}
+      {(challenge.status === "expired" || challenge.status === "refunded") && (
+        <p className="mt-2 text-center text-[11px] text-muted-foreground">{t("predictions.pvp_refunded")}</p>
       )}
 
       {/* Итог */}

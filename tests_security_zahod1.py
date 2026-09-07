@@ -93,6 +93,30 @@ check("avatar empty rejected", not _valid_avatar(""))
 check("avatar non-string rejected", not _valid_avatar(None))
 check("deco set exact", KNOWN_DECOS == {"orange", "cyan", "crimson", "gold"})
 
+# --- Заход 4: PvP mapping (who is who, votes) ---
+from webapp.server import _pvp_public
+
+_base = {
+    "id": 7, "creator_id": 100, "creator_nick": "A",
+    "opponent_id": 200, "opponent_nick": "B",
+    "condition": "x", "stake": 50, "status": "active",
+    "winner_id": None, "creator_vote": None, "opponent_vote": None,
+    "created_at": "2026-09-01T00:00:00", "expires_at": "2026-09-03T00:00:00",
+}
+m = _pvp_public(dict(_base), 100)
+check("creator sees self as me", m["creatorId"] == "me" and m["opponentId"] == "200")
+m2 = _pvp_public(dict(_base), 200)
+check("opponent sees self as me", m2["opponentId"] == "me" and m2["creatorId"] == "100")
+mv = _pvp_public(dict(_base, creator_vote=100), 100)
+check("myVote shown to voter", mv["myVote"] == "me" and mv["opponentVoted"] is False)
+mv2 = _pvp_public(dict(_base, opponent_vote=200), 100)
+check("opponentVoted visible", mv2["opponentVoted"] is True and mv2["myVote"] is None)
+mw = _pvp_public(dict(_base, status="finished", winner_id=200), 200)
+check("winner mapped to me", mw["winnerId"] == "me")
+mnone = _pvp_public(dict(_base, opponent_id=None, opponent_nick=""), 999)
+check("stranger sees raw ids", mnone["creatorId"] == "100" and mnone["opponentId"] is None)
+check("expires mapped to ms", isinstance(m["expiresAt"], int) and m["expiresAt"] > 0)
+
 print()
 if failures:
     print(f"FAILURES: {len(failures)}")

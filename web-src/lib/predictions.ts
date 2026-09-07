@@ -34,11 +34,14 @@ export type PvpChallenge = {
   creatorNick: string
   condition: string
   stake: number
-  status: "open" | "active" | "finished"
-  winnerId?: string
-  opponentId?: string
+  status: "open" | "active" | "waiting" | "finished" | "disputed" | "expired" | "refunded" | "cancelled"
+  winnerId?: string | null
+  opponentId?: string | null
   opponentNick?: string
+  myVote?: string | null
+  opponentVoted?: boolean
   createdAt: number
+  expiresAt?: number | null
 }
 
 export const ME_ID = "me"
@@ -137,9 +140,31 @@ export function usePredictions(storeCoins: number, _nick: string, onBalanceRefre
     [],
   )
 
-  const confirmResult = useCallback((id: string, winnerId: string) => {
-    api.post(`/api/predictions/pvp/${id}/resolve`, { winner_id: winnerId }).catch(() => {})
-    setChallenges((prev) => prev.map((c) => (c.id === id ? { ...c, status: "finished", winnerId } : c)))
+  // Голосование обоюдное: сервер вернёт waiting (ждём второго),
+  // finished (совпало) или disputed (разошлись — решит разработчик).
+  const confirmResult = useCallback(async (id: string, winnerId: string): Promise<{ ok: boolean; state?: string; error?: string }> => {
+    try {
+      const res: any = await api.post(`/api/predictions/pvp/${id}/resolve`, { winner_id: winnerId })
+      if (res?.challenge) {
+        const ch = res.challenge as PvpChallenge
+        setChallenges((prev) => prev.map((c) => (c.id === id ? { ...c, ...ch } : c)))
+      } else if (res?.state === "waiting") {
+        setChallenges((prev) => prev.map((c) => (c.id === id ? { ...c, status: "waiting", myVote: winnerId } : c)))
+      }
+      return { ok: true, state: res?.state }
+    } catch (e: any) {
+      return { ok: false, error: e?.message }
+    }
+  }, [])
+
+  const cancelChallenge = useCallback(async (id: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      await api.post(`/api/predictions/pvp/${id}/cancel`, {})
+      setChallenges((prev) => prev.map((c) => (c.id === id ? { ...c, status: "cancelled" } : c)))
+      return { ok: true }
+    } catch (e: any) {
+      return { ok: false, error: e?.message }
+    }
   }, [])
 
   return {
@@ -151,5 +176,6 @@ export function usePredictions(storeCoins: number, _nick: string, onBalanceRefre
     createChallenge,
     acceptChallenge,
     confirmResult,
+    cancelChallenge,
   }
 }

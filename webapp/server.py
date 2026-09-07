@@ -2270,8 +2270,10 @@ async def handle_nexus_sell(request: web.Request):
 
     item_key = body.get("item_key")
     if isinstance(item_key, str) and item_key:
-        count = int(body.get("count") or 1)
-        sold, coins = await db.sell_inventory_batch(user["id"], item_key, count)
+        raw_count = body.get("count", 1)
+        if isinstance(raw_count, bool) or not isinstance(raw_count, int) or not 1 <= raw_count <= 500:
+            return web.json_response({"error": "invalid count (1..500)"}, status=400)
+        sold, coins = await db.sell_inventory_batch(user["id"], item_key, raw_count)
         return web.json_response({"sold": sold, "coins": coins})
 
     item_id = body.get("item_id")
@@ -2467,14 +2469,25 @@ async def handle_sessions_kick(request: web.Request):
     target_id = body.get("target_id")
     if not isinstance(target_id, int):
         return web.json_response({"error": "invalid target_id"}, status=400)
-    row = await db.pool.fetchrow("SELECT creator_id FROM game_sessions WHERE id = $1", session_id)
+    row = await db.pool.fetchrow("SELECT creator_id, status FROM game_sessions WHERE id = $1", session_id)
     if not row or row["creator_id"] != user["id"]:
         return web.json_response({"error": "only creator can kick"}, status=403)
+    if row["status"] != "active":
+        return web.json_response({"error": "session not active"}, status=400)
     if target_id == user["id"]:
         return web.json_response({"error": "cannot kick yourself"}, status=400)
+    if _is_developer(request, target_id):
+        return web.json_response({"error": "cannot kick developer"}, status=403)
+    member = await db.pool.fetchval(
+        "SELECT 1 FROM game_session_players WHERE session_id = $1 AND user_id = $2",
+        session_id, target_id,
+    )
+    if not member:
+        return web.json_response({"error": "target not in session"}, status=400)
     await db.leave_game_session(session_id, target_id)
     # Also kick from voice chat if in one
     await db.leave_voice_chat(session_id, target_id)
+    await db.audit_log(user["id"], "session_kick", f"session={session_id} target={target_id}")
     return web.json_response({"ok": True})
 
 
@@ -2545,8 +2558,17 @@ async def handle_sessions_voice_toggle(request: web.Request):
     return web.json_response({"ok": True, "voice_enabled": enabled})
 
 
+async def _voice_participant(request: web.Request, db: Database, session_id: int, user_id: int) -> bool:
+    """Участник ли юзер голосового чата (для self-mute/deafen)."""
+    row = await db.pool.fetchval(
+        "SELECT 1 FROM voice_chat_participants WHERE session_id = $1 AND user_id = $2",
+        session_id, user_id,
+    )
+    return bool(row)
+
+
 async def handle_sessions_voice_mute(request: web.Request):
-    """Mute/unmute себя в голосовом чате."""
+    """Mute/unmute себя в голосовом чате (только участник)."""
     db: Database = request.app["db"]
     user = _get_user(request)
     try:
@@ -2554,13 +2576,15 @@ async def handle_sessions_voice_mute(request: web.Request):
         body = await request.json()
     except (ValueError, KeyError, Exception):
         return web.json_response({"error": "bad request"}, status=400)
+    if not await _voice_participant(request, db, session_id, user["id"]):
+        return web.json_response({"error": "not in voice chat"}, status=403)
     muted = bool(body.get("muted", False))
     await db.set_voice_mute(session_id, user["id"], muted)
     return web.json_response({"ok": True, "muted": muted})
 
 
 async def handle_sessions_voice_deafen(request: web.Request):
-    """Deafen/undeafen себя в голосовом чате."""
+    """Deafen/undeafen себя в голосовом чате (только участник)."""
     db: Database = request.app["db"]
     user = _get_user(request)
     try:
@@ -2568,13 +2592,15 @@ async def handle_sessions_voice_deafen(request: web.Request):
         body = await request.json()
     except (ValueError, KeyError, Exception):
         return web.json_response({"error": "bad request"}, status=400)
+    if not await _voice_participant(request, db, session_id, user["id"]):
+        return web.json_response({"error": "not in voice chat"}, status=403)
     deafened = bool(body.get("deafened", False))
     await db.set_voice_deafen(session_id, user["id"], deafened)
     return web.json_response({"ok": True, "deafened": deafened})
 
 
 async def handle_sessions_voice_kick(request: web.Request):
-    """Kick a user from voice chat (creator only)."""
+    """Kick a user from voice chat (creator only, активная сессия, участник)."""
     db: Database = request.app["db"]
     user = _get_user(request)
     try:
@@ -2585,16 +2611,23 @@ async def handle_sessions_voice_kick(request: web.Request):
     target_id = body.get("target_id")
     if not isinstance(target_id, int):
         return web.json_response({"error": "invalid target_id"}, status=400)
-    row = await db.pool.fetchrow("SELECT creator_id FROM game_sessions WHERE id = $1", session_id)
+    row = await db.pool.fetchrow("SELECT creator_id, status FROM game_sessions WHERE id = $1", session_id)
     if not row or row["creator_id"] != user["id"]:
         return web.json_response({"error": "only creator can kick"}, status=403)
+    if row["status"] != "active":
+        return web.json_response({"error": "session not active"}, status=400)
     if target_id == user["id"]:
         return web.json_response({"error": "cannot kick yourself"}, status=400)
+    if _is_developer(request, target_id):
+        return web.json_response({"error": "cannot kick developer"}, status=403)
+    if not await _voice_participant(request, db, session_id, target_id):
+        return web.json_response({"error": "target not in voice chat"}, status=400)
     await db.leave_voice_chat(session_id, target_id)
     session_ws_key = f"voice:{session_id}"
     target_ws = request.app.get(session_ws_key, {}).get(target_id)
     if target_ws and not target_ws.closed:
         await target_ws.close(code=4010, message=b"kicked")
+    await db.audit_log(user["id"], "voice_kick", f"session={session_id} target={target_id}")
     return web.json_response({"ok": True})
 
 
@@ -2636,7 +2669,7 @@ async def _notify_tg_session_join(request: web.Request, db: Database, session: d
         ])
         await bot.send_message(
             creator_id,
-            f"{emoji} <b>{sender_nick}</b> присоединился к твоей сессии «{title}»!\n\n"
+            f"{emoji} <b>{html.escape(sender_nick)}</b> присоединился к твоей сессии «{html.escape(title)}»!\n\n"
             f"Собери команду, пока таймер не истёк 👇",
             reply_markup=markup,
         )
@@ -3038,6 +3071,14 @@ async def handle_nexus_transfer_stars(request: web.Request):
     return web.json_response({"ok": True})
 
 
+def _model_id_from_body(body: dict) -> str | None:
+    """Серия модели из тела запроса: неизвестная -> None (дефолт nexus-model)."""
+    mid = body.get("model_id", "nexus-model")
+    if not isinstance(mid, str):
+        return None
+    return mid if mid in Database.LIMITED_MODELS else None
+
+
 async def handle_nexus_model_list(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -3046,7 +3087,7 @@ async def handle_nexus_model_list(request: web.Request):
     price = body.get("price", 0)
     if not isinstance(token_id, int) or not isinstance(price, int) or price <= 0:
         return web.json_response({"error": "invalid price"}, status=400)
-    if not await db.list_limited_model(user["id"], token_id, price):
+    if not await db.list_limited_model(user["id"], token_id, price, _model_id_from_body(body)):
         return web.json_response({"error": "not owner"}, status=400)
     return web.json_response({"ok": True})
 
@@ -3058,7 +3099,7 @@ async def handle_nexus_model_unlist(request: web.Request):
     token_id = body.get("token_id")
     if not isinstance(token_id, int):
         return web.json_response({"error": "invalid token_id"}, status=400)
-    if not await db.unlist_limited_model(user["id"], token_id):
+    if not await db.unlist_limited_model(user["id"], token_id, _model_id_from_body(body)):
         return web.json_response({"error": "not owner"}, status=400)
     return web.json_response({"ok": True})
 
@@ -3072,7 +3113,7 @@ async def handle_nexus_model_buy(request: web.Request):
         return web.json_response({"error": "invalid token_id"}, status=400)
     settings = request.app.get("settings")
     dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
-    ok, err, price = await db.buy_limited_model(user["id"], token_id, dev_id)
+    ok, err, price = await db.buy_limited_model(user["id"], token_id, dev_id, _model_id_from_body(body))
     if not ok:
         return web.json_response({"error": err}, status=400)
     return web.json_response({"ok": True, "price": price})
@@ -3088,7 +3129,7 @@ async def handle_nexus_model_transfer(request: web.Request):
         return web.json_response({"error": "invalid recipient"}, status=400)
     settings = request.app.get("settings")
     dev_id = settings.admin_ids[0] if settings and settings.admin_ids else None
-    ok, err = await db.transfer_limited_model(user["id"], to_user_id, token_id, dev_id)
+    ok, err = await db.transfer_limited_model(user["id"], to_user_id, token_id, dev_id, _model_id_from_body(body))
     if not ok:
         return web.json_response({"error": err}, status=400)
     return web.json_response({"ok": True})
@@ -3101,7 +3142,7 @@ async def handle_nexus_model_sell(request: web.Request):
     token_id = body.get("token_id")
     if not isinstance(token_id, int):
         return web.json_response({"error": "invalid token_id"}, status=400)
-    ok, err, price = await db.sell_limited_model(user["id"], token_id)
+    ok, err, price = await db.sell_limited_model(user["id"], token_id, _model_id_from_body(body))
     if not ok:
         return web.json_response({"error": err}, status=400)
     return web.json_response({"ok": True, "price": price})
@@ -3455,7 +3496,7 @@ async def _notify_tg_new_message(
         ])
         ok = await bot.send_message(
             other_id,
-            f"💬 <b>{sender_nick}</b>: {preview}",
+            f"💬 <b>{html.escape(sender_nick)}</b>: {html.escape(preview)}",
             reply_markup=markup,
         )
         if ok:
@@ -4575,6 +4616,9 @@ PRED_TICK_SECONDS = 15
 
 _pred_matches: list[dict] = []
 _pred_seq = 0
+# Префикс эпохи старта: после рестарта счётчик обнуляется и новый m1
+# рассчитал бы чужие ставки старого m1. Уникальный префикс это исключает.
+_pred_boot = ""
 
 
 def _pred_new_match(offset_minutes: int) -> dict:
@@ -4583,7 +4627,7 @@ def _pred_new_match(offset_minutes: int) -> dict:
     _pred_seq += 1
     tournament, discipline, teamA, teamB, oddsA, oddsB = tpl
     return {
-        "id": f"m{_pred_seq}",
+        "id": f"{_pred_boot}m{_pred_seq}",
         "tournament": tournament,
         "discipline": discipline,
         "teamA": teamA,
@@ -4643,6 +4687,8 @@ async def _prediction_tick(app: web.Application) -> None:
 
 
 async def _prediction_settler(app: web.Application) -> None:
+    global _pred_boot
+    _pred_boot = datetime.utcnow().strftime("%y%m%d%H%M") + "-"
     _pred_ensure_matches()
     while True:
         try:
@@ -4776,10 +4822,48 @@ async def handle_predictions_history(request: web.Request):
     return web.json_response({"predictions": predictions})
 
 
+def _pvp_public(ch: dict, viewer_id: int) -> dict:
+    """Челлендж для фронта: camelCase, свои id как 'me', голоса и сроки.
+    Без этого фронт не понимает кто создатель и кто выиграл."""
+    def _who(uid) -> str | None:
+        if uid is None:
+            return None
+        return "me" if int(uid) == viewer_id else str(uid)
+
+    def _ts(iso: str) -> int | None:
+        try:
+            return int(datetime.fromisoformat(iso).timestamp() * 1000)
+        except (ValueError, TypeError):
+            return None
+
+    return {
+        "id": str(ch["id"]),
+        "creatorId": _who(ch["creator_id"]),
+        "creatorNick": ch.get("creator_nick") or "",
+        "opponentId": _who(ch.get("opponent_id")),
+        "opponentNick": ch.get("opponent_nick") or "",
+        "condition": ch.get("condition") or "",
+        "stake": ch.get("stake") or 0,
+        "status": ch.get("status") or "open",
+        "winnerId": _who(ch.get("winner_id")) if ch.get("winner_id") else None,
+        "myVote": _who(ch.get("creator_vote") if int(ch["creator_id"]) == viewer_id else ch.get("opponent_vote")),
+        "opponentVoted": bool(
+            ch.get("opponent_vote") if int(ch["creator_id"]) == viewer_id else ch.get("creator_vote")
+        ),
+        "createdAt": _ts(ch.get("created_at") or ""),
+        "expiresAt": _ts(ch.get("expires_at") or ""),
+    }
+
+
 async def handle_pvp_list(request: web.Request):
     db: Database = request.app["db"]
+    user = _get_user(request)
     challenges = await db.get_open_challenges()
-    return web.json_response({"challenges": challenges})
+    mine = await db.get_user_challenges(user["id"])
+    seen = {c["id"] for c in challenges}
+    # Свои активные тоже показываем (open-лента их не содержит после accept).
+    all_ch = list(challenges) + [c for c in mine if c["id"] not in seen and c["status"] in ("active", "disputed", "finished")]
+    return web.json_response({"challenges": [_pvp_public(c, user["id"]) for c in all_ch]})
 
 
 async def handle_pvp_create(request: web.Request):
@@ -4798,16 +4882,9 @@ async def handle_pvp_create(request: web.Request):
     result = await db.create_pvp_challenge(user["id"], nick, condition, stake)
     if not result:
         return web.json_response({"error": "not enough coins"}, status=400)
+    full = await db.get_challenge(result["id"])
     # Return in the format frontend expects
-    return web.json_response({"ok": True, "challenge": {
-        "id": str(result["id"]),
-        "creatorId": str(result["creator_id"]),
-        "creatorNick": result.get("creator_nick", nick),
-        "condition": result["condition"],
-        "stake": result["stake"],
-        "status": result["status"],
-        "createdAt": int(datetime.fromisoformat(result["created_at"]).timestamp() * 1000),
-    }})
+    return web.json_response({"ok": True, "challenge": _pvp_public(full or result, user["id"])})
 
 
 async def handle_pvp_accept(request: web.Request):
@@ -4832,11 +4909,41 @@ async def handle_pvp_resolve(request: web.Request):
     if not winner_id:
         return web.json_response({"error": "winner_id required"}, status=400)
     try:
-        ok = await db.resolve_pvp_challenge(int(challenge_id), user["id"], int(winner_id))
-    except ValueError:
+        cid = int(challenge_id)
+        # Фронт шлёт "me" за себя — маппим на реальный id.
+        wid = user["id"] if str(winner_id) == "me" else int(winner_id)
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    # Разработчик разруливает спор напрямую.
+    if _is_developer(request, user["id"]):
+        ch = await db.get_challenge(cid)
+        if not ch or ch["status"] not in ("active", "disputed"):
+            return web.json_response({"error": "cannot resolve challenge"}, status=400)
+        if wid not in (ch["creator_id"], ch["opponent_id"]):
+            return web.json_response({"error": "invalid winner"}, status=400)
+        ok = await db.force_resolve_pvp_challenge(cid, wid)
+        if not ok:
+            return web.json_response({"error": "cannot resolve challenge"}, status=400)
+        fresh = await db.get_challenge(cid)
+        return web.json_response({"ok": True, "state": "finished", "challenge": _pvp_public(fresh, user["id"])})
+    result = await db.resolve_pvp_challenge(cid, user["id"], wid)
+    if not result.get("ok"):
+        return web.json_response({"error": result.get("error", "cannot resolve challenge")}, status=400)
+    fresh = await db.get_challenge(cid)
+    resp: dict = {"ok": True, "state": result.get("state"), "challenge": _pvp_public(fresh, user["id"])}
+    return web.json_response(resp)
+
+
+async def handle_pvp_cancel(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    challenge_id = request.match_info["challenge_id"]
+    try:
+        ok = await db.cancel_pvp_challenge(int(challenge_id), user["id"])
+    except (ValueError, TypeError):
         return web.json_response({"error": "invalid id"}, status=400)
     if not ok:
-        return web.json_response({"error": "cannot resolve challenge"}, status=400)
+        return web.json_response({"error": "cannot cancel challenge"}, status=400)
     return web.json_response({"ok": True})
 
 
@@ -5594,6 +5701,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/predictions/pvp/create", handle_pvp_create)
     app.router.add_post("/api/predictions/pvp/{challenge_id}/accept", handle_pvp_accept)
     app.router.add_post("/api/predictions/pvp/{challenge_id}/resolve", handle_pvp_resolve)
+    app.router.add_post("/api/predictions/pvp/{challenge_id}/cancel", handle_pvp_cancel)
 
     # Stats
     app.router.add_get("/api/stats/overview", handle_stats_overview)

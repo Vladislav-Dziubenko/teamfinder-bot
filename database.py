@@ -352,6 +352,9 @@ CREATE TABLE IF NOT EXISTS pvp_challenges (
     stake INTEGER NOT NULL,
     status TEXT NOT NULL DEFAULT 'open',
     winner_id BIGINT,
+    creator_vote BIGINT,
+    opponent_vote BIGINT,
+    expires_at TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL,
     FOREIGN KEY (creator_id) REFERENCES users(user_id)
 );
@@ -705,6 +708,10 @@ class Database:
 
             ("user_achievements", "user_id", "BIGINT"),
             ("user_achievements", "achievement_id", "TEXT NOT NULL DEFAULT ''"),
+
+            ("pvp_challenges", "creator_vote", "BIGINT"),
+            ("pvp_challenges", "opponent_vote", "BIGINT"),
+            ("pvp_challenges", "expires_at", "TEXT NOT NULL DEFAULT ''"),
 
             ("profiles", "searching_since", "TEXT"),
             ("user_achievements", "claimed", "INTEGER NOT NULL DEFAULT 0"),
@@ -2338,6 +2345,10 @@ class Database:
             return {"coins": row["coins"], "stars": row["stars"], "points": row["points"]}
 
     async def add_coins(self, user_id: int, amount: int) -> None:
+        # Только начисление: отрицательные/не-целые отбрасываем, иначе это
+        # заряженное ружьё для будущих мест вызова (confused deputy).
+        if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
+            return
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
@@ -2351,6 +2362,8 @@ class Database:
             )
 
     async def add_stars(self, user_id: int, amount: int) -> None:
+        if isinstance(amount, bool) or not isinstance(amount, int) or amount <= 0:
+            return
         async with self.pool.acquire() as conn:
             await conn.execute(
                 """
@@ -2549,42 +2562,54 @@ class Database:
             logger.warning(f"get_limited_model_history failed (table missing?): {e}")
             return []
 
-    async def list_limited_model(self, owner_id: int, token_id: int, price: int) -> bool:
-        if price <= 0:
+    # Минимальная цена листинга: пыль по 1⭐ дарила её даром (округление комиссии).
+    MIN_MODEL_LIST_PRICE = 10
+
+    def _resolve_model_id(self, model_id: str | None) -> str | None:
+        """Валидация серии модели, иначе None (защита от подмены model_id)."""
+        if not isinstance(model_id, str) or model_id not in self.LIMITED_MODELS:
+            return None
+        return model_id
+
+    async def list_limited_model(self, owner_id: int, token_id: int, price: int, model_id: str | None = None) -> bool:
+        mid = self._resolve_model_id(model_id) or self.LIMITED_MODEL_ID
+        if price < self.MIN_MODEL_LIST_PRICE:
             return False
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
                     "SELECT 1 FROM limited_models WHERE model_id = $1 AND token_id = $2 AND owner_id = $3",
-                    self.LIMITED_MODEL_ID, token_id, owner_id,
+                    mid, token_id, owner_id,
                 )
                 if not row:
                     return False
                 await conn.execute(
                     "UPDATE limited_models SET sale_price_stars = $1, listed_at = $2 WHERE model_id = $3 AND token_id = $4",
-                    price, now, self.LIMITED_MODEL_ID, token_id,
+                    price, now, mid, token_id,
                 )
                 return True
 
-    async def unlist_limited_model(self, owner_id: int, token_id: int) -> bool:
+    async def unlist_limited_model(self, owner_id: int, token_id: int, model_id: str | None = None) -> bool:
+        mid = self._resolve_model_id(model_id) or self.LIMITED_MODEL_ID
         async with self.pool.acquire() as conn:
             result = await conn.execute(
                 "UPDATE limited_models SET sale_price_stars = 0, listed_at = NULL "
                 "WHERE model_id = $1 AND token_id = $2 AND owner_id = $3",
-                self.LIMITED_MODEL_ID, token_id, owner_id,
+                mid, token_id, owner_id,
             )
             return result == "UPDATE 1"
 
-    async def buy_limited_model(self, buyer_id: int, token_id: int, dev_id: int | None) -> tuple[bool, str, int]:
+    async def buy_limited_model(self, buyer_id: int, token_id: int, dev_id: int | None, model_id: str | None = None) -> tuple[bool, str, int]:
         """Покупка выставленной модели. Покупатель платит цену, продавец получает цену-комиссию,
         разработчику уходит LIMITED_MODEL_SALE_CUT (комиссия + роялти)."""
+        mid = self._resolve_model_id(model_id) or self.LIMITED_MODEL_ID
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
                     "SELECT owner_id, sale_price_stars FROM limited_models "
                     "WHERE model_id = $1 AND token_id = $2 FOR UPDATE",
-                    self.LIMITED_MODEL_ID, token_id,
+                    mid, token_id,
                 )
                 if not row or row["sale_price_stars"] <= 0 or row["owner_id"] == 0:
                     return False, "not listed", 0
@@ -2602,23 +2627,27 @@ class Database:
                 await conn.execute(
                     "UPDATE limited_models SET owner_id = $1, sale_price_stars = 0, listed_at = NULL, acquired_at = $2 "
                     "WHERE model_id = $3 AND token_id = $4",
-                    buyer_id, now, self.LIMITED_MODEL_ID, token_id,
+                    buyer_id, now, mid, token_id,
                 )
-                await self._log_model_event(conn, self.LIMITED_MODEL_ID, token_id, buyer_id, "bought", str(price))
+                await self._log_model_event(conn, mid, token_id, buyer_id, "bought", str(price))
                 return True, "ok", price
 
-    async def transfer_limited_model(self, from_id: int, to_id: int, token_id: int, dev_id: int | None) -> tuple[bool, str]:
-        """Прямая передача модели другому пользователю. Отправитель платит небольшую комиссию в звёздах."""
+    async def transfer_limited_model(self, from_id: int, to_id: int, token_id: int, dev_id: int | None, model_id: str | None = None) -> tuple[bool, str]:
+        """Прямая передача модели другому пользователю. Отправитель платит небольшую комиссию в звёздах.
+        Выставленную на продажу модель передать нельзя (иначе тихий обход листинга)."""
+        mid = self._resolve_model_id(model_id) or self.LIMITED_MODEL_ID
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
-                    "SELECT owner_id FROM limited_models WHERE model_id = $1 AND token_id = $2 FOR UPDATE",
-                    self.LIMITED_MODEL_ID, token_id,
+                    "SELECT owner_id, sale_price_stars FROM limited_models WHERE model_id = $1 AND token_id = $2 FOR UPDATE",
+                    mid, token_id,
                 )
                 if not row or row["owner_id"] != from_id:
                     return False, "not owner"
                 if from_id == to_id:
                     return False, "same user"
+                if (row["sale_price_stars"] or 0) > 0:
+                    return False, "listed"
                 if not await self._adjust_currency_conn(conn, from_id, stars=-self.LIMITED_MODEL_TRANSFER_FEE):
                     return False, "not enough stars"
                 if dev_id:
@@ -2627,34 +2656,49 @@ class Database:
                 await conn.execute(
                     "UPDATE limited_models SET owner_id = $1, sale_price_stars = 0, listed_at = NULL, acquired_at = $2 "
                     "WHERE model_id = $3 AND token_id = $4",
-                    to_id, now, self.LIMITED_MODEL_ID, token_id,
+                    to_id, now, mid, token_id,
                 )
-                await self._log_model_event(conn, self.LIMITED_MODEL_ID, token_id, to_id, "transfer")
+                await self._log_model_event(conn, mid, token_id, to_id, "transfer")
                 return True, "ok"
 
-    async def sell_limited_model(self, owner_id: int, token_id: int) -> tuple[bool, str, int]:
-        """Продажа модели разработчику: владелец получает LIMITED_MODEL_SELL_PRICE звёзд на баланс.
+    async def sell_limited_model(self, owner_id: int, token_id: int, model_id: str | None = None) -> tuple[bool, str, int]:
+        """Выкуп модели разработчиком. Анти-принтер: цена выкупа ограничена
+        последней ценой покупки токена (wash-сделка за 1⭐ даёт 1⭐, а не 55к).
+        Джекпот/БП-награды без покупки выкупаются по полной цене — так задумано.
 
         Модель НЕ удаляется, а помечается сгоревшей (owner_id = 0) — иначе
         COUNT(*) тиража падает и сгоревшие номера переиспользуются
         (MAX(token_id)+1 выдавал дубликаты токенов).
         """
+        mid = self._resolve_model_id(model_id) or self.LIMITED_MODEL_ID
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
                     "SELECT owner_id FROM limited_models WHERE model_id = $1 AND token_id = $2 FOR UPDATE",
-                    self.LIMITED_MODEL_ID, token_id,
+                    mid, token_id,
                 )
                 if not row or row["owner_id"] != owner_id:
                     return False, "not owner", 0
-                await self._adjust_currency_conn(conn, owner_id, stars=self.LIMITED_MODEL_SELL_PRICE)
+                last_buy = await conn.fetchval(
+                    "SELECT details FROM limited_model_events WHERE model_id = $1 AND token_id = $2 "
+                    "AND event_type = 'bought' ORDER BY id DESC LIMIT 1",
+                    mid, token_id,
+                )
+                buyback = self.LIMITED_MODEL_SELL_PRICE
+                try:
+                    last_price = int(last_buy) if last_buy else 0
+                    if last_price > 0:
+                        buyback = min(self.LIMITED_MODEL_SELL_PRICE, last_price)
+                except (ValueError, TypeError):
+                    pass
+                await self._adjust_currency_conn(conn, owner_id, stars=buyback)
                 await conn.execute(
                     "UPDATE limited_models SET owner_id = 0, sale_price_stars = 0, listed_at = NULL, last_income_at = NULL "
                     "WHERE model_id = $1 AND token_id = $2",
-                    self.LIMITED_MODEL_ID, token_id,
+                    mid, token_id,
                 )
-                await self._log_model_event(conn, self.LIMITED_MODEL_ID, token_id, owner_id, "burned", str(self.LIMITED_MODEL_SELL_PRICE))
-                return True, "ok", self.LIMITED_MODEL_SELL_PRICE
+                await self._log_model_event(conn, mid, token_id, owner_id, "burned", str(buyback))
+                return True, "ok", buyback
 
     async def pay_limited_model_income(self) -> int:
         """Ежедневный доход владельцу модели: 50-100 ⭐ за каждый экземпляр, раз в сутки (UTC)."""
@@ -2973,10 +3017,16 @@ class Database:
                     "UPDATE game_sessions SET status = 'expired' WHERE status = 'active' AND expires_at < $1",
                     now.isoformat(),
                 )
+                # Явный список колонок БЕЗ password_hash: s.* светил бы
+                # несолёный SHA256 паролей комнат всем подряд (офлайн-брутфорс).
+                _SAFE_SESSION_COLS = (
+                    "s.id, s.creator_id, s.game, s.title, s.status, s.created_at, "
+                    "s.expires_at, s.max_players, s.is_private, s.voice_enabled"
+                )
                 if game:
                     rows = await conn.fetch(
-                        """
-                        SELECT s.*,
+                        f"""
+                        SELECT {_SAFE_SESSION_COLS},
                                COALESCE((SELECT COUNT(*) FROM game_session_players p WHERE p.session_id = s.id), 0) AS players_count,
                                COALESCE((
                                    SELECT json_agg(json_build_object(
@@ -2996,8 +3046,8 @@ class Database:
                     )
                 else:
                     rows = await conn.fetch(
-                        """
-                        SELECT s.*,
+                        f"""
+                        SELECT {_SAFE_SESSION_COLS},
                                COALESCE((SELECT COUNT(*) FROM game_session_players p WHERE p.session_id = s.id), 0) AS players_count,
                                COALESCE((
                                    SELECT json_agg(json_build_object(
@@ -3037,8 +3087,10 @@ class Database:
                     "UPDATE game_sessions SET status = 'expired' WHERE id = $1 AND status = 'active' AND expires_at < $2",
                     session_id, now.isoformat(),
                 )
+                # FOR UPDATE: два параллельных join не должны оба увидеть
+                # count == max-1 и втиснуться сверх лимита.
                 row = await conn.fetchrow(
-                    "SELECT * FROM game_sessions WHERE id = $1", session_id,
+                    "SELECT * FROM game_sessions WHERE id = $1 FOR UPDATE", session_id,
                 )
                 if not row or row["status"] != "active":
                     return False, "not found", None
@@ -3063,7 +3115,8 @@ class Database:
                 return True, "", dict(row)
 
     async def leave_game_session(self, session_id: int, user_id: int) -> bool:
-        """Покидает сессию; создатель отменяет её целиком."""
+        """Покидает сессию. Ушедший создатель передаёт корону старейшему
+        участнику вместо отмены всей сессии (иначе гриферство/DoS)."""
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 await conn.execute(
@@ -3074,9 +3127,20 @@ class Database:
                     "SELECT creator_id FROM game_sessions WHERE id = $1", session_id,
                 )
                 if creator == user_id:
-                    await conn.execute(
-                        "UPDATE game_sessions SET status = 'cancelled' WHERE id = $1", session_id,
+                    heir = await conn.fetchval(
+                        "SELECT user_id FROM game_session_players WHERE session_id = $1 "
+                        "ORDER BY joined_at ASC LIMIT 1",
+                        session_id,
                     )
+                    if heir:
+                        await conn.execute(
+                            "UPDATE game_sessions SET creator_id = $1 WHERE id = $2",
+                            heir, session_id,
+                        )
+                    else:
+                        await conn.execute(
+                            "UPDATE game_sessions SET status = 'cancelled' WHERE id = $1", session_id,
+                        )
                     return True
                 return True
 
@@ -3090,9 +3154,15 @@ class Database:
     # Voice chat methods
     async def join_voice_chat(self, session_id: int, user_id: int) -> tuple[bool, str, dict | None]:
         """Присоединяется к голосовому чату сессии."""
-        now = datetime.utcnow().isoformat()
+        now = datetime.utcnow()
         async with self.pool.acquire() as conn:
             async with conn.transaction():
+                # Протухшие сессии сначала помечаем expired (иначе войс живёт
+                # на мёртвых сессиях — join_game_session так уже делает).
+                await conn.execute(
+                    "UPDATE game_sessions SET status = 'expired' WHERE id = $1 AND status = 'active' AND expires_at < $2",
+                    session_id, now.isoformat(),
+                )
                 # Check session exists and voice is enabled
                 row = await conn.fetchrow(
                     "SELECT voice_enabled FROM game_sessions WHERE id = $1 AND status = 'active'",
@@ -5016,6 +5086,26 @@ WHERE user_quests.completed = 0
     async def send_friend_request(self, user_id: int, friend_id: int) -> dict:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
+            if user_id == friend_id:
+                return {"ok": False, "error": "cannot add yourself"}
+            # Получатель существует и не заблокировал отправителя (и наоборот).
+            target = await conn.fetchval("SELECT 1 FROM users WHERE user_id = $1", friend_id)
+            if not target:
+                return {"ok": False, "error": "user not found"}
+            blocked = await conn.fetchval(
+                "SELECT 1 FROM chat_blocks WHERE (blocker_id = $1 AND blocked_id = $2) OR (blocker_id = $2 AND blocked_id = $1)",
+                user_id, friend_id,
+            )
+            if blocked:
+                return {"ok": False, "error": "unavailable"}
+            # Кулдаун повторных заявок паре: 24 часа (антиспам инвайтами).
+            recent = await conn.fetchval(
+                "SELECT 1 FROM user_friends WHERE ((user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)) "
+                "AND created_at >= $3 LIMIT 1",
+                user_id, friend_id, (datetime.utcnow() - timedelta(days=1)).isoformat(),
+            )
+            if recent:
+                return {"ok": True, "already_sent": True}
             # Проверяем, нет ли уже принятой дружбы в любую сторону
             existing = await conn.fetchrow(
                 "SELECT status FROM user_friends WHERE (user_id = $1 AND friend_id = $2) OR (user_id = $2 AND friend_id = $1)",
@@ -5153,22 +5243,36 @@ WHERE user_quests.completed = 0
                         )
                 return {"settled": len(rows), "winners": winners, "total_payout": total_payout}
 
+    # Челлендж живёт 48 часов: не приняли — ставка возвращается создателю.
+    PVP_CHALLENGE_TTL_HOURS = 48
+    # Активный бой без результата 7 дней — возврат обеих ставок.
+    PVP_ACTIVE_TTL_DAYS = 7
+
     async def create_pvp_challenge(self, creator_id: int, creator_nick: str, condition: str, stake: int) -> dict | None:
-        now = datetime.utcnow().isoformat()
+        now = datetime.utcnow()
+        if stake <= 0 or stake > 1_000_000:
+            return None
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 if not await self._adjust_currency_conn(conn, creator_id, coins=-stake):
                     return None
                 row = await conn.fetchrow(
-                    "INSERT INTO pvp_challenges (creator_id, creator_nick, condition, stake, status, created_at) VALUES ($1, $2, $3, $4, 'open', $5) RETURNING id",
-                    creator_id, creator_nick, condition, stake, now,
+                    "INSERT INTO pvp_challenges (creator_id, creator_nick, condition, stake, status, expires_at, created_at) VALUES ($1, $2, $3, $4, 'open', $5, $6) RETURNING id",
+                    creator_id, creator_nick, condition, stake,
+                    (now + timedelta(hours=self.PVP_CHALLENGE_TTL_HOURS)).isoformat(), now.isoformat(),
                 )
                 return dict(row)
 
     async def get_open_challenges(self) -> list[dict]:
+        await self.sweep_expired_pvp()
         async with self.pool.acquire() as conn:
             rows = await conn.fetch("SELECT * FROM pvp_challenges WHERE status = 'open' ORDER BY created_at DESC LIMIT 20")
             return [dict(r) for r in rows]
+
+    async def get_challenge(self, challenge_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM pvp_challenges WHERE id = $1", challenge_id)
+            return dict(row) if row else None
 
     async def get_user_challenges(self, user_id: int) -> list[dict]:
         async with self.pool.acquire() as conn:
@@ -5178,37 +5282,148 @@ WHERE user_quests.completed = 0
             )
             return [dict(r) for r in rows]
 
+    async def _refund_pvp_conn(self, conn: asyncpg.Connection, row) -> None:
+        """Возврат ставок обеим сторонам (истечение/отмена). Внутри транзакции."""
+        await self._adjust_currency_conn(conn, row["creator_id"], coins=row["stake"])
+        if row["opponent_id"]:
+            await self._adjust_currency_conn(conn, row["opponent_id"], coins=row["stake"])
+
+    async def sweep_expired_pvp(self) -> int:
+        """Ленивый сборщик: протухшие open/active возвращают ставки, статус refunded/expired."""
+        now = datetime.utcnow().isoformat()
+        refunded = 0
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id, creator_id, opponent_id, stake, status FROM pvp_challenges "
+                "WHERE status IN ('open', 'active') AND expires_at <> '' AND expires_at < $1 "
+                "ORDER BY id LIMIT 50",
+                now,
+            )
+            for r in rows:
+                async with conn.transaction():
+                    locked = await conn.fetchrow(
+                        "SELECT id, creator_id, opponent_id, stake, status FROM pvp_challenges WHERE id = $1 FOR UPDATE",
+                        r["id"],
+                    )
+                    if not locked or locked["status"] not in ("open", "active"):
+                        continue
+                    await self._refund_pvp_conn(conn, locked)
+                    await conn.execute(
+                        "UPDATE pvp_challenges SET status = 'refunded' WHERE id = $1", r["id"],
+                    )
+                    refunded += 1
+        return refunded
+
     async def accept_pvp_challenge(self, challenge_id: int, opponent_id: int, opponent_nick: str) -> bool:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
-                    "SELECT creator_id, stake, status FROM pvp_challenges WHERE id = $1 FOR UPDATE",
+                    "SELECT creator_id, stake, status, expires_at FROM pvp_challenges WHERE id = $1 FOR UPDATE",
                     challenge_id,
                 )
                 if not row or row["status"] != "open":
                     return False
                 if row["creator_id"] == opponent_id:
                     return False
+                # Протухший open: ставка назад создателю, принять нельзя.
+                if row["expires_at"] and row["expires_at"] < now:
+                    await self._adjust_currency_conn(conn, row["creator_id"], coins=row["stake"])
+                    await conn.execute(
+                        "UPDATE pvp_challenges SET status = 'expired' WHERE id = $1", challenge_id,
+                    )
+                    return False
                 stake = row["stake"]
                 if not await self._adjust_currency_conn(conn, opponent_id, coins=-stake):
                     return False
                 await conn.execute(
-                    "UPDATE pvp_challenges SET status = 'active', opponent_id = $1, opponent_nick = $2 WHERE id = $3",
-                    opponent_id, opponent_nick, challenge_id,
+                    "UPDATE pvp_challenges SET status = 'active', opponent_id = $1, opponent_nick = $2, "
+                    "expires_at = $3 WHERE id = $4",
+                    opponent_id, opponent_nick,
+                    (datetime.utcnow() + timedelta(days=self.PVP_ACTIVE_TTL_DAYS)).isoformat(),
+                    challenge_id,
                 )
                 return True
 
-    async def resolve_pvp_challenge(self, challenge_id: int, caller_id: int, winner_id: int) -> bool:
+    async def cancel_pvp_challenge(self, challenge_id: int, caller_id: int) -> bool:
+        """Отмена своего open-челленджа создателем: ставка возвращается."""
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT creator_id, stake, status FROM pvp_challenges WHERE id = $1 FOR UPDATE",
+                    challenge_id,
+                )
+                if not row or row["status"] != "open" or row["creator_id"] != caller_id:
+                    return False
+                await self._adjust_currency_conn(conn, caller_id, coins=row["stake"])
+                await conn.execute(
+                    "UPDATE pvp_challenges SET status = 'cancelled' WHERE id = $1", challenge_id,
+                )
+                return True
+
+    async def resolve_pvp_challenge(self, challenge_id: int, caller_id: int, winner_id: int) -> dict:
+        """Взаимное подтверждение: голос засчитывается, выплата — только когда
+        оба назвали одного победителя. Возвращает {"ok", "state"} где state:
+        waiting (ждём второго), finished, disputed (голоса разошлись — решит
+        разработчик через force_resolve_pvp_challenge)."""
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                row = await conn.fetchrow(
+                    "SELECT creator_id, opponent_id, stake, status, creator_vote, opponent_vote, expires_at "
+                    "FROM pvp_challenges WHERE id = $1 FOR UPDATE",
+                    challenge_id,
+                )
+                if not row or row["status"] != "active":
+                    return {"ok": False, "error": "not active"}
+                if row["expires_at"] and row["expires_at"] < now:
+                    await self._refund_pvp_conn(conn, row)
+                    await conn.execute(
+                        "UPDATE pvp_challenges SET status = 'refunded' WHERE id = $1", challenge_id,
+                    )
+                    return {"ok": False, "error": "expired, stakes refunded"}
+                is_creator = caller_id == row["creator_id"]
+                is_opponent = row["opponent_id"] is not None and caller_id == row["opponent_id"]
+                if not (is_creator or is_opponent):
+                    return {"ok": False, "error": "not a participant"}
+                if winner_id not in (row["creator_id"], row["opponent_id"]):
+                    return {"ok": False, "error": "invalid winner"}
+                col = "creator_vote" if is_creator else "opponent_vote"
+                other_col = "opponent_vote" if is_creator else "creator_vote"
+                await conn.execute(
+                    f"UPDATE pvp_challenges SET {col} = $1 WHERE id = $2",
+                    winner_id, challenge_id,
+                )
+                other_vote = row[other_col]
+                if other_vote is None:
+                    return {"ok": True, "state": "waiting"}
+                if other_vote != winner_id:
+                    await conn.execute(
+                        "UPDATE pvp_challenges SET status = 'disputed' WHERE id = $1", challenge_id,
+                    )
+                    return {"ok": True, "state": "disputed"}
+                payout = row["stake"] * 2
+                if not await self._adjust_currency_conn(conn, winner_id, coins=payout):
+                    return {"ok": False, "error": "payout failed"}
+                await conn.execute(
+                    "UPDATE pvp_challenges SET status = 'finished', winner_id = $1 WHERE id = $2",
+                    winner_id, challenge_id,
+                )
+                # Реальная статистика: победителю +1 победа, обоим +1 сыгранный матч.
+                for uid in (row["creator_id"], row["opponent_id"]):
+                    await self.increment_user_stat(uid, "games_played", conn=conn)
+                await self.increment_user_stat(winner_id, "wins", conn=conn)
+                return {"ok": True, "state": "finished", "winner_id": winner_id}
+
+    async def force_resolve_pvp_challenge(self, challenge_id: int, winner_id: int) -> bool:
+        """Принудительное решение спора разработчиком (статус active/disputed)."""
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
                     "SELECT creator_id, opponent_id, stake, status FROM pvp_challenges WHERE id = $1 FOR UPDATE",
                     challenge_id,
                 )
-                if not row or row["status"] != "active":
-                    return False
-                if row["creator_id"] != caller_id:
+                if not row or row["status"] not in ("active", "disputed"):
                     return False
                 if winner_id not in (row["creator_id"], row["opponent_id"]):
                     return False
@@ -5219,7 +5434,6 @@ WHERE user_quests.completed = 0
                     "UPDATE pvp_challenges SET status = 'finished', winner_id = $1 WHERE id = $2",
                     winner_id, challenge_id,
                 )
-                # Реальная статистика: победителю +1 победа, обоим +1 сыгранный матч.
                 for uid in (row["creator_id"], row["opponent_id"]):
                     await self.increment_user_stat(uid, "games_played", conn=conn)
                 await self.increment_user_stat(winner_id, "wins", conn=conn)

@@ -118,7 +118,8 @@ async def voice_relay(message: Message, db: Database, bot: Bot):
             [InlineKeyboardButton(text="💬 Открыть чат", url=f"https://t.me/{bot_username}?startapp=chat_{a}_{b}")]
         ])
     logging.info("[VOICE] delivered chat=%s from=%s to=%s", chat_id, sender.id, peer_id)
-    await message.answer(f"✅ Голосовое доставлено в лички с <b>{peer_nick}</b>.", reply_markup=kb)
+    from html import escape as _esc
+    await message.answer(f"✅ Голосовое доставлено в лички с <b>{_esc(peer_nick)}</b>.", reply_markup=kb)
 
 
 @router.message(F.video_note)
@@ -130,36 +131,6 @@ async def video_note_hint(message: Message):
         "🎥 Это видеокружок — в лички NEXUS уходят только обычные голосовые.\n\n"
         "Зажми микрофон (не камеру) и пришли голосовое следующим сообщением."
     )
-
-    # Пуш получателю — только если его нет в приложении и он не замутил чат.
-    try:
-        prefs = await db.get_user_prefs(peer_id)
-        if not prefs.get("tg_notify", True):
-            return
-        last_active = await db.pool.fetchval(
-            "SELECT last_active_at FROM users WHERE user_id = $1", peer_id
-        )
-        if last_active:
-            try:
-                if datetime.utcnow() - datetime.fromisoformat(last_active) < timedelta(seconds=120):
-                    return
-            except (ValueError, TypeError):
-                pass
-        status = await db.get_chat_status(chat_id, peer_id)
-        if status.get("muted") or status.get("blocked") or status.get("blocked_by_other"):
-            return
-        if await cache_get(f"tgnot:{chat_id}:{peer_id}"):
-            return
-        try:
-            sender_nick = (await db.get_mini_app_profile(sender.id)).get("nick") or f"User{sender.id}"
-        except Exception:
-            sender_nick = f"User{sender.id}"
-        await bot.send_message(
-            peer_id,
-            f"🎤 <b>{sender_nick}</b> прислал(а) голосовое в NEXUS",
-            reply_markup=kb,
-        )
-        from webapp.redis_client import cache_set
-        await cache_set(f"tgnot:{chat_id}:{peer_id}", 1, ttl=600)
-    except Exception as e:
-        logging.warning("[VOICE] peer notify failed: %s", e)
+    # Пуш получателю здесь невозможен: videonote не привязан к маршруту
+    # (peer_id/chat_id/sender в скоупе нет — старый код падал с NameError).
+    # Видеокружки в лички не уходят по дизайну, только подсказка выше.

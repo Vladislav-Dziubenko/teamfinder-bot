@@ -83,32 +83,35 @@ def find_matches(my_profile: dict, candidates: list[dict], limit: int = 10) -> l
 
 
 def format_profile_card(profile: dict, score: int | None = None, show_contact: bool = False) -> str:
+    from html import escape as _esc
     game = GAMES.get(profile["game"], {})
     title = game.get("title", profile["game"])
     emoji = game.get("emoji", "🎮")
 
+    # Все пользовательские поля — через escape: parse_mode=HTML, иначе чужой
+    # ник ломает парсинг всем смотрящим поиск или инжектит ссылки.
     lines = [
-        f"{emoji} <b>{profile['nickname']}</b> — {title}",
+        f"{emoji} <b>{_esc(str(profile['nickname']))}</b> — {_esc(str(title))}",
     ]
     if score is not None:
         bar = "🟩" * (score // 20) + "⬜" * (5 - score // 20)
         lines.append(f"Совместимость: <b>{score}%</b> {bar}")
 
     lines.extend([
-        f"Ранг: {profile['rank']} | Роль: {profile['role']}",
-        f"Ищет: {profile['looking_for']} | Онлайн: {profile['playtime']}",
+        f"Ранг: {_esc(str(profile['rank']))} | Роль: {_esc(str(profile['role']))}",
+        f"Ищет: {_esc(str(profile['looking_for']))} | Онлайн: {_esc(str(profile['playtime']))}",
     ])
 
     if profile.get("region"):
-        lines.append(f"Регион: {profile['region']}")
-    lines.append(f"Язык: {profile.get('language', 'RU')} | Микрофон: {'да' if profile.get('has_mic') else 'нет'}")
+        lines.append(f"Регион: {_esc(str(profile['region']))}")
+    lines.append(f"Язык: {_esc(str(profile.get('language', 'RU')))} | Микрофон: {'да' if profile.get('has_mic') else 'нет'}")
 
     if profile.get("description"):
         desc = profile["description"][:180]
-        lines.append(f"\n💬 {desc}")
+        lines.append(f"\n💬 {_esc(str(desc))}")
 
     if show_contact:
-        lines.append(f"\n📩 Контакт: <code>{profile['contact']}</code>")
+        lines.append(f"\n📩 Контакт: <code>{_esc(str(profile['contact']))}</code>")
     else:
         lines.append("\n🔒 Контакт скрыт — купи подбор или премиум")
 

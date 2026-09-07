@@ -16,6 +16,18 @@ def _guide_by_id(guide_id: str) -> dict | None:
     return None
 
 
+async def _refund_or_log(bot: Bot, user_id: int, charge_id: str, why: str) -> bool:
+    """Возврат повторной оплаты (два инвойса → две оплаты, один товар).
+    Возвращает True если рефанд ушёл."""
+    try:
+        await bot.refund_star_payment(user_id=user_id, telegram_payment_charge_id=charge_id)
+        logging.info("Payment refunded: user=%s charge=%s why=%s", user_id, charge_id, why)
+        return True
+    except Exception as e:
+        logging.error("Payment refund FAILED: user=%s charge=%s why=%s err=%s", user_id, charge_id, why, e)
+        return False
+
+
 # Серверный прайс для сверки successful_payment: сколько Stars реально стоил
 # инвойс с таким payload. None = неизвестный payload (награды нет).
 def _expected_payment_amount(payload: str, settings: Settings) -> int | None:
@@ -234,6 +246,10 @@ async def successful_payment(message: Message, db: Database, bot: Bot, settings:
     if payload.startswith("guide:"):
         guide_id = payload.split(":", 1)[1]
         guide = _guide_by_id(guide_id)
+        if await db.has_unlocked(message.from_user.id, guide_id):
+            await _refund_or_log(bot, message.from_user.id, charge_id, f"guide:{guide_id} already unlocked")
+            await message.answer("✅ Этот гайд у тебя уже был — повторная оплата возвращена ⭐")
+            return
         await db.unlock_content(message.from_user.id, guide_id)
         text = guide["text"] if guide else "Гайд разблокирован!"
         if guide and guide.get("video_url"):
@@ -242,6 +258,10 @@ async def successful_payment(message: Message, db: Database, bot: Bot, settings:
         return
 
     if payload == "pro:subscription":
+        if await db.is_pro(message.from_user.id):
+            await _refund_or_log(bot, message.from_user.id, charge_id, "pro already active")
+            await message.answer("✅ PRO у тебя уже активен — повторная оплата возвращена ⭐")
+            return
         await db.set_pro_status(message.from_user.id, days=30)
         await message.answer(
             "✅ <b>PRO-подписка активирована на 30 дней!</b>\n\n"
@@ -254,6 +274,10 @@ async def successful_payment(message: Message, db: Database, bot: Bot, settings:
     if payload.startswith("contact:"):
         try:
             profile_id = int(payload.split(":", 1)[1])
+            if await db.has_unlocked_contact(message.from_user.id, profile_id):
+                await _refund_or_log(bot, message.from_user.id, charge_id, f"contact:{profile_id} already unlocked")
+                await message.answer("✅ Этот контакт у тебя уже открыт — повторная оплата возвращена ⭐")
+                return
             await db.unlock_contact(message.from_user.id, profile_id)
             await message.answer("✅ <b>Контакт открыт!</b>\n\nТеперь ты можешь связаться с этим игроком.")
             return

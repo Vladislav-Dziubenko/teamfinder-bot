@@ -55,8 +55,9 @@ async def cmd_start(message: Message, command: CommandObject, db: Database, sett
         except Exception:
             peer_nick = f"User{peer_id}"
         await cache_set(f"voice_route:{user.id}", {"peer": peer_id}, ttl=600)
+        from html import escape as _esc
         await message.answer(
-            f"🎤 <b>Голосовое для {peer_nick}</b>\n\n"
+            f"🎤 <b>Голосовое для {_esc(peer_nick)}</b>\n\n"
             "Пришли следующим сообщением голосовое (зажми микрофон Telegram) — "
             "доставлю его в вашу переписку в NEXUS.\n\n"
             "⏳ Жду 10 минут."

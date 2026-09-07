@@ -11,12 +11,14 @@
 """
 
 import logging
+from html import escape as _esc
 
 from aiogram import Router
 from aiogram.types import Message
 
 from config import Settings
 from database import Database
+from webapp.redis_client import rate_limit_check
 
 router = Router()
 
@@ -29,8 +31,16 @@ async def ban_appeal_message(message: Message, db: Database, settings: Settings)
     if not await db.is_globally_banned(message.from_user.id):
         return  # не забанен — оставляем поведение как было (без ответа)
 
+    # Антиспам: длинное режем сразу (квоту не жжём), затем 1 апелляция в 5 минут.
+    if len(message.text) > 1000:
+        await message.answer("❌ Апелляция слишком длинная (максимум 1000 символов).")
+        return
+    if await rate_limit_check(f"appeal:{message.from_user.id}", 1, 300):
+        return
+
     sender = message.from_user
     sender_ref = f"@{sender.username}" if sender.username else f"ID {sender.id}"
+    sender_ref = _esc(sender_ref)
     forwarded = False
     for admin_id in settings.admin_ids:
         try:
