@@ -392,7 +392,7 @@
   "role.unban": "Unban",
   "role.banned": "Banned from global chat",
   "mod.ai_title": "AI Guardian",
-  "mod.ai_disabled": "Off (AI_MOD_ENABLED=0)",
+  "mod.ai_disabled": "Off",
   "mod.ai_shadow": "Shadow — observing only",
   "mod.ai_auto": "Autopilot · {provider}",
   "mod.ai_no_key": "no key!",

@@ -386,7 +386,7 @@
   "role.unban": "Разбан",
   "role.banned": "Заблокирован в общем чате",
   "mod.ai_title": "AI Страж",
-  "mod.ai_disabled": "Выключен (AI_MOD_ENABLED=0)",
+  "mod.ai_disabled": "Выключен",
   "mod.ai_shadow": "Shadow — только наблюдает",
   "mod.ai_auto": "Автопилот · {provider}",
   "mod.ai_no_key": "нет ключа!",
