@@ -64,13 +64,15 @@ export const LANGUAGES: LanguageOption[] = [
   { code: "sk", name: "Slovak", nativeName: "Slovenčina" },
   { code: "sl", name: "Slovenian", nativeName: "Slovenščina" },
   { code: "sr", name: "Serbian", nativeName: "Српски" },
+  { code: "kk", name: "Kazakh", nativeName: "Қазақша" },
+  { code: "uz", name: "Uzbek", nativeName: "O'zbek" },
 ]
 
 const dictionaries: Record<string, Record<string, string>> = {
   ru, en,
 }
 
-// Динамические словари (43 языка) — грузятся по требованию и кэшируются.
+// Динамические словари (45 языков) — грузятся по требованию и кэшируются.
 const lazyDicts = new Map<string, Promise<Record<string, string> | undefined>>()
 
 function loadDict(code: string): Promise<Record<string, string> | undefined> {

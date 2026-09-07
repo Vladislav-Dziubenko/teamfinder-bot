@@ -39,6 +39,7 @@ import type { TabId } from "./bottom-nav"
 import { DiscordSection } from "@/components/miniapp/discord-section"
 import { SteamSection } from "@/components/miniapp/steam-section"
 import { cn } from "@/lib/utils"
+import { CURRENT_VERSION } from "@/lib/changelog"
 import { LanguageSelector } from "./language-selector"
 import { RoleBadge } from "./role-badge"
 
@@ -769,7 +770,7 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
         />
       )}
 
-      <p className="pb-2 pt-4 text-center text-xs text-muted-foreground">NEXUS TeamHub · Telegram Mini App · v1.1</p>
+      <p className="pb-2 pt-4 text-center text-xs text-muted-foreground">NEXUS TeamHub · Telegram Mini App · v{CURRENT_VERSION}</p>
       <button
         type="button"
         onClick={() => openLink("/privacy.html")}
