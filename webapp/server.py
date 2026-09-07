@@ -1613,27 +1613,34 @@ async def handle_nexus_open_case(request: web.Request):
                                 cooldown_sec = (datetime.utcnow() - last_dt).total_seconds()
                                 logging.info("[CASE_DEBUG] cooldown_remaining=%.0fs (limit=%ds)", max(0, 24*3600 - cooldown_sec), 24*3600)
                                 if cooldown_sec < 24 * 3600:
-                                    ad_row = await conn.fetchrow(
-                                        "SELECT updated_at, watch_count, rewarded FROM user_ad_watches WHERE user_id = $1",
-                                        user["id"],
-                                    )
+                                    # Открытие за рекламу — только по одноразовому токену:
+                                    # /ad/watch выдаёт токен (rate-limit 1/65с), здесь он
+                                    # сверяется и гасится атомарно в этой же транзакции.
+                                    # 1 показ = 1 открытие; фарм прямым POST невозможен.
+                                    via_ad = bool(body.get("via_ad"))
+                                    ad_token = body.get("ad_token", "")
                                     ad_ok = False
-                                    if ad_row and ad_row["updated_at"]:
-                                        try:
-                                            ad_dt = datetime.fromisoformat(ad_row["updated_at"])
-                                            ad_age = (datetime.utcnow() - ad_dt).total_seconds()
-                                            ad_ok = ad_age < 10 * 60
-                                            logging.info("[CASE_DEBUG] ad_row updated_at=%s age=%.0fs ad_ok=%s watch_count=%s rewarded=%s", ad_row["updated_at"], ad_age, ad_ok, ad_row["watch_count"], ad_row["rewarded"])
-                                        except (ValueError, TypeError) as e:
-                                            logging.warning("[CASE_DEBUG] ad parse error: %s", e)
-                                            ad_ok = False
-                                    else:
-                                        logging.warning("[CASE_DEBUG] no ad_row for user=%s", user["id"])
+                                    if via_ad and isinstance(ad_token, str) and ad_token:
+                                        ad_row = await conn.fetchrow(
+                                            "SELECT updated_at, ad_token FROM user_ad_watches WHERE user_id = $1 FOR UPDATE",
+                                            user["id"],
+                                        )
+                                        if ad_row and ad_row["ad_token"] == ad_token and ad_row["updated_at"]:
+                                            try:
+                                                ad_dt = datetime.fromisoformat(ad_row["updated_at"])
+                                                ad_age = (datetime.utcnow() - ad_dt).total_seconds()
+                                                if ad_age < 10 * 60:
+                                                    ad_ok = True
+                                                    await conn.execute(
+                                                        "UPDATE user_ad_watches SET ad_token = '' WHERE user_id = $1",
+                                                        user["id"],
+                                                    )
+                                                    logging.info("[CASE_DEBUG] AD TOKEN ACCEPTED+CONSUMED user=%s case=%s", user["id"], case_id)
+                                            except (ValueError, TypeError) as e:
+                                                logging.warning("[CASE_DEBUG] ad parse error: %s", e)
                                     if not ad_ok:
                                         logging.warning("[CASE_DEBUG] COOLDOWN triggered user=%s case=%s", user["id"], case_id)
                                         return web.json_response({"error": "cooldown"}, status=400)
-                                    else:
-                                        logging.info("[CASE_DEBUG] AD WATCH ACCEPTED, opening free case user=%s case=%s", user["id"], case_id)
                         else:
                             # Бета-тестер может открыть голд за бета-баланс (case_balance),
                             # но только если клиент явно просит beta_free И баланс хватает.
@@ -1645,8 +1652,10 @@ async def handle_nexus_open_case(request: web.Request):
                             # Сначала проверяем free_gold_opens — они в приоритете
                             # перед beta balance, чтобы не копились бесконечно.
                             if case_id == "gold":
+                                # FOR UPDATE: чтение и декремент под блокировкой строки,
+                                # иначе гонка даёт отрицательный баланс/лишние открытия.
                                 free_opens = await conn.fetchval(
-                                    "SELECT free_gold_opens FROM users WHERE user_id = $1", user["id"],
+                                    "SELECT free_gold_opens FROM users WHERE user_id = $1 FOR UPDATE", user["id"],
                                 ) or 0
 
                                 if free_opens >= count:
@@ -1697,25 +1706,29 @@ async def handle_nexus_open_case(request: web.Request):
                                 if count != 1:
                                     return web.json_response({"error": "autumn-gold можно открывать только по одному (3 ключа за открытие)"}, status=400)
                                 key_pool = ["autumn-key", "bp8p", "bp13p", "bp18p", "bp22p", "bp24p", "bp27p", "bp29p"]
-                                # Проверяем наличие 3 ключей в инвентаре
-                                key_count = await conn.fetchval(
-                                    "SELECT COUNT(*) FROM user_inventory WHERE user_id = $1 AND item_key = ANY($2)",
-                                    user["id"], key_pool
-                                ) or 0
-                                if key_count < 3:
-                                    return web.json_response({"error": "Нужно 3 Autumn Key для открытия Autumn Gold"}, status=400)
-                                # Списываем 3 ключа
-                                await conn.execute(
+                                # Блокируем 3 строки ключей (FOR UPDATE) и только потом
+                                # проверяем количество: параллельная транзакция ждёт
+                                # наших блокировок и после коммита видит актуальный
+                                # остаток. Без блокировок оба запроса видели бы 3 ключа
+                                # и второй открывал бы кейс бесплатно.
+                                # Проверка ДО удаления важна: return 400 внутри
+                                # транзакции коммитит всё сделанное ранее — частичное
+                                # списание при ошибке недопустимо.
+                                key_rows = await conn.fetch(
                                     """
-                                    DELETE FROM user_inventory
-                                    WHERE id IN (
-                                        SELECT id FROM user_inventory
-                                        WHERE user_id = $1 AND item_key = ANY($2)
-                                        ORDER BY CASE WHEN item_key = 'autumn-key' THEN 0 ELSE 1 END, acquired_at ASC
-                                        LIMIT 3
-                                    )
+                                    SELECT id FROM user_inventory
+                                    WHERE user_id = $1 AND item_key = ANY($2)
+                                    ORDER BY CASE WHEN item_key = 'autumn-key' THEN 0 ELSE 1 END, acquired_at ASC
+                                    LIMIT 3
+                                    FOR UPDATE
                                     """,
                                     user["id"], key_pool
+                                )
+                                if len(key_rows) < 3:
+                                    return web.json_response({"error": "Нужно 3 Autumn Key для открытия Autumn Gold"}, status=400)
+                                await conn.execute(
+                                    "DELETE FROM user_inventory WHERE id = ANY($1)",
+                                    [r["id"] for r in key_rows],
                                 )
                             else:
                                 total_cost = case_config["costStars"] * count
@@ -2644,9 +2657,14 @@ async def handle_nexus_ad_state(request: web.Request):
 
 async def handle_nexus_ad_watch(request: web.Request):
     """Клиент засчитывает просмотр рекламы после показа. Сервер ведёт счётчик
-    и выдаёт достижение «15 реклам → +20 ⭐» один раз."""
+    и выдаёт достижение «15 реклам → +20 ⭐» один раз. Возвращает одноразовый
+    ad_token: без него открытие фри-кейса в кулдаун невозможно.
+    Rate-limit 1/65с: реальный показ занимает десятки секунд, а прямой POST-
+    фарм упирается в потолок ~1 токен/мин вместо бесконечности."""
     db: Database = request.app["db"]
     user = _get_user(request)
+    if await rate_limit_check(f"adwatch:{user['id']}", 1, 65):
+        return web.json_response({"error": "slow down"}, status=429)
     state = await db.record_ad_watch(user["id"])
     # Достижение «20 реклам»: суммарный счётчик просмотров.
     asyncio.create_task(db.bump_achievement_progress(user["id"], "a5", 20, 1))

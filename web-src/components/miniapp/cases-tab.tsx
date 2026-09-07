@@ -161,7 +161,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         return
       }
       const ad = await recordAdWatch()
-      if (!ad.ok) {
+      if (!ad.ok || !ad.ad_token) {
         onToast(ad.error ?? t("common.error"))
         return
       }
@@ -169,7 +169,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
         onToast(t("cases.ad_reward", { stars: ad.reward_stars }))
       }
       setSpin({ box: c, winner: null })
-      const res = await openCase(c.id, 1, undefined, true)
+      const res = await openCase(c.id, 1, undefined, true, ad.ad_token)
       if (!res.ok) {
         setSpin(null)
         onToast(res.error ?? t("common.error"))

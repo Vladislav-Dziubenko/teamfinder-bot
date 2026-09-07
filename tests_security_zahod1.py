@@ -55,6 +55,28 @@ check("POST /api/nexus/shop/buy NOT public", not is_public("/api/nexus/shop/buy"
 check("diag NOT public", not is_public("/api/diag/env", "GET"))
 check("client-error still public", is_public("/api/client-error", "POST"))
 
+# --- C6: payment amount verification (pure function, no DB) ---
+from types import SimpleNamespace
+from handlers.payments import _expected_payment_amount
+
+_s = SimpleNamespace(
+    price_best_team=5, price_highlight=7, price_pro_subscription=15,
+    price_single_contact=2, price_premium_application=3,
+)
+check("best_team price", _expected_payment_amount("best_team:cs2", _s) == 5)
+check("highlight price", _expected_payment_amount("highlight:profile", _s) == 7)
+check("pro price", _expected_payment_amount("pro:subscription", _s) == 15)
+check("contact price", _expected_payment_amount("contact:123", _s) == 2)
+check("premium_application price", _expected_payment_amount("premium:application", _s) == 3)
+check("star_pack p1 price", _expected_payment_amount("star_pack:p1", _s) == 75)
+check("star_pack unknown -> None", _expected_payment_amount("star_pack:px", _s) is None)
+check("buy_stars amount", _expected_payment_amount("buy_stars:100", _s) == 100)
+check("buy_stars garbage -> None", _expected_payment_amount("buy_stars:abc", _s) is None)
+check("buy_stars negative -> None", _expected_payment_amount("buy_stars:-5", _s) is None)
+check("tip amount", _expected_payment_amount("tip:50", _s) == 50)
+check("unknown payload -> None", _expected_payment_amount("hack:free", _s) is None)
+check("empty payload -> None", _expected_payment_amount("", _s) is None)
+
 print()
 if failures:
     print(f"FAILURES: {len(failures)}")

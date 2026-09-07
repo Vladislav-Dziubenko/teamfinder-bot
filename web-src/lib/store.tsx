@@ -513,10 +513,10 @@ type Nexus = PersistedState & {
   sellItem: (uid: string) => Promise<void>
   sellStack: (itemKey: string, count: number) => Promise<{ sold: number; coins: number } | null>
   togglePin: (key: string) => void
-  openCase: (caseId: string, count?: number, requestId?: string, viaAd?: boolean) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; fair?: FairProof; error?: string }>
+  openCase: (caseId: string, count?: number, requestId?: string, viaAd?: boolean, adToken?: string) => Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; fair?: FairProof; error?: string }>
   refreshModels: () => Promise<void>
   refreshModelHistory: () => Promise<void>
-  recordAdWatch: () => Promise<{ ok: boolean; watch_count?: number; reward_stars?: number; error?: string }>
+  recordAdWatch: () => Promise<{ ok: boolean; watch_count?: number; reward_stars?: number; ad_token?: string; error?: string }>
   listModel: (tokenId: number, price: number) => Promise<{ ok: boolean; error?: string }>
   unlistModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
   buyModel: (tokenId: number) => Promise<{ ok: boolean; error?: string }>
@@ -846,7 +846,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       })
     }
 
-    const openCase = async (caseId: string, count = 1, requestId?: string, viaAd = false): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; fair?: FairProof; error?: string }> => {
+    const openCase = async (caseId: string, count = 1, requestId?: string, viaAd = false, adToken?: string): Promise<{ ok: boolean; item?: CaseItem; items?: CaseItem[]; fair?: FairProof; error?: string }> => {
       const c = s.lootCases.find((x) => x.id === caseId)
       if (!c) return { ok: false, error: "Кейс не найден" }
       const isBeta = s.isBeta
@@ -863,7 +863,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         requestId ||
         (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `rid-${Date.now()}-${Math.random().toString(36).slice(2)}`)
       try {
-        const data = await api.post("/api/nexus/cases/open", { case_id: caseId, count, request_id: rid, via_ad: viaAd, beta_free: betaPays })
+        const data = await api.post("/api/nexus/cases/open", { case_id: caseId, count, request_id: rid, via_ad: viaAd, ad_token: adToken, beta_free: betaPays })
         if (c.free && data.last_open_at) {
           const until = parseIsoTs(data.last_open_at) + DAY_MS
           setS((p: PersistedState) => ({
@@ -942,7 +942,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    const recordAdWatch = async (): Promise<{ ok: boolean; watch_count?: number; reward_stars?: number; error?: string }> => {
+    const recordAdWatch = async (): Promise<{ ok: boolean; watch_count?: number; reward_stars?: number; ad_token?: string; error?: string }> => {
       try {
         const data = await api.post("/api/nexus/ad/watch")
         setS((p: PersistedState) => ({
@@ -951,7 +951,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
           adRewarded: data.rewarded ?? p.adRewarded,
         }))
         await refresh()
-        return { ok: true, watch_count: data.watch_count, reward_stars: data.reward_stars }
+        return { ok: true, watch_count: data.watch_count, reward_stars: data.reward_stars, ad_token: data.ad_token }
       } catch (e: any) {
         return { ok: false, error: e.message || "Не удалось засчитать рекламу" }
       }

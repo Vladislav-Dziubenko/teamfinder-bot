@@ -428,6 +428,7 @@ CREATE TABLE IF NOT EXISTS user_ad_watches (
     watch_count INTEGER NOT NULL DEFAULT 0,
     rewarded INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT NOT NULL DEFAULT '',
+    ad_token TEXT NOT NULL DEFAULT '',
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
@@ -653,6 +654,8 @@ class Database:
             ("user_quests", "completed", "INTEGER NOT NULL DEFAULT 0"),
             ("user_quests", "quest_date", "TEXT NOT NULL DEFAULT ''"),
             ("user_quests", "updated_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("user_ad_watches", "ad_token", "TEXT NOT NULL DEFAULT ''"),
 
             ("user_currency", "coins", "INTEGER NOT NULL DEFAULT 0"),
             ("user_currency", "stars", "INTEGER NOT NULL DEFAULT 0"),
@@ -1524,6 +1527,9 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_voice_sessions_discord_user ON voice_sessions (discord_user_id)",
             "CREATE INDEX IF NOT EXISTS idx_voice_sessions_channel ON voice_sessions (channel_id)",
             "CREATE INDEX IF NOT EXISTS idx_voice_sessions_telegram_user ON voice_sessions (telegram_user_id)",
+            # Идемпотентность оплат: повторный вебхук Telegram с тем же charge_id
+            # не должен начислять награду дважды. NULL не конфликтуют между собой.
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_purchases_charge ON purchases (charge_id)",
         ]
         for idx_sql in perf_indexes:
             try:
@@ -1750,12 +1756,15 @@ class Database:
                 )
             return [dict(r) for r in rows]
 
-    async def record_purchase(self, user_id: int, product_key: str, stars: int, charge_id: str | None) -> None:
+    async def record_purchase(self, user_id: int, product_key: str, stars: int, charge_id: str | None) -> bool:
+        """Возвращает True если покупка записана впервые, False если такой
+        charge_id уже обработан (повторный вебхук Telegram — награду не выдавать)."""
         async with self.pool.acquire() as conn:
-            await conn.execute(
-                "INSERT INTO purchases (user_id, product_key, stars_amount, charge_id, created_at) VALUES ($1, $2, $3, $4, $5)",
+            result = await conn.execute(
+                "INSERT INTO purchases (user_id, product_key, stars_amount, charge_id, created_at) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (charge_id) DO NOTHING",
                 user_id, product_key, stars, charge_id, datetime.utcnow().isoformat(),
             )
+            return isinstance(result, str) and result.split()[-1] == "1"
 
     async def unlock_content(self, user_id: int, content_id: str) -> None:
         async with self.pool.acquire() as conn:
@@ -4214,10 +4223,13 @@ WHERE user_quests.completed = 0
 
     async def record_ad_watch(self, user_id: int) -> dict:
         """Инкрементит счётчик просмотренных реклам. При достижении 15 начисляет
-        +20 звёзд один раз (rewarded). Возвращает новый счётчик и приз."""
+        +20 звёзд один раз (rewarded). Выдаёт одноразовый ad_token для открытия
+        фри-кейса в кулдаун (гасится при открытии). Возвращает счётчик, приз и токен."""
+        import secrets
         now = datetime.utcnow().isoformat()
         AD_REWARD_THRESHOLD = 15
         AD_REWARD_STARS = 20
+        ad_token = secrets.token_hex(16)
         async with self.pool.acquire() as conn:
             async with conn.transaction():
                 row = await conn.fetchrow(
@@ -4232,18 +4244,19 @@ WHERE user_quests.completed = 0
                     reward_stars = AD_REWARD_STARS
                 await conn.execute(
                     """
-                    INSERT INTO user_ad_watches (user_id, watch_count, rewarded, updated_at)
-                    VALUES ($1, $2, $3, $4)
+                    INSERT INTO user_ad_watches (user_id, watch_count, rewarded, updated_at, ad_token)
+                    VALUES ($1, $2, $3, $4, $5)
                     ON CONFLICT (user_id) DO UPDATE SET
                         watch_count = EXCLUDED.watch_count,
                         rewarded = EXCLUDED.rewarded,
-                        updated_at = EXCLUDED.updated_at
+                        updated_at = EXCLUDED.updated_at,
+                        ad_token = EXCLUDED.ad_token
                     """,
-                    user_id, count, rewarded, now,
+                    user_id, count, rewarded, now, ad_token,
                 )
                 if reward_stars > 0:
                     await self._adjust_currency_conn(conn, user_id, stars=reward_stars)
-                return {"watch_count": count, "rewarded": rewarded, "reward_stars": reward_stars}
+                return {"watch_count": count, "rewarded": rewarded, "reward_stars": reward_stars, "ad_token": ad_token}
 
     # ---------- Chat ----------
 

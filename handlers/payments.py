@@ -16,6 +16,37 @@ def _guide_by_id(guide_id: str) -> dict | None:
     return None
 
 
+# Серверный прайс для сверки successful_payment: сколько Stars реально стоил
+# инвойс с таким payload. None = неизвестный payload (награды нет).
+def _expected_payment_amount(payload: str, settings: Settings) -> int | None:
+    # Единый источник цен star-паков — webapp.server.STAR_PACKS (там же
+    # создаются инвойсы). Локальный дубликат запрещён: рассинхрон = дыра.
+    from webapp.server import STAR_PACKS
+    if payload.startswith("best_team:"):
+        return settings.price_best_team
+    if payload == "highlight:profile":
+        return settings.price_highlight
+    if payload.startswith("guide:"):
+        guide = _guide_by_id(payload.split(":", 1)[1])
+        return guide["stars"] if guide and guide.get("stars", 0) > 0 else None
+    if payload == "pro:subscription":
+        return settings.price_pro_subscription
+    if payload.startswith("contact:"):
+        return settings.price_single_contact
+    if payload == "premium:application":
+        return settings.price_premium_application
+    if payload.startswith("star_pack:"):
+        pack = STAR_PACKS.get(payload.split(":", 1)[1])
+        return pack["stars"] if pack else None
+    if payload.startswith("buy_stars:") or payload.startswith("tip:"):
+        try:
+            amount = int(payload.split(":", 1)[1])
+            return amount if amount > 0 else None
+        except (ValueError, IndexError):
+            return None
+    return None
+
+
 async def _send_invoice(bot: Bot, chat_id: int, title: str, description: str, payload: str, stars: int):
     await bot.send_invoice(
         chat_id=chat_id,
@@ -151,13 +182,36 @@ async def pre_checkout(query: PreCheckoutQuery, db: Database):
 
 
 @router.message(F.successful_payment)
-async def successful_payment(message: Message, db: Database, bot: Bot):
+async def successful_payment(message: Message, db: Database, bot: Bot, settings: Settings):
     payment = message.successful_payment
-    payload = payment.invoice_payload
+    payload = payment.invoice_payload or ""
     stars = payment.total_amount
     charge_id = payment.telegram_payment_charge_id
 
-    await db.record_purchase(message.from_user.id, payload, stars, charge_id)
+    # Валюта — только Stars: всё остальное отклоняем до любых начислений.
+    if (payment.currency or "") != "XTR":
+        logging.error("Non-XTR payment rejected: user=%s currency=%s payload=%s",
+                      message.from_user.id, payment.currency, payload)
+        await message.answer("❌ Ошибка валюты платежа. Обратитесь в поддержку.")
+        return
+
+    # Идемпотентность: повторный вебхук Telegram с тем же charge_id
+    # (ретрай при медленном хендлере) не должен начислять дважды.
+    first_time = await db.record_purchase(message.from_user.id, payload, stars, charge_id)
+    if not first_time:
+        logging.warning("Duplicate payment ignored: user=%s charge=%s payload=%s",
+                        message.from_user.id, charge_id, payload)
+        await message.answer("✅ Оплата уже была зачислена ранее.")
+        return
+
+    # Сверка суммы с серверным прайсом: payload и total_amount приходят от
+    # Telegram (не от клиента), инвойсы создаются только с фиксированными
+    # ценами — расхождение означает баг/гонку цен, логируем громко, но
+    # честно оплаченное не отбираем.
+    expected = _expected_payment_amount(payload, settings)
+    if expected is not None and expected != stars:
+        logging.error("Payment amount mismatch: user=%s payload=%s paid=%s expected=%s charge=%s",
+                      message.from_user.id, payload, stars, expected, charge_id)
 
     if payload.startswith("best_team:"):
         game = payload.split(":", 1)[1]
@@ -248,16 +302,14 @@ async def successful_payment(message: Message, db: Database, bot: Bot):
         return
 
     if payload.startswith("buy_stars:"):
-        try:
-            amount = int(payload.split(":", 1)[1])
-            await db.adjust_currency(message.from_user.id, stars=amount)
-            await message.answer(
-                f"✅ <b>Баланс пополнен!</b>\n\n"
-                f"⭐ +{amount} звёзд зачислено на баланс.\n"
-                f"Используй их в Mini App Nexus."
-            )
-        except (ValueError, IndexError):
-            await message.answer("✅ Оплата получена.")
+        # Зачисляем РЕАЛЬНО оплаченное (stars из Telegram), а не цифру из
+        # payload — они совпадают по построению, но деньги есть деньги.
+        await db.adjust_currency(message.from_user.id, stars=stars)
+        await message.answer(
+            f"✅ <b>Баланс пополнен!</b>\n\n"
+            f"⭐ +{stars} звёзд зачислено на баланс.\n"
+            f"Используй их в Mini App Nexus."
+        )
         return
 
     if payload.startswith("tip:"):
