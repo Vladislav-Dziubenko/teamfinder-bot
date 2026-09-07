@@ -965,6 +965,8 @@
   "market.buy": "Купить",
   "market.bought": "{item} куплен!",
   "market.buy_failed": "Не удалось купить: предмет уже продан или не хватает монет",
+  "market.not_enough_coins": "Не хватает монет Nexus",
+  "market.self_buy": "Нельзя купить свой лот",
   "market.cancel_btn": "Снять",
   "market.cancelled": "Лот снят, предмет вернулся в инвентарь",
   "market.cancel_failed": "Не удалось снять лот",

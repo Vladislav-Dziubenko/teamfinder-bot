@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { flushSync } from "react-dom"
-import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2, Play, Trophy, Shirt, Check, ShieldCheck } from "lucide-react"
+import { Star, Coins, Sparkles, X, Package, Clock, Percent, Volume2, VolumeX, Loader2, Play, Trophy, Shirt, Check, ShieldCheck, ShoppingCart, Pin, PinOff } from "lucide-react"
 import { rarityMeta, type CaseItem, type LootCase, type Rarity } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus, type InventoryItem } from "@/lib/store"
@@ -647,8 +647,8 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                       <span className="grid size-10 place-items-center rounded-lg bg-secondary text-xl">{item.icon}</span>
                     )}
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-bold">{tl(itemNameKey(item), item.name)}</p>
-                      <p className="text-[10px]" style={{ color: rarityMeta[item.rarity].color }}>
+                      <p className="line-clamp-1 text-xs font-bold leading-tight">{tl(itemNameKey(item), item.name)}</p>
+                      <p className="text-[10px] leading-none" style={{ color: rarityMeta[item.rarity].color }}>
                         {tl(`rarity.${item.rarity}`, rarityMeta[item.rarity].label)} {count > 1 && <span className="text-muted-foreground">×{count}</span>}
                       </p>
                     </div>
@@ -656,9 +656,9 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                       type="button"
                       onClick={() => setListItem(item)}
                       aria-label={t("market.list_btn")}
-                      className="grid size-7 shrink-0 place-items-center rounded-lg text-xs text-muted-foreground active:scale-90"
+                      className="grid size-7 shrink-0 place-items-center rounded-lg border border-border bg-secondary/60 text-muted-foreground active:scale-90"
                     >
-                      📈
+                      <ShoppingCart className="size-3.5" />
                     </button>
                     <button
                       type="button"
@@ -669,7 +669,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
                         pinned ? "bg-[#ffd700]/20 text-[#ffd700]" : "bg-secondary text-muted-foreground",
                       )}
                     >
-                      📌
+                      {pinned ? <PinOff className="size-3.5" /> : <Pin className="size-3.5" />}
                     </button>
                   </div>
                   <button

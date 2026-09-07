@@ -116,10 +116,14 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
       await refresh()
     } catch (e: any) {
       const msg = String(e?.message || e || "")
-      if (msg.includes("not found")) {
+      if (msg.includes("not found") || msg.includes("already sold")) {
         onToast(t("market.already_sold"))
+      } else if (msg.includes("not enough coins")) {
+        onToast(t("market.not_enough_coins"))
+      } else if (msg.includes("self buy")) {
+        onToast(t("market.self_buy"))
       } else {
-        onToast(t("market.buy_failed"))
+        onToast(msg || t("market.buy_failed"))
       }
     } finally {
       setBuyingId(null)

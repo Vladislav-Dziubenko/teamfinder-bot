@@ -2819,9 +2819,9 @@ class Database:
                 balance = await conn.fetchrow(
                     "SELECT coins FROM user_currency WHERE user_id = $1 FOR UPDATE", buyer_id
                 )
-                coins = balance["coins"] if balance else 0
+                coins = balance["coins"] if balance and balance["coins"] is not None else 0
                 if coins < row["price_coins"]:
-                    return False, "not enough coins"
+                    return False, f"not enough coins: have {coins}, need {row['price_coins']}"
                 now = datetime.utcnow().isoformat()
                 await conn.execute(
                     """

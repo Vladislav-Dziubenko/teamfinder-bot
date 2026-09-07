@@ -965,6 +965,8 @@
   "market.buy": "Buy",
   "market.bought": "{item} purchased!",
   "market.buy_failed": "Purchase failed: already sold or not enough coins",
+  "market.not_enough_coins": "Not enough Nexus coins",
+  "market.self_buy": "Can't buy your own listing",
   "market.cancel_btn": "Remove",
   "market.cancelled": "Lot removed, item returned to inventory",
   "market.cancel_failed": "Failed to remove lot",
