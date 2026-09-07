@@ -914,6 +914,33 @@ type AdminUser = {
 
 type AiAction = { user_id: number; action: string; details: string; created_at: string }
 
+/** Человеческая подпись действия Стража вместо сырого кода (ai_skip_staff → …). */
+function aiActionLabel(t: (k: string) => string, action: string): string {
+  const key = `mod.ai_act_${action.replace(/^ai_/, "")}`
+  const v = t(key)
+  return v === key ? action : v
+}
+
+/** Из "score=0.90 cat=scam скам-фраза: ..." достаём категорию и причину. */
+function parseAiDetails(details: string): { cat: string; reason: string } {
+  const cat = (/cat=([A-Za-z_]+)/.exec(details)?.[1] ?? "").trim()
+  const reason = details
+    .replace(/score=\S+/g, "")
+    .replace(/cat=\S+/g, "")
+    .replace(/msg=\S+/g, "")
+    .replace(/strikes=\S+/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+  return { cat, reason: reason || details.trim() }
+}
+
+function aiCategoryLabel(t: (k: string, v?: any) => string, cat: string): string {
+  if (!cat) return ""
+  const key = `mod.ai_cat_${cat}`
+  const v = t(key)
+  return v === key ? cat : v
+}
+
 function AiStatusCard() {
   const { t } = useI18n()
   const [st, setSt] = useState<null | {
@@ -971,13 +998,18 @@ function AiStatusCard() {
       </div>
       {st.recent.length > 0 && (
         <div className="mt-2 space-y-1.5">
-          {st.recent.slice(0, 5).map((a, i) => (
+          {st.recent.slice(0, 5).map((a, i) => {
+            const { cat, reason } = parseAiDetails(a.details)
+            const catLabel = aiCategoryLabel(t, cat)
+            return (
             <div key={`${a.user_id}-${a.action}-${i}`} className="flex items-center gap-2 rounded-xl bg-background/60 px-2.5 py-1.5">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-[11px] font-bold">
-                  {a.action} · ID {a.user_id}
+                  {aiActionLabel(t, a.action)} · ID {a.user_id}
                 </p>
-                <p className="truncate text-[10px] text-muted-foreground">{a.details}</p>
+                <p className="truncate text-[10px] text-muted-foreground">
+                  {catLabel ? `${catLabel} · ` : ""}{reason}
+                </p>
               </div>
               {(a.action === "ai_mute" || a.action === "ai_ban") && (
                 <button
@@ -990,7 +1022,8 @@ function AiStatusCard() {
                 </button>
               )}
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
       {msg && <p className="mt-2 text-[11px] font-semibold text-accent">{msg}</p>}
