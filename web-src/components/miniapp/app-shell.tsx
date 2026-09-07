@@ -397,7 +397,15 @@ export function AppShell() {
     )
   }
   if (!hasTelegram) return <NoTelegramGate />
-  if (banFromApi) return <BannedSheet reason={banFromApi.reason} expiresAt={banFromApi.expiresAt} />
+  // BannedSheet ходит в useNexus() — ему нужен провайдер, иначе throw
+  // "must be used within NexusProvider" и белый экран вместо бан-экрана.
+  if (banFromApi) {
+    return (
+      <NexusProvider>
+        <BannedSheet reason={banFromApi.reason} expiresAt={banFromApi.expiresAt} />
+      </NexusProvider>
+    )
+  }
   if (authExpired) return <AuthExpiredGate />
   return (
     <NexusProvider>
