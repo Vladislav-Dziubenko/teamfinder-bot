@@ -92,12 +92,14 @@ const DEFAULT_LANG = "ru"
 
 // Коды языков Telegram/браузера → наши локали (ru, en, es, pt, de, fr, tr, ar,
 // uk, pl, zh, hi, id, it, ja, ko, nl, vi, th, fa, ms, sv, no, da, fi, cs, ro,
-// hu, el, he, ur, bn, ta, tl, az).
+// hu, el, he, ur, bn, ta, tl, az, be, bg, et, hr, lt, lv, mk, sk, sl, sr,
+// kk, uz; mo = молдавский → румынский).
 const LANG_ALIASES: Record<string, string> = {
   "pt-br": "pt", "pt-pt": "pt", "zh-cn": "zh", "zh-tw": "zh", "zh-hans": "zh", "zh-hant": "zh",
   "en-us": "en", "en-gb": "en", "es-es": "es", "es-mx": "es", "es-ar": "es",
   "fr-fr": "fr", "de-de": "de", "it-it": "it", "nl-nl": "nl", "sv-se": "sv",
   "no-no": "no", "da-dk": "da", "fi-fi": "fi", "cs-cz": "cs", "ro-ro": "ro",
+  "ro-md": "ro", "mo": "ro", "mo-md": "ro",
   "hu-hu": "hu", "el-gr": "el", "tr-tr": "tr", "ar-sa": "ar", "he-il": "he",
   "fa-ir": "fa", "ur-pk": "ur", "bn-bd": "bn", "ta-in": "ta", "tl-ph": "tl",
   "az-az": "az", "pl-pl": "pl", "uk-ua": "uk", "ru-ru": "ru", "vi-vn": "vi",
@@ -106,15 +108,21 @@ const LANG_ALIASES: Record<string, string> = {
   "be-by": "be", "bg-bg": "bg", "et-ee": "et", "hr-hr": "hr", "lt-lt": "lt",
   "lv-lv": "lv", "mk-mk": "mk", "sk-sk": "sk", "sl-si": "sl", "sr-rs": "sr",
   "sr-cyrl": "sr", "sr-latn": "sr", "srb": "sr",
+  "kk-kz": "kk", "uz-uz": "uz",
 }
+
+// Все поддерживаемые коды (встроенные словари + ленивые). Автоопределение
+// раньше смотрело только на встроенные ru/en — остальные языки никогда
+// не выбирались автоматически и все падали на русский по умолчанию.
+const SUPPORTED_LANGS = new Set(LANGUAGES.map((l) => l.code))
 
 function normalizeLangCode(code?: string | null): string | undefined {
   if (!code) return undefined
   const c = code.trim().toLowerCase().replace(/_/g, "-")
-  if (dictionaries[c]) return c
+  if (dictionaries[c] || SUPPORTED_LANGS.has(c)) return c
   if (LANG_ALIASES[c]) return LANG_ALIASES[c]
   const base = c.split("-")[0]
-  if (dictionaries[base]) return base
+  if (dictionaries[base] || SUPPORTED_LANGS.has(base)) return base
   if (LANG_ALIASES[base]) return LANG_ALIASES[base]
   return undefined
 }
