@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from "react"
 import { createPortal } from "react-dom"
-import { ChevronLeft, ChevronDown, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock, Mic, MicOff, Bot } from "lucide-react"
+import { ChevronLeft, ChevronDown, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock, Mic, MicOff, Bot, Reply, Forward } from "lucide-react"
 import {
   useChatMessages,
   useChats,
@@ -10,10 +10,13 @@ import {
   useCosmeticsMap,
   preloadGlobalChat,
   parseIsoTs,
+  type ChatMessage,
   type ChatPreview,
   type Cosmetics,
   type GlobalMessage,
+  type MsgReply,
 } from "@/lib/chat"
+import { ForwardSheet, type ForwardSource } from "./forward-sheet"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
 import { api, openTelegramLink } from "@/lib/api"
 import { hapticImpact, hapticTap } from "@/lib/webapp"
@@ -172,9 +175,55 @@ type Message = {
   isVoice?: boolean
   voiceDuration?: number
   voiceMime?: string
+  reply?: MsgReply | null
 }
 
-const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chatId, frame }: { message: Message; mine: boolean; chatId: string; frame?: string }) {
+export type ReplyTarget = { id: string; text: string; nick: string }
+
+function scrollToMsg(domId: string): void {
+  if (typeof document === "undefined") return
+  document.getElementById(domId)?.scrollIntoView({ behavior: "smooth", block: "center" })
+}
+
+/** Цитата над сообщением. Тап — прыжок к оригиналу. */
+function ReplyQuote({ nick, text, targetDomId }: { nick: string; text: string; targetDomId: string }) {
+  return (
+    <button
+      type="button"
+      onClick={() => scrollToMsg(targetDomId)}
+      className="mb-1.5 flex w-full items-stretch gap-2 rounded-lg bg-black/10 px-2 py-1.5 text-left active:opacity-70 dark:bg-white/10"
+    >
+      <span className="w-1 shrink-0 rounded-full bg-primary" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[11px] font-bold text-primary">{nick}</span>
+        <span className="block truncate text-xs opacity-80">{text || "…"}</span>
+      </span>
+    </button>
+  )
+}
+
+/** Плашка «ответить» над полем ввода. */
+function ReplyBar({ replyTo, onCancel }: { replyTo: ReplyTarget; onCancel: () => void }) {
+  return (
+    <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2 backdrop-blur-xl">
+      <span className="w-1 shrink-0 self-stretch rounded-full bg-primary" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[11px] font-bold text-primary">{replyTo.nick}</span>
+        <span className="block truncate text-xs text-muted-foreground">{replyTo.text || "…"}</span>
+      </span>
+      <button
+        type="button"
+        onClick={onCancel}
+        aria-label="Отмена"
+        className="grid size-8 shrink-0 place-items-center rounded-full text-muted-foreground active:scale-90"
+      >
+        <X className="size-4" />
+      </button>
+    </div>
+  )
+}
+
+const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chatId, frame, peerNick }: { message: Message; mine: boolean; chatId: string; frame?: string; peerNick?: string }) {
   const { t, lang } = useI18n()
   const [translated, setTranslated] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -232,8 +281,10 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
     )
   }
 
+  const dmReply = m.reply ?? null
+  const dmReplyNick = !dmReply ? "" : dmReply.sender === "me" ? (lang === "ru" ? "Вы" : "You") : peerNick || (lang === "ru" ? "Собеседник" : "Peer")
   return (
-    <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
+    <div id={`dmsg-${m.id}`} className={cn("flex", mine ? "justify-end" : "justify-start")}>
       <div
         className={cn(
           "max-w-[78%] rounded-2xl px-3 py-2 text-sm",
@@ -249,6 +300,7 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
               : { borderColor: frame, borderWidth: 2 }
         }
       >
+        {dmReply && <ReplyQuote nick={dmReplyNick} text={dmReply.text} targetDomId={`dmsg-${dmReply.id}`} />}
         <p className="text-pretty leading-relaxed [overflow-wrap:anywhere]">{translated || m.text}</p>
         {translated && translated !== m.text && (
           <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground [overflow-wrap:anywhere]">
@@ -290,6 +342,7 @@ function SelectableRow({
   selecting,
   selected,
   onToggle,
+  onOtherLongPress,
   children,
 }: {
   id: string
@@ -297,6 +350,7 @@ function SelectableRow({
   selecting: boolean
   selected: boolean
   onToggle: (id: string, mine: boolean) => void
+  onOtherLongPress?: (id: string) => void
   children: React.ReactNode
 }) {
   const timer = React.useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -309,7 +363,18 @@ function SelectableRow({
   }
   React.useEffect(() => clearTimer, [])
   const start = () => {
-    if (!mine) return
+    if (!mine) {
+      // Долгое нажатие на чужое — контекстное меню (ответить/переслать).
+      if (onOtherLongPress) {
+        clearTimer()
+        suppressClick.current = false
+        timer.current = setTimeout(() => {
+          suppressClick.current = true
+          onOtherLongPress(id)
+        }, 500)
+      }
+      return
+    }
     clearTimer()
     suppressClick.current = false
     timer.current = setTimeout(() => {
@@ -416,12 +481,20 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
     setShowStickers(false)
   }
 
+  const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null)
+  const [menuForMsg, setMenuForMsg] = useState<ChatMessage | null>(null)
+  const [fwd, setFwd] = useState<ForwardSource | null>(null)
+
   function submit() {
     if (!draft.trim()) return
     hapticImpact()
     analytics.chatSend()
-    sendMessage(draft)
+    sendMessage(
+      draft,
+      replyTo ? { id: replyTo.id, text: replyTo.text, nick: "", sender: "" } : null,
+    )
     setDraft("")
+    setReplyTo(null)
   }
 
   function handleVoiceSent(serverMsg: any) {
@@ -559,11 +632,83 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
               selecting={selected !== null}
               selected={selected?.includes(m.id) ?? false}
               onToggle={toggleSelect}
+              onOtherLongPress={(mid) => {
+                const found = messages.find((x) => x.id === mid)
+                if (found) setMenuForMsg(found)
+              }}
             >
-              <MessageBubble message={m} mine={mine} chatId={chatId} frame={mine ? undefined : peerFrame} />
+              <MessageBubble
+                message={m}
+                mine={mine}
+                chatId={chatId}
+                frame={mine ? undefined : peerFrame}
+                peerNick={player?.nick ?? ""}
+              />
             </SelectableRow>
           )
         })}
+        {menuForMsg && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center px-10">
+            <button type="button" aria-label={t("common.close")} onClick={() => setMenuForMsg(null)} className="absolute inset-0 bg-background/60" />
+            <div className="relative w-full max-w-xs overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+              <button
+                type="button"
+                onClick={() => {
+                  const mm = menuForMsg
+                  setMenuForMsg(null)
+                  setReplyTo({
+                    id: mm.id,
+                    text: mm.text,
+                    nick: mm.senderId === "me" ? (lang === "ru" ? "Вы" : "You") : player?.nick || (lang === "ru" ? "Собеседник" : "Peer"),
+                  })
+                  inputRef.current?.focus()
+                }}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-muted"
+              >
+                <Reply className="size-4 text-muted-foreground" />
+                {lang === "ru" ? "Ответить" : "Reply"}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const mm = menuForMsg
+                  setMenuForMsg(null)
+                  setFwd({ fromChat: chatId, items: [{ id: mm.id, text: mm.text }] })
+                }}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-muted"
+              >
+                <Forward className="size-4 text-muted-foreground" />
+                {lang === "ru" ? "Переслать" : "Forward"}
+              </button>
+              {menuForMsg.senderId === "me" && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelected([menuForMsg.id])
+                      setMenuForMsg(null)
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-muted"
+                  >
+                    <Check className="size-4 text-muted-foreground" />
+                    {lang === "ru" ? "Выбрать" : "Select"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      deleteMessages([menuForMsg.id])
+                      setMenuForMsg(null)
+                    }}
+                    className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-destructive hover:bg-muted"
+                  >
+                    <Trash2 className="size-4" />
+                    {t("chat.delete_selected")}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         {typing && !blockedByOther && (
           <div className="flex justify-start">
             <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-border bg-card px-3 py-3">
@@ -596,6 +741,45 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
             <X className="size-5" />
           </button>
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{t("chat.selected_n", { n: selected.length })}</span>
+          {selected.length === 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                const found = messages.find((x) => x.id === selected[0])
+                if (found) {
+                  setReplyTo({
+                    id: found.id,
+                    text: found.text,
+                    nick: found.senderId === "me" ? (lang === "ru" ? "Вы" : "You") : player?.nick || (lang === "ru" ? "Собеседник" : "Peer"),
+                  })
+                  inputRef.current?.focus()
+                }
+                setSelected(null)
+              }}
+              disabled={!selected.length}
+              className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-3.5 py-2.5 text-sm font-bold text-primary transition-transform active:scale-95 disabled:opacity-40"
+            >
+              <Reply className="size-4" />
+              {lang === "ru" ? "Ответить" : "Reply"}
+            </button>
+          )}
+          {!!selected.length && (
+            <button
+              type="button"
+              onClick={() => {
+                const items = selected
+                  .map((id) => messages.find((x) => x.id === id))
+                  .filter((x): x is ChatMessage => Boolean(x) && !isStickerText(x?.text ?? ""))
+                  .map((x) => ({ id: x.id, text: x.text }))
+                if (items.length) setFwd({ fromChat: chatId, items })
+                setSelected(null)
+              }}
+              className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-3.5 py-2.5 text-sm font-bold text-primary transition-transform active:scale-95"
+            >
+              <Forward className="size-4" />
+              {lang === "ru" ? "Переслать" : "Forward"}
+            </button>
+          )}
           <button
             type="button"
             onClick={deleteSelected}
@@ -607,7 +791,15 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
           </button>
         </div>
       )}
+      <ForwardSheet
+        source={fwd}
+        onClose={() => setFwd(null)}
+        onDone={(msgs) => {
+          for (const sm of msgs) appendServerMessage(sm)
+        }}
+      />
 
+      {replyTo && canSend && <ReplyBar replyTo={replyTo} onCancel={() => setReplyTo(null)} />}
       <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2.5 backdrop-blur-xl">
         {canSend ? (
           <>
@@ -642,8 +834,10 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
 function GlobalChat({ onBack }: { onBack: () => void }) {
   const { t, lang } = useI18n()
   const me = useMe()
-  const { messages, loaded, meRole, meBanned, sendGlobal, sendGlobalVoice, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
+  const { messages, loaded, meRole, meBanned, sendGlobal, appendExternal, sendGlobalVoice, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
   const cosMap = useCosmeticsMap(messages.map((m) => m.userId))
+  const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null)
+  const [fwd, setFwd] = useState<ForwardSource | null>(null)
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
@@ -768,9 +962,13 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
 
   async function submit() {
     if (!draft.trim() || meBanned) return
-    const res = await sendGlobal(draft)
+    const res = await sendGlobal(
+      draft,
+      replyTo ? { id: replyTo.id, text: replyTo.text, nick: replyTo.nick } : null,
+    )
     if (res.ok) setDraft("")
     else if (res.muteUntil) setGErr(t("chat.muted_send", { until: formatMuteUntil(res.muteUntil), reason: res.muteReason || "" }))
+    setReplyTo(null)
   }
 
   async function onDelete(m: GlobalMessage) {
@@ -865,6 +1063,9 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
               selecting={selected !== null}
               selected={selected?.includes(m.id) ?? false}
               onToggle={toggleSelect}
+              onOtherLongPress={(mid) => {
+                if (messages.some((x) => x.id === mid)) setMenuFor(mid)
+              }}
             >
               <GlobalMsg
                 msg={m}
@@ -877,6 +1078,14 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
                 onToggleMenu={() => setMenuFor(menuFor === m.id ? null : m.id)}
                 onDelete={() => onDelete(m)}
                 onBan={() => onBan(m)}
+                onReply={() => {
+                  setMenuFor(null)
+                  setReplyTo({ id: m.id, text: m.text, nick: mine ? (lang === "ru" ? "Вы" : "You") : m.nick })
+                }}
+                onForward={() => {
+                  setMenuFor(null)
+                  setFwd({ fromChat: "global", items: [{ id: m.id, text: m.text }] })
+                }}
               />
             </SelectableRow>
           )
@@ -911,6 +1120,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
         <StickerPanel onPick={sendSticker} onClose={() => setShowStickers(false)} />
       )}
 
+      {replyTo && !meBanned && <ReplyBar replyTo={replyTo} onCancel={() => setReplyTo(null)} />}
       {/* Input */}
       <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2.5 backdrop-blur-xl">
         {meBanned ? (
@@ -937,6 +1147,15 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
           </>
         )}
       </div>
+      <ForwardSheet
+        source={fwd}
+        onClose={() => setFwd(null)}
+        onDone={(msgs, to) => {
+          if (to === "global") {
+            for (const sm of msgs) appendExternal(sm)
+          }
+        }}
+      />
     </div>
   )
 }
@@ -1628,6 +1847,8 @@ const GlobalMsg = memo(function GlobalMsg({
   onToggleMenu,
   onDelete,
   onBan,
+  onReply,
+  onForward,
 }: {
   msg: GlobalMessage
   mine: boolean
@@ -1639,6 +1860,8 @@ const GlobalMsg = memo(function GlobalMsg({
   onToggleMenu: () => void
   onDelete: () => void
   onBan: () => void
+  onReply: () => void
+  onForward: () => void
 }) {
   const { t } = useI18n()
   const [translated, setTranslated] = useState<string | null>(null)
@@ -1691,7 +1914,7 @@ const GlobalMsg = memo(function GlobalMsg({
 
   const frame = cos?.frame_color || ""
   return (
-    <div className={cn("group flex", mine ? "justify-end" : "justify-start")}>
+    <div id={`gmsg-${msg.id}`} className={cn("group flex", mine ? "justify-end" : "justify-start")}>
       <div
         className={cn(
           sticker ? "max-w-[78%]" : "max-w-[78%] rounded-2xl px-3 py-2 text-sm",
@@ -1741,7 +1964,16 @@ const GlobalMsg = memo(function GlobalMsg({
             <VoiceMessagePlayer src={`/api/global/voice/${msg.id}`} duration={msg.voiceDuration ?? 0} mime={msg.voiceMime ?? "audio/webm"} />
           </div>
         ) : (
-          <p className="text-pretty leading-relaxed [overflow-wrap:anywhere]">{translated || msg.text}</p>
+          <>
+            {msg.reply && (
+              <ReplyQuote
+                nick={msg.reply.nick || (lang === "ru" ? "Сообщение" : "Message")}
+                text={msg.reply.text}
+                targetDomId={`gmsg-${msg.reply.id}`}
+              />
+            )}
+            <p className="text-pretty leading-relaxed [overflow-wrap:anywhere]">{translated || msg.text}</p>
+          </>
         )}
         {!sticker && translated && translated !== msg.text && (
           <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground">
@@ -1785,6 +2017,14 @@ const GlobalMsg = memo(function GlobalMsg({
           </button>
           {menuFor && (
             <div className="absolute left-1 top-8 z-50 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+              <button type="button" onClick={onReply} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
+                <Reply className="size-4 text-muted-foreground" />
+                {lang === "ru" ? "Ответить" : "Reply"}
+              </button>
+              <button type="button" onClick={onForward} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
+                <Forward className="size-4 text-muted-foreground" />
+                {lang === "ru" ? "Переслать" : "Forward"}
+              </button>
               {canModerate && (
                 <button type="button" onClick={onDelete} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
                   <Trash2 className="size-4 text-muted-foreground" />

@@ -14,6 +14,16 @@ export type ChatMessage = {
   isVoice?: boolean
   voiceDuration?: number
   voiceMime?: string
+  reply?: MsgReply | null
+}
+
+export type MsgReply = {
+  id: string
+  text: string
+  /** Ник автора цитаты (global — с сервера) или "" (DM — подставит лента). */
+  nick: string
+  /** sender id для DM (чтобы отличить "Вы"). */
+  sender?: string
 }
 
 export type ChatPreview = {
@@ -119,6 +129,7 @@ export function useUnreadCount(chatId: string): number {
 }
 
 function mapMsg(m: any): ChatMessage {
+  const r = m.reply && m.reply.id != null ? m.reply : null
   return {
     id: String(m.id ?? ""),
     chatId: m.chat_id ?? "",
@@ -129,6 +140,7 @@ function mapMsg(m: any): ChatMessage {
     isVoice: Boolean(m.is_voice ?? m.isVoice ?? false),
     voiceDuration: Number(m.voice_duration ?? m.voiceDuration ?? 0) || 0,
     voiceMime: String(m.voice_mime ?? m.voiceMime ?? "audio/webm"),
+    reply: r ? { id: String(r.id), text: r.text ?? "", nick: r.nick ?? "", sender: r.sender_id != null ? String(r.sender_id) : undefined } : null,
   }
 }
 
@@ -296,7 +308,7 @@ export function useChatMessages(chatId: string | null) {
     }
   }, [chatId, loadingEarlier, hasMore, messages])
 
-  const sendMessage = useCallback(async (text: string) => {
+  const sendMessage = useCallback(async (text: string, replyTo?: MsgReply | null) => {
     if (!chatId) return
     const id = "opt-" + Date.now()
     optimisticIds.current.add(id)
@@ -307,10 +319,11 @@ export function useChatMessages(chatId: string | null) {
       text,
       ts: Date.now(),
       status: "sent",
+      reply: replyTo ?? null,
     }
     setMessages((prev) => [...prev, optimistic])
     try {
-      const res: any = await api.post("/api/chat/" + chatId + "/send", { text })
+      const res: any = await api.post("/api/chat/" + chatId + "/send", { text, reply_to_id: replyTo?.id ?? null })
       if (res?.message?.id != null) {
         const real: ChatMessage = {
           id: String(res.message.id),
@@ -319,6 +332,7 @@ export function useChatMessages(chatId: string | null) {
           text: res.message.text ?? text,
           ts: res.message.created_at ? parseIsoTs(res.message.created_at) : Date.now(),
           status: "sent",
+          reply: replyTo ?? null,
         }
         setMessages((prev) => {
           // Заменяем opt- на реальное + выкидываем возможные дубли того же
@@ -344,6 +358,7 @@ export function useChatMessages(chatId: string | null) {
       text: serverMsg.text ?? "",
       ts: serverMsg.created_at ? parseIsoTs(serverMsg.created_at) : Date.now(),
       status: "sent",
+      reply: null,
       isVoice: Boolean(serverMsg.is_voice ?? serverMsg.isVoice ?? false),
       voiceDuration: Number(serverMsg.voice_duration ?? serverMsg.voiceDuration ?? 0) || 0,
       voiceMime: String(serverMsg.voice_mime ?? serverMsg.voiceMime ?? "audio/webm"),
@@ -447,6 +462,7 @@ export type GlobalMessage = {
   isVoice?: boolean
   voiceDuration?: number
   voiceMime?: string
+  reply?: MsgReply | null
 }
 
 export type Cosmetics = {
@@ -533,9 +549,11 @@ export function preloadGlobalChat(): void {
 
 function mapGlobalMsg(m: any): GlobalMessage {
   const role = m.role ?? ""
+  const r = m.reply && m.reply.id != null ? m.reply : null
   return {
     id: String(m.id ?? ""),
     userId: m.user_id === "me" ? "me" : String(m.user_id ?? ""),
+    reply: r ? { id: String(r.id), text: r.text ?? "", nick: r.nick ?? "" } : null,
     text: m.text ?? "",
     ts: m.created_at ? parseIsoTs(m.created_at) : Date.now(),
     // Персона Стража (role ai): пустой ник не затираем — имя подставит лента по локали.
@@ -608,11 +626,27 @@ export function useGlobalChat() {
     }
   }, [])
 
-  const sendGlobal = useCallback(async (text: string): Promise<{ ok: boolean; muteUntil?: string; muteReason?: string }> => {
+  const appendExternal = useCallback((serverMsg: any) => {
+    if (!serverMsg?.id) return
+    const msg: GlobalMessage = {
+      id: String(serverMsg.id),
+      userId: "me",
+      text: serverMsg.text ?? "",
+      ts: serverMsg.created_at ? parseIsoTs(serverMsg.created_at) : Date.now(),
+      nick: "You",
+      avatar: "",
+      role: meRole,
+      reply: serverMsg.reply ? { id: String(serverMsg.reply.id), text: serverMsg.reply.text ?? "", nick: serverMsg.reply.nick ?? "" } : null,
+    }
+    setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : dedupeAndSort([...prev, msg])))
+    if (!_globalCache.some((m) => m.id === msg.id)) _globalCache.push(msg)
+  }, [meRole])
+
+  const sendGlobal = useCallback(async (text: string, replyTo?: MsgReply | null): Promise<{ ok: boolean; muteUntil?: string; muteReason?: string }> => {
     if (!text.trim() || sending) return { ok: false }
     setSending(true)
     try {
-      const res: any = await api.post("/api/global/send", { text })
+      const res: any = await api.post("/api/global/send", { text, reply_to_id: replyTo?.id ?? null })
       if (res?.message?.id != null) {
         const msg: GlobalMessage = {
           id: String(res.message.id),
@@ -622,6 +656,7 @@ export function useGlobalChat() {
           nick: "You",
           avatar: "",
           role: meRole,
+          reply: replyTo ?? null,
         }
         // Полл мог уже подхватить сообщение — без проверки будет дубль с тем же key.
         setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : dedupeAndSort([...prev, msg])))
@@ -695,7 +730,7 @@ export function useGlobalChat() {
     }
   }, [])
 
-  return { messages, loaded, meRole, meBanned, sendGlobal, sendGlobalVoice, sending, deleteMessage, banUser, unbanUser }
+  return { messages, loaded, meRole, meBanned, sendGlobal, appendExternal, sendGlobalVoice, sending, deleteMessage, banUser, unbanUser }
 }
 
 export function openChatWithPlayer(myId: number | string, otherId: number | string): string {

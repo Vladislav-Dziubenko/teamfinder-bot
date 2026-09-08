@@ -277,7 +277,8 @@ CREATE TABLE IF NOT EXISTS chat_messages (
     chat_id TEXT NOT NULL,
     sender_id BIGINT NOT NULL,
     text TEXT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TEXT NOT NULL,
+    reply_to INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS chat_blocks (
@@ -299,7 +300,8 @@ CREATE TABLE IF NOT EXISTS global_messages (
     user_id BIGINT NOT NULL,
     text TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    kind TEXT NOT NULL DEFAULT 'user'
+    kind TEXT NOT NULL DEFAULT 'user',
+    reply_to INTEGER
 );
 
 CREATE TABLE IF NOT EXISTS user_roles (
@@ -795,6 +797,9 @@ class Database:
             ("bot_reviews", "pros", "TEXT NOT NULL DEFAULT ''"),
             ("bot_reviews", "cons", "TEXT NOT NULL DEFAULT ''"),
             ("bot_reviews", "created_at", "TEXT NOT NULL DEFAULT ''"),
+
+            ("chat_messages", "reply_to", "INTEGER"),
+            ("global_messages", "reply_to", "INTEGER"),
         ]
 
         for table, column, col_type in column_migrations:
@@ -4591,14 +4596,23 @@ WHERE user_quests.completed = 0
             )
             return row == 1
 
-    async def send_message(self, chat_id: str, sender_id: int, text: str) -> dict:
+    async def send_message(self, chat_id: str, sender_id: int, text: str, reply_to: int | None = None) -> dict:
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
-            row = await conn.fetchrow(
-                "INSERT INTO chat_messages (chat_id, sender_id, text, created_at) VALUES ($1, $2, $3, $4) RETURNING id",
-                chat_id, sender_id, text, now,
-            )
-            return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": text, "created_at": now, "read_at": None}
+            try:
+                row = await conn.fetchrow(
+                    "INSERT INTO chat_messages (chat_id, sender_id, text, created_at, reply_to) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+                    chat_id, sender_id, text, now, reply_to,
+                )
+            except asyncpg.UndefinedColumnError:
+                # Миграция reply_to ещё не накатилась — шлём без цитаты.
+                print("send_message fallback: reply_to column missing")
+                row = await conn.fetchrow(
+                    "INSERT INTO chat_messages (chat_id, sender_id, text, created_at) VALUES ($1, $2, $3, $4) RETURNING id",
+                    chat_id, sender_id, text, now,
+                )
+                reply_to = None
+            return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": text, "created_at": now, "read_at": None, "reply_to": reply_to}
 
     async def send_voice_message(self, chat_id: str, sender_id: int, voice_data: bytes, duration: int, mime: str) -> dict:
         now = datetime.utcnow().isoformat()
@@ -4640,18 +4654,26 @@ WHERE user_quests.completed = 0
             try:
                 if before_id is not None:
                     rows = await conn.fetch(
-                        "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT $3",
+                        "SELECT m.id, m.chat_id, m.sender_id, m.text, m.created_at, m.read_at,"
+                        " m.is_voice, m.voice_duration, m.voice_mime,"
+                        " r.id AS reply_id, r.text AS reply_text, r.sender_id AS reply_sender"
+                        " FROM chat_messages m LEFT JOIN chat_messages r ON r.id = m.reply_to AND r.chat_id = m.chat_id"
+                        " WHERE m.chat_id = $1 AND m.id < $2 ORDER BY m.created_at DESC LIMIT $3",
                         chat_id, before_id, limit,
                     )
                 else:
                     rows = await conn.fetch(
-                        "SELECT id, chat_id, sender_id, text, created_at, read_at, is_voice, voice_duration, voice_mime FROM chat_messages WHERE chat_id = $1 ORDER BY created_at DESC LIMIT $2",
+                        "SELECT m.id, m.chat_id, m.sender_id, m.text, m.created_at, m.read_at,"
+                        " m.is_voice, m.voice_duration, m.voice_mime,"
+                        " r.id AS reply_id, r.text AS reply_text, r.sender_id AS reply_sender"
+                        " FROM chat_messages m LEFT JOIN chat_messages r ON r.id = m.reply_to AND r.chat_id = m.chat_id"
+                        " WHERE m.chat_id = $1 ORDER BY m.created_at DESC LIMIT $2",
                         chat_id, limit,
                     )
             except asyncpg.UndefinedColumnError:
-                # Миграция голосовых ещё не накатилась (старая БД) — отдаём
+                # Миграция голосовых/reply ещё не накатилась (старая БД) — отдаём
                 # текстовые сообщения, вместо того чтобы ронять весь чат 500-й.
-                print("get_chat_messages fallback: voice columns missing, serving text-only")
+                print("get_chat_messages fallback: voice/reply columns missing, serving text-only")
                 if before_id is not None:
                     rows = await conn.fetch(
                         "SELECT id, chat_id, sender_id, text, created_at, read_at FROM chat_messages WHERE chat_id = $1 AND id < $2 ORDER BY created_at DESC LIMIT $3",
@@ -4668,6 +4690,11 @@ WHERE user_quests.completed = 0
                 d.setdefault("is_voice", False)
                 d.setdefault("voice_duration", 0)
                 d.setdefault("voice_mime", "audio/webm")
+                reply_id = d.pop("reply_id", None)
+                reply_text = d.pop("reply_text", "") or ""
+                reply_sender = d.pop("reply_sender", None)
+                d["reply"] = ({"id": str(reply_id), "text": reply_text, "sender_id": reply_sender}
+                              if reply_id is not None else None)
                 result.append(d)
             return result
 
@@ -4865,41 +4892,92 @@ WHERE user_quests.completed = 0
     async def get_global_messages(self, limit: int = 50) -> list[dict]:
         async with self.pool.acquire() as conn:
             now = datetime.utcnow().isoformat()
-            rows = await conn.fetch(
-                """SELECT gm.id, gm.user_id, gm.text, gm.created_at, gm.kind,
-                          CASE WHEN gm.user_id = 0 THEN '' ELSE COALESCE(mp.nick, '') END AS nick,
-                          CASE WHEN gm.user_id = 0 THEN NULL ELSE mp.avatar END AS avatar,
-                          CASE WHEN gm.user_id = 0 THEN 'ai'
-                               WHEN COALESCE(ur.role, '') <> '' THEN ur.role
-                               WHEN s.until > $1 THEN 'super'
-                               ELSE '' END AS role,
-                          mp.deco,
-                          COALESCE(gm.is_global_voice, FALSE) AS is_voice,
-                          COALESCE(gm.global_voice_duration, 0) AS voice_duration,
-                          COALESCE(gm.global_voice_mime, 'audio/webm') AS voice_mime
-                   FROM global_messages gm
-                   LEFT JOIN mini_app_profiles mp ON mp.user_id = gm.user_id
-                   LEFT JOIN user_roles ur ON ur.user_id = gm.user_id
-                   LEFT JOIN super_subs s ON s.user_id = gm.user_id
-                   ORDER BY gm.id DESC LIMIT $2""",
-                now, limit,
-            )
-            return [dict(r) for r in reversed(rows)]
+            try:
+                rows = await conn.fetch(
+                    """SELECT gm.id, gm.user_id, gm.text, gm.created_at, gm.kind,
+                              CASE WHEN gm.user_id = 0 THEN '' ELSE COALESCE(mp.nick, '') END AS nick,
+                              CASE WHEN gm.user_id = 0 THEN NULL ELSE mp.avatar END AS avatar,
+                              CASE WHEN gm.user_id = 0 THEN 'ai'
+                                   WHEN COALESCE(ur.role, '') <> '' THEN ur.role
+                                   WHEN s.until > $1 THEN 'super'
+                                   ELSE '' END AS role,
+                              mp.deco,
+                              COALESCE(gm.is_global_voice, FALSE) AS is_voice,
+                              COALESCE(gm.global_voice_duration, 0) AS voice_duration,
+                              COALESCE(gm.global_voice_mime, 'audio/webm') AS voice_mime,
+                              gr.id AS reply_id, gr.text AS reply_text,
+                              CASE WHEN gr.user_id = 0 THEN '' ELSE COALESCE(rmp.nick, '') END AS reply_nick
+                       FROM global_messages gm
+                       LEFT JOIN mini_app_profiles mp ON mp.user_id = gm.user_id
+                       LEFT JOIN user_roles ur ON ur.user_id = gm.user_id
+                       LEFT JOIN super_subs s ON s.user_id = gm.user_id
+                       LEFT JOIN global_messages gr ON gr.id = gm.reply_to
+                       LEFT JOIN mini_app_profiles rmp ON rmp.user_id = gr.user_id
+                       ORDER BY gm.id DESC LIMIT $2""",
+                    now, limit,
+                )
+            except asyncpg.UndefinedColumnError:
+                print("get_global_messages fallback: reply_to column missing")
+                rows = await conn.fetch(
+                    """SELECT gm.id, gm.user_id, gm.text, gm.created_at, gm.kind,
+                              CASE WHEN gm.user_id = 0 THEN '' ELSE COALESCE(mp.nick, '') END AS nick,
+                              CASE WHEN gm.user_id = 0 THEN NULL ELSE mp.avatar END AS avatar,
+                              CASE WHEN gm.user_id = 0 THEN 'ai'
+                                   WHEN COALESCE(ur.role, '') <> '' THEN ur.role
+                                   WHEN s.until > $1 THEN 'super'
+                                   ELSE '' END AS role,
+                              mp.deco,
+                              COALESCE(gm.is_global_voice, FALSE) AS is_voice,
+                              COALESCE(gm.global_voice_duration, 0) AS voice_duration,
+                              COALESCE(gm.global_voice_mime, 'audio/webm') AS voice_mime
+                       FROM global_messages gm
+                       LEFT JOIN mini_app_profiles mp ON mp.user_id = gm.user_id
+                       LEFT JOIN user_roles ur ON ur.user_id = gm.user_id
+                       LEFT JOIN super_subs s ON s.user_id = gm.user_id
+                       ORDER BY gm.id DESC LIMIT $2""",
+                    now, limit,
+                )
+            out = []
+            for r in reversed(rows):
+                d = dict(r)
+                reply_id = d.pop("reply_id", None)
+                reply_text = d.pop("reply_text", "") or ""
+                reply_nick = d.pop("reply_nick", "") or ""
+                d["reply"] = ({"id": str(reply_id), "text": reply_text, "nick": reply_nick}
+                              if reply_id is not None else None)
+                out.append(d)
+            return out
 
-    async def send_global_message(self, user_id: int, text: str, kind: str = "user", conn: asyncpg.Connection | None = None) -> dict:
+    async def send_global_message(self, user_id: int, text: str, kind: str = "user", conn: asyncpg.Connection | None = None, reply_to: int | None = None) -> dict:
         now = datetime.utcnow().isoformat()
         if conn is not None:
-            row = await conn.fetchrow(
-                "INSERT INTO global_messages (user_id, text, created_at, kind) VALUES ($1, $2, $3, $4) RETURNING id",
-                user_id, text, now, kind,
-            )
-            return {"id": str(row["id"]), "user_id": user_id, "text": text, "created_at": now, "kind": kind}
+            try:
+                row = await conn.fetchrow(
+                    "INSERT INTO global_messages (user_id, text, created_at, kind, reply_to) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+                    user_id, text, now, kind, reply_to,
+                )
+            except asyncpg.UndefinedColumnError:
+                print("send_global_message fallback: reply_to column missing")
+                row = await conn.fetchrow(
+                    "INSERT INTO global_messages (user_id, text, created_at, kind) VALUES ($1, $2, $3, $4) RETURNING id",
+                    user_id, text, now, kind,
+                )
+                reply_to = None
+            return {"id": str(row["id"]), "user_id": user_id, "text": text, "created_at": now, "kind": kind, "reply_to": reply_to}
         async with self.pool.acquire() as c:
-            row = await c.fetchrow(
-                "INSERT INTO global_messages (user_id, text, created_at, kind) VALUES ($1, $2, $3, $4) RETURNING id",
-                user_id, text, now, kind,
-            )
-            return {"id": str(row["id"]), "user_id": user_id, "text": text, "created_at": now, "kind": kind}
+            try:
+                row = await c.fetchrow(
+                    "INSERT INTO global_messages (user_id, text, created_at, kind, reply_to) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+                    user_id, text, now, kind, reply_to,
+                )
+            except asyncpg.UndefinedColumnError:
+                print("send_global_message fallback: reply_to column missing")
+                row = await c.fetchrow(
+                    "INSERT INTO global_messages (user_id, text, created_at, kind) VALUES ($1, $2, $3, $4) RETURNING id",
+                    user_id, text, now, kind,
+                )
+                reply_to = None
+            return {"id": str(row["id"]), "user_id": user_id, "text": text, "created_at": now, "kind": kind, "reply_to": reply_to}
 
     async def send_global_voice_message(self, user_id: int, voice_data: bytes, duration: int, mime: str) -> dict:
         now = datetime.utcnow().isoformat()

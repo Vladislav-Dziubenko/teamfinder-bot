@@ -3645,8 +3645,18 @@ async def handle_chat_send(request: web.Request):
     text = sanitize(body.get("text", ""), 500)
     if not text:
         return web.json_response({"error": "empty message"}, status=400)
+    reply_to = body.get("reply_to_id")
+    if reply_to is not None:
+        try:
+            reply_to = int(reply_to)
+        except (ValueError, TypeError):
+            return web.json_response({"error": "invalid reply"}, status=400)
+        ok = await db.pool.fetchval(
+            "SELECT 1 FROM chat_messages WHERE id = $1 AND chat_id = $2", reply_to, chat_id)
+        if not ok:
+            return web.json_response({"error": "invalid reply"}, status=400)
     await db.mark_chat_read(chat_id, user["id"])
-    msg = await db.send_message(chat_id, user["id"], text)
+    msg = await db.send_message(chat_id, user["id"], text, reply_to)
     # Сбрасываем кэш сообщений — чтобы poller сразу получил новое сообщение.
     await cache_delete_pattern(f"chat_msgs:{chat_id}")
     # Telegram-уведомление собеседнику (фоново, без задержки ответа).
@@ -4165,7 +4175,16 @@ async def handle_global_send(request: web.Request):
     text = sanitize(body.get("text", ""), 500)
     if not text:
         return web.json_response({"error": "empty message"}, status=400)
-    msg = await db.send_global_message(user["id"], text)
+    reply_to = body.get("reply_to_id")
+    if reply_to is not None:
+        try:
+            reply_to = int(reply_to)
+        except (ValueError, TypeError):
+            return web.json_response({"error": "invalid reply"}, status=400)
+        ok = await db.pool.fetchval("SELECT 1 FROM global_messages WHERE id = $1", reply_to)
+        if not ok:
+            return web.json_response({"error": "invalid reply"}, status=400)
+    msg = await db.send_global_message(user["id"], text, reply_to=reply_to)
     msg["user_id"] = "me"
     # Сбрасываем кэш глобальных сообщений — чтобы poller сразу видел новое.
     await cache_delete_pattern("global_chat_msgs")
@@ -4176,6 +4195,104 @@ async def handle_global_send(request: web.Request):
             asyncio.create_task(_ai_moderate(db, settings, request.app.get("bot"), user["id"], text, msg.get("id")))
     except Exception as exc:
         logging.warning("[ai-mod] hook failed: %s", exc)
+    return web.json_response({"message": msg})
+
+
+async def handle_message_forward(request: web.Request):
+    """Пересылка сообщения: из общего чата или лички — в общий чат или личку.
+    Body: {from: "global" | chat_id, message_id: int, to: "global" | chat_id}.
+    Текст и стикеры (текстовые коды) копируются, войс — побайтово."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "invalid json"}, status=400)
+    src = body.get("from")
+    try:
+        message_id = int(body.get("message_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid message_id"}, status=400)
+    dst = body.get("to")
+    if dst != "global" and not isinstance(dst, str):
+        return web.json_response({"error": "invalid target"}, status=400)
+
+    # --- Источник: читаем текст/войс + проверяем доступ ---
+    src_text: str | None = None
+    src_voice: dict | None = None
+    if src == "global":
+        row = await db.pool.fetchrow(
+            "SELECT text, COALESCE(is_global_voice, FALSE) AS v,"
+            " global_voice_data, global_voice_duration, global_voice_mime"
+            " FROM global_messages WHERE id = $1", message_id)
+        if not row:
+            return web.json_response({"error": "message not found"}, status=404)
+        if row["v"]:
+            if row["global_voice_data"] is None:
+                return web.json_response({"error": "voice unavailable"}, status=400)
+            src_voice = {"data": bytes(row["global_voice_data"]),
+                         "duration": row["global_voice_duration"] or 0,
+                         "mime": row["global_voice_mime"] or "audio/webm"}
+        else:
+            src_text = row["text"] or ""
+    elif isinstance(src, str):
+        if not await db.can_access_chat(src, user["id"]):
+            return web.json_response({"error": "forbidden"}, status=403)
+        row = await db.pool.fetchrow(
+            "SELECT text, is_voice, voice_data, voice_duration, voice_mime"
+            " FROM chat_messages WHERE id = $1 AND chat_id = $2", message_id, src)
+        if not row:
+            return web.json_response({"error": "message not found"}, status=404)
+        if row["is_voice"]:
+            if row["voice_data"] is None:
+                return web.json_response({"error": "voice unavailable"}, status=400)
+            src_voice = {"data": bytes(row["voice_data"]),
+                         "duration": row["voice_duration"] or 0,
+                         "mime": row["voice_mime"] or "audio/webm"}
+        else:
+            src_text = row["text"] or ""
+    else:
+        return web.json_response({"error": "invalid source"}, status=400)
+    if src_text is not None and not src_text.strip():
+        return web.json_response({"error": "empty message"}, status=400)
+
+    # --- Цель: те же проверки, что у прямой отправки ---
+    if dst == "global":
+        if await db.is_globally_banned(user["id"]):
+            return web.json_response({"error": "banned"}, status=403)
+        if await db.get_mute(user["id"]):
+            return web.json_response({"error": "muted"}, status=403)
+        if await rate_limit_check(f"gsend:{user['id']}", GLOBAL_SEND_LIMIT, GLOBAL_SEND_WINDOW):
+            return web.json_response({"error": "slow down"}, status=429)
+        if src_voice is not None:
+            if len(src_voice["data"]) > 2 * 1024 * 1024:
+                return web.json_response({"error": "file too large"}, status=400)
+            msg = await db.send_global_voice_message(
+                user["id"], src_voice["data"], src_voice["duration"], src_voice["mime"])
+        else:
+            msg = await db.send_global_message(user["id"], src_text)
+        msg["user_id"] = "me"
+        await cache_delete_pattern("global_chat_msgs")
+        try:
+            settings = request.app.get("settings")
+            if settings is not None and settings.ai_mod_enabled and src_text:
+                asyncio.create_task(_ai_moderate(db, settings, request.app.get("bot"), user["id"], src_text, msg.get("id")))
+        except Exception as exc:
+            logging.warning("[ai-mod] hook failed: %s", exc)
+        return web.json_response({"message": msg})
+
+    if not await db.can_access_chat(dst, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    status = await db.get_chat_status(dst, user["id"])
+    if status["blocked"]:
+        return web.json_response({"error": "blocked"}, status=403)
+    if src_voice is not None:
+        if len(src_voice["data"]) > 2 * 1024 * 1024:
+            return web.json_response({"error": "file too large"}, status=400)
+        msg = await db.send_voice_message(dst, user["id"], src_voice["data"], src_voice["duration"], src_voice["mime"])
+    else:
+        msg = await db.send_message(dst, user["id"], src_text)
+    await cache_delete_pattern(f"chat_msgs:{dst}")
     return web.json_response({"message": msg})
 
 
@@ -5838,6 +5955,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/voice/route", handle_voice_route)
     app.router.add_get("/api/global", handle_global_messages)
     app.router.add_post("/api/global/send", handle_global_send)
+    app.router.add_post("/api/messages/forward", handle_message_forward)
     app.router.add_post("/api/global/voice", handle_global_voice_upload)
     app.router.add_get("/api/global/voice/{msg_id}", handle_global_voice_stream)
     app.router.add_post("/api/global/delete", handle_global_delete)
