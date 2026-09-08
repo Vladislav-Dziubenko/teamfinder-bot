@@ -1214,6 +1214,29 @@ async def handle_guide_detail(request: web.Request):
     return web.json_response(payload)
 
 
+async def handle_guides_unlock(request: web.Request):
+    """Разблокировка гайда за внутренние звёзды мини-аппа (не Telegram Stars).
+    Если звёзд хватает — списывает баланс и открывает навсегда."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not user:
+        return web.json_response({"error": "unauthorized"}, status=401)
+    body = await request.json()
+    guide_id = body.get("guide_id")
+    guide = next((g for g in GUIDES if g["id"] == guide_id), None)
+    if not guide:
+        return web.json_response({"error": "not found"}, status=404)
+    if guide["type"] == "free" or guide.get("stars", 0) <= 0:
+        return web.json_response({"error": "free guide"}, status=400)
+    if await db.has_unlocked(user["id"], guide_id):
+        return web.json_response({"ok": True, "already": True})
+    price = int(guide["stars"])
+    if not await db.adjust_currency(user["id"], stars=-price):
+        return web.json_response({"error": "not enough stars", "need": price}, status=402)
+    await db.unlock_content(user["id"], guide_id)
+    return web.json_response({"ok": True})
+
+
 async def handle_create_invoice(request: web.Request):
     db: Database = request.app["db"]
     bot = request.app["bot"]
@@ -5578,6 +5601,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/search", handle_search)
     app.router.add_get("/api/guides", handle_guides)
     app.router.add_get("/api/guides/{guide_id}", handle_guide_detail)
+    app.router.add_post("/api/guides/unlock", handle_guides_unlock)
     app.router.add_post("/api/pay/invoice", handle_create_invoice)
     app.router.add_get("/api/teams", handle_teams)
     app.router.add_post("/api/teams", handle_create_team)

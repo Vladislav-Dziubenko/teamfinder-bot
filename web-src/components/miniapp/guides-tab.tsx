@@ -371,7 +371,7 @@ function GuideViewer({
 
 function Paywall({ guide, onUnlock }: { guide: DisplayGuide; onUnlock: () => void }) {
   const { t } = useI18n()
-  const { stars } = useNexus()
+  const { stars, refresh } = useNexus()
   const [busy, setBusy] = useState(false)
   const need = guide.stars
 
@@ -379,14 +379,29 @@ function Paywall({ guide, onUnlock }: { guide: DisplayGuide; onUnlock: () => voi
     if (busy) return
     setBusy(true)
     try {
+      // 1) Сначала пробуем списать внутренние звёзды мини-аппа (те что в шапке 2.2 млн)
+      if (stars >= need) {
+        const res: any = await api.post("/api/guides/unlock", { guide_id: guide.id })
+        if (res?.ok) {
+          await refresh()
+          onUnlock()
+          setBusy(false)
+          return
+        }
+        // если не хватило — упадём в invoice ветку ниже
+        if (res?.error !== "not enough stars") throw new Error(res?.error || "unlock failed")
+      }
+      // 2) Не хватает внутренних звёзд — оплата Telegram Stars с карты
       const res: any = await api.post("/api/pay/invoice", { type: "guide", guide_id: guide.id })
       const link: string | undefined = res?.invoice_link
       if (!link) throw new Error("no link")
-      // Telegram Stars invoice — платёж с карты внутри Telegram
       const wa: any = (window as any).Telegram?.WebApp
       if (wa?.openInvoice) {
         wa.openInvoice(link, (status: string) => {
-          if (status === "paid") onUnlock()
+          if (status === "paid") {
+            // после оплаты Stars с карты гайд откроется сам (unlock_content), просто обновим список
+            refresh().then(() => onUnlock())
+          }
           setBusy(false)
         })
       } else {
@@ -418,11 +433,9 @@ function Paywall({ guide, onUnlock }: { guide: DisplayGuide; onUnlock: () => voi
         {busy ? <Loader2 className="size-4 animate-spin" /> : <Star className="size-4 fill-black" />}
         {enough ? `Открыть за ${need} ⭐` : `Купить за ${need} ⭐`}
       </button>
-      {!enough && (
-        <p className="text-center text-[11px] text-muted-foreground">
-          На балансе {stars} ⭐ · оплата с карты через Telegram Stars
-        </p>
-      )}
+      <p className="text-center text-[11px] text-muted-foreground">
+        {enough ? `Спишется с баланса мини-аппа (у тебя ${stars} ⭐)` : `На балансе ${stars} ⭐ · оплата с карты через Telegram Stars`}
+      </p>
     </div>
   )
 }
