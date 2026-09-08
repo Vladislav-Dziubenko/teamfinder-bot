@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Play, Clock, X, ExternalLink, Loader2 } from "lucide-react"
+import { Play, Clock, X, ExternalLink, Loader2, Lock, Star } from "lucide-react"
 import { games } from "@/lib/data"
-import { api } from "@/lib/api"
+import { api, openLink } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
+import { useNexus } from "@/lib/store"
 import { cn } from "@/lib/utils"
 
 interface ApiGuide {
@@ -63,6 +64,8 @@ interface DisplayGuide {
   video_url?: string
   duration: string
   views: string
+  stars: number
+  unlocked: boolean
 }
 
 function toDisplay(g: ApiGuide): DisplayGuide {
@@ -77,6 +80,8 @@ function toDisplay(g: ApiGuide): DisplayGuide {
     video_url: g.video_url,
     duration: "—",
     views: "—",
+    stars: g.stars ?? 0,
+    unlocked: g.unlocked ?? true,
   }
 }
 
@@ -119,7 +124,7 @@ export function GuidesTab() {
     .map(toDisplay)
     .filter((g) => activeFilter === "all" || g.game === activeFilter)
 
-  const featured = list[0]
+  const featured = list.find((g) => !g.unlocked) ?? list[0]
 
   if (loading)
     return (
@@ -236,7 +241,7 @@ export function GuidesTab() {
                 )}
               </div>
               <div className="min-w-0 flex-1 py-0.5">
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <span
                     className="font-display text-xs font-bold"
                     style={{ color: gm?.color }}
@@ -246,12 +251,18 @@ export function GuidesTab() {
                   <span className="rounded bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground">
                     Видео
                   </span>
+                  {!g.unlocked && g.stars > 0 && (
+                    <span className="inline-flex items-center gap-1 rounded bg-stars/15 px-1.5 py-0.5 text-[10px] font-bold text-stars">
+                      <Lock className="size-3" /> {g.stars} ⭐
+                    </span>
+                  )}
+                  {g.unlocked && <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-accent">✓ Открыт</span>}
                 </div>
                 <p className="mt-1 line-clamp-2 text-sm font-semibold leading-snug">
                   {g.title}
                 </p>
                 <p className="mt-1 flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <ExternalLink className="size-3" /> Открыть в YouTube
+                  {g.unlocked ? <><ExternalLink className="size-3" /> Открыть в YouTube</> : <><Lock className="size-3" /> {g.stars} ⭐ чтобы открыть</>}
                 </p>
               </div>
             </button>
@@ -340,17 +351,78 @@ function GuideViewer({
           <h2 className="font-display text-xl font-bold leading-tight text-balance">
             {guide.title}
           </h2>
-
-          <button
-            type="button"
-            onClick={() => openYouTube(guide.video_url)}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-red-600 py-3.5 text-sm font-bold text-white shadow transition-transform active:scale-[0.98]"
-          >
-            <Play className="size-4 fill-white" />
-            Смотреть на YouTube
-          </button>
+          {!guide.unlocked && guide.stars > 0 ? (
+            <Paywall guide={guide} onUnlock={() => { onClose(); window.dispatchEvent(new Event("guides:refresh")) }} />
+          ) : (
+            <button
+              type="button"
+              onClick={() => openYouTube(guide.video_url)}
+              className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-red-600 py-3.5 text-sm font-bold text-white shadow transition-transform active:scale-[0.98]"
+            >
+              <Play className="size-4 fill-white" />
+              Смотреть на YouTube
+            </button>
+          )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function Paywall({ guide, onUnlock }: { guide: DisplayGuide; onUnlock: () => void }) {
+  const { t } = useI18n()
+  const { stars } = useNexus()
+  const [busy, setBusy] = useState(false)
+  const need = guide.stars
+
+  async function buy() {
+    if (busy) return
+    setBusy(true)
+    try {
+      const res: any = await api.post("/api/pay/invoice", { type: "guide", guide_id: guide.id })
+      const link: string | undefined = res?.invoice_link
+      if (!link) throw new Error("no link")
+      // Telegram Stars invoice — платёж с карты внутри Telegram
+      const wa: any = (window as any).Telegram?.WebApp
+      if (wa?.openInvoice) {
+        wa.openInvoice(link, (status: string) => {
+          if (status === "paid") onUnlock()
+          setBusy(false)
+        })
+      } else {
+        openLink(link)
+        setBusy(false)
+      }
+    } catch (e: any) {
+      setBusy(false)
+    }
+  }
+
+  const enough = stars >= need
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="flex items-center gap-2 rounded-2xl border border-stars/30 bg-stars/10 px-4 py-3">
+        <Lock className="size-5 shrink-0 text-stars" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold">Закрыто · {need} ⭐ чтобы открыть</p>
+          <p className="text-[11px] text-muted-foreground">Разовая покупка — навсегда в твоей библиотеке</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-stars px-2.5 py-1 text-xs font-bold text-black">{need} ⭐</span>
+      </div>
+      <button
+        type="button"
+        onClick={buy}
+        disabled={busy}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-stars py-3.5 text-sm font-bold text-black shadow active:scale-[0.98] disabled:opacity-50"
+      >
+        {busy ? <Loader2 className="size-4 animate-spin" /> : <Star className="size-4 fill-black" />}
+        {enough ? `Открыть за ${need} ⭐` : `Купить за ${need} ⭐`}
+      </button>
+      {!enough && (
+        <p className="text-center text-[11px] text-muted-foreground">
+          На балансе {stars} ⭐ · оплата с карты через Telegram Stars
+        </p>
+      )}
     </div>
   )
 }
