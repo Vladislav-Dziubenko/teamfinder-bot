@@ -32,6 +32,23 @@ _FLOOD_SAME = 3  # столько одинаковых подряд = флуд
 
 _JUDGE_TIMEOUT = 8.0
 
+# Серверный брейкер на 429: пока Google/Groq душит квоту, не жжём её
+# повторными попытками (одно упоминание = до 4 хитов: судья×2 + чат×2).
+# Пауза 120с, затем снова пробуем. Fail-open сохраняется: без судьи
+# работает только слой эвристик.
+_JUDGE_BACKOFF_UNTIL = 0.0
+_JUDGE_BACKOFF_S = 120.0
+
+
+def _judge_paused() -> bool:
+    return time.time() < _JUDGE_BACKOFF_UNTIL
+
+
+def _judge_note_429(where: str) -> None:
+    global _JUDGE_BACKOFF_UNTIL
+    _JUDGE_BACKOFF_UNTIL = time.time() + _JUDGE_BACKOFF_S
+    logger.warning("[ai-mod] quota 429 (%s) — judge paused %.0fs", where, _JUDGE_BACKOFF_S)
+
 # Актуальная модель судьи (сент. 2026: Google ретайрит 2.x для новых
 # пользователей — сам пишет "use models/gemini-3.6-flash"). Перекрывается
 # без правок кода: Render env GEMINI_MODEL=<живая модель из AI Studio>.
@@ -188,6 +205,8 @@ def _parse_judge(raw: str) -> dict | None:
 async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str) -> dict | None:
     """Судья через актуальный Interactions API (ключ в заголовке x-goog-api-key),
     фолбэк — старый generateContent (?key=) для standard-ключей, пока живут."""
+    if _judge_paused():
+        return None
     snippet = (text or "")[:500]
     prompt = (
         _JUDGE_SYSTEM
@@ -214,6 +233,11 @@ async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str)
                     return verdict
                 logger.warning("[ai-mod] gemini interactions: verdict not parsed")
             else:
+                if resp.status == 429:
+                    # Та же квота, что и у legacy, — ретрай туда бессмыслен,
+                    # только сожжёт ещё один хит. Сразу в брейкер.
+                    _judge_note_429("gemini")
+                    return None
                 try:
                     body = (await resp.text())[:300]
                 except Exception:
@@ -240,11 +264,14 @@ async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str)
             timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT),
         ) as resp:
             if resp.status != 200:
-                try:
-                    body = (await resp.text())[:300]
-                except Exception:
-                    body = "?"
-                logger.warning("[ai-mod] gemini status=%s body=%s", resp.status, body)
+                if resp.status == 429:
+                    _judge_note_429("gemini-legacy")
+                else:
+                    try:
+                        body = (await resp.text())[:300]
+                    except Exception:
+                        body = "?"
+                    logger.warning("[ai-mod] gemini status=%s body=%s", resp.status, body)
                 return None
             data = await resp.json()
     except Exception as exc:
@@ -257,6 +284,8 @@ async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str)
 
 
 async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -> dict | None:
+    if _judge_paused():
+        return None
     payload = {
         "model": "llama-3.1-8b-instant",
         "temperature": 0,
@@ -275,7 +304,10 @@ async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -
             timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT),
         ) as resp:
             if resp.status != 200:
-                logger.warning("[ai-mod] groq status=%s", resp.status)
+                if resp.status == 429:
+                    _judge_note_429("groq")
+                else:
+                    logger.warning("[ai-mod] groq status=%s", resp.status)
                 return None
             data = await resp.json()
     except Exception as exc:
@@ -376,6 +408,8 @@ async def chat_reply(history: list[dict], settings) -> str | None:
     api_key = (getattr(settings, "gemini_api_key", "") or "") if provider == "gemini" else (getattr(settings, "groq_api_key", "") or "")
     if not api_key:
         return None
+    if _judge_paused():
+        return None
     convo = "\n".join(f"{m.get('nick', '?')}: {m.get('text', '')[:200]}" for m in history[-12:])
     try:
         timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4)
@@ -415,6 +449,9 @@ async def chat_reply(history: list[dict], settings) -> str | None:
                             return best[:400]
                         logger.warning("[ai-mod] gemini chat: empty text extracted")
                     else:
+                        if resp.status == 429:
+                            _judge_note_429("gemini-chat")
+                            return None
                         try:
                             body = (await resp.text())[:300]
                         except Exception:
@@ -435,11 +472,14 @@ async def chat_reply(history: list[dict], settings) -> str | None:
                 timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4),
             ) as resp:
                 if resp.status != 200:
-                    try:
-                        body = (await resp.text())[:300]
-                    except Exception:
-                        body = "?"
-                    logger.warning("[ai-mod] gemini chat legacy status=%s body=%s", resp.status, body)
+                    if resp.status == 429:
+                        _judge_note_429("gemini-chat-legacy")
+                    else:
+                        try:
+                            body = (await resp.text())[:300]
+                        except Exception:
+                            body = "?"
+                        logger.warning("[ai-mod] gemini chat legacy status=%s body=%s", resp.status, body)
                     return None
                 data = await resp.json()
             return _pick_chat_text(data)[:400] or None
