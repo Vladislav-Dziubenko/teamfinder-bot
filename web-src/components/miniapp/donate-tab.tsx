@@ -17,9 +17,34 @@ const coinPacks = [
 
 export function DonateTab() {
   const { t, lang } = useI18n()
-  const { starPacks, stars, nick, avatar, coins, buyStarPack, buyCoinPack, buyStars } = useNexus()
+  const { starPacks, stars, nick, avatar, coins, buyStarPack, buyCoinPack, buyStars, refresh } = useNexus()
   const { isSuper, superUntil, referralBotUrl } = useNexus()
+  const [buyingSuper, setBuyingSuper] = useState(false)
   const ru = lang === "ru"
+
+  async function buySuper() {
+    if (buyingSuper) return
+    setBuyingSuper(true)
+    try {
+      const res: any = await api.post("/api/pay/invoice", { type: "super_monthly" })
+      if (res?.invoice_link) {
+        openInvoice(res.invoice_link, () => refresh())
+        return
+      }
+      setFlash(ru ? "Не получилось создать счёт" : "Failed to create invoice")
+    } catch (e: any) {
+      // Фолбэк: оформление через чат бота (?start=supersub).
+      try {
+        if (referralBotUrl) {
+          openTelegramLink(`${referralBotUrl}?start=supersub`)
+          return
+        }
+      } catch {}
+      setFlash((e as any)?.message || (ru ? "Не удалось открыть оплату" : "Failed to open payment"))
+    } finally {
+      setBuyingSuper(false)
+    }
+  }
   const [selected, setSelected] = useState<StarPack | null>(null)
   const [done, setDone] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
@@ -153,14 +178,13 @@ export function DonateTab() {
           ) : (
             <button
               type="button"
-              onClick={() => {
-                const url = referralBotUrl ? `${referralBotUrl}?start=supersub` : ""
-                if (url) openTelegramLink(url)
-                else setFlash(ru ? "Открой бота и нажми /start" : "Open the bot and press /start")
-              }}
-              className="mt-4 w-full rounded-2xl bg-gradient-to-r from-[#ff9d00] to-[#ffd700] py-3.5 font-display text-sm font-black text-background shadow-lg transition-transform active:scale-[0.98]"
+              onClick={buySuper}
+              disabled={buyingSuper}
+              className="mt-4 w-full rounded-2xl bg-gradient-to-r from-[#ff9d00] to-[#ffd700] py-3.5 font-display text-sm font-black text-background shadow-lg transition-transform active:scale-[0.98] disabled:opacity-60"
             >
-              {ru ? "Оформить Super+ · $15/мес" : "Get Super+ · $15/mo"}
+              {buyingSuper
+                ? (ru ? "Открываю оплату…" : "Opening payment…")
+                : (ru ? "Оформить Super+ · $15/мес" : "Get Super+ · $15/mo")}
             </button>
           )}
         </div>

@@ -1365,6 +1365,18 @@ async def handle_create_invoice(request: web.Request):
             currency="XTR",
             prices=[{"label": "PRO-подписка", "amount": settings.price_pro_subscription}],
         )
+    elif kind == "super_monthly":
+        link = await bot.create_invoice_link(
+            title="NEXUS Super+ — подписка",
+            description=(
+                "Статус Super+, бета и ранний доступ, PRO, "
+                "еженедельные монеты, звёзды и ключи. Автопродление каждый месяц."
+            ),
+            payload="super:monthly",
+            currency="XTR",
+            prices=[{"label": "Super+ на 30 дней", "amount": settings.super_price_stars}],
+            subscription_period=30 * 24 * 3600,
+        )
     elif kind == "single_contact":
         profile_id = body.get("profile_id")
         if not profile_id:
