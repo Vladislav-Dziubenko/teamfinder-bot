@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = "1.4"
+export const CURRENT_VERSION = "1.5"
 export const STORAGE_KEY = "nexus_last_seen_version"
 
 export interface ChangelogItem {
@@ -10,6 +10,28 @@ export interface ChangelogItem {
 }
 
 export const updates: ChangelogItem[] = [
+  {
+    version: "1.5",
+    date: "8 Sep 2026",
+    isMajor: true,
+    title: { en: "AI Guard, /ask & chat fixes", ru: "ИИ-Страж, /ask и фиксы чата" },
+    items: {
+      en: [
+        "🛡️ AI Guard in global chat: mention «guardian» and it replies (keeps order too)",
+        "🤖 New /ask command — ask the AI anything in bot DMs",
+        "⬇️ Scroll-to-bottom arrow in chat, no more message flickering",
+        "🌐 Fixed message translation (🌐 button on messages)",
+        "📋 Slash-command hints: trimmed for players, full for admins",
+      ],
+      ru: [
+        "🛡️ ИИ-Страж в общем чате: позови «страж» — ответит (и за порядком следит)",
+        "🤖 Новая команда /ask — спроси ИИ что угодно в личке бота",
+        "⬇️ Стрелка «вниз» в чате, починено моргание сообщений",
+        "🌐 Починен перевод сообщений (кнопка 🌐 на сообщении)",
+        "📋 Подсказки команд по /: обрезанные игрокам, полные админам",
+      ],
+    },
+  },
   {
     version: "1.4",
     date: "6 Sep 2026",
