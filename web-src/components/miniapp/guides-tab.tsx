@@ -307,26 +307,30 @@ function GuideViewer({
           <X className="size-4" />
         </button>
 
-        {/* Thumbnail */}
+        {/* Video — в мини-аппе инлайн, без ухода в YouTube */}
         <div className="relative aspect-video overflow-hidden rounded-t-3xl bg-black">
-          <img
-            src={guide.cover || "/placeholder.svg"}
-            alt={guide.title}
-            className="size-full object-cover opacity-80"
-          />
-          {/* Play overlay */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/40">
-            <button
-              type="button"
-              onClick={() => openYouTube(guide.video_url)}
-              className="grid size-16 place-items-center rounded-full bg-red-600 text-white shadow-lg transition-transform active:scale-95"
-            >
-              <Play className="size-7 translate-x-0.5 fill-white" />
-            </button>
-            <span className="rounded-full bg-background/70 px-3 py-1 text-xs font-medium text-foreground backdrop-blur">
-              Открыть в YouTube
-            </span>
-          </div>
+          {guide.ytId ? (
+            <iframe
+              src={`https://www.youtube.com/embed/${guide.ytId}?rel=0&modestbranding=1`}
+              title={guide.title}
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+              className="size-full"
+            />
+          ) : (
+            <>
+              <img
+                src={guide.cover || "/placeholder.svg"}
+                alt={guide.title}
+                className="size-full object-cover opacity-80"
+              />
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-background/40">
+                <span className="rounded-full bg-background/70 px-3 py-1 text-xs font-medium text-foreground backdrop-blur">
+                  Видео недоступно
+                </span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Info */}
@@ -433,9 +437,6 @@ function Paywall({ guide, onUnlock }: { guide: DisplayGuide; onUnlock: () => voi
         {busy ? <Loader2 className="size-4 animate-spin" /> : <Star className="size-4 fill-black" />}
         {enough ? `Открыть за ${need} ⭐` : `Купить за ${need} ⭐`}
       </button>
-      <p className="text-center text-[11px] text-muted-foreground">
-        {enough ? `Спишется с баланса мини-аппа (у тебя ${stars} ⭐)` : `На балансе ${stars} ⭐ · оплата с карты через Telegram Stars`}
-      </p>
     </div>
   )
 }
