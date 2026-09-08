@@ -5465,6 +5465,18 @@ WHERE user_quests.completed = 0
 
     async def can_access_chat(self, chat_id: str, user_id: int) -> bool:
         async with self.pool.acquire() as conn:
+            # Чат клана: доступ = членство (проверяется первым, чтобы
+            # числовой id клана ниже не спутать с user_id).
+            if chat_id.startswith("clan-"):
+                try:
+                    cid = int(chat_id.split("-", 1)[1])
+                except (ValueError, IndexError):
+                    return False
+                mem = await conn.fetchval(
+                    "SELECT 1 FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    cid, user_id,
+                )
+                return mem == 1
             parts = chat_id.replace("dm-", "").split("-")
             numeric_parts = [int(p) for p in parts if p.isdigit()]
             if user_id in numeric_parts:
@@ -5695,6 +5707,10 @@ WHERE user_quests.completed = 0
     # ---------- Chat: moderation & global ----------
 
     def _chat_participants(self, chat_id: str) -> list[int]:
+        # У клан-чата участников-юзеров в id нет (там id клана) —
+        # иначе статус лички (other/block) посчитался бы по мусору.
+        if chat_id.startswith("clan-"):
+            return []
         parts = chat_id.replace("dm-", "").split("-")
         return [int(p) for p in parts if p.isdigit()]
 
