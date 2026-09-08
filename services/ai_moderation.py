@@ -93,6 +93,21 @@ def _find_verdict(data: Any) -> dict | None:
     return None
 
 
+def _extract_json(raw: str) -> dict | None:
+    """Вердикт из ответа reasoning-модели (gpt-oss): может обернуть JSON
+    в прозу/рассуждения. Сначала пробуем целиком, потом ищем {...} со score."""
+    verdict = _parse_judge(raw)
+    if verdict is not None:
+        return verdict
+    try:
+        m = re.search(r"\{[^{}]*\"score\"[^{}]*\}", raw or "", re.DOTALL)
+    except Exception:
+        m = None
+    if m:
+        return _parse_judge(m.group(0))
+    return None
+
+
 def _pick_chat_text(data: Any) -> str:
     """Выбирает человеческий текст ответа из JSON Interactions API.
 
@@ -297,11 +312,13 @@ async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -
     if _judge_paused():
         return None
     for mi, model in enumerate(_groq_models()):
+        # Без response_format=json_object: reasoning-модели (gpt-oss) отдают
+        # под ним пустой failed_generation (400 json_validate_failed).
+        # Промпт и так требует ТОЛЬКО JSON, прозу чистит _extract_json.
         payload = {
             "model": model,
             "temperature": 0,
-            "max_tokens": 120,
-            "response_format": {"type": "json_object"},
+            "max_tokens": 256,
             "messages": [
                 {"role": "system", "content": _JUDGE_SYSTEM},
                 {"role": "user", "content": text[:500]},
@@ -335,7 +352,7 @@ async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -
             raw = data["choices"][0]["message"]["content"]
         except (KeyError, IndexError, TypeError):
             return None
-        return _parse_judge(raw)
+        return _extract_json(raw)
     return None
 
 
