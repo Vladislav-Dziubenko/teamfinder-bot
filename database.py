@@ -511,6 +511,88 @@ CREATE TABLE IF NOT EXISTS super_subs (
     updated_at TEXT NOT NULL DEFAULT '',
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
+
+-- Система кланов (v1): структура, участники, квесты, очки, сезоны, шоп.
+-- Один активный клан на юзера (UNIQUE user_id в members). clan_id NULL
+-- в quests = глобальный шаблон (одинаковые квесты всем кланам).
+CREATE TABLE IF NOT EXISTS clans (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    tag TEXT NOT NULL UNIQUE,
+    emblem TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    is_public INTEGER NOT NULL DEFAULT 1,
+    max_members INTEGER NOT NULL DEFAULT 15,
+    level INTEGER NOT NULL DEFAULT 1,
+    lifetime_points BIGINT NOT NULL DEFAULT 0,
+    bank_points BIGINT NOT NULL DEFAULT 0,
+    season_id TEXT NOT NULL DEFAULT '',
+    created_by BIGINT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS clan_members (
+    clan_id INTEGER NOT NULL REFERENCES clans(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL UNIQUE,
+    role TEXT NOT NULL DEFAULT 'member',
+    contribution_season BIGINT NOT NULL DEFAULT 0,
+    contribution_total BIGINT NOT NULL DEFAULT 0,
+    joined_at TEXT NOT NULL,
+    PRIMARY KEY (clan_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS clan_quests (
+    id SERIAL PRIMARY KEY,
+    clan_id INTEGER REFERENCES clans(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL DEFAULT 'weekly',
+    target_type TEXT NOT NULL,
+    target_value INTEGER NOT NULL,
+    starts_at TEXT NOT NULL,
+    ends_at TEXT NOT NULL,
+    claimed INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS clan_points_log (
+    id SERIAL PRIMARY KEY,
+    clan_id INTEGER NOT NULL REFERENCES clans(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,
+    action TEXT NOT NULL,
+    points INTEGER NOT NULL,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_clan_points_log_clan ON clan_points_log (clan_id, created_at);
+
+CREATE TABLE IF NOT EXISTS clan_seasons (
+    year_month TEXT PRIMARY KEY,
+    ends_at TEXT NOT NULL,
+    rewards_paid INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS clan_season_results (
+    season_id TEXT NOT NULL,
+    clan_id INTEGER NOT NULL REFERENCES clans(id) ON DELETE CASCADE,
+    rank_total INTEGER NOT NULL DEFAULT 0,
+    rank_per_member INTEGER NOT NULL DEFAULT 0,
+    reward_json TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (season_id, clan_id)
+);
+
+CREATE TABLE IF NOT EXISTS clan_season_members (
+    season_id TEXT NOT NULL,
+    clan_id INTEGER NOT NULL,
+    user_id BIGINT NOT NULL,
+    contribution BIGINT NOT NULL DEFAULT 0,
+    joined_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (season_id, clan_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS clan_shop_items (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    cost_points INTEGER NOT NULL,
+    payload TEXT NOT NULL,
+    stock INTEGER NOT NULL DEFAULT -1
+);
 """
 
 def _strip_sql_line_comments(sql: str) -> str:
