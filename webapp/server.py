@@ -1863,7 +1863,14 @@ async def handle_nexus_open_case(request: web.Request):
                                         if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
                                             return web.json_response({"error": "not enough stars"}, status=400)
                             elif case_config.get("costCoins"):
-                                total_cost = case_config["costCoins"] * count
+                                # Перк уровня клана: скидка ТОЛЬКО на coin-кейсы
+                                # (звёздные цены не трогаем — защита монетизации).
+                                _disc = 0.0
+                                try:
+                                    _disc = await db.get_clan_coin_discount(user["id"])
+                                except Exception:
+                                    _disc = 0.0
+                                total_cost = max(1, int(case_config["costCoins"] * count * (1.0 - _disc)))
                                 if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):
                                     return web.json_response({"error": "not enough coins"}, status=400)
                             elif case_id == "autumn-gold":
@@ -6081,6 +6088,40 @@ async def handle_clans_season_history(request: web.Request):
     return web.json_response({"history": await db.get_season_history()})
 
 
+async def handle_clans_shop(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    if not await _clan_my_role(db, clan_id, user["id"]):
+        return web.json_response({"error": "not_member"}, status=403)
+    items = await db.ensure_clan_shop()
+    clan = await db.get_clan(clan_id)
+    return web.json_response({
+        "items": items,
+        "bank_points": int((clan or {}).get("bank_points", 0)),
+        "my_role": await _clan_my_role(db, clan_id, user["id"]),
+    })
+
+
+async def handle_clans_shop_buy(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+        body = await request.json()
+        item_id = int(body.get("item_id"))
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({"error": "invalid request"}, status=400)
+    res = await db.buy_clan_shop_item(clan_id, user["id"], item_id)
+    if "error" in res:
+        code = 403 if res["error"] in ("leader_only",) else 400
+        return web.json_response(res, status=code)
+    return web.json_response(res)
+
+
 async def handle_clans_season_members(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -6177,6 +6218,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/clans/{clan_id}/settings", handle_clans_settings)
     app.router.add_get("/api/clans/{clan_id}/quests", handle_clans_quests)
     app.router.add_post("/api/clans/{clan_id}/quests/{quest_id}/claim", handle_clans_quest_claim)
+    app.router.add_get("/api/clans/{clan_id}/shop", handle_clans_shop)
+    app.router.add_post("/api/clans/{clan_id}/shop/buy", handle_clans_shop_buy)
     app.router.add_get("/api/me/applications", handle_user_applications)
 
     # Nexus Mini App API routes
