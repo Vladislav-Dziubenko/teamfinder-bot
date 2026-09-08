@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState, memo } from "react"
 import { createPortal } from "react-dom"
-import { ChevronLeft, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock, Mic, MicOff, Bot } from "lucide-react"
+import { ChevronLeft, ChevronDown, Send, Smile, Sticker, MessagesSquare, CheckCheck, Check, Languages, Loader2, MoreVertical, Trash2, Ban, Unlock, BellOff, BellRing, Shield, ShieldCheck, Crown, Search, UserRound, X, Star, Clock, Mic, MicOff, Bot } from "lucide-react"
 import {
   useChatMessages,
   useChats,
@@ -654,6 +654,21 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
     }
   }
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [showJump, setShowJump] = useState(false)
+  const stickRef = useRef(true)
+  const firstLoadRef = useRef(true)
+
+  function handleScroll() {
+    const el = scrollRef.current
+    if (!el) return
+    const dist = el.scrollHeight - el.scrollTop - el.clientHeight
+    stickRef.current = dist < 150
+    setShowJump(dist > 400)
+  }
+
+  function jumpToBottom() {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
+  }
   const [menuFor, setMenuFor] = useState<string | null>(null)
   // Multi-select mode for deletion (like in DMs)
   const [selected, setSelected] = useState<string[] | null>(null)
@@ -691,8 +706,18 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
   const isDev = myRank >= 3
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
+    // Автоскролл только если юзер и так внизу — читающего историю не дёргаем.
+    if (!firstLoadRef.current && stickRef.current) jumpToBottom()
   }, [messages.length])
+
+  useEffect(() => {
+    // Первое открытие: мгновенно в конец, без долгой плавной прокрутки.
+    if (loaded && firstLoadRef.current) {
+      firstLoadRef.current = false
+      const el = scrollRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    }
+  }, [loaded])
 
   const emojis = useMemo(
     () => ["😀","😂","🥰","😎","🤔","😢","😡","🔥","⭐","💯","❤️","👍","🎉","✨","💪","🙏","😢","🤗","🤩","💀"],
@@ -804,7 +829,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
       )}
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
+      <div ref={scrollRef} onScroll={handleScroll} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
         {!loaded && messages.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
@@ -843,6 +868,18 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
             </SelectableRow>
           )
         })}
+        {showJump && (
+          <div className="pointer-events-none sticky bottom-4 z-10 -mt-11 flex justify-end pr-1">
+            <button
+              type="button"
+              onClick={jumpToBottom}
+              aria-label={lang === "ru" ? "Вниз" : "Down"}
+              className="pointer-events-auto grid size-10 place-items-center rounded-full border border-border bg-card/95 text-foreground shadow-lg backdrop-blur active:scale-90"
+            >
+              <ChevronDown className="size-5" />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Emoji strip */}

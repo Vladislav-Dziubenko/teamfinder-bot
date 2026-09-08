@@ -54,6 +54,10 @@ def _judge_note_429(where: str) -> None:
 # без правок кода: Render env GEMINI_MODEL=<живая модель из AI Studio>.
 _GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip() or "gemini-3.6-flash"
 
+# Актуальная модель Groq (канон. пример в их доках — 3.3-70b).
+# Перекрывается без правок кода: Render env GROQ_MODEL=<id из console.groq.com/docs/models>.
+_GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip() or "llama-3.3-70b-versatile"
+
 
 def _iter_texts(data: Any):
     """Рекурсивно вынимает все строки из JSON-ответа (схема Interactions API
@@ -287,7 +291,7 @@ async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -
     if _judge_paused():
         return None
     payload = {
-        "model": "llama-3.1-8b-instant",
+        "model": _GROQ_MODEL,
         "temperature": 0,
         "max_tokens": 120,
         "response_format": {"type": "json_object"},
@@ -416,7 +420,7 @@ async def chat_reply(history: list[dict], settings) -> str | None:
         async with aiohttp.ClientSession(timeout=timeout) as session:
             if provider == "groq":
                 payload: dict[str, Any] = {
-                    "model": "llama-3.1-8b-instant",
+                    "model": _GROQ_MODEL,
                     "temperature": 0.7,
                     "max_tokens": 150,
                     "messages": [
