@@ -108,6 +108,22 @@ def _extract_json(raw: str) -> dict | None:
     return None
 
 
+def _chat_text_ok(s: str) -> bool:
+    """Похоже ли на законченную фразу, а не обрывок бреда малой модели
+    («Я - цифров ,»). Режем оборвыши на запятой/предлоге — такие не постим."""
+    t = (s or "").strip()
+    if len(t) < 8:
+        return False
+    if t[-1] in ",;:(":
+        return False
+    low = t.lower()
+    for tail in (" и", " а", " но", " в", " на", " с", " к", " о", " у",
+                 " за", " от", " до", " для", " что", " как", " это", " или"):
+        if low.endswith(tail):
+            return False
+    return True
+
+
 def _pick_chat_text(data: Any) -> str:
     """Выбирает человеческий текст ответа из JSON Interactions API.
 
@@ -310,9 +326,10 @@ async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str,
     return verdict
 
 
-async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -> dict | None:
+async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str, extra: str = "") -> dict | None:
     if _judge_paused():
         return None
+    system = _JUDGE_SYSTEM + (extra or "")
     for mi, model in enumerate(_groq_models()):
         # Без response_format=json_object: reasoning-модели (gpt-oss) отдают
         # под ним пустой failed_generation (400 json_validate_failed).
@@ -322,7 +339,7 @@ async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -
             "temperature": 0,
             "max_tokens": 256,
             "messages": [
-                {"role": "system", "content": _JUDGE_SYSTEM},
+                {"role": "system", "content": system},
                 {"role": "user", "content": text[:500]},
             ],
         }
@@ -472,7 +489,7 @@ async def chat_reply(history: list[dict], settings, memory: str = "") -> str | N
                 for mi, model in enumerate(gmodels):
                     payload: dict[str, Any] = {
                         "model": model,
-                        "temperature": 0.7,
+                        "temperature": 0.5,
                         "max_tokens": 150,
                         "messages": [
                             {"role": "system", "content": system_chat},
@@ -497,8 +514,9 @@ async def chat_reply(history: list[dict], settings, memory: str = "") -> str | N
                         text_out = (data["choices"][0]["message"]["content"] or "").strip()
                     except (KeyError, IndexError, TypeError):
                         return None
-                    if text_out:
+                    if _chat_text_ok(text_out):
                         return text_out[:400]
+                    logger.warning("[ai-mod] groq chat degenerate, trying next")
                 return None
             prompt = system_chat + "\nДиалог:\n" + convo
             try:
@@ -511,9 +529,9 @@ async def chat_reply(history: list[dict], settings, memory: str = "") -> str | N
                     if resp.status == 200:
                         data = await resp.json()
                         best = _pick_chat_text(data)
-                        if best:
+                        if _chat_text_ok(best):
                             return best[:400]
-                        logger.warning("[ai-mod] gemini chat: empty text extracted")
+                        logger.warning("[ai-mod] gemini chat: empty/degenerate text extracted")
                     else:
                         if resp.status == 429:
                             _judge_note_429("gemini-chat")
@@ -548,7 +566,8 @@ async def chat_reply(history: list[dict], settings, memory: str = "") -> str | N
                         logger.warning("[ai-mod] gemini chat legacy status=%s body=%s", resp.status, body)
                     return None
                 data = await resp.json()
-            return _pick_chat_text(data)[:400] or None
+            picked = _pick_chat_text(data)
+            return picked[:400] if _chat_text_ok(picked) else None
     except Exception as exc:
         logger.warning("[ai-mod] chat reply failed: %s", exc)
         return None
@@ -634,7 +653,8 @@ async def ai_answer(question: str, settings, memory: str = "") -> str | None:
                         _judge_note_429("gemini-answer")
                     return None
                 data = await resp.json()
-            return _pick_chat_text(data)[:2000] or None
+            picked = _pick_chat_text(data)
+            return picked[:2000] if _chat_text_ok(picked) else None
     except Exception as exc:
         logger.warning("[ai-mod] answer failed: %s", exc)
         return None
