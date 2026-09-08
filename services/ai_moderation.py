@@ -310,8 +310,12 @@ async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -
             if resp.status != 200:
                 if resp.status == 429:
                     _judge_note_429("groq")
-                else:
-                    logger.warning("[ai-mod] groq status=%s", resp.status)
+                    return None
+                try:
+                    body = (await resp.text())[:300]
+                except Exception:
+                    body = "?"
+                logger.warning("[ai-mod] groq status=%s body=%s", resp.status, body)
                 return None
             data = await resp.json()
     except Exception as exc:
