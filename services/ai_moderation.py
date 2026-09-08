@@ -188,7 +188,11 @@ async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str)
                     return verdict
                 logger.warning("[ai-mod] gemini interactions: verdict not parsed")
             else:
-                logger.warning("[ai-mod] gemini interactions status=%s", resp.status)
+                try:
+                    body = (await resp.text())[:300]
+                except Exception:
+                    body = "?"
+                logger.warning("[ai-mod] gemini interactions status=%s body=%s", resp.status, body)
     except Exception as exc:
         logger.warning("[ai-mod] gemini interactions error: %s", exc)
     # Шаг 2: legacy generateContent (старые standard-ключи AIza...).
@@ -210,7 +214,11 @@ async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str)
             timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT),
         ) as resp:
             if resp.status != 200:
-                logger.warning("[ai-mod] gemini status=%s", resp.status)
+                try:
+                    body = (await resp.text())[:300]
+                except Exception:
+                    body = "?"
+                logger.warning("[ai-mod] gemini status=%s body=%s", resp.status, body)
                 return None
             data = await resp.json()
     except Exception as exc:
