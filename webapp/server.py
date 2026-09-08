@@ -5898,6 +5898,7 @@ async def handle_clans_my(request: web.Request):
 
 async def handle_clans_detail(request: web.Request):
     db: Database = request.app["db"]
+    user = _get_user(request)
     try:
         clan_id = int(request.match_info["clan_id"])
     except (ValueError, TypeError):
@@ -5905,6 +5906,10 @@ async def handle_clans_detail(request: web.Request):
     clan = await db.get_clan(clan_id)
     if not clan:
         return web.json_response({"error": "not found"}, status=404)
+    # Вклад участников — только своим (посторонним — карточка без состава).
+    if not await _clan_my_role(db, clan_id, user["id"]):
+        clan = dict(clan)
+        clan["members"] = []
     return web.json_response({"clan": _clan_public(clan)})
 
 
@@ -6021,6 +6026,77 @@ async def handle_clans_settings(request: web.Request):
     return web.json_response(res)
 
 
+async def _clan_my_role(db: Database, clan_id: int, user_id: int) -> str | None:
+    me = await db.get_my_clan(user_id)
+    if me and int(me["id"]) == int(clan_id):
+        return me["my_role"]
+    return None
+
+
+async def handle_clans_quests(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    if not await _clan_my_role(db, clan_id, user["id"]):
+        return web.json_response({"error": "not_member"}, status=403)
+    return web.json_response({"quests": await db.ensure_clan_quests(clan_id)})
+
+
+async def handle_clans_quest_claim(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+        quest_id = int(request.match_info["quest_id"])
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    res = await db.claim_clan_quest(clan_id, user["id"], quest_id)
+    if "error" in res:
+        code = 403 if res["error"] == "forbidden" else 400
+        return web.json_response(res, status=code)
+    return web.json_response(res)
+
+
+async def handle_clans_leaderboard(request: web.Request):
+    db: Database = request.app["db"]
+    by = request.query.get("by", "total")
+    if by not in ("total", "per_member"):
+        by = "total"
+    return web.json_response({"by": by, "board": await db.get_clan_leaderboard(by)})
+
+
+async def handle_clans_season_current(request: web.Request):
+    db: Database = request.app["db"]
+    season = await db.get_current_season()
+    top = await db.get_clan_leaderboard("total", limit=10)
+    eff = await db.get_clan_leaderboard("per_member", limit=10)
+    return web.json_response({"season": season, "top_total": top, "top_eff": eff})
+
+
+async def handle_clans_season_history(request: web.Request):
+    db: Database = request.app["db"]
+    return web.json_response({"history": await db.get_season_history()})
+
+
+async def handle_clans_season_members(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    season_id = request.match_info["season_id"]
+    try:
+        clan_id = int(request.query.get("clan_id", 0))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid clan"}, status=400)
+    if not season_id or not clan_id:
+        return web.json_response({"error": "invalid request"}, status=400)
+    if not await _clan_my_role(db, clan_id, user["id"]):
+        return web.json_response({"error": "not_member"}, status=403)
+    return web.json_response(
+        {"members": await db.get_season_members(season_id, clan_id)})
+
+
 def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # Порядок middleware критичен — менять только осознанно:
     # 1. security_middleware     — самый внешний: CSP + security headers на любой ответ (включая ошибки)
@@ -6088,6 +6164,10 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/clans", handle_clans_create)
     app.router.add_get("/api/clans/search", handle_clans_search)
     app.router.add_get("/api/clans/my", handle_clans_my)
+    app.router.add_get("/api/clans/leaderboard", handle_clans_leaderboard)
+    app.router.add_get("/api/clans/seasons/current", handle_clans_season_current)
+    app.router.add_get("/api/clans/seasons/history", handle_clans_season_history)
+    app.router.add_get("/api/clans/seasons/{season_id}/members", handle_clans_season_members)
     app.router.add_get("/api/clans/{clan_id}", handle_clans_detail)
     app.router.add_post("/api/clans/{clan_id}/join", handle_clans_join)
     app.router.add_post("/api/clans/{clan_id}/leave", handle_clans_leave)
@@ -6095,6 +6175,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/clans/{clan_id}/role", handle_clans_role)
     app.router.add_post("/api/clans/{clan_id}/invites", handle_clans_invite)
     app.router.add_post("/api/clans/{clan_id}/settings", handle_clans_settings)
+    app.router.add_get("/api/clans/{clan_id}/quests", handle_clans_quests)
+    app.router.add_post("/api/clans/{clan_id}/quests/{quest_id}/claim", handle_clans_quest_claim)
     app.router.add_get("/api/me/applications", handle_user_applications)
 
     # Nexus Mini App API routes

@@ -145,6 +145,10 @@ async def main():
         from handlers.superloop import super_weekly_loop
         asyncio.create_task(super_weekly_loop(bot, db, settings))
 
+        # Ролловер клановых сезонов 1-го числа (идемпотентно, проверка раз в сутки)
+        from handlers.clanroll import clan_season_loop
+        asyncio.create_task(clan_season_loop(bot, db, settings))
+
         # ---- Шаг 6: удаляем старый webhook (если был) и регистрируем новый ----
         # Хардкодим правильный URL чтобы не прыгал между -1 и -9pol из-за старого WEBAPP_URL/кэша
         _hardcoded = "https://teamfinder-bot-1-9pol.onrender.com"
