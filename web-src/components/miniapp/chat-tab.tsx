@@ -1593,17 +1593,26 @@ const GlobalMsg = memo(function GlobalMsg({
   const [translatedLang, setTranslatedLang] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [pickerOpen, setPickerOpen] = useState(false)
+  const [tErr, setTErr] = useState(false)
   const sticker = isStickerText(msg.text)
 
   async function doTranslate(target: string) {
     setPickerOpen(false)
     if (!msg.text.trim() || sticker || msg.isVoice) return
     setLoading(true)
+    setTErr(false)
     try {
       const res = await api.post("/api/translate", { text: msg.text, target })
-      setTranslated(res.translated ?? null)
-      setTranslatedLang(target)
-    } catch {}
+      if (res.translated) {
+        setTranslated(res.translated)
+        setTranslatedLang(target)
+      } else {
+        setTErr(true)
+      }
+    } catch {
+      // Раньше ошибка глоталась молча — кнопка жмётся, перевода нет.
+      setTErr(true)
+    }
     setLoading(false)
   }
 
@@ -1674,6 +1683,11 @@ const GlobalMsg = memo(function GlobalMsg({
         {!sticker && translated && translated !== msg.text && (
           <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground">
             {msg.text}
+          </p>
+        )}
+        {!sticker && tErr && !translated && (
+          <p className="mt-1 text-[11px] italic text-muted-foreground">
+            {lang === "ru" ? "⚠️ Перевод недоступен, попробуй позже" : "⚠️ Translation unavailable, try again later"}
           </p>
         )}
         {!sticker && (

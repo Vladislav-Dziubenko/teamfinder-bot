@@ -4010,7 +4010,10 @@ async def handle_global_messages(request: web.Request):
     admin_ids = set(settings.admin_ids) if settings else set()
     for msg in messages:
         uid = msg.get("user_id")
-        if uid == user["id"]:
+        # Сравнение через str: asyncpg отдаёт int, а id из initData может
+        # приехать строкой — строгое сравнение роняло маппинг «своих»,
+        # и свои сообщения рисовались чужими (дубли серый+оранжевый).
+        if str(uid) == str(user["id"]):
             msg["user_id"] = "me"
         if isinstance(uid, int) and uid in admin_ids:
             msg["role"] = "developer"
@@ -4510,15 +4513,28 @@ async def handle_translate(request: web.Request):
     user = _get_user(request)
     if user and await rate_limit_check(f"tr:{user['id']}", 20, 60):
         return web.json_response({"error": "slow down"}, status=429)
-    try:
-        url = ("https://translate.googleapis.com/translate_a/single"
-               "?client=gtx&sl=auto&tl=" + quote(target, safe="") + "&dt=t&q=" + quote(text))
-        async with request.app["session"].get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=ClientTimeout(total=10)) as resp:
-            result = await resp.json()
-            translated = "".join(part[0] for part in result[0] if part[0])
-            return web.json_response({"translated": translated})
-    except Exception:
-        return web.json_response({"error": "translate failed"}, status=502)
+    # Неофициальный gtx-эндпоинт Google жёстко троттлит дата-центры (Render):
+    # без ретрая и фолбэк-клиента перевод молча умирал с 502, а фронт глотал
+    # ошибку в catch{} — кнопка есть, перевода нет.
+    last_err = ""
+    for client in ("gtx", "dict-chrome-ex"):
+        try:
+            url = ("https://translate.googleapis.com/translate_a/single"
+                   "?client=" + client + "&sl=auto&tl=" + quote(target, safe="") + "&dt=t&q=" + quote(text))
+            async with request.app["session"].get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=ClientTimeout(total=10)) as resp:
+                if resp.status != 200:
+                    body = (await resp.text())[:200]
+                    logging.warning("[translate] client=%s status=%s body=%s", client, resp.status, body)
+                    last_err = f"{client}:{resp.status}"
+                    continue
+                result = await resp.json()
+                translated = "".join(part[0] for part in result[0] if part and part[0])
+                return web.json_response({"translated": translated})
+        except Exception as exc:
+            logging.warning("[translate] client=%s failed: %s", client, exc)
+            last_err = str(exc)[:100]
+            continue
+    return web.json_response({"error": "translate failed", "detail": last_err}, status=502)
 
 async def handle_user_search(request: web.Request):
     db: Database = request.app["db"]

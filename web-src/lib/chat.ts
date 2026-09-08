@@ -502,9 +502,19 @@ export function useGlobalChat() {
         setMeRole(data.me_role ?? "")
         setMeBanned(Boolean(data.me_banned))
         const list: GlobalMessage[] = dedupeAndSort((data.messages ?? []).map(mapGlobalMsg))
-        setMessages(list)
-        _globalCache.length = 0
-        _globalCache.push(...list)
+        setMessages((prev) => {
+          // Слияние вместо замены: медленный GET, ушедший до POST, иначе
+          // стирал бы только что отправленное (моргание «появилось-пропало»).
+          // Свои свежие (<15с) без серверного эха бережём до следующего полла,
+          // остальное — строго с сервера (удалённое модерацией не воскресает).
+          const ids = new Set(list.map((m) => m.id))
+          const nowTs = Date.now()
+          const kept = prev.filter((m) => !ids.has(m.id) && nowTs - m.ts < 15_000)
+          const merged = dedupeAndSort([...list, ...kept])
+          _globalCache.length = 0
+          _globalCache.push(...merged)
+          return merged
+        })
         setLoaded(true)
       } catch (e: any) {
         if (e?.status === 503 && attempt < 10 && !cancelled) {
