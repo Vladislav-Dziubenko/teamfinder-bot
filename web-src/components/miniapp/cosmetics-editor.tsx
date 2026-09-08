@@ -295,12 +295,12 @@ function ArtCanvas({ initial, onArt }: { initial: string; onArt: (art: string) =
             <input type="range" min={2} max={16} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-full accent-[var(--primary)]" />
             <span className="w-6 text-right text-[11px] text-muted-foreground">{size}</span>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setEraser((v) => !v)}
               className={cn(
-                "rounded-lg px-2.5 py-1.5 text-xs font-semibold active:scale-95",
+                "rounded-lg px-2 py-1.5 text-xs font-semibold active:scale-95",
                 eraser ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground",
               )}
             >
@@ -310,14 +310,14 @@ function ArtCanvas({ initial, onArt }: { initial: string; onArt: (art: string) =
               type="button"
               onClick={undo}
               disabled={!strokes.length}
-              className="rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-semibold text-muted-foreground active:scale-95 disabled:opacity-40"
+              className="rounded-lg bg-secondary px-2 py-1.5 text-xs font-semibold text-muted-foreground active:scale-95 disabled:opacity-40"
             >
               ↩
             </button>
             <button
               type="button"
               onClick={clear}
-              className="rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-semibold text-muted-foreground active:scale-95"
+              className="rounded-lg bg-secondary px-2 py-1.5 text-xs font-semibold text-muted-foreground active:scale-95"
             >
               {ru ? "Очистить" : "Clear"}
             </button>
