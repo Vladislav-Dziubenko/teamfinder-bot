@@ -572,7 +572,9 @@ CREATE TABLE IF NOT EXISTS clan_seasons (
 
 CREATE TABLE IF NOT EXISTS clan_season_results (
     season_id TEXT NOT NULL,
-    clan_id INTEGER NOT NULL REFERENCES clans(id) ON DELETE CASCADE,
+    clan_id INTEGER NOT NULL,
+    clan_name TEXT NOT NULL DEFAULT '',
+    tag TEXT NOT NULL DEFAULT '',
     rank_total INTEGER NOT NULL DEFAULT 0,
     rank_per_member INTEGER NOT NULL DEFAULT 0,
     reward_json TEXT NOT NULL DEFAULT '{}',
@@ -720,6 +722,15 @@ class Database:
         return row is not None
 
     async def _migrate(self, conn: asyncpg.Connection) -> None:
+        # История выплат распущенных кланов должна переживать роспуск:
+        # у clan_season_results больше нет FK на clans (имя/тег денормализованы
+        # в строке). Сносим constraint, если таблица создана старой схемой.
+        try:
+            await conn.execute(
+                "ALTER TABLE clan_season_results"
+                " DROP CONSTRAINT IF EXISTS clan_season_results_clan_id_fkey")
+        except asyncpg.PostgresError:
+            pass
         # Убираем FK user_cosmetics/super_subs -> users: строка юзера может
         # отсутствовать (mini-app-only), а 500 на сохранении/подписке хуже
         # пользы от ссылочной целостности (как у audit_log — там FK нет).
@@ -894,6 +905,9 @@ class Database:
 
             ("chat_messages", "reply_to", "INTEGER"),
             ("global_messages", "reply_to", "INTEGER"),
+
+            ("clan_season_results", "clan_name", "TEXT NOT NULL DEFAULT ''"),
+            ("clan_season_results", "tag", "TEXT NOT NULL DEFAULT ''"),
         ]
 
         for table, column, col_type in column_migrations:
@@ -2294,14 +2308,19 @@ class Database:
                     clan_id, user_id,
                 )
                 if not rest:
-                    # Роспуск: CASCADE сносит members/quests/log/results/invites.
-                    # Снапшоты сезонов (без FK — переживают специально) чистим
-                    # явно, чтобы в истории не висели ссылки на мёртвый клан.
-                    # Семантика: нет клана на ролловере — нет выплат; банк,
+                    # Роспуск: CASCADE сносит members/quests/log/invites.
+                    # clan_season_results — без FK, переживает (история выплат).
+                    # Снапшоты чистим ТОЛЬКО за незакрытые сезоны: выплаченные
+                    # (rewards_paid=1) остаются как обоснование «кому и за что
+                    # заплатили» — иначе при споре ссылаться будет не на что.
+                    # Семантика: нет клана на ролловере — нет новых выплат; банк,
                     # lifetime и невзятые награды сгорают вместе с кланом.
                     await conn.execute("DELETE FROM clans WHERE id = $1", clan_id)
                     await conn.execute(
-                        "DELETE FROM clan_season_members WHERE clan_id = $1", clan_id)
+                        "DELETE FROM clan_season_members WHERE clan_id = $1"
+                        " AND season_id NOT IN (SELECT year_month FROM clan_seasons"
+                        " WHERE rewards_paid = 1)",
+                        clan_id)
                     return {"ok": True, "disbanded": True}
                 if mem["role"] == "leader":
                     nxt = next((r for r in rest if r["role"] == "officer"), rest[0])
