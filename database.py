@@ -558,6 +558,8 @@ CREATE TABLE IF NOT EXISTS clan_points_log (
     user_id BIGINT NOT NULL,
     action TEXT NOT NULL,
     points INTEGER NOT NULL,
+    granted INTEGER NOT NULL DEFAULT 0,
+    flags TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_clan_points_log_clan ON clan_points_log (clan_id, created_at);
@@ -2124,6 +2126,99 @@ class Database:
                 user_id, monday, datetime.utcnow().isoformat(),
             )
             return {"granted": True, "coins": coins, "stars": stars, "keys": keys}
+
+    # ---- Клановые очки (v1) ----
+    async def award_clan_points(self, user_id: int, action: str, raw_points: int,
+                                conn: asyncpg.Connection | None = None,
+                                cap: int = 300, bank_share: float = 0.2) -> dict:
+        """Начисляет очки клану за действие юзера.
+
+        Инвариант (источник правды для антифрода): в clan_points_log пишется
+        СЫРОЕ значение (points), а кап режет только зачисление (granted)
+        в contribution/lifetime/bank. SUM(granted) сходится с балансами,
+        SUM(points) — с реальным поведением.
+        """
+        if conn is None:
+            async with self.pool.acquire() as c:
+                async with c.transaction():
+                    return await self._award_clan_points_conn(
+                        c, user_id, action, raw_points, cap, bank_share)
+        return await self._award_clan_points_conn(
+            conn, user_id, action, raw_points, cap, bank_share)
+
+    async def _award_clan_points_conn(self, conn: asyncpg.Connection, user_id: int,
+                                      action: str, raw_points: int,
+                                      cap: int, bank_share: float) -> dict:
+        raw_points = max(0, int(raw_points or 0))
+        mem = await conn.fetchrow(
+            "SELECT clan_id FROM clan_members WHERE user_id = $1", user_id)
+        if not mem:
+            return {"clan_id": None, "granted": 0}
+        clan_id = mem["clan_id"]
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today_granted = await conn.fetchval(
+            "SELECT COALESCE(SUM(granted), 0) FROM clan_points_log"
+            " WHERE user_id = $1 AND created_at >= $2",
+            user_id, today,
+        ) or 0
+        granted = max(0, min(raw_points, max(0, cap - today_granted)))
+        # Подозрительность: сырая дневная сумма юзера против медианы клана.
+        flags = ""
+        try:
+            rows = await conn.fetch(
+                "SELECT m.user_id, COALESCE(SUM(l.points), 0) AS s FROM clan_members m"
+                " LEFT JOIN clan_points_log l ON l.clan_id = m.clan_id"
+                " AND l.user_id = m.user_id AND l.created_at >= $2"
+                " WHERE m.clan_id = $1 GROUP BY m.user_id",
+                clan_id, today,
+            )
+            totals = [(int(r["user_id"]),
+                         int(r["s"]) + (raw_points if int(r["user_id"]) == user_id else 0))
+                        for r in rows]
+            if len(totals) >= 3:
+                median = sorted(s for _, s in totals)[len(totals) // 2]
+                user_total = next((s for u, s in totals if u == user_id), 0)
+                if median > 0 and user_total > 5 * median:
+                    flags = "suspicious"
+        except Exception:
+            pass
+        if granted:
+            await conn.execute(
+                "UPDATE clan_members SET contribution_season = contribution_season + $2,"
+                " contribution_total = contribution_total + $2 WHERE user_id = $1",
+                user_id, granted,
+            )
+            await conn.execute(
+                "UPDATE clans SET lifetime_points = lifetime_points + $2,"
+                " bank_points = bank_points + $3 WHERE id = $1",
+                clan_id, granted, int(granted * bank_share),
+            )
+        await conn.execute(
+            "INSERT INTO clan_points_log (clan_id, user_id, action, points, granted, flags, created_at)"
+            " VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            clan_id, user_id, action, raw_points, granted, flags,
+            datetime.utcnow().isoformat(),
+        )
+        out = {"clan_id": clan_id, "granted": granted}
+        if flags:
+            out["flags"] = flags
+        return out
+
+    async def award_clan_active_day(self, user_id: int, points: int = 5,
+                                    cap: int = 300, bank_share: float = 0.2) -> dict:
+        """+N за активный день, один раз в сутки (идемпотентно по логу)."""
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        async with self.pool.acquire() as conn:
+            exists = await conn.fetchval(
+                "SELECT 1 FROM clan_points_log WHERE user_id = $1 AND action = 'active_day'"
+                " AND created_at >= $2 LIMIT 1",
+                user_id, today,
+            )
+            if exists:
+                return {"clan_id": None, "granted": 0, "dedup": True}
+            async with conn.transaction():
+                return await self._award_clan_points_conn(
+                    conn, user_id, "active_day", points, cap, bank_share)
 
     async def unlock_contact(self, user_id: int, profile_id: int) -> None:
         async with self.pool.acquire() as conn:
@@ -3693,6 +3788,7 @@ WHERE user_quests.completed = 0
                     "UPDATE user_quests SET completed = 1, updated_at = $1 WHERE id = $2",
                     datetime.utcnow().isoformat(), row["id"],
                 )
+                await self._award_clan_points_conn(conn, user_id, "quest", 15, 300, 0.2)
                 return {"ok": True, "stars": reward_stars}
 
     async def claim_all_ready_quests(self, user_id: int, quests_config: list[dict]) -> dict:
@@ -3724,6 +3820,8 @@ WHERE user_quests.completed = 0
                 if total_stars == 0:
                     return {"stars": 0, "claimed": 0}
                 await self._adjust_currency_conn(conn, user_id, stars=total_stars)
+                if claimed:
+                    await self._award_clan_points_conn(conn, user_id, "quest", 15 * claimed, 300, 0.2)
                 for q in quests_config:
                     prog = by_qid.get(q["id"])
                     if not prog or (prog["progress_minutes"] or 0) < q["target"] or prog["completed"]:
@@ -4495,6 +4593,7 @@ WHERE user_quests.completed = 0
                     coins=referral_reward.get("coins", 0),
                     stars=referral_reward.get("stars", 0),
                 )
+                await self._award_clan_points_conn(conn, row["referred_by"], "invite", 25, 300, 0.2)
                 return True
 
     # ---------- Daily streak ----------

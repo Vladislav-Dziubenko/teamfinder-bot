@@ -2092,6 +2092,25 @@ async def handle_nexus_open_case(request: web.Request):
 
             await db.update_quest_progress(user["id"], "open-cases-2", count)
 
+            # Клановые очки: +10 за кейс и +5 за активный день (свои дефолты
+            # совпадают с env; no-op для юзеров вне кланов).
+            _cfg = request.app.get("settings")
+            try:
+                await db.award_clan_points(
+                    user["id"], "case",
+                    int(getattr(_cfg, "clan_points_case", 10) or 10) * count,
+                    cap=int(getattr(_cfg, "clan_daily_cap", 300) or 300),
+                    bank_share=float(getattr(_cfg, "clan_bank_share", 0) or 0.2),
+                )
+                await db.award_clan_active_day(
+                    user["id"],
+                    points=int(getattr(_cfg, "clan_points_active_day", 5) or 5),
+                    cap=int(getattr(_cfg, "clan_daily_cap", 300) or 300),
+                    bank_share=float(getattr(_cfg, "clan_bank_share", 0) or 0.2),
+                )
+            except Exception as e:
+                logging.warning(f"clan points hook failed: {e}")
+
 
             # Достижение «50 кейсов»: суммарный счётчик открытий (не сбрасывается по дням).
 
@@ -4188,6 +4207,11 @@ async def handle_global_send(request: web.Request):
     msg["user_id"] = "me"
     # Сбрасываем кэш глобальных сообщений — чтобы poller сразу видел новое.
     await cache_delete_pattern("global_chat_msgs")
+    # Клановые очки за активный день (фоном, отправку не тормозит).
+    try:
+        asyncio.create_task(db.award_clan_active_day(user["id"]))
+    except Exception:
+        pass
     # AI-модератор: фоновая проверка, отправку не тормозит.
     try:
         settings = request.app.get("settings")

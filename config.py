@@ -23,6 +23,14 @@ class Settings:
     super_weekly_coins: int
     super_weekly_stars: int
     super_weekly_keys: int
+    # --- Кланы: веса очков, дневной кап, доля в банк ---
+    clan_points_case: int
+    clan_points_quest: int
+    clan_points_active_day: int
+    clan_points_invite: int
+    clan_daily_cap: int
+    clan_bank_share: float
+    clan_max_members: int
     database_url: str
     webapp_url: str
     public_app_url: str
@@ -135,6 +143,13 @@ def load_settings() -> Settings:
         super_weekly_coins=int(os.getenv("SUPER_WEEKLY_COINS", "75000")),
         super_weekly_stars=int(os.getenv("SUPER_WEEKLY_STARS", "100")),
         super_weekly_keys=int(os.getenv("SUPER_WEEKLY_KEYS", "10")),
+        clan_points_case=int(os.getenv("CLAN_POINTS_CASE", "10")),
+        clan_points_quest=int(os.getenv("CLAN_POINTS_QUEST", "15")),
+        clan_points_active_day=int(os.getenv("CLAN_POINTS_ACTIVE_DAY", "5")),
+        clan_points_invite=int(os.getenv("CLAN_POINTS_INVITE", "25")),
+        clan_daily_cap=int(os.getenv("CLAN_DAILY_CAP", "300")),
+        clan_bank_share=float(os.getenv("CLAN_BANK_SHARE", "") or "0.2"),
+        clan_max_members=int(os.getenv("CLAN_MAX_MEMBERS", "15")),
         database_url=database_url,
         webapp_url=_resolve_webapp_url(),
         public_app_url=os.getenv("PUBLIC_APP_URL", _resolve_webapp_url()),
