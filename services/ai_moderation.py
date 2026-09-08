@@ -32,10 +32,10 @@ _FLOOD_SAME = 3  # столько одинаковых подряд = флуд
 
 _JUDGE_TIMEOUT = 8.0
 
-# Актуальная модель судьи (сент. 2026: линейка 2.x ретайрится Google,
-# дефолт — 2.5-flash). Перекрывается без правок кода: Render env
-# GEMINI_MODEL=gemini-3.7-flash (или другая живая модель из AI Studio).
-_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+# Актуальная модель судьи (сент. 2026: Google ретайрит 2.x для новых
+# пользователей — сам пишет "use models/gemini-3.6-flash"). Перекрывается
+# без правок кода: Render env GEMINI_MODEL=<живая модель из AI Studio>.
+_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip() or "gemini-3.6-flash"
 
 
 def _iter_texts(data: Any):
