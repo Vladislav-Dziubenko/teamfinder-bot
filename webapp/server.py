@@ -1469,9 +1469,9 @@ CASES_CONFIG = {
             {"key": "premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастомные фото, свой текст и украшения карточки без ограничений, до 4 открытий кейсов, приоритет в поиске, расширенные анкеты игроков",         "image": "/premium-reveal.webp", "rarity": "premium", "sell": 100, "weight": 4, "grantsPremium": True},
             {"key": "premium-card-lite", "name": "Премиум", "desc": "Премиум-статус на 1 день: приоритет в поиске тиммейтов, расширенные анкеты игроков, больше результатов в поиске",         "image": "/premium-card.webp", "rarity": "epic", "sell": 45, "weight": 10, "grantsPremium": True},
             {"key": "premium-medium", "name": "Премиум средний", "desc": "Премиум на 1 день: до 4 открытий кейсов в день (вместо 1), приоритет в поиске тиммейтов, расширенные анкеты игроков",         "image": "/premium-x4.webp", "rarity": "epic", "sell": 75, "weight": 10, "grantsPremium": True},
-            {"key": "stars-150", "name": "150 ⭐", "desc": "150 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 0.2, "kind": "stars", "stars": 150},
-            {"key": "stars-400", "name": "400 ⭐", "desc": "400 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 0.1, "kind": "stars", "stars": 400},
-            {"key": "stars-1200", "name": "1200 ⭐", "desc": "1200 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 0.07, "kind": "stars", "stars": 1200},
+            {"key": "stars-150", "name": "150 ⭐", "desc": "150 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 0.4, "kind": "stars", "stars": 150},
+            {"key": "stars-400", "name": "400 ⭐", "desc": "400 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 0.25, "kind": "stars", "stars": 400},
+            {"key": "stars-1200", "name": "1200 ⭐", "desc": "1200 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 0.15, "kind": "stars", "stars": 1200},
             {"key": "nexus-model", "name": "Mini Boss bro", "desc": "Лимитированная 3D-модель. Тираж 20 шт. Джекпот: 10 000 ⭐, роль модератора/админа, пожизненный премиум, доход 50-100 ⭐ в день", "icon": "💎", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
         ]
     },
@@ -1489,8 +1489,8 @@ CASES_CONFIG = {
             {"key": "rustveil-kunoichi", "name": "Rustveil Kunoichi", "desc": "Куноити. Клинки, закалённые в багряном свете", "icon": "✦", "rarity": "rare", "sell": 25, "weight": 22},
             {"key": "cinderwing", "name": "Cinderwing MK-II", "desc": "Дрон. Пепельные крылья и импульсный след", "icon": "△", "rarity": "epic", "sell": 100, "weight": 11},
             {"key": "maple-warden", "name": "Maple Warden", "desc": "Страж. Броня, собранная из осеннего сплава", "icon": "⬡", "rarity": "epic", "sell": 120, "weight": 9},
-            {"key": "stars-200", "name": "200 ⭐", "desc": "200 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 1, "kind": "stars", "stars": 200},
-            {"key": "stars-500", "name": "500 ⭐", "desc": "500 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 0.5, "kind": "stars", "stars": 500},
+            {"key": "stars-200", "name": "200 ⭐", "desc": "200 звёзд на баланс", "icon": "⭐", "rarity": "common", "sell": 0, "weight": 1.8, "kind": "stars", "stars": 200},
+            {"key": "stars-500", "name": "500 ⭐", "desc": "500 звёзд на баланс", "icon": "⭐", "rarity": "rare", "sell": 0, "weight": 0.9, "kind": "stars", "stars": 500},
             {"key": "autumn-key", "name": "Autumn Key", "desc": "Ключ к Autumn Gold кейсу. Соберите 3 ключа, чтобы открыть золотой осенний кейс с лимитированными 3D-моделями", "icon": "🗝️", "rarity": "epic", "sell": 5000, "weight": 0.5, "kind": "inventory"},
         ]
     },
@@ -1507,8 +1507,8 @@ CASES_CONFIG = {
             {"key": "aurelia-09", "name": "AURELIA // 09", "desc": "Легендарная модель. Солнечное ядро, запечатанное в чёрном стекле. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "image": "/aurelia.webp", "icon": "◈", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
             {"key": "nocturne-reaper", "name": "NOCTURNE REAPER", "desc": "Легендарная модель. Последний охотник осеннего протокола. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "image": "/nocturne.webp", "icon": "✦", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
             {"key": "verdant-singularity", "name": "VERDANT SINGULARITY", "desc": "Легендарная модель. Древо данных, пережившее коллапс. Лимит 10 шт. Джекпот: 10 000 ⭐, роль, пожизненный премиум, доход 50-100 ⭐/день", "image": "/verdant.webp", "icon": "⬡", "rarity": "legendary", "sell": 55000, "weight": 0.1, "jackpot": True, "kind": "model"},
-            {"key": "stars-1000", "name": "1000 ⭐", "desc": "1000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 0.1, "kind": "stars", "stars": 1000},
-            {"key": "stars-2000", "name": "2000 ⭐", "desc": "2000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 0.05, "kind": "stars", "stars": 2000},
+            {"key": "stars-1000", "name": "1000 ⭐", "desc": "1000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 0.25, "kind": "stars", "stars": 1000},
+            {"key": "stars-2000", "name": "2000 ⭐", "desc": "2000 звёзд на баланс", "icon": "⭐", "rarity": "epic", "sell": 0, "weight": 0.15, "kind": "stars", "stars": 2000},
             {"key": "premium-card", "name": "Премиум-анкета", "desc": "Максимальный премиум на 1 день: кастомные фото, свой текст, до 4 открытий кейсов", "image": "/premium-reveal.webp", "rarity": "premium", "sell": 100, "weight": 10, "grantsPremium": True},
         ]
     }
