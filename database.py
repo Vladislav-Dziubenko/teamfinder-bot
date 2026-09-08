@@ -595,6 +595,16 @@ CREATE TABLE IF NOT EXISTS clan_shop_items (
     payload TEXT NOT NULL,
     stock INTEGER NOT NULL DEFAULT -1
 );
+
+CREATE TABLE IF NOT EXISTS clan_invites (
+    id SERIAL PRIMARY KEY,
+    clan_id INTEGER NOT NULL REFERENCES clans(id) ON DELETE CASCADE,
+    code TEXT NOT NULL UNIQUE,
+    created_by BIGINT NOT NULL,
+    uses INTEGER NOT NULL DEFAULT 0,
+    max_uses INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
 """
 
 def _strip_sql_line_comments(sql: str) -> str:
@@ -2126,6 +2136,253 @@ class Database:
                 user_id, monday, datetime.utcnow().isoformat(),
             )
             return {"granted": True, "coins": coins, "stars": stars, "keys": keys}
+
+    # ---- Кланы: структура и участники (v1) ----
+    CLAN_ROLES = ("leader", "officer", "member")
+
+    @staticmethod
+    def _clan_can(actor_role: str | None, action: str) -> bool:
+        rank = {"leader": 3, "officer": 2, "member": 1}.get(actor_role or "", 0)
+        need = {"invite": 2, "kick": 2, "role": 3, "settings": 3, "shop": 3}
+        return rank >= need.get(action, 99)
+
+    async def get_my_clan(self, user_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT c.*, m.role AS my_role,"
+                " (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count"
+                " FROM clans c JOIN clan_members m ON m.clan_id = c.id"
+                " WHERE m.user_id = $1",
+                user_id,
+            )
+            return dict(row) if row else None
+
+    async def get_clan(self, clan_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            clan = await conn.fetchrow("SELECT * FROM clans WHERE id = $1", clan_id)
+            if not clan:
+                return None
+            members = await conn.fetch(
+                "SELECT m.user_id, m.role, m.contribution_season, m.contribution_total, m.joined_at,"
+                " COALESCE(mp.nick, '') AS nick, mp.avatar AS avatar"
+                " FROM clan_members m LEFT JOIN mini_app_profiles mp ON mp.user_id = m.user_id"
+                " WHERE m.clan_id = $1 ORDER BY"
+                " CASE m.role WHEN 'leader' THEN 0 WHEN 'officer' THEN 1 ELSE 2 END,"
+                " m.contribution_season DESC",
+                clan_id,
+            )
+            d = dict(clan)
+            d["members"] = [dict(r) for r in members]
+            return d
+
+    async def search_clans(self, q: str, limit: int = 20) -> list[dict]:
+        q = (q or "").strip()[:24]
+        async with self.pool.acquire() as conn:
+            if not q:
+                rows = await conn.fetch(
+                    "SELECT c.*, (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count"
+                    " FROM clans c WHERE c.is_public = 1 ORDER BY c.lifetime_points DESC LIMIT $1",
+                    max(1, min(limit, 50)),
+                )
+            else:
+                rows = await conn.fetch(
+                    "SELECT c.*, (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count"
+                    " FROM clans c WHERE c.is_public = 1 AND (c.name ILIKE $1 OR c.tag ILIKE $1)"
+                    " ORDER BY c.lifetime_points DESC LIMIT $2",
+                    f"%{q}%", max(1, min(limit, 50)),
+                )
+            return [dict(r) for r in rows]
+
+    async def create_clan(self, user_id: int, name: str, tag: str, emblem: str = "",
+                          description: str = "", is_public: bool = True,
+                          max_members: int = 15) -> dict:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                exists = await conn.fetchval(
+                    "SELECT clan_id FROM clan_members WHERE user_id = $1", user_id)
+                if exists:
+                    return {"error": "already_in_clan"}
+                try:
+                    row = await conn.fetchrow(
+                        "INSERT INTO clans (name, tag, emblem, description, is_public,"
+                        " max_members, level, lifetime_points, bank_points, season_id,"
+                        " created_by, created_at)"
+                        " VALUES ($1, $2, $3, $4, $5, $6, 1, 0, 0, '', $7, $8) RETURNING *",
+                        name, tag, emblem, description, int(bool(is_public)),
+                        max(5, min(int(max_members or 15), 30)), user_id, now,
+                    )
+                except asyncpg.UniqueViolationError:
+                    return {"error": "name_or_tag_taken"}
+                await conn.execute(
+                    "INSERT INTO clan_members (clan_id, user_id, role,"
+                    " contribution_season, contribution_total, joined_at)"
+                    " VALUES ($1, $2, 'leader', 0, 0, $3)",
+                    row["id"], user_id, now,
+                )
+                d = dict(row)
+                d["member_count"] = 1
+                d["my_role"] = "leader"
+                return {"clan": d}
+
+    async def join_clan(self, clan_id: int, user_id: int, invite_code: str | None = None) -> dict:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                if await conn.fetchval(
+                        "SELECT clan_id FROM clan_members WHERE user_id = $1", user_id):
+                    return {"error": "already_in_clan"}
+                clan = await conn.fetchrow("SELECT * FROM clans WHERE id = $1 FOR UPDATE", clan_id)
+                if not clan:
+                    return {"error": "not_found"}
+                if not clan["is_public"]:
+                    if not invite_code:
+                        return {"error": "invite_required"}
+                    inv = await conn.fetchrow(
+                        "SELECT id, uses, max_uses FROM clan_invites"
+                        " WHERE clan_id = $1 AND code = $2 FOR UPDATE",
+                        clan_id, invite_code.strip(),
+                    )
+                    if not inv:
+                        return {"error": "bad_invite"}
+                    if inv["max_uses"] > 0 and inv["uses"] >= inv["max_uses"]:
+                        return {"error": "invite_spent"}
+                    await conn.execute(
+                        "UPDATE clan_invites SET uses = uses + 1 WHERE id = $1", inv["id"])
+                count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM clan_members WHERE clan_id = $1", clan_id)
+                if count >= clan["max_members"]:
+                    return {"error": "clan_full"}
+                await conn.execute(
+                    "INSERT INTO clan_members (clan_id, user_id, role,"
+                    " contribution_season, contribution_total, joined_at)"
+                    " VALUES ($1, $2, 'member', 0, 0, $3)",
+                    clan_id, user_id, now,
+                )
+                return {"ok": True, "clan_id": clan_id}
+
+    async def leave_clan(self, clan_id: int, user_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                mem = await conn.fetchrow(
+                    "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, user_id,
+                )
+                if not mem:
+                    return {"error": "not_member"}
+                rest = await conn.fetch(
+                    "SELECT user_id, role, joined_at FROM clan_members"
+                    " WHERE clan_id = $1 AND user_id != $2 ORDER BY joined_at",
+                    clan_id, user_id,
+                )
+                if not rest:
+                    await conn.execute("DELETE FROM clans WHERE id = $1", clan_id)
+                    return {"ok": True, "disbanded": True}
+                if mem["role"] == "leader":
+                    nxt = next((r for r in rest if r["role"] == "officer"), rest[0])
+                    await conn.execute(
+                        "UPDATE clan_members SET role = 'leader'"
+                        " WHERE clan_id = $1 AND user_id = $2",
+                        clan_id, nxt["user_id"],
+                    )
+                await conn.execute(
+                    "DELETE FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, user_id,
+                )
+                return {"ok": True, "new_leader": nxt["user_id"] if mem["role"] == "leader" else None}
+
+    async def kick_member(self, clan_id: int, actor_id: int, target_id: int) -> dict:
+        if actor_id == target_id:
+            return {"error": "use_leave"}
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                actor = await conn.fetchval(
+                    "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, actor_id,
+                )
+                if not self._clan_can(actor, "kick"):
+                    return {"error": "forbidden"}
+                target = await conn.fetchval(
+                    "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, target_id,
+                )
+                if not target:
+                    return {"error": "not_member"}
+                if actor != "leader" and target in ("leader", "officer"):
+                    return {"error": "forbidden"}
+                await conn.execute(
+                    "DELETE FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, target_id,
+                )
+                return {"ok": True}
+
+    async def set_member_role(self, clan_id: int, actor_id: int, target_id: int, role: str) -> dict:
+        if role not in ("officer", "member"):
+            return {"error": "bad_role"}
+        if actor_id == target_id:
+            return {"error": "no_self"}
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                actor = await conn.fetchval(
+                    "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, actor_id,
+                )
+                if not self._clan_can(actor, "role"):
+                    return {"error": "forbidden"}
+                cur = await conn.fetchval(
+                    "SELECT 1 FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, target_id,
+                )
+                if not cur:
+                    return {"error": "not_member"}
+                await conn.execute(
+                    "UPDATE clan_members SET role = $3 WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, target_id, role,
+                )
+                return {"ok": True}
+
+    async def create_invite(self, clan_id: int, actor_id: int, max_uses: int = 0) -> dict:
+        import secrets as _secrets
+        async with self.pool.acquire() as conn:
+            actor = await conn.fetchval(
+                "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                clan_id, actor_id,
+            )
+            if not self._clan_can(actor, "invite"):
+                return {"error": "forbidden"}
+            for _ in range(3):
+                code = _secrets.token_urlsafe(6).upper().replace("-", "").replace("_", "")[:8]
+                try:
+                    await conn.execute(
+                        "INSERT INTO clan_invites (clan_id, code, created_by, uses, max_uses, created_at)"
+                        " VALUES ($1, $2, $3, 0, $4, $5)",
+                        clan_id, code, actor_id, max(0, int(max_uses or 0)),
+                        datetime.utcnow().isoformat(),
+                    )
+                    return {"ok": True, "code": code}
+                except asyncpg.UniqueViolationError:
+                    continue
+            return {"error": "retry"}
+
+    async def update_clan(self, clan_id: int, actor_id: int, fields: dict) -> dict:
+        allowed = ("name", "description", "emblem", "is_public")
+        clean = {k: fields[k] for k in allowed if k in fields}
+        if not clean:
+            return {"error": "empty"}
+        async with self.pool.acquire() as conn:
+            actor = await conn.fetchval(
+                "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                clan_id, actor_id,
+            )
+            if not self._clan_can(actor, "settings"):
+                return {"error": "forbidden"}
+            sets = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(clean.keys()))
+            try:
+                await conn.execute(
+                    f"UPDATE clans SET {sets} WHERE id = $1", clan_id, *clean.values())
+            except asyncpg.UniqueViolationError:
+                return {"error": "name_or_tag_taken"}
+            return {"ok": True}
 
     # ---- Клановые очки (v1) ----
     async def award_clan_points(self, user_id: int, action: str, raw_points: int,
