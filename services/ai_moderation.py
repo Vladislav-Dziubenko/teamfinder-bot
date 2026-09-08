@@ -391,8 +391,13 @@ async def chat_reply(history: list[dict], settings) -> str | None:
                                 best = s
                         if best:
                             return best[:400]
+                        logger.warning("[ai-mod] gemini chat: empty text extracted")
                     else:
-                        logger.warning("[ai-mod] gemini chat status=%s", resp.status)
+                        try:
+                            body = (await resp.text())[:300]
+                        except Exception:
+                            body = "?"
+                        logger.warning("[ai-mod] gemini chat status=%s body=%s", resp.status, body)
             except Exception as exc:
                 logger.warning("[ai-mod] gemini chat error: %s", exc)
             payload = {
@@ -408,6 +413,11 @@ async def chat_reply(history: list[dict], settings) -> str | None:
                 timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4),
             ) as resp:
                 if resp.status != 200:
+                    try:
+                        body = (await resp.text())[:300]
+                    except Exception:
+                        body = "?"
+                    logger.warning("[ai-mod] gemini chat legacy status=%s body=%s", resp.status, body)
                     return None
                 data = await resp.json()
             best = ""

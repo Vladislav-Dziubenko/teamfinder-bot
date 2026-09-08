@@ -3863,6 +3863,7 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
     видимой в карточке/счётчиках вместо «ноль реакций, хз почему».
     """
     async def _skip(why: str) -> None:
+        logging.info("[ai-mod] chat skip user=%s why=%s", user_id, why)
         try:
             await db.audit_log(user_id, "ai_chat_skip", f"why={why}")
         except Exception:
@@ -3873,6 +3874,7 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
             return
         if not is_guard_mention(text):
             return
+        logging.info("[ai-mod] chat mention user=%s text=%.40s", user_id, text)
         global _AI_CHAT_LAST
         now = time.time()
         if now - _AI_CHAT_LAST < max(10, settings.ai_chat_cooldown_s):
