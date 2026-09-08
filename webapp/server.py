@@ -3178,6 +3178,15 @@ MODEL_INCOME_TICK = 3600
 
 
 async def _model_income_loop(app: web.Application) -> None:
+    # Ждём готовности пула реальной проверкой SELECT 1 (до 60с), иначе первый
+    # тик сразу после on_startup падает с "Database not connected", т.к.
+    # _init_db в main.py коннектится в фоне уже после site.start().
+    for _ in range(120):
+        try:
+            await app["db"].pool.fetchval("SELECT 1")
+            break
+        except Exception:
+            await asyncio.sleep(0.5)
     while True:
         try:
             paid = await app["db"].pay_limited_model_income()

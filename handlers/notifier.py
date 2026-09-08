@@ -167,9 +167,37 @@ async def _notify_daily_case(bot: Bot, db: Database, discord_bot=None) -> None:
             await db.mark_notification_sent(r["user_id"], "daily-case")
 
 
+async def _wait_for_db_ready(db: Database, timeout: float = 60.0) -> bool:
+    """Ждём готовности пула БЕЗ фиксированного sleep(): реальная проверка
+    лёгким запросом SELECT 1 через тот же db.pool, которым пользуются нотификаторы.
+    Возвращает True если пул отвечает, False по таймауту (цикл всё равно стартует,
+    а существующие try/except залогируют warning)."""
+    import time as _time
+
+    deadline = _time.monotonic() + timeout
+    attempt = 0
+    while _time.monotonic() < deadline:
+        attempt += 1
+        try:
+            await db.pool.fetchval("SELECT 1")
+            if attempt > 1:
+                logger.info("notifier db ready after %d attempt(s)", attempt)
+            return True
+        except Exception as e:
+            # pool property рейзит RuntimeError("Database not connected") пока
+            # _init_db в main.py не выполнил await db.connect() — это нормально
+            # первые секунды после старта, ждём дальше вместо спама warning'ами.
+            if attempt == 1:
+                logger.info("notifier waiting for db pool... (%s)", e)
+            await asyncio.sleep(0.5)
+    logger.warning("notifier db not ready after %.0fs, starting loop anyway", timeout)
+    return False
+
+
 async def notifier_loop(bot: Bot, db: Database, interval_seconds: int = 1800, discord_bot=None) -> None:
     """Цикл фоновых уведомлений. Запускать как asyncio.create_task.
     discord_bot — опциональный TeamFinderDiscordBot для пуша в Discord-канал."""
+    await _wait_for_db_ready(db)
     while True:
         try:
             await _notify_battlepass_ready(bot, db, discord_bot)
