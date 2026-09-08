@@ -2686,7 +2686,7 @@ async def _notify_tg_session_join(request: web.Request, db: Database, session: d
         _webapp_url = settings.webapp_url
         if _webapp_url:
             _sep = "&" if "?" in _webapp_url else "?"
-            _webapp_url = _webapp_url.rstrip("/") + f"{_sep}v={int(time.time())}"
+            _webapp_url = _webapp_url.rstrip("/") + f"{_sep}v={int(time())}"
         else:
             _webapp_url = settings.webapp_url
         markup = InlineKeyboardMarkup(inline_keyboard=[
@@ -3876,7 +3876,7 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
             return
         logging.info("[ai-mod] chat mention user=%s text=%.40s", user_id, text)
         global _AI_CHAT_LAST
-        now = time.time()
+        now = time()
         if now - _AI_CHAT_LAST < max(10, settings.ai_chat_cooldown_s):
             await _skip("cooldown")
             return
