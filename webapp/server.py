@@ -2094,19 +2094,24 @@ async def handle_nexus_open_case(request: web.Request):
 
             # Клановые очки: +10 за кейс и +5 за активный день (свои дефолты
             # совпадают с env; no-op для юзеров вне кланов).
+            # NB: строго через is None, а не `or` — 0 в env валиден
+            # (отключение), `or` молча подменял бы его дефолтом.
             _cfg = request.app.get("settings")
+            def _cc(name, default):
+                v = getattr(_cfg, name, None)
+                return default if v is None else v
             try:
                 await db.award_clan_points(
                     user["id"], "case",
-                    int(getattr(_cfg, "clan_points_case", 10) or 10) * count,
-                    cap=int(getattr(_cfg, "clan_daily_cap", 300) or 300),
-                    bank_share=float(getattr(_cfg, "clan_bank_share", 0) or 0.2),
+                    int(_cc("clan_points_case", 10)) * count,
+                    cap=int(_cc("clan_daily_cap", 300)),
+                    bank_share=float(_cc("clan_bank_share", 0.2)),
                 )
                 await db.award_clan_active_day(
                     user["id"],
-                    points=int(getattr(_cfg, "clan_points_active_day", 5) or 5),
-                    cap=int(getattr(_cfg, "clan_daily_cap", 300) or 300),
-                    bank_share=float(getattr(_cfg, "clan_bank_share", 0) or 0.2),
+                    points=int(_cc("clan_points_active_day", 5)),
+                    cap=int(_cc("clan_daily_cap", 300)),
+                    bank_share=float(_cc("clan_bank_share", 0.2)),
                 )
             except Exception as e:
                 logging.warning(f"clan points hook failed: {e}")
