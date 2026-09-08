@@ -2314,9 +2314,12 @@ class Database:
                     return {"error": "not_found"}
                 if not clan["is_public"] and not invite_code:
                     return {"error": "invite_required"}
+                # Слоты от вычисленного (не сохранённого) уровня: иначе клан,
+                # перешагнувший порог без открытия вкладки, отклонял бы вступление.
+                _lvl = clan_level_for(int(clan["lifetime_points"] or 0))
                 effective_max = min(
                     int(clan["max_members"] or 15)
-                    + CLAN_LEVEL_SLOTS * (int(clan["level"] or 1) - 1),
+                    + CLAN_LEVEL_SLOTS * (_lvl - 1),
                     int(clan["max_members"] or 15) + CLAN_LEVEL_SLOTS_CAP,
                 )
                 try:
@@ -2567,16 +2570,17 @@ class Database:
             return dict(row)
 
     async def get_clan_coin_discount(self, user_id: int) -> float:
-        """Скидка на coin-кейсы по уровню клана. Звёзды не трогаем никогда."""
+        """Скидка на coin-кейсы по уровню клана. Звёзды не трогаем никогда.
+        Уровень — из lifetime_points на месте (колонка может отставать)."""
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
-                "SELECT c.level FROM clan_members m JOIN clans c ON c.id = m.clan_id"
-                " WHERE m.user_id = $1",
+                "SELECT COALESCE(c.lifetime_points, 0) AS lifetime FROM clan_members m"
+                " JOIN clans c ON c.id = m.clan_id WHERE m.user_id = $1",
                 user_id,
             )
             if not row:
                 return 0.0
-            return min(CLAN_COIN_DISCOUNT_STEP * (int(row["level"] or 1) - 1),
+            return min(CLAN_COIN_DISCOUNT_STEP * (clan_level_for(int(row["lifetime"] or 0)) - 1),
                        CLAN_COIN_DISCOUNT_CAP)
 
     async def ensure_clan_shop(self) -> list[dict]:
@@ -2812,14 +2816,16 @@ class Database:
                                       cap: int, bank_share: float) -> dict:
         raw_points = max(0, int(raw_points or 0))
         mem = await conn.fetchrow(
-            "SELECT m.clan_id, c.level FROM clan_members m"
+            "SELECT m.clan_id, COALESCE(c.lifetime_points, 0) AS lifetime FROM clan_members m"
             " JOIN clans c ON c.id = m.clan_id WHERE m.user_id = $1", user_id)
         if not mem:
             return {"clan_id": None, "granted": 0}
         clan_id = mem["clan_id"]
         if action == "quest":
             # Перк уровня: +5% к очкам за квесты/уровень, кап +25%.
-            mult = 1.0 + min(CLAN_QUEST_BONUS_STEP * (int(mem["level"] or 1) - 1),
+            # Уровень считаем из lifetime_points на месте, а не из колонки
+            # (она обновляется лениво на чтениях и может отставать).
+            mult = 1.0 + min(CLAN_QUEST_BONUS_STEP * (clan_level_for(int(mem["lifetime"] or 0)) - 1),
                              CLAN_QUEST_BONUS_CAP)
             raw_points = int(raw_points * mult)
         today = datetime.utcnow().strftime("%Y-%m-%d")
