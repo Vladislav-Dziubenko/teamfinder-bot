@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = "1.5"
+export const CURRENT_VERSION = "1.6"
 export const STORAGE_KEY = "nexus_last_seen_version"
 
 export interface ChangelogItem {
@@ -10,6 +10,28 @@ export interface ChangelogItem {
 }
 
 export const updates: ChangelogItem[] = [
+  {
+    version: "1.6",
+    date: "8 Sep 2026",
+    isMajor: true,
+    title: { en: "Super+ subscription & profile style", ru: "Подписка Super+ и своё оформление" },
+    items: {
+      en: [
+        "👑 Super+ subscription ($15/mo): orange-gold status, beta, early access, PRO",
+        "🎁 Super+ weekly drops: coins, Stars and Autumn Keys",
+        "🎨 Custom style (beta): nick color, message frames, card background, drawn avatar",
+        "🤖 /ask — ask the AI anything in bot DMs",
+        "📋 Slash-command hints: trimmed for players, full for admins",
+      ],
+      ru: [
+        "👑 Подписка Super+ ($15/мес): оранжево-золотой статус, бета, ранний доступ, PRO",
+        "🎁 Еженедельные дропы Super+: монеты, звёзды и ключи Autumn",
+        "🎨 Своё оформление (бета): цвет ника, рамки, фон карточки, рисованная аватарка",
+        "🤖 /ask — спроси ИИ что угодно в личке бота",
+        "📋 Подсказки команд по /: обрезанные игрокам, полные админам",
+      ],
+    },
+  },
   {
     version: "1.5",
     date: "8 Sep 2026",

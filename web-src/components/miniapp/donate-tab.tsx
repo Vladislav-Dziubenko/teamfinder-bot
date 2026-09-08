@@ -1,11 +1,11 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Star, Check, Crown, Sparkles, Zap, Trophy, Award, Loader2 } from "lucide-react"
+import { Star, Check, Crown, Gem, Sparkles, Zap, Trophy, Award, Loader2 } from "lucide-react"
 import type { StarPack, LeaderEntry } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
-import { api, openInvoice } from "@/lib/api"
+import { api, openInvoice, openTelegramLink } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { StarSendSheet, type StarRecipient } from "@/components/miniapp/star-send-sheet"
 
@@ -16,8 +16,10 @@ const coinPacks = [
 ]
 
 export function DonateTab() {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { starPacks, stars, nick, avatar, coins, buyStarPack, buyCoinPack, buyStars } = useNexus()
+  const { isSuper, superUntil, referralBotUrl } = useNexus()
+  const ru = lang === "ru"
   const [selected, setSelected] = useState<StarPack | null>(null)
   const [done, setDone] = useState(false)
   const [flash, setFlash] = useState<string | null>(null)
@@ -113,6 +115,56 @@ export function DonateTab() {
         <Perk icon={Crown} title={t("donate.perk_pro")} text={t("donate.perk_pro_desc")} tint="var(--stars)" />
         <Perk icon={Sparkles} title={t("donate.perk_custom")} text={t("donate.perk_custom_desc")} tint="var(--accent)" />
       </div>
+
+      {/* Super+ subscription */}
+      <section className="relative overflow-hidden rounded-3xl border border-[#ff9d00]/50 bg-gradient-to-br from-[#ff9d00]/15 via-card to-[#ffd700]/10 p-5">
+        <div className="pointer-events-none absolute -right-12 -top-12 size-44 rounded-full bg-gradient-to-br from-[#ff9d00]/30 to-[#ffd700]/20 blur-2xl" />
+        <div className="relative">
+          <div className="flex items-center gap-2.5">
+            <span className="grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-[#ff9d00] to-[#ffd700] text-background shadow-lg">
+              <Gem className="size-6" />
+            </span>
+            <div>
+              <p className="font-display text-xl font-black tracking-wide">
+                SUPER<span className="bg-gradient-to-r from-[#ff9d00] to-[#ffd700] bg-clip-text text-transparent">+</span>
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {ru ? "999 ⭐/мес · автопродление · отмена в любой момент" : "999 ⭐/mo · auto-renew · cancel anytime"}
+              </p>
+            </div>
+          </div>
+          <ul className="mt-3 space-y-1.5 text-sm">
+            {[
+              ru ? "🎖 Оранжево-золотой статус в чатах и профиле" : "🎖 Orange-gold status in chats and profile",
+              ru ? "🧪 Бета-тест и ранний доступ ко всему" : "🧪 Beta test and early access to everything",
+              ru ? "🔥 PRO включён" : "🔥 PRO included",
+              ru ? "🎁 Еженедельно: 75 000 монет, 100 ⭐, 10 ключей" : "🎁 Weekly: 75,000 coins, 100 ⭐, 10 keys",
+            ].map((perk) => (
+              <li key={perk} className="flex items-start gap-2">
+                <Check className="mt-0.5 size-4 shrink-0 text-[#ffcf4d]" />
+                <span>{perk}</span>
+              </li>
+            ))}
+          </ul>
+          {isSuper ? (
+            <p className="mt-4 rounded-2xl bg-emerald-500/15 px-4 py-3 text-center text-sm font-bold text-emerald-400">
+              {ru ? `Активна до ${superUntil ? superUntil.slice(0, 10) : "—"}` : `Active until ${superUntil ? superUntil.slice(0, 10) : "—"}`}
+            </p>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                const url = referralBotUrl ? `${referralBotUrl}?start=supersub` : ""
+                if (url) openTelegramLink(url)
+                else setFlash(ru ? "Открой бота и нажми /start" : "Open the bot and press /start")
+              }}
+              className="mt-4 w-full rounded-2xl bg-gradient-to-r from-[#ff9d00] to-[#ffd700] py-3.5 font-display text-sm font-black text-background shadow-lg transition-transform active:scale-[0.98]"
+            >
+              {ru ? "Оформить Super+ · $15/мес" : "Get Super+ · $15/mo"}
+            </button>
+          )}
+        </div>
+      </section>
 
       {/* Buy Nexus coins */}
       <section>

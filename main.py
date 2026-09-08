@@ -141,6 +141,10 @@ async def main():
         from handlers.notifier import notifier_loop
         asyncio.create_task(notifier_loop(bot, db, interval_seconds=1800, discord_bot=discord_bot))
 
+        # Недельные гранты Super+ (идемпотентно, проверка каждые 6 часов)
+        from handlers.superloop import super_weekly_loop
+        asyncio.create_task(super_weekly_loop(bot, db, settings))
+
         # ---- Шаг 6: удаляем старый webhook (если был) и регистрируем новый ----
         # Хардкодим правильный URL чтобы не прыгал между -1 и -9pol из-за старого WEBAPP_URL/кэша
         _hardcoded = "https://teamfinder-bot-1-9pol.onrender.com"

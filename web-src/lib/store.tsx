@@ -69,6 +69,8 @@ type MeResponse = {
   user: { id: number; username?: string; first_name?: string; level?: number; wins?: number }
   role?: string
   is_beta?: boolean
+  is_super?: boolean
+  super_until?: string
   currency: { coins: number; stars: number; points: number }
   mini_profile: {
     avatar: string | null
@@ -171,6 +173,8 @@ type PersistedState = {
   userId: number
   role: string
   isBeta: boolean
+  isSuper: boolean
+  superUntil: string
   lootCases: LootCase[]
   battlePassTiers: BattlePassTier[]
   battlePassPriceStars: number
@@ -355,6 +359,8 @@ function defaultState(): PersistedState {
     userId: 0,
     role: "",
     isBeta: false,
+    isSuper: false,
+    superUntil: "",
     modelState: { mine: [], market: [], claimed: 0, remaining: 20, supply: 20 },
     modelHistory: [],
     betaBalance: 0,
@@ -431,6 +437,8 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     userId: user.id ?? 0,
     role: me.role ?? "",
     isBeta: me.is_beta ?? false,
+    isSuper: me.is_super ?? false,
+    superUntil: me.super_until ?? "",
     level: user.level ?? 0,
     wins: user.wins ?? 0,
     lootCases,

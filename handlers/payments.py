@@ -38,6 +38,8 @@ def _expected_payment_amount(payload: str, settings: Settings) -> int | None:
         return settings.price_best_team
     if payload == "highlight:profile":
         return settings.price_highlight
+    if payload == "super:monthly":
+        return settings.super_price_stars
     if payload.startswith("guide:"):
         guide = _guide_by_id(payload.split(":", 1)[1])
         return guide["stars"] if guide and guide.get("stars", 0) > 0 else None
@@ -67,6 +69,23 @@ async def _send_invoice(bot: Bot, chat_id: int, title: str, description: str, pa
         payload=payload,
         currency="XTR",
         prices=[LabeledPrice(label=title, amount=stars)],
+    )
+
+
+async def send_super_invoice(bot: Bot, chat_id: int, settings: Settings):
+    """Рекуррентный инвойс Super+ ($15/мес): Telegram сам списывает каждый
+    месяц, каждый ребилл прилетает как successful_payment с тем же payload."""
+    await bot.send_invoice(
+        chat_id=chat_id,
+        title="NEXUS Super+ — подписка",
+        description=(
+            "Статус Super+, бета и ранний доступ, PRO, "
+            "еженедельные монеты, звёзды и ключи. Автопродление каждый месяц."
+        ),
+        payload="super:monthly",
+        currency="XTR",
+        prices=[LabeledPrice(label="Super+ на 30 дней", amount=settings.super_price_stars)],
+        subscription_period=30 * 24 * 3600,
     )
 
 
@@ -143,6 +162,12 @@ async def pay_pro_subscription(callback: CallbackQuery, bot: Bot, settings: Sett
         "pro:subscription",
         settings.price_pro_subscription,
     )
+    await callback.answer()
+
+
+@router.callback_query(F.data == "pay:super_monthly")
+async def pay_super_monthly(callback: CallbackQuery, bot: Bot, settings: Settings, db: Database):
+    await send_super_invoice(bot, callback.from_user.id, settings)
     await callback.answer()
 
 
@@ -268,6 +293,26 @@ async def successful_payment(message: Message, db: Database, bot: Bot, settings:
             "🔥 Безлимитный поиск\n"
             "🔥 Мульти-анкеты\n"
             "🔥 Приоритет в заявках"
+        )
+        return
+
+    if payload == "super:monthly":
+        # Ребиллы автопродления идут сюда же (новый charge_id) — продлеваем,
+        # не возвращаем. Отмена подписки юзером = просто нет следующего ребилла.
+        until = await db.set_super(message.from_user.id, days=settings.super_duration_days)
+        await db.set_beta(message.from_user.id, True, granted_by=message.from_user.id)
+        await db.set_pro_status(message.from_user.id, days=settings.super_duration_days)
+        await db.audit_log(message.from_user.id, "super_sub",
+                           f"until={until} charge={charge_id} stars={stars}")
+        await message.answer(
+            "👑 <b>Super+ активирован!</b>\n\n"
+            f"Статус до {until[:10]}, автопродление каждый месяц.\n\n"
+            "🎖 Статус Super+ в чатах и профиле\n"
+            "🧪 Бета-тест и ранний доступ ко всему\n"
+            "🔥 PRO включён\n"
+            f"🎁 Каждую неделю: {settings.super_weekly_coins} монет, "
+            f"{settings.super_weekly_stars} ⭐ и {settings.super_weekly_keys} ключей\n\n"
+            "Отмена — в настройках Telegram Stars."
         )
         return
 

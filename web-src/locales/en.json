@@ -76,6 +76,7 @@
   "cases.need_keys": "Need 3 Autumn Keys (have {have})",
   "cases.open_beta": "Open (free)",
   "role.beta_tester": "Beta tester",
+  "role.super": "Super+",
   "beta.title": "Beta tester",
   "beta.role": "Key role from the developer",
   "beta.cases": "200 premium cases per day (accumulates up to 6000)",

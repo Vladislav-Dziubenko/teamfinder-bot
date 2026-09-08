@@ -1,6 +1,6 @@
 "use client"
 
-import { Bot, Crown, Shield, ShieldCheck, FlaskConical } from "lucide-react"
+import { Bot, Crown, Gem, Shield, ShieldCheck, FlaskConical } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { cn } from "@/lib/utils"
 
@@ -27,6 +27,11 @@ const ROLE_META: Record<
     labelKey: "role.beta_tester",
     icon: FlaskConical,
     className: "border-emerald-500/50 bg-emerald-500/15 text-emerald-400",
+  },
+  super: {
+    labelKey: "role.super",
+    icon: Gem,
+    className: "border-[#ff9d00]/60 bg-gradient-to-r from-[#ff9d00]/25 to-[#ffd700]/25 text-[#ffcf4d]",
   },
   ai: {
     labelKey: "role.ai",

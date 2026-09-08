@@ -502,6 +502,14 @@ CREATE TABLE IF NOT EXISTS ai_memory (
     created_by BIGINT,
     created_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS super_subs (
+    user_id BIGINT PRIMARY KEY,
+    until TEXT NOT NULL DEFAULT '',
+    last_grant TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
 """
 
 def _strip_sql_line_comments(sql: str) -> str:
@@ -1947,6 +1955,74 @@ class Database:
             if not row or not row["pro_until"]:
                 return False
             return datetime.fromisoformat(row["pro_until"]) > datetime.utcnow()
+
+    # ---- Super+ подписка ($15/мес, рекуррентные Stars) ----
+    async def get_super(self, user_id: int) -> dict | None:
+        """{until, last_grant, active} или None."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT until, last_grant FROM super_subs WHERE user_id = $1", user_id)
+            if not row or not row["until"]:
+                return None
+            try:
+                active = datetime.fromisoformat(row["until"]) > datetime.utcnow()
+            except Exception:
+                active = False
+            return {"until": row["until"], "last_grant": row["last_grant"] or "", "active": active}
+
+    async def set_super(self, user_id: int, days: int = 30) -> str:
+        """Продлить от max(now, текущий until). Ребиллы складываются, а не режут."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT until FROM super_subs WHERE user_id = $1", user_id)
+            base = datetime.utcnow()
+            if row and row["until"]:
+                try:
+                    cur = datetime.fromisoformat(row["until"])
+                    if cur > base:
+                        base = cur
+                except Exception:
+                    pass
+            until = (base + timedelta(days=days)).isoformat()
+            now = datetime.utcnow().isoformat()
+            await conn.execute(
+                "INSERT INTO super_subs (user_id, until, last_grant, updated_at) VALUES ($1, $2, '', $3)"
+                " ON CONFLICT (user_id) DO UPDATE SET until = $2, updated_at = $3",
+                user_id, until, now,
+            )
+            return until
+
+    async def list_super_active(self) -> list[int]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT user_id FROM super_subs WHERE until > $1", datetime.utcnow().isoformat())
+            return [int(r["user_id"]) for r in rows]
+
+    async def grant_super_weekly(self, user_id: int, coins: int, stars: int, keys: int) -> dict | None:
+        """Еженедельная выдача Super+: идемпотентно раз в календарную неделю (пн).
+        Возвращает грант или None (не активен / уже выдано)."""
+        monday = (datetime.utcnow() - timedelta(days=datetime.utcnow().weekday())).strftime("%Y-%m-%d")
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT until, last_grant FROM super_subs WHERE user_id = $1", user_id)
+            if not row:
+                return None
+            try:
+                active = datetime.fromisoformat(row["until"]) > datetime.utcnow()
+            except Exception:
+                active = False
+            if not active:
+                return None
+            if (row["last_grant"] or "") >= monday:
+                return {"granted": False, "until": row["until"]}
+            await self._adjust_currency_conn(conn, user_id, coins=coins, stars=stars)
+            for _ in range(max(0, keys)):
+                await self.add_to_inventory(
+                    user_id, "autumn-key", "Autumn Key", "epic", 5000, False, conn)
+            await conn.execute(
+                "UPDATE super_subs SET last_grant = $2, updated_at = $3 WHERE user_id = $1",
+                user_id, monday, datetime.utcnow().isoformat(),
+            )
+            return {"granted": True, "coins": coins, "stars": stars, "keys": keys}
 
     async def unlock_contact(self, user_id: int, profile_id: int) -> None:
         async with self.pool.acquire() as conn:
@@ -4773,11 +4849,15 @@ WHERE user_quests.completed = 0
 
     async def get_global_messages(self, limit: int = 50) -> list[dict]:
         async with self.pool.acquire() as conn:
+            now = datetime.utcnow().isoformat()
             rows = await conn.fetch(
                 """SELECT gm.id, gm.user_id, gm.text, gm.created_at, gm.kind,
                           CASE WHEN gm.user_id = 0 THEN '' ELSE COALESCE(mp.nick, '') END AS nick,
                           CASE WHEN gm.user_id = 0 THEN NULL ELSE mp.avatar END AS avatar,
-                          CASE WHEN gm.user_id = 0 THEN 'ai' ELSE COALESCE(ur.role, '') END AS role,
+                          CASE WHEN gm.user_id = 0 THEN 'ai'
+                               WHEN COALESCE(ur.role, '') <> '' THEN ur.role
+                               WHEN s.until > $1 THEN 'super'
+                               ELSE '' END AS role,
                           mp.deco,
                           COALESCE(gm.is_global_voice, FALSE) AS is_voice,
                           COALESCE(gm.global_voice_duration, 0) AS voice_duration,
@@ -4785,8 +4865,9 @@ WHERE user_quests.completed = 0
                    FROM global_messages gm
                    LEFT JOIN mini_app_profiles mp ON mp.user_id = gm.user_id
                    LEFT JOIN user_roles ur ON ur.user_id = gm.user_id
-                   ORDER BY gm.id DESC LIMIT $1""",
-                limit,
+                   LEFT JOIN super_subs s ON s.user_id = gm.user_id
+                   ORDER BY gm.id DESC LIMIT $2""",
+                now, limit,
             )
             return [dict(r) for r in reversed(rows)]
 

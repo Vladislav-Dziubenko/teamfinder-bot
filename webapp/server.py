@@ -633,6 +633,12 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
     )
 
     is_beta = await _effective_is_beta(request, db, user["id"])
+    try:
+        _super = await db.get_super(user["id"])
+    except Exception:
+        _super = None
+    is_super = bool(_super and _super.get("active"))
+    super_until = (_super or {}).get("until", "")
 
     # Антифрод рефералки: награда рефереру выплачивается не сразу при вводе кода,
     # а когда приглашённый заполнил анкету и прошло ≥24ч (см. settle_referral_reward).
@@ -659,6 +665,8 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
         "ban_expires_at": (ban_info or {}).get("expires_at", ""),
         "role": role,
         "is_beta": is_beta,
+        "is_super": is_super,
+        "super_until": super_until,
         "beta_state": beta_state,
         "consent": consent,
         "welcome_bonus": welcome_bonus,
@@ -3885,10 +3893,18 @@ def _is_developer(request: web.Request, user_id: int) -> bool:
 
 
 async def _effective_role(request: web.Request, db: Database, user_id: int) -> str:
-    """developer (from bot ADMIN_IDS) > admin > moderator."""
+    """developer (from bot ADMIN_IDS) > admin > moderator > super (paid, rank 0)."""
     if _is_developer(request, user_id):
         return "developer"
-    return await db.get_role(user_id)
+    role = await db.get_role(user_id)
+    if role:
+        return role
+    try:
+        if (await db.get_super(user_id) or {}).get("active"):
+            return "super"
+    except Exception:
+        pass
+    return ""
 
 
 async def _effective_is_beta(request: web.Request, db: Database, user_id: int) -> bool:

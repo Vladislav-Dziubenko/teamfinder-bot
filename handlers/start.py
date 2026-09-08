@@ -64,6 +64,15 @@ async def cmd_start(message: Message, command: CommandObject, db: Database, sett
         )
         return
 
+    # Deep link из мини-аппа на Super+ (?start=supersub): шлём рекуррентный инвойс.
+    if args == "supersub":
+        if await db.is_globally_banned(user.id):
+            await message.answer("📨 <b>Вы заблокированы.</b>")
+            return
+        from handlers.payments import send_super_invoice
+        await send_super_invoice(message.bot, user.id, settings)
+        return
+
     webapp_url = settings.webapp_url
     if webapp_url:
         # cache-bust для Telegram WebApp (каждый /start — новый URL)

@@ -17,6 +17,12 @@ class Settings:
     price_pro_subscription: int
     price_single_contact: int
     price_premium_application: int
+    # --- Super+ подписка ($15/мес, рекуррентные Stars) ---
+    super_price_stars: int
+    super_duration_days: int
+    super_weekly_coins: int
+    super_weekly_stars: int
+    super_weekly_keys: int
     database_url: str
     webapp_url: str
     public_app_url: str
@@ -124,6 +130,11 @@ def load_settings() -> Settings:
         price_pro_subscription=int(os.getenv("PRICE_PRO_SUBSCRIPTION", "8")),
         price_single_contact=int(os.getenv("PRICE_SINGLE_CONTACT", "1")),
         price_premium_application=int(os.getenv("PRICE_PREMIUM_APPLICATION", "2")),
+        super_price_stars=int(os.getenv("SUPER_PRICE_STARS", "999")),
+        super_duration_days=int(os.getenv("SUPER_DURATION_DAYS", "30")),
+        super_weekly_coins=int(os.getenv("SUPER_WEEKLY_COINS", "75000")),
+        super_weekly_stars=int(os.getenv("SUPER_WEEKLY_STARS", "100")),
+        super_weekly_keys=int(os.getenv("SUPER_WEEKLY_KEYS", "10")),
         database_url=database_url,
         webapp_url=_resolve_webapp_url(),
         public_app_url=os.getenv("PUBLIC_APP_URL", _resolve_webapp_url()),
