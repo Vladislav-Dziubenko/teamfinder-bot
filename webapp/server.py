@@ -3922,6 +3922,15 @@ async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text
             # Чисто — может, зовут собеседника.
             await _ai_chat_reply(db, settings, user_id, text)
             return
+        # Упоминание Стража при флуд-скоре: повторные «страж, привет»
+        # ловятся флуд-детектом (0.85) и раньше не доходили до собеседника.
+        # Пробуем ответить (там свои кулдаун/кап), в лестницу не идём —
+        # за теребление бота не наказываем. Скам/инсалты с упоминанием
+        # идут обычным путём ниже.
+        if category == "flood" and is_guard_mention(text):
+            await _ai_chat_reply(db, settings, user_id, text)
+            await db.audit_log(user_id, "ai_queue", f"score={score:.2f} cat={category} msg={msg_id} {reason}")
+            return
         logging.info(
             "[ai-mod] trigger user=%s score=%.2f cat=%s src=%s msg=%s",
             user_id, score, category, source, msg_id,
