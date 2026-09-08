@@ -54,9 +54,15 @@ def _judge_note_429(where: str) -> None:
 # без правок кода: Render env GEMINI_MODEL=<живая модель из AI Studio>.
 _GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.6-flash").strip() or "gemini-3.6-flash"
 
-# Актуальная модель Groq (канон. пример в их доках — 3.3-70b).
-# Перекрывается без правок кода: Render env GROQ_MODEL=<id из console.groq.com/docs/models>.
-_GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile").strip() or "llama-3.3-70b-versatile"
+# Модели Groq по приоритету (сент. 2026: Groq агрессивно ретайрит старые —
+# 3.1-8b и 3.3-70b уже отдают model_not_found). gpt-oss-20b — живой,
+# быстрый (1000 tok/s) и с явными free-лимитами. Перекрывается без правок
+# кода: Render env GROQ_MODEL=openai/gpt-oss-20b,llama-3.1-8b-instant
+def _groq_models() -> list[str]:
+    raw = os.getenv("GROQ_MODEL", "")
+    if raw.strip():
+        return [m.strip() for m in raw.split(",") if m.strip()]
+    return ["openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"]
 
 
 def _iter_texts(data: Any):
@@ -290,42 +296,47 @@ async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str)
 async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -> dict | None:
     if _judge_paused():
         return None
-    payload = {
-        "model": _GROQ_MODEL,
-        "temperature": 0,
-        "max_tokens": 120,
-        "response_format": {"type": "json_object"},
-        "messages": [
-            {"role": "system", "content": _JUDGE_SYSTEM},
-            {"role": "user", "content": text[:500]},
-        ],
-    }
-    try:
-        async with session.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json=payload,
-            timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT),
-        ) as resp:
-            if resp.status != 200:
-                if resp.status == 429:
-                    _judge_note_429("groq")
+    for mi, model in enumerate(_groq_models()):
+        payload = {
+            "model": model,
+            "temperature": 0,
+            "max_tokens": 120,
+            "response_format": {"type": "json_object"},
+            "messages": [
+                {"role": "system", "content": _JUDGE_SYSTEM},
+                {"role": "user", "content": text[:500]},
+            ],
+        }
+        try:
+            async with session.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT),
+            ) as resp:
+                if resp.status == 404 and mi + 1 < len(_groq_models()):
+                    logger.warning("[ai-mod] groq model %s retired, trying next", model)
+                    continue
+                if resp.status != 200:
+                    if resp.status == 429:
+                        _judge_note_429("groq")
+                        return None
+                    try:
+                        body = (await resp.text())[:300]
+                    except Exception:
+                        body = "?"
+                    logger.warning("[ai-mod] groq status=%s body=%s", resp.status, body)
                     return None
-                try:
-                    body = (await resp.text())[:300]
-                except Exception:
-                    body = "?"
-                logger.warning("[ai-mod] groq status=%s body=%s", resp.status, body)
-                return None
-            data = await resp.json()
-    except Exception as exc:
-        logger.warning("[ai-mod] groq error: %s", exc)
-        return None
-    try:
-        raw = data["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError):
-        return None
-    return _parse_judge(raw)
+                data = await resp.json()
+        except Exception as exc:
+            logger.warning("[ai-mod] groq error: %s", exc)
+            return None
+        try:
+            raw = data["choices"][0]["message"]["content"]
+        except (KeyError, IndexError, TypeError):
+            return None
+        return _parse_judge(raw)
+    return None
 
 
 async def score_message(text: str, user_id: int, settings) -> dict:
@@ -423,25 +434,38 @@ async def chat_reply(history: list[dict], settings) -> str | None:
         timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             if provider == "groq":
-                payload: dict[str, Any] = {
-                    "model": _GROQ_MODEL,
-                    "temperature": 0.7,
-                    "max_tokens": 150,
-                    "messages": [
-                        {"role": "system", "content": _AI_CHAT_SYSTEM},
-                        {"role": "user", "content": convo},
-                    ],
-                }
-                async with session.post(
-                    "https://api.groq.com/openai/v1/chat/completions",
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    json=payload,
-                    timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4),
-                ) as resp:
-                    if resp.status != 200:
+                gmodels = _groq_models()
+                for mi, model in enumerate(gmodels):
+                    payload: dict[str, Any] = {
+                        "model": model,
+                        "temperature": 0.7,
+                        "max_tokens": 150,
+                        "messages": [
+                            {"role": "system", "content": _AI_CHAT_SYSTEM},
+                            {"role": "user", "content": convo},
+                        ],
+                    }
+                    async with session.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        json=payload,
+                        timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4),
+                    ) as resp:
+                        if resp.status == 404 and mi + 1 < len(gmodels):
+                            logger.warning("[ai-mod] groq chat model %s retired, trying next", model)
+                            continue
+                        if resp.status != 200:
+                            if resp.status == 429:
+                                _judge_note_429("groq-chat")
+                            return None
+                        data = await resp.json()
+                    try:
+                        text_out = (data["choices"][0]["message"]["content"] or "").strip()
+                    except (KeyError, IndexError, TypeError):
                         return None
-                    data = await resp.json()
-                return (data["choices"][0]["message"]["content"] or "").strip()[:400] or None
+                    if text_out:
+                        return text_out[:400]
+                return None
             prompt = _AI_CHAT_SYSTEM + "\nДиалог:\n" + convo
             try:
                 async with session.post(
