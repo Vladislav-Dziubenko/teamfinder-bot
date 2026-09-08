@@ -417,7 +417,7 @@ function SelectableRow({
   )
 }
 
-function ChatConversation({ chatId, player, role, onBack }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void }) {
+export function ChatConversation({ chatId, player, role, onBack, clanMode }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void; clanMode?: boolean }) {
   const { t, lang } = useI18n()
   const { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
   const peerCosMap = useCosmeticsMap(player?.id != null ? [player.id] : [])
@@ -561,40 +561,44 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
                     : t("common.offline")}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setStarSheetOpen(true)}
-          aria-label={t("chat.send_stars")}
-          className="grid size-9 place-items-center rounded-full text-stars active:scale-90"
-        >
-          <Star className="size-5 fill-stars" />
-        </button>
-        <div className="relative">
+        {!clanMode && (
           <button
             type="button"
-            onClick={() => setMenuOpen((v) => !v)}
-            aria-label={t("chat.menu")}
-            className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90"
+            onClick={() => setStarSheetOpen(true)}
+            aria-label={t("chat.send_stars")}
+            className="grid size-9 place-items-center rounded-full text-stars active:scale-90"
           >
-            <MoreVertical className="size-5" />
+            <Star className="size-5 fill-stars" />
           </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-11 z-50 w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
-              <button type="button" onClick={actionMute} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
-                {muted ? <BellRing className="size-4 text-muted-foreground" /> : <BellOff className="size-4 text-muted-foreground" />}
-                {muted ? t("chat.unmute") : t("chat.mute")}
-              </button>
-              <button type="button" onClick={actionBlock} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
-                {blocked ? <Unlock className="size-4 text-muted-foreground" /> : <Ban className="size-4 text-muted-foreground" />}
-                {blocked ? t("chat.unblock") : t("chat.block")}
-              </button>
-              <button type="button" onClick={actionClear} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-destructive hover:bg-muted active:bg-muted">
-                <Trash2 className="size-4" />
-                {t("chat.clear")}
-              </button>
-            </div>
-          )}
-        </div>
+        )}
+        {!clanMode && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setMenuOpen((v) => !v)}
+              aria-label={t("chat.menu")}
+              className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90"
+            >
+              <MoreVertical className="size-5" />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-11 z-50 w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+                <button type="button" onClick={actionMute} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
+                  {muted ? <BellRing className="size-4 text-muted-foreground" /> : <BellOff className="size-4 text-muted-foreground" />}
+                  {muted ? t("chat.unmute") : t("chat.mute")}
+                </button>
+                <button type="button" onClick={actionBlock} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
+                  {blocked ? <Unlock className="size-4 text-muted-foreground" /> : <Ban className="size-4 text-muted-foreground" />}
+                  {blocked ? t("chat.unblock") : t("chat.block")}
+                </button>
+                <button type="button" onClick={actionClear} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-destructive hover:bg-muted active:bg-muted">
+                  <Trash2 className="size-4" />
+                  {t("chat.clear")}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </header>
 
       {blockedByOther && (
@@ -822,11 +826,13 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
           <div className="flex-1 py-3 text-center text-sm text-muted-foreground">{t("chat.blocked_hint")}</div>
         )}
       </div>
-      <StarSendSheet
-        open={starSheetOpen}
-        onClose={() => setStarSheetOpen(false)}
-        fixed={player && player.id ? { id: Number(player.id), nick: player.nick, avatar: player.avatar } : undefined}
-      />
+      {!clanMode && (
+        <StarSendSheet
+          open={starSheetOpen}
+          onClose={() => setStarSheetOpen(false)}
+          fixed={player && player.id ? { id: Number(player.id), nick: player.nick, avatar: player.avatar } : undefined}
+        />
+      )}
     </div>
   )
 }

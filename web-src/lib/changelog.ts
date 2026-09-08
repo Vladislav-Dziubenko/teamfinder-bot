@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = "1.6"
+export const CURRENT_VERSION = "1.7"
 export const STORAGE_KEY = "nexus_last_seen_version"
 
 export interface ChangelogItem {
@@ -10,6 +10,28 @@ export interface ChangelogItem {
 }
 
 export const updates: ChangelogItem[] = [
+  {
+    version: "1.7",
+    date: "9 Sep 2026",
+    isMajor: true,
+    title: { en: "Clans: teams, quests & seasons", ru: "Кланы: команды, квесты и сезоны" },
+    items: {
+      en: [
+        "🛡️ Clans up to 15 members: leader, officers, invites",
+        "⭐ Clan points for cases, quests and activity",
+        "📆 Daily and weekly clan quests with progress bars",
+        "🏆 Monthly season: two leaderboards, top-10% rewards",
+        "💬 Clan chat, 🏦 clan bank and shop",
+      ],
+      ru: [
+        "🛡️ Кланы до 15 участников: лидер, офицеры, инвайты",
+        "⭐ Очки клану за кейсы, квесты и активность",
+        "📆 Дневные и недельные квесты с прогресс-барами",
+        "🏆 Месячный сезон: два лидерборда, награды топ-10%",
+        "💬 Чат клана, 🏦 банк и магазин",
+      ],
+    },
+  },
   {
     version: "1.6",
     date: "8 Sep 2026",

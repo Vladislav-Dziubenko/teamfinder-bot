@@ -511,6 +511,102 @@ CREATE TABLE IF NOT EXISTS super_subs (
     updated_at TEXT NOT NULL DEFAULT '',
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
+
+-- Система кланов (v1): структура, участники, квесты, очки, сезоны, шоп.
+-- Один активный клан на юзера (UNIQUE user_id в members). clan_id NULL
+-- в quests = глобальный шаблон (одинаковые квесты всем кланам).
+CREATE TABLE IF NOT EXISTS clans (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    tag TEXT NOT NULL UNIQUE,
+    emblem TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
+    is_public INTEGER NOT NULL DEFAULT 1,
+    max_members INTEGER NOT NULL DEFAULT 15,
+    level INTEGER NOT NULL DEFAULT 1,
+    lifetime_points BIGINT NOT NULL DEFAULT 0,
+    bank_points BIGINT NOT NULL DEFAULT 0,
+    season_id TEXT NOT NULL DEFAULT '',
+    created_by BIGINT NOT NULL,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS clan_members (
+    clan_id INTEGER NOT NULL REFERENCES clans(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL UNIQUE,
+    role TEXT NOT NULL DEFAULT 'member',
+    contribution_season BIGINT NOT NULL DEFAULT 0,
+    contribution_total BIGINT NOT NULL DEFAULT 0,
+    joined_at TEXT NOT NULL,
+    PRIMARY KEY (clan_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS clan_quests (
+    id SERIAL PRIMARY KEY,
+    clan_id INTEGER REFERENCES clans(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL DEFAULT 'weekly',
+    target_type TEXT NOT NULL,
+    target_value INTEGER NOT NULL,
+    starts_at TEXT NOT NULL,
+    ends_at TEXT NOT NULL,
+    claimed INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS clan_points_log (
+    id SERIAL PRIMARY KEY,
+    clan_id INTEGER NOT NULL REFERENCES clans(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,
+    action TEXT NOT NULL,
+    points INTEGER NOT NULL,
+    granted INTEGER NOT NULL DEFAULT 0,
+    flags TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_clan_points_log_clan ON clan_points_log (clan_id, created_at);
+
+CREATE TABLE IF NOT EXISTS clan_seasons (
+    year_month TEXT PRIMARY KEY,
+    ends_at TEXT NOT NULL,
+    rewards_paid INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS clan_season_results (
+    season_id TEXT NOT NULL,
+    clan_id INTEGER NOT NULL,
+    clan_name TEXT NOT NULL DEFAULT '',
+    tag TEXT NOT NULL DEFAULT '',
+    rank_total INTEGER NOT NULL DEFAULT 0,
+    rank_per_member INTEGER NOT NULL DEFAULT 0,
+    reward_json TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (season_id, clan_id)
+);
+
+CREATE TABLE IF NOT EXISTS clan_season_members (
+    season_id TEXT NOT NULL,
+    clan_id INTEGER NOT NULL,
+    user_id BIGINT NOT NULL,
+    contribution BIGINT NOT NULL DEFAULT 0,
+    joined_at TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (season_id, clan_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS clan_shop_items (
+    id SERIAL PRIMARY KEY,
+    title TEXT NOT NULL,
+    cost_points INTEGER NOT NULL,
+    payload TEXT NOT NULL,
+    stock INTEGER NOT NULL DEFAULT -1
+);
+
+CREATE TABLE IF NOT EXISTS clan_invites (
+    id SERIAL PRIMARY KEY,
+    clan_id INTEGER NOT NULL REFERENCES clans(id) ON DELETE CASCADE,
+    code TEXT NOT NULL UNIQUE,
+    created_by BIGINT NOT NULL,
+    uses INTEGER NOT NULL DEFAULT 0,
+    max_uses INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL
+);
 """
 
 def _strip_sql_line_comments(sql: str) -> str:
@@ -520,6 +616,44 @@ def _strip_sql_line_comments(sql: str) -> str:
         line for line in sql.splitlines()
         if not line.strip().startswith("--")
     )
+
+
+# Действие заработка -> тип цели квеста (что двигает прогресс).
+CLAN_ACTION_QUEST = {"case": "cases", "quest": "quests"}
+
+# Шаблоны клановых квестов v1: (kind, target_type, target_value, bank_bonus).
+CLAN_QUEST_TEMPLATES = [
+    ("daily", "cases", 50, 50),
+    ("weekly", "cases", 500, 500),
+    ("weekly", "quests", 30, 300),
+]
+
+# Награды сезона: топ-10% кланов; внутри — топ-3 вклада (стаж 7+ дней).
+CLAN_SEASON_TOP_PCT = 0.10
+CLAN_SEASON_TOP_N = 3
+CLAN_SEASON_MIN_TENURE_DAYS = 7
+# место -> (stars, bonus_keys)
+CLAN_SEASON_REWARDS = {1: (500, 5), 2: (300, 3), 3: (200, 2)}
+
+# Прогрессия клана v1: пороги lifetime_points -> уровень.
+# Перки: +2 слота/уровень (макс +10), скидка на coin-кейсы +2%/уровень
+# (только внутренняя валюта, кап 10%, звёзды не трогаем), +5% к очкам
+# за квесты/уровень (кап +25%), эмблемы по CLAN_EMBLEMS (server.py).
+CLAN_LEVEL_THRESHOLDS = [0, 1000, 3000, 8000, 20000, 50000]
+CLAN_LEVEL_SLOTS = 2
+CLAN_LEVEL_SLOTS_CAP = 10
+CLAN_COIN_DISCOUNT_STEP = 0.02
+CLAN_COIN_DISCOUNT_CAP = 0.10
+CLAN_QUEST_BONUS_STEP = 0.05
+CLAN_QUEST_BONUS_CAP = 0.25
+
+
+def clan_level_for(lifetime: int) -> int:
+    level = 1
+    for i, need in enumerate(CLAN_LEVEL_THRESHOLDS, 1):
+        if (lifetime or 0) >= need:
+            level = i
+    return level
 
 
 SCHEMA_STATEMENTS = [
@@ -626,6 +760,15 @@ class Database:
         return row is not None
 
     async def _migrate(self, conn: asyncpg.Connection) -> None:
+        # История выплат распущенных кланов должна переживать роспуск:
+        # у clan_season_results больше нет FK на clans (имя/тег денормализованы
+        # в строке). Сносим constraint, если таблица создана старой схемой.
+        try:
+            await conn.execute(
+                "ALTER TABLE clan_season_results"
+                " DROP CONSTRAINT IF EXISTS clan_season_results_clan_id_fkey")
+        except asyncpg.PostgresError:
+            pass
         # Убираем FK user_cosmetics/super_subs -> users: строка юзера может
         # отсутствовать (mini-app-only), а 500 на сохранении/подписке хуже
         # пользы от ссылочной целостности (как у audit_log — там FK нет).
@@ -800,6 +943,9 @@ class Database:
 
             ("chat_messages", "reply_to", "INTEGER"),
             ("global_messages", "reply_to", "INTEGER"),
+
+            ("clan_season_results", "clan_name", "TEXT NOT NULL DEFAULT ''"),
+            ("clan_season_results", "tag", "TEXT NOT NULL DEFAULT ''"),
         ]
 
         for table, column, col_type in column_migrations:
@@ -2042,6 +2188,735 @@ class Database:
                 user_id, monday, datetime.utcnow().isoformat(),
             )
             return {"granted": True, "coins": coins, "stars": stars, "keys": keys}
+
+    # ---- Кланы: структура и участники (v1) ----
+    CLAN_ROLES = ("leader", "officer", "member")
+
+    @staticmethod
+    def _clan_can(actor_role: str | None, action: str) -> bool:
+        rank = {"leader": 3, "officer": 2, "member": 1}.get(actor_role or "", 0)
+        need = {"invite": 2, "kick": 2, "role": 3, "settings": 3, "shop": 3}
+        return rank >= need.get(action, 99)
+
+    async def get_my_clan(self, user_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT c.*, m.role AS my_role,"
+                " (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count"
+                " FROM clans c JOIN clan_members m ON m.clan_id = c.id"
+                " WHERE m.user_id = $1",
+                user_id,
+            )
+            if not row:
+                return None
+            d = dict(row)
+            lvl = clan_level_for(d.get("lifetime_points", 0))
+            if lvl != d.get("level", 1):
+                await conn.execute("UPDATE clans SET level = $2 WHERE id = $1", d["id"], lvl)
+                d["level"] = lvl
+            return d
+
+    async def get_clan(self, clan_id: int) -> dict | None:
+        async with self.pool.acquire() as conn:
+            clan = await conn.fetchrow("SELECT * FROM clans WHERE id = $1", clan_id)
+            if not clan:
+                return None
+            d0 = dict(clan)
+            lvl = clan_level_for(d0.get("lifetime_points", 0))
+            if lvl != d0.get("level", 1):
+                await conn.execute("UPDATE clans SET level = $2 WHERE id = $1", clan_id, lvl)
+                d0["level"] = lvl
+            clan = d0
+            members = await conn.fetch(
+                "SELECT m.user_id, m.role, m.contribution_season, m.contribution_total, m.joined_at,"
+                " COALESCE(mp.nick, '') AS nick, mp.avatar AS avatar"
+                " FROM clan_members m LEFT JOIN mini_app_profiles mp ON mp.user_id = m.user_id"
+                " WHERE m.clan_id = $1 ORDER BY"
+                " CASE m.role WHEN 'leader' THEN 0 WHEN 'officer' THEN 1 ELSE 2 END,"
+                " m.contribution_season DESC",
+                clan_id,
+            )
+            d = dict(clan)
+            d["members"] = [dict(r) for r in members]
+            return d
+
+    async def search_clans(self, q: str, limit: int = 20) -> list[dict]:
+        q = (q or "").strip()[:24]
+        async with self.pool.acquire() as conn:
+            if not q:
+                rows = await conn.fetch(
+                    "SELECT c.*, (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count"
+                    " FROM clans c WHERE c.is_public = 1 ORDER BY c.lifetime_points DESC LIMIT $1",
+                    max(1, min(limit, 50)),
+                )
+            else:
+                rows = await conn.fetch(
+                    "SELECT c.*, (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count"
+                    " FROM clans c WHERE c.is_public = 1 AND (c.name ILIKE $1 OR c.tag ILIKE $1)"
+                    " ORDER BY c.lifetime_points DESC LIMIT $2",
+                    f"%{q}%", max(1, min(limit, 50)),
+                )
+            return [dict(r) for r in rows]
+
+    async def create_clan(self, user_id: int, name: str, tag: str, emblem: str = "",
+                          description: str = "", is_public: bool = True,
+                          max_members: int = 15) -> dict:
+        # NB: UniqueViolation ловим только через SAVEPOINT (вложенный
+        # transaction): пойманная ошибка абортит всю транзакцию, и возврат
+        # без исключения всё равно уронил бы COMMIT. Сейвпоинт откатывает
+        # только свой кусок — внешняя транзакция остаётся валидной.
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                exists = await conn.fetchval(
+                    "SELECT clan_id FROM clan_members WHERE user_id = $1", user_id)
+                if exists:
+                    return {"error": "already_in_clan"}
+                try:
+                    async with conn.transaction():
+                        row = await conn.fetchrow(
+                            "INSERT INTO clans (name, tag, emblem, description, is_public,"
+                            " max_members, level, lifetime_points, bank_points, season_id,"
+                            " created_by, created_at)"
+                            " VALUES ($1, $2, $3, $4, $5, $6, 1, 0, 0, '', $7, $8) RETURNING *",
+                            name, tag, emblem, description, int(bool(is_public)),
+                            max(5, min(int(max_members or 15), 30)), user_id, now,
+                        )
+                except asyncpg.UniqueViolationError:
+                    return {"error": "name_or_tag_taken"}
+                try:
+                    async with conn.transaction():
+                        await conn.execute(
+                            "INSERT INTO clan_members (clan_id, user_id, role,"
+                            " contribution_season, contribution_total, joined_at)"
+                            " VALUES ($1, $2, 'leader', 0, 0, $3)",
+                            row["id"], user_id, now,
+                        )
+                except asyncpg.UniqueViolationError:
+                    # Гонка: параллельный join/create успел первым. Удаляем
+                    # только что созданный клан-сироту и отдаём понятную ошибку.
+                    await conn.execute("DELETE FROM clans WHERE id = $1", row["id"])
+                    return {"error": "already_in_clan"}
+                d = dict(row)
+                d["member_count"] = 1
+                d["my_role"] = "leader"
+                return {"clan": d}
+
+    async def join_clan(self, clan_id: int, user_id: int, invite_code: str | None = None) -> dict:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                if await conn.fetchval(
+                        "SELECT clan_id FROM clan_members WHERE user_id = $1", user_id):
+                    return {"error": "already_in_clan"}
+                clan = await conn.fetchrow("SELECT * FROM clans WHERE id = $1 FOR UPDATE", clan_id)
+                if not clan:
+                    return {"error": "not_found"}
+                if not clan["is_public"] and not invite_code:
+                    return {"error": "invite_required"}
+                # Слоты от вычисленного (не сохранённого) уровня: иначе клан,
+                # перешагнувший порог без открытия вкладки, отклонял бы вступление.
+                _lvl = clan_level_for(int(clan["lifetime_points"] or 0))
+                effective_max = min(
+                    int(clan["max_members"] or 15)
+                    + CLAN_LEVEL_SLOTS * (_lvl - 1),
+                    int(clan["max_members"] or 15) + CLAN_LEVEL_SLOTS_CAP,
+                )
+                try:
+                    async with conn.transaction():
+                        if not clan["is_public"]:
+                            inv = await conn.fetchrow(
+                                "SELECT id, uses, max_uses FROM clan_invites"
+                                " WHERE clan_id = $1 AND code = $2 FOR UPDATE",
+                                clan_id, invite_code.strip(),
+                            )
+                            if not inv:
+                                return {"error": "bad_invite"}
+                            if inv["max_uses"] > 0 and inv["uses"] >= inv["max_uses"]:
+                                return {"error": "invite_spent"}
+                            await conn.execute(
+                                "UPDATE clan_invites SET uses = uses + 1 WHERE id = $1", inv["id"])
+                        count = await conn.fetchval(
+                            "SELECT COUNT(*) FROM clan_members WHERE clan_id = $1", clan_id)
+                        if count >= effective_max:
+                            return {"error": "clan_full"}
+                        await conn.execute(
+                            "INSERT INTO clan_members (clan_id, user_id, role,"
+                            " contribution_season, contribution_total, joined_at)"
+                            " VALUES ($1, $2, 'member', 0, 0, $3)",
+                            clan_id, user_id, now,
+                        )
+                except asyncpg.UniqueViolationError:
+                    # Гонка двух параллельных join: сейвпоинт откатывает и
+                    # uses+1, и вставку — понятная ошибка вместо 500.
+                    return {"error": "already_in_clan"}
+                return {"ok": True, "clan_id": clan_id}
+
+    async def leave_clan(self, clan_id: int, user_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                mem = await conn.fetchrow(
+                    "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, user_id,
+                )
+                if not mem:
+                    return {"error": "not_member"}
+                rest = await conn.fetch(
+                    "SELECT user_id, role, joined_at FROM clan_members"
+                    " WHERE clan_id = $1 AND user_id != $2 ORDER BY joined_at",
+                    clan_id, user_id,
+                )
+                if not rest:
+                    # Роспуск: CASCADE сносит members/quests/log/invites.
+                    # clan_season_results — без FK, переживает (история выплат).
+                    # Снапшоты чистим ТОЛЬКО за незакрытые сезоны: выплаченные
+                    # (rewards_paid=1) остаются как обоснование «кому и за что
+                    # заплатили» — иначе при споре ссылаться будет не на что.
+                    # Семантика: нет клана на ролловере — нет новых выплат; банк,
+                    # lifetime и невзятые награды сгорают вместе с кланом.
+                    await conn.execute("DELETE FROM clans WHERE id = $1", clan_id)
+                    await conn.execute(
+                        "DELETE FROM clan_season_members WHERE clan_id = $1"
+                        " AND season_id NOT IN (SELECT year_month FROM clan_seasons"
+                        " WHERE rewards_paid = 1)",
+                        clan_id)
+                    return {"ok": True, "disbanded": True}
+                if mem["role"] == "leader":
+                    nxt = next((r for r in rest if r["role"] == "officer"), rest[0])
+                    await conn.execute(
+                        "UPDATE clan_members SET role = 'leader'"
+                        " WHERE clan_id = $1 AND user_id = $2",
+                        clan_id, nxt["user_id"],
+                    )
+                await conn.execute(
+                    "DELETE FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, user_id,
+                )
+                return {"ok": True, "new_leader": nxt["user_id"] if mem["role"] == "leader" else None}
+
+    async def kick_member(self, clan_id: int, actor_id: int, target_id: int) -> dict:
+        if actor_id == target_id:
+            return {"error": "use_leave"}
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                actor = await conn.fetchval(
+                    "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, actor_id,
+                )
+                if not self._clan_can(actor, "kick"):
+                    return {"error": "forbidden"}
+                target = await conn.fetchval(
+                    "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, target_id,
+                )
+                if not target:
+                    return {"error": "not_member"}
+                if actor != "leader" and target in ("leader", "officer"):
+                    return {"error": "forbidden"}
+                await conn.execute(
+                    "DELETE FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, target_id,
+                )
+                return {"ok": True}
+
+    async def set_member_role(self, clan_id: int, actor_id: int, target_id: int, role: str) -> dict:
+        if role not in ("officer", "member"):
+            return {"error": "bad_role"}
+        if actor_id == target_id:
+            return {"error": "no_self"}
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                actor = await conn.fetchval(
+                    "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, actor_id,
+                )
+                if not self._clan_can(actor, "role"):
+                    return {"error": "forbidden"}
+                cur = await conn.fetchval(
+                    "SELECT 1 FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, target_id,
+                )
+                if not cur:
+                    return {"error": "not_member"}
+                await conn.execute(
+                    "UPDATE clan_members SET role = $3 WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, target_id, role,
+                )
+                return {"ok": True}
+
+    async def create_invite(self, clan_id: int, actor_id: int, max_uses: int = 0) -> dict:
+        import secrets as _secrets
+        async with self.pool.acquire() as conn:
+            actor = await conn.fetchval(
+                "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                clan_id, actor_id,
+            )
+            if not self._clan_can(actor, "invite"):
+                return {"error": "forbidden"}
+            for _ in range(3):
+                code = _secrets.token_urlsafe(6).upper().replace("-", "").replace("_", "")[:8]
+                try:
+                    await conn.execute(
+                        "INSERT INTO clan_invites (clan_id, code, created_by, uses, max_uses, created_at)"
+                        " VALUES ($1, $2, $3, 0, $4, $5)",
+                        clan_id, code, actor_id, max(0, int(max_uses or 0)),
+                        datetime.utcnow().isoformat(),
+                    )
+                    return {"ok": True, "code": code}
+                except asyncpg.UniqueViolationError:
+                    continue
+            return {"error": "retry"}
+
+    async def update_clan(self, clan_id: int, actor_id: int, fields: dict) -> dict:
+        allowed = ("name", "description", "emblem", "is_public")
+        clean = {k: fields[k] for k in allowed if k in fields}
+        if not clean:
+            return {"error": "empty"}
+        async with self.pool.acquire() as conn:
+            actor = await conn.fetchval(
+                "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                clan_id, actor_id,
+            )
+            if not self._clan_can(actor, "settings"):
+                return {"error": "forbidden"}
+            sets = ", ".join(f"{k} = ${i + 2}" for i, k in enumerate(clean.keys()))
+            try:
+                await conn.execute(
+                    f"UPDATE clans SET {sets} WHERE id = $1", clan_id, *clean.values())
+            except asyncpg.UniqueViolationError:
+                return {"error": "name_or_tag_taken"}
+            return {"ok": True}
+
+    # ---- Клановые квесты и сезоны (v1) ----
+    @staticmethod
+    def _clan_window(kind: str) -> tuple[str, str]:
+        now = datetime.utcnow()
+        if kind == "daily":
+            start = now.strftime("%Y-%m-%d")
+            end = (now + timedelta(days=1)).strftime("%Y-%m-%d")
+        else:
+            monday = now - timedelta(days=now.weekday())
+            start = monday.strftime("%Y-%m-%d")
+            end = (monday + timedelta(days=7)).strftime("%Y-%m-%d")
+        return start, end
+
+    async def ensure_clan_quests(self, clan_id: int) -> list[dict]:
+        """Создаёт недостающие квесты текущего периода из шаблонов."""
+        async with self.pool.acquire() as conn:
+            for kind, target_type, target_value, _bonus in CLAN_QUEST_TEMPLATES:
+                start, end = self._clan_window(kind)
+                await conn.execute(
+                    "INSERT INTO clan_quests (clan_id, kind, target_type, target_value,"
+                    " starts_at, ends_at, claimed) SELECT $1, $2, $3, $4, $5, $6, 0"
+                    " WHERE NOT EXISTS (SELECT 1 FROM clan_quests WHERE clan_id = $1"
+                    " AND kind = $2 AND target_type = $3 AND starts_at = $5)",
+                    clan_id, kind, target_type, target_value, start, end,
+                )
+            rows = await conn.fetch(
+                "SELECT * FROM clan_quests WHERE clan_id = $1 AND ends_at > $2"
+                " ORDER BY ends_at, target_value",
+                clan_id, datetime.utcnow().strftime("%Y-%m-%d"),
+            )
+            return [dict(r) for r in rows]
+
+    async def claim_clan_quest(self, clan_id: int, actor_id: int, quest_id: int) -> dict:
+        """Забор выполненного квеста (офицер+): бонус в банк, атомарно один раз."""
+        async with self.pool.acquire() as conn:
+            actor = await conn.fetchval(
+                "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                clan_id, actor_id,
+            )
+            if not self._clan_can(actor, "invite"):
+                return {"error": "forbidden"}
+            q = await conn.fetchrow("SELECT * FROM clan_quests WHERE id = $1 AND clan_id = $2",
+                                    quest_id, clan_id)
+            if not q:
+                return {"error": "not_found"}
+            bonus = next((b for k, t, v, b in CLAN_QUEST_TEMPLATES
+                          if k == q["kind"] and t == q["target_type"] and v == q["target_value"]), 0)
+            res = await conn.execute(
+                "UPDATE clan_quests SET claimed = 1 WHERE id = $1 AND claimed = 0 AND progress >= target_value",
+                quest_id,
+            )
+            if res != "UPDATE 1":
+                return {"error": "not_ready"}
+            if bonus:
+                await conn.execute(
+                    "UPDATE clans SET bank_points = bank_points + $2 WHERE id = $1",
+                    clan_id, bonus,
+                )
+            return {"ok": True, "bank_bonus": bonus}
+
+    @staticmethod
+    def _season_id(dt=None) -> str:
+        dt = dt or datetime.utcnow()
+        return dt.strftime("%Y-%m")
+
+    async def ensure_season(self, year_month: str) -> None:
+        y, m = int(year_month[:4]), int(year_month[5:7])
+        ends = (datetime(y, m, 1) + timedelta(days=32)).replace(day=1)
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO clan_seasons (year_month, ends_at, rewards_paid)"
+                " VALUES ($1, $2, 0) ON CONFLICT (year_month) DO NOTHING",
+                year_month, ends.strftime("%Y-%m-%d"),
+            )
+
+    async def get_current_season(self) -> dict:
+        ym = self._season_id()
+        await self.ensure_season(ym)
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM clan_seasons WHERE year_month = $1", ym)
+            return dict(row)
+
+    async def get_clan_coin_discount(self, user_id: int) -> float:
+        """Скидка на coin-кейсы по уровню клана. Звёзды не трогаем никогда.
+        Уровень — из lifetime_points на месте (колонка может отставать)."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT COALESCE(c.lifetime_points, 0) AS lifetime FROM clan_members m"
+                " JOIN clans c ON c.id = m.clan_id WHERE m.user_id = $1",
+                user_id,
+            )
+            if not row:
+                return 0.0
+            return min(CLAN_COIN_DISCOUNT_STEP * (clan_level_for(int(row["lifetime"] or 0)) - 1),
+                       CLAN_COIN_DISCOUNT_CAP)
+
+    async def ensure_clan_shop(self) -> list[dict]:
+        """Сид витрины банка (идемпотентно, по фиксированным title)."""
+        seed = [
+            ("Эмблема 💎 для клана", 2000, '{"type": "emblem", "emblem": "💎"}'),
+            ("Декор Crimson всем участникам", 1500, '{"type": "deco", "deco": "crimson"}'),
+            ("По 3 ключа Autumn всем участникам", 1000, '{"type": "keys", "count": 3}'),
+            ("По 50⭐ всем участникам", 800, '{"type": "stars", "amount": 50}'),
+        ]
+        async with self.pool.acquire() as conn:
+            for title, cost, payload in seed:
+                await conn.execute(
+                    "INSERT INTO clan_shop_items (title, cost_points, payload, stock)"
+                    " SELECT $1, $2, $3, -1 WHERE NOT EXISTS"
+                    " (SELECT 1 FROM clan_shop_items WHERE title = $1)",
+                    title, cost, payload,
+                )
+            rows = await conn.fetch("SELECT * FROM clan_shop_items ORDER BY cost_points")
+            return [dict(r) for r in rows]
+
+    async def buy_clan_shop_item(self, clan_id: int, actor_id: int, item_id: int) -> dict:
+        """Покупка из банка — ТОЛЬКО лидер (защита от слива офицером)."""
+        import json as _json
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                actor = await conn.fetchval(
+                    "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    clan_id, actor_id,
+                )
+                if actor != "leader":
+                    return {"error": "leader_only"}
+                item = await conn.fetchrow(
+                    "SELECT * FROM clan_shop_items WHERE id = $1", item_id)
+                if not item:
+                    return {"error": "not_found"}
+                clan = await conn.fetchrow(
+                    "SELECT bank_points FROM clans WHERE id = $1 FOR UPDATE", clan_id)
+                if not clan or int(clan["bank_points"] or 0) < int(item["cost_points"]):
+                    return {"error": "not_enough_bank"}
+                try:
+                    payload = _json.loads(item["payload"] or "{}")
+                except Exception:
+                    return {"error": "bad_item"}
+                ptype = payload.get("type")
+                members = await conn.fetch(
+                    "SELECT user_id FROM clan_members WHERE clan_id = $1", clan_id)
+                if ptype == "emblem" and payload.get("emblem"):
+                    await conn.execute(
+                        "UPDATE clans SET emblem = $2 WHERE id = $1", clan_id, payload["emblem"])
+                elif ptype == "deco" and payload.get("deco") in (
+                        "orange", "cyan", "crimson", "gold"):
+                    for m in members:
+                        await self._unlock_decoration_conn(conn, int(m["user_id"]), payload["deco"])
+                elif ptype == "keys":
+                    count = max(1, min(int(payload.get("count", 0) or 0), 20))
+                    for m in members:
+                        for _ in range(count):
+                            await self.add_to_inventory(
+                                int(m["user_id"]), "autumn-key", "Autumn Key",
+                                "epic", 5000, False, conn)
+                elif ptype == "stars":
+                    amount = max(1, min(int(payload.get("amount", 0) or 0), 500))
+                    for m in members:
+                        await self._adjust_currency_conn(conn, int(m["user_id"]), stars=amount)
+                else:
+                    return {"error": "bad_item"}
+                await conn.execute(
+                    "UPDATE clans SET bank_points = bank_points - $2 WHERE id = $1",
+                    clan_id, int(item["cost_points"]),
+                )
+                return {"ok": True, "title": item["title"], "cost": int(item["cost_points"])}
+
+    async def get_clan_leaderboard(self, by: str = "total", limit: int = 50) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT c.id, c.name, c.tag, c.emblem, c.level,"
+                " COALESCE(SUM(m.contribution_season), 0) AS total,"
+                " COUNT(m.user_id) AS members FROM clans c"
+                " LEFT JOIN clan_members m ON m.clan_id = c.id"
+                " GROUP BY c.id HAVING COUNT(m.user_id) > 0",
+            )
+            board = []
+            for r in rows:
+                total = int(r["total"] or 0)
+                members = int(r["members"] or 0)
+                board.append({"id": r["id"], "name": r["name"], "tag": r["tag"],
+                              "emblem": r["emblem"], "level": r["level"],
+                              "total": total, "members": members,
+                              "per_member": (total / members) if members else 0})
+            key = (lambda x: x["per_member"]) if by == "per_member" else (lambda x: x["total"])
+            board.sort(key=key, reverse=True)
+            for i, b in enumerate(board[:max(1, min(limit, 100))], 1):
+                b["rank"] = i
+            return board[:max(1, min(limit, 100))]
+
+    async def get_season_history(self, limit: int = 12) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT s.year_month, s.ends_at, s.rewards_paid, r.clan_id, r.clan_name,"
+                " r.tag, r.rank_total, r.rank_per_member, r.reward_json"
+                " FROM clan_seasons s LEFT JOIN clan_season_results r"
+                " ON r.season_id = s.year_month"
+                " ORDER BY s.year_month DESC, r.rank_total LIMIT $1", limit * 10,
+            )
+            return [dict(r) for r in rows[:limit * 10]]
+
+    async def get_season_members(self, season_id: str, clan_id: int) -> list[dict]:
+        """Снапшот вклада клана за сезон — обоснование выплат при спорах."""
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT m.user_id, m.contribution, m.joined_at,"
+                " COALESCE(mp.nick, '') AS nick FROM clan_season_members m"
+                " LEFT JOIN mini_app_profiles mp ON mp.user_id = m.user_id"
+                " WHERE m.season_id = $1 AND m.clan_id = $2"
+                " ORDER BY m.contribution DESC",
+                season_id, clan_id,
+            )
+            return [dict(r) for r in rows]
+
+    async def rollover_clan_season(self, prev_ym: str) -> dict:
+        """Ролловер месяца: снапшот вкладов, топ-10% + топ-3 (стаж 7+ дней),
+        выплаты, сброс contribution_season. Идемпотентно (rewards_paid)."""
+        await self.ensure_season(prev_ym)
+        async with self.pool.acquire() as conn:
+            async with conn.transaction():
+                season = await conn.fetchrow(
+                    "SELECT * FROM clan_seasons WHERE year_month = $1 FOR UPDATE", prev_ym)
+                if not season:
+                    return {"error": "no_season"}
+                if season["rewards_paid"]:
+                    return {"ok": True, "already": True}
+                ends_at = season["ends_at"]
+                # Снапшот всех текущих вкладов (только живые кланы — DELETE
+                # каскадом уже убрал распущенные; их unpaid-снапшоты чистятся
+                # в leave_clan, paid остаются как обоснование).
+                await conn.execute(
+                    "INSERT INTO clan_season_members (season_id, clan_id, user_id, contribution, joined_at)"
+                    " SELECT $1, m.clan_id, m.user_id, m.contribution_season, m.joined_at"
+                    " FROM clan_members m JOIN clans c ON c.id = m.clan_id"
+                    " ON CONFLICT DO NOTHING",
+                    prev_ym,
+                )
+                totals = await conn.fetch(
+                    "SELECT clan_id, SUM(contribution) AS total, COUNT(*) AS members"
+                    " FROM clan_season_members WHERE season_id = $1"
+                    " GROUP BY clan_id HAVING SUM(contribution) > 0",
+                    prev_ym,
+                )
+                ranked_total = sorted(totals, key=lambda r: int(r["total"]), reverse=True)
+                ranked_eff = sorted(
+                    totals,
+                    key=lambda r: int(r["total"]) / max(1, int(r["members"])),
+                    reverse=True,
+                )
+                n_top = max(1, int(len(ranked_total) * CLAN_SEASON_TOP_PCT + 0.999)) if ranked_total else 0
+                eff_top = {int(r["clan_id"]) for r in ranked_eff[:CLAN_SEASON_TOP_N]}
+                eff_rank = {int(r["clan_id"]): i for i, r in enumerate(ranked_eff, 1)}
+                paid_clans: list[dict] = []
+                for rank, row in enumerate(ranked_total, 1):
+                    cid = int(row["clan_id"])
+                    clan = await conn.fetchrow("SELECT name, tag FROM clans WHERE id = $1", cid)
+                    if not clan:
+                        continue
+                    erank = eff_rank.get(cid, 0)
+                    reward = {"rank_total": rank, "rank_per_member": erank, "paid": False}
+                    if rank <= n_top or cid in eff_top:
+                        members = await conn.fetch(
+                            "SELECT user_id, contribution, joined_at FROM clan_season_members"
+                            " WHERE season_id = $1 AND clan_id = $2 ORDER BY contribution DESC",
+                            prev_ym, cid,
+                        )
+                        cutoff = (datetime.fromisoformat(ends_at) - timedelta(days=CLAN_SEASON_MIN_TENURE_DAYS)).isoformat()
+                        eligible = [m for m in members
+                                    if int(m["contribution"]) > 0 and (m["joined_at"] or "") <= cutoff]
+                        prizes = []
+                        for place, m in enumerate(eligible[:CLAN_SEASON_TOP_N], 1):
+                            stars, keys = CLAN_SEASON_REWARDS.get(place, (100, 1))
+                            await self._adjust_currency_conn(conn, int(m["user_id"]), stars=stars)
+                            for _ in range(keys):
+                                await self.add_to_inventory(
+                                    int(m["user_id"]), "autumn-key", "Autumn Key", "epic", 5000, False, conn)
+                            if place == 1:
+                                await self.add_to_inventory(
+                                    int(m["user_id"]), f"clan-champion-{prev_ym}",
+                                    f"Champion {prev_ym}", "legendary", 0, False, conn)
+                            prizes.append({"user_id": int(m["user_id"]), "place": place,
+                                           "contribution": int(m["contribution"]),
+                                           "stars": stars, "keys": keys})
+                        await conn.execute(
+                            "UPDATE clans SET bank_points = bank_points + 500 WHERE id = $1", cid)
+                        reward = {"rank_total": rank, "rank_per_member": erank,
+                                  "paid": True, "prizes": prizes, "bank_bonus": 500}
+                    await conn.execute(
+                        "INSERT INTO clan_season_results (season_id, clan_id, clan_name, tag,"
+                        " rank_total, rank_per_member, reward_json)"
+                        " VALUES ($1, $2, $3, $4, $5, $6, $7)"
+                        " ON CONFLICT (season_id, clan_id) DO UPDATE SET rank_total = $5,"
+                        " rank_per_member = $6, clan_name = $3, tag = $4, reward_json = $7",
+                        prev_ym, cid, clan["name"], clan["tag"], rank, erank,
+                        json.dumps(reward, ensure_ascii=False),
+                    )
+                    paid_clans.append({"clan_id": cid, "rank": rank, **reward})
+                await conn.execute(
+                    "UPDATE clan_members SET contribution_season = 0")
+                await conn.execute(
+                    "UPDATE clans SET season_id = $1", self._season_id())
+                await conn.execute(
+                    "UPDATE clan_seasons SET rewards_paid = 1 WHERE year_month = $1", prev_ym)
+                return {"ok": True, "season": prev_ym, "clans": paid_clans}
+
+    # ---- Клановые очки (v1) ----
+    async def award_clan_points(self, user_id: int, action: str, raw_points: int,
+                                conn: asyncpg.Connection | None = None,
+                                cap: int = 300, bank_share: float = 0.2) -> dict:
+        """Начисляет очки клану за действие юзера.
+
+        Инвариант (источник правды для антифрода): в clan_points_log пишется
+        СЫРОЕ значение (points), а кап режет только зачисление (granted)
+        в contribution/lifetime/bank. SUM(granted) сходится с балансами,
+        SUM(points) — с реальным поведением.
+        """
+        if conn is None:
+            async with self.pool.acquire() as c:
+                async with c.transaction():
+                    return await self._award_clan_points_conn(
+                        c, user_id, action, raw_points, cap, bank_share)
+        return await self._award_clan_points_conn(
+            conn, user_id, action, raw_points, cap, bank_share)
+
+    async def _award_clan_points_conn(self, conn: asyncpg.Connection, user_id: int,
+                                      action: str, raw_points: int,
+                                      cap: int, bank_share: float) -> dict:
+        raw_points = max(0, int(raw_points or 0))
+        mem = await conn.fetchrow(
+            "SELECT m.clan_id, COALESCE(c.lifetime_points, 0) AS lifetime FROM clan_members m"
+            " JOIN clans c ON c.id = m.clan_id WHERE m.user_id = $1", user_id)
+        if not mem:
+            return {"clan_id": None, "granted": 0}
+        clan_id = mem["clan_id"]
+        if action == "quest":
+            # Перк уровня: +5% к очкам за квесты/уровень, кап +25%.
+            # Уровень считаем из lifetime_points на месте, а не из колонки
+            # (она обновляется лениво на чтениях и может отставать).
+            mult = 1.0 + min(CLAN_QUEST_BONUS_STEP * (clan_level_for(int(mem["lifetime"] or 0)) - 1),
+                             CLAN_QUEST_BONUS_CAP)
+            raw_points = int(raw_points * mult)
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        today_granted = await conn.fetchval(
+            "SELECT COALESCE(SUM(granted), 0) FROM clan_points_log"
+            " WHERE user_id = $1 AND created_at >= $2",
+            user_id, today,
+        ) or 0
+        granted = max(0, min(raw_points, max(0, cap - today_granted)))
+        # Подозрительность: сырая дневная сумма юзера против медианы клана.
+        flags = ""
+        try:
+            rows = await conn.fetch(
+                "SELECT m.user_id, COALESCE(SUM(l.points), 0) AS s FROM clan_members m"
+                " LEFT JOIN clan_points_log l ON l.clan_id = m.clan_id"
+                " AND l.user_id = m.user_id AND l.created_at >= $2"
+                " WHERE m.clan_id = $1 GROUP BY m.user_id",
+                clan_id, today,
+            )
+            totals = [(int(r["user_id"]),
+                         int(r["s"]) + (raw_points if int(r["user_id"]) == user_id else 0))
+                        for r in rows]
+            if len(totals) >= 3:
+                median = sorted(s for _, s in totals)[len(totals) // 2]
+                user_total = next((s for u, s in totals if u == user_id), 0)
+                if median > 0 and user_total > 5 * median:
+                    flags = "suspicious"
+        except Exception:
+            pass
+        if granted:
+            await conn.execute(
+                "UPDATE clan_members SET contribution_season = contribution_season + $2,"
+                " contribution_total = contribution_total + $2 WHERE user_id = $1",
+                user_id, granted,
+            )
+            await conn.execute(
+                "UPDATE clans SET lifetime_points = lifetime_points + $2,"
+                " bank_points = bank_points + $3 WHERE id = $1",
+                clan_id, granted, int(granted * bank_share),
+            )
+            # Прогресс активных квестов клана двигаем тут же, в той же
+            # транзакции вызывающего кода — без отдельных фоновых проходов.
+            tt = CLAN_ACTION_QUEST.get(action)
+            if tt:
+                await conn.execute(
+                    "UPDATE clan_quests SET progress = progress + $2 WHERE clan_id = $1"
+                    " AND target_type = $3 AND starts_at <= $4 AND ends_at > $4",
+                    clan_id, granted, tt, datetime.utcnow().isoformat(),
+                )
+        await conn.execute(
+            "INSERT INTO clan_points_log (clan_id, user_id, action, points, granted, flags, created_at)"
+            " VALUES ($1, $2, $3, $4, $5, $6, $7)",
+            clan_id, user_id, action, raw_points, granted, flags,
+            datetime.utcnow().isoformat(),
+        )
+        out = {"clan_id": clan_id, "granted": granted}
+        if flags:
+            out["flags"] = flags
+        return out
+
+    async def award_clan_active_day(self, user_id: int, points: int = 5,
+                                    cap: int = 300, bank_share: float = 0.2) -> dict:
+        """+N за активный день, строго один раз в сутки.
+
+        Быстрый путь — SELECT без блокировок (99.9% вызовов отваливаются тут).
+        Медленный путь — в одной транзакции: FOR UPDATE по строке участника
+        сериализует конкурентные вызовы, а повторная проверка внутри
+        транзакции закрывает окно гонки между проверкой и вставкой.
+        Порядок блокировок везде members -> clans, циклов нет.
+        """
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        check_sql = (
+            "SELECT 1 FROM clan_points_log WHERE user_id = $1 AND action = 'active_day'"
+            " AND created_at >= $2 LIMIT 1"
+        )
+        async with self.pool.acquire() as conn:
+            exists = await conn.fetchval(check_sql, user_id, today)
+            if exists:
+                return {"clan_id": None, "granted": 0, "dedup": True}
+            async with conn.transaction():
+                mem = await conn.fetchrow(
+                    "SELECT clan_id FROM clan_members WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                if not mem:
+                    return {"clan_id": None, "granted": 0}
+                exists = await conn.fetchval(check_sql, user_id, today)
+                if exists:
+                    return {"clan_id": mem["clan_id"], "granted": 0, "dedup": True}
+                return await self._award_clan_points_conn(
+                    conn, user_id, "active_day", points, cap, bank_share)
 
     async def unlock_contact(self, user_id: int, profile_id: int) -> None:
         async with self.pool.acquire() as conn:
@@ -3611,6 +4486,7 @@ WHERE user_quests.completed = 0
                     "UPDATE user_quests SET completed = 1, updated_at = $1 WHERE id = $2",
                     datetime.utcnow().isoformat(), row["id"],
                 )
+                await self._award_clan_points_conn(conn, user_id, "quest", 15, 300, 0.2)
                 return {"ok": True, "stars": reward_stars}
 
     async def claim_all_ready_quests(self, user_id: int, quests_config: list[dict]) -> dict:
@@ -3642,6 +4518,8 @@ WHERE user_quests.completed = 0
                 if total_stars == 0:
                     return {"stars": 0, "claimed": 0}
                 await self._adjust_currency_conn(conn, user_id, stars=total_stars)
+                if claimed:
+                    await self._award_clan_points_conn(conn, user_id, "quest", 15 * claimed, 300, 0.2)
                 for q in quests_config:
                     prog = by_qid.get(q["id"])
                     if not prog or (prog["progress_minutes"] or 0) < q["target"] or prog["completed"]:
@@ -4413,6 +5291,7 @@ WHERE user_quests.completed = 0
                     coins=referral_reward.get("coins", 0),
                     stars=referral_reward.get("stars", 0),
                 )
+                await self._award_clan_points_conn(conn, row["referred_by"], "invite", 25, 300, 0.2)
                 return True
 
     # ---------- Daily streak ----------
@@ -4584,11 +5463,42 @@ WHERE user_quests.completed = 0
 
     # ---------- Chat ----------
 
+    @staticmethod
+    def split_chat_id(chat_id: str) -> tuple[str, list[int]]:
+        """Канонический разбор chat_id — ЕДИНСТВЕННОЕ место, где это делается.
+
+        Возвращает ("dm", [a, b]) | ("clan", [clan_id]) | ("legacy", [числа])
+        | ("unknown", []). Префикс clan- матчится первым по построению, так что
+        числовой id клана нигде нельзя спутать с user_id независимо от порядка
+        проверок у вызывающего кода. Правило: новый код парсит chat_id ТОЛЬКО
+        через этот хелпер, руками префиксы больше не разбираем.
+        """
+        if isinstance(chat_id, str) and chat_id.startswith("clan-"):
+            try:
+                return ("clan", [int(chat_id.split("-", 1)[1])])
+            except (ValueError, IndexError):
+                return ("unknown", [])
+        if isinstance(chat_id, str) and chat_id.startswith("dm-"):
+            nums = [int(p) for p in chat_id[3:].split("-") if p.isdigit()]
+            if nums:
+                return ("dm", nums)
+            return ("unknown", [])
+        if isinstance(chat_id, str):
+            nums = [int(p) for p in chat_id.split("-") if p.isdigit()]
+            if nums:
+                return ("legacy", nums)
+        return ("unknown", [])
+
     async def can_access_chat(self, chat_id: str, user_id: int) -> bool:
         async with self.pool.acquire() as conn:
-            parts = chat_id.replace("dm-", "").split("-")
-            numeric_parts = [int(p) for p in parts if p.isdigit()]
-            if user_id in numeric_parts:
+            kind, nums = self.split_chat_id(chat_id)
+            if kind == "clan":
+                mem = await conn.fetchval(
+                    "SELECT 1 FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                    nums[0], user_id,
+                )
+                return mem == 1
+            if user_id in nums:
                 return True
             row = await conn.fetchval(
                 "SELECT 1 FROM chat_messages WHERE chat_id = $1 AND sender_id = $2 LIMIT 1",
@@ -4757,10 +5667,9 @@ WHERE user_quests.completed = 0
             chat_meta = {}
             for r in rows:
                 cid = r["chat_id"]
-                if not cid or not isinstance(cid, str) or not cid.startswith("dm-"):
+                kind, numeric_parts = self.split_chat_id(cid)
+                if kind != "dm":
                     continue
-                parts = cid.replace("dm-", "").split("-")
-                numeric_parts = [int(p) for p in parts if p.isdigit()]
                 if len(numeric_parts) == 2:
                     a, b = numeric_parts
                     other_id = a if b == user_id else b
@@ -4816,8 +5725,12 @@ WHERE user_quests.completed = 0
     # ---------- Chat: moderation & global ----------
 
     def _chat_participants(self, chat_id: str) -> list[int]:
-        parts = chat_id.replace("dm-", "").split("-")
-        return [int(p) for p in parts if p.isdigit()]
+        # У клан-чата участников-юзеров в id нет (там id клана) —
+        # иначе статус лички (other/block) посчитался бы по мусору.
+        kind, nums = self.split_chat_id(chat_id)
+        if kind != "dm":
+            return []
+        return nums
 
     async def block_user(self, user_id: int, other_id: int) -> None:
         now = datetime.utcnow().isoformat()

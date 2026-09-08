@@ -42,6 +42,7 @@ const ReviewTab = lazy(() => import("./review-tab").then((m) => ({ default: m.Re
 const MarketTab = lazy(() => import("./market-tab").then((m) => ({ default: m.MarketTab })))
 const SessionTab = lazy(() => import("./session-tab").then((m) => ({ default: m.SessionTab })))
 const AutumnTab = lazy(() => import("./autumn/autumn-tab").then((m) => ({ default: m.AutumnTab })))
+const ClanTab = lazy(() => import("./clan-tab").then((m) => ({ default: m.ClanTab })))
 
 function TabFallback() {
   return (
@@ -231,6 +232,7 @@ function Shell() {
         {tab === "market" && <Suspense fallback={<TabFallback />}><MarketTab onToast={setToast} /></Suspense>}
         {tab === "sessions" && <Suspense fallback={<TabFallback />}><SessionTab onToast={setToast} /></Suspense>}
         {tab === "event" && <Suspense fallback={<TabFallback />}><AutumnTab onToast={setToast} onGo={goTab} /></Suspense>}
+        {tab === "clan" && <Suspense fallback={<TabFallback />}><ClanTab onToast={setToast} /></Suspense>}
       </main>
 
       <BottomNav active={tab} onChange={goTab} onMore={() => setMoreOpen(true)} />

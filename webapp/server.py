@@ -1863,7 +1863,14 @@ async def handle_nexus_open_case(request: web.Request):
                                         if not await db._adjust_currency_conn(conn, user["id"], stars=-total_cost):
                                             return web.json_response({"error": "not enough stars"}, status=400)
                             elif case_config.get("costCoins"):
-                                total_cost = case_config["costCoins"] * count
+                                # Перк уровня клана: скидка ТОЛЬКО на coin-кейсы
+                                # (звёздные цены не трогаем — защита монетизации).
+                                _disc = 0.0
+                                try:
+                                    _disc = await db.get_clan_coin_discount(user["id"])
+                                except Exception:
+                                    _disc = 0.0
+                                total_cost = max(1, int(case_config["costCoins"] * count * (1.0 - _disc)))
                                 if not await db._adjust_currency_conn(conn, user["id"], coins=-total_cost):
                                     return web.json_response({"error": "not enough coins"}, status=400)
                             elif case_id == "autumn-gold":
@@ -2091,6 +2098,30 @@ async def handle_nexus_open_case(request: web.Request):
             await db.update_quest_progress(user["id"], "open-cases", count)
 
             await db.update_quest_progress(user["id"], "open-cases-2", count)
+
+            # Клановые очки: +10 за кейс и +5 за активный день (свои дефолты
+            # совпадают с env; no-op для юзеров вне кланов).
+            # NB: строго через is None, а не `or` — 0 в env валиден
+            # (отключение), `or` молча подменял бы его дефолтом.
+            _cfg = request.app.get("settings")
+            def _cc(name, default):
+                v = getattr(_cfg, name, None)
+                return default if v is None else v
+            try:
+                await db.award_clan_points(
+                    user["id"], "case",
+                    int(_cc("clan_points_case", 10)) * count,
+                    cap=int(_cc("clan_daily_cap", 300)),
+                    bank_share=float(_cc("clan_bank_share", 0.2)),
+                )
+                await db.award_clan_active_day(
+                    user["id"],
+                    points=int(_cc("clan_points_active_day", 5)),
+                    cap=int(_cc("clan_daily_cap", 300)),
+                    bank_share=float(_cc("clan_bank_share", 0.2)),
+                )
+            except Exception as e:
+                logging.warning(f"clan points hook failed: {e}")
 
 
             # Достижение «50 кейсов»: суммарный счётчик открытий (не сбрасывается по дням).
@@ -4188,6 +4219,11 @@ async def handle_global_send(request: web.Request):
     msg["user_id"] = "me"
     # Сбрасываем кэш глобальных сообщений — чтобы poller сразу видел новое.
     await cache_delete_pattern("global_chat_msgs")
+    # Клановые очки за активный день (фоном, отправку не тормозит).
+    try:
+        asyncio.create_task(db.award_clan_active_day(user["id"]))
+    except Exception:
+        pass
     # AI-модератор: фоновая проверка, отправку не тормозит.
     try:
         settings = request.app.get("settings")
@@ -5807,6 +5843,301 @@ async def handle_client_error(request: web.Request):
     return web.json_response({"ok": True})
 
 
+# ---------------------------------------------------------------------------
+# Кланы (v1): CRUD, участники, инвайты. Роли клана (leader/officer/member)
+# не пересекаются со staff-ролями модерации (user_roles) — прав officer+
+# действуют только внутри своего клана. Покупки шопа — только лидер (шаг 5).
+# ---------------------------------------------------------------------------
+CLAN_EMBLEMS = {"🛡️": 1, "⚔️": 1, "🔥": 1, "❄️": 1, "🐺": 1, "🦁": 1,
+                "🐉": 3, "⚡": 3, "🌪️": 3, "👑": 5, "💎": 8, "🏆": 8}
+CLAN_TAG_RE = re.compile(r"^[A-Z0-9]{2,5}$")
+
+
+def _clan_public(clan: dict | None) -> dict | None:
+    if not clan:
+        return None
+    d = dict(clan)
+    return d
+
+
+async def handle_clans_create(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "invalid json"}, status=400)
+    name = sanitize(str(body.get("name", "")), 24)
+    tag = re.sub(r"[^a-zA-Z0-9]", "", str(body.get("tag", ""))).upper()[:5]
+    emblem = str(body.get("emblem", "🛡️"))
+    description = sanitize(str(body.get("description", "")), 200)
+    is_public = bool(body.get("is_public", True))
+    if len(name) < 3:
+        return web.json_response({"error": "name too short (min 3)"}, status=400)
+    if not CLAN_TAG_RE.fullmatch(tag):
+        return web.json_response({"error": "bad tag (2-5 A-Z/0-9)"}, status=400)
+    if emblem not in CLAN_EMBLEMS or CLAN_EMBLEMS[emblem] > 1:
+        return web.json_response({"error": "emblem locked (level up your clan)"}, status=400)
+    settings = request.app.get("settings")
+    max_members = int(getattr(settings, "clan_max_members", 15) or 15)
+    res = await db.create_clan(user["id"], name, tag, emblem, description, is_public, max_members)
+    if "error" in res:
+        return web.json_response(res, status=400)
+    return web.json_response(res)
+
+
+async def handle_clans_search(request: web.Request):
+    db: Database = request.app["db"]
+    q = request.query.get("q", "")
+    try:
+        limit = max(1, min(int(request.query.get("limit", 20)), 50))
+    except (ValueError, TypeError):
+        limit = 20
+    return web.json_response({"clans": await db.search_clans(q, limit)})
+
+
+async def handle_clans_my(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    clan = await db.get_my_clan(user["id"])
+    return web.json_response({"clan": clan})
+
+
+async def handle_clans_detail(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    clan = await db.get_clan(clan_id)
+    if not clan:
+        return web.json_response({"error": "not found"}, status=404)
+    # Вклад участников — только своим (посторонним — карточка без состава).
+    if not await _clan_my_role(db, clan_id, user["id"]):
+        clan = dict(clan)
+        clan["members"] = []
+    return web.json_response({"clan": _clan_public(clan)})
+
+
+async def handle_clans_join(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    res = await db.join_clan(clan_id, user["id"], (body.get("invite_code") or "") if isinstance(body, dict) else None)
+    if "error" in res:
+        return web.json_response(res, status=400)
+    await cache_delete_pattern("global_chat_msgs")
+    return web.json_response(res)
+
+
+async def handle_clans_leave(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    res = await db.leave_clan(clan_id, user["id"])
+    if "error" in res:
+        return web.json_response(res, status=400)
+    return web.json_response(res)
+
+
+async def handle_clans_kick(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+        body = await request.json()
+        target_id = int(body.get("user_id"))
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({"error": "invalid request"}, status=400)
+    res = await db.kick_member(clan_id, user["id"], target_id)
+    if "error" in res:
+        return web.json_response(res, status=403 if res["error"] == "forbidden" else 400)
+    return web.json_response(res)
+
+
+async def handle_clans_role(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+        body = await request.json()
+        target_id = int(body.get("user_id"))
+        role = str(body.get("role", ""))
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({"error": "invalid request"}, status=400)
+    res = await db.set_member_role(clan_id, user["id"], target_id, role)
+    if "error" in res:
+        return web.json_response(res, status=403 if res["error"] == "forbidden" else 400)
+    return web.json_response(res)
+
+
+async def handle_clans_invite(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        max_uses = max(0, int((body.get("max_uses") or 0)))
+    except (ValueError, TypeError):
+        max_uses = 0
+    res = await db.create_invite(clan_id, user["id"], max_uses)
+    if "error" in res:
+        return web.json_response(res, status=403 if res["error"] == "forbidden" else 400)
+    return web.json_response(res)
+
+
+async def handle_clans_settings(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+        body = await request.json()
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({"error": "invalid request"}, status=400)
+    fields: dict = {}
+    if "name" in body:
+        name = sanitize(str(body.get("name", "")), 24)
+        if len(name) < 3:
+            return web.json_response({"error": "name too short (min 3)"}, status=400)
+        fields["name"] = name
+    if "description" in body:
+        fields["description"] = sanitize(str(body.get("description", "")), 200)
+    if "emblem" in body:
+        emblem = str(body.get("emblem", ""))
+        clan = await db.get_clan(clan_id)
+        if emblem not in CLAN_EMBLEMS or CLAN_EMBLEMS[emblem] > int((clan or {}).get("level", 1)):
+            return web.json_response({"error": "emblem locked (level up your clan)"}, status=400)
+        fields["emblem"] = emblem
+    if "is_public" in body:
+        fields["is_public"] = int(bool(body.get("is_public")))
+    res = await db.update_clan(clan_id, user["id"], fields)
+    if "error" in res:
+        return web.json_response(res, status=403 if res["error"] == "forbidden" else 400)
+    return web.json_response(res)
+
+
+async def _clan_my_role(db: Database, clan_id: int, user_id: int) -> str | None:
+    me = await db.get_my_clan(user_id)
+    if me and int(me["id"]) == int(clan_id):
+        return me["my_role"]
+    return None
+
+
+async def handle_clans_quests(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    if not await _clan_my_role(db, clan_id, user["id"]):
+        return web.json_response({"error": "not_member"}, status=403)
+    return web.json_response({"quests": await db.ensure_clan_quests(clan_id)})
+
+
+async def handle_clans_quest_claim(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+        quest_id = int(request.match_info["quest_id"])
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    res = await db.claim_clan_quest(clan_id, user["id"], quest_id)
+    if "error" in res:
+        code = 403 if res["error"] == "forbidden" else 400
+        return web.json_response(res, status=code)
+    return web.json_response(res)
+
+
+async def handle_clans_leaderboard(request: web.Request):
+    db: Database = request.app["db"]
+    by = request.query.get("by", "total")
+    if by not in ("total", "per_member"):
+        by = "total"
+    return web.json_response({"by": by, "board": await db.get_clan_leaderboard(by)})
+
+
+async def handle_clans_season_current(request: web.Request):
+    db: Database = request.app["db"]
+    season = await db.get_current_season()
+    top = await db.get_clan_leaderboard("total", limit=10)
+    eff = await db.get_clan_leaderboard("per_member", limit=10)
+    return web.json_response({"season": season, "top_total": top, "top_eff": eff})
+
+
+async def handle_clans_season_history(request: web.Request):
+    db: Database = request.app["db"]
+    return web.json_response({"history": await db.get_season_history()})
+
+
+async def handle_clans_shop(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    if not await _clan_my_role(db, clan_id, user["id"]):
+        return web.json_response({"error": "not_member"}, status=403)
+    items = await db.ensure_clan_shop()
+    clan = await db.get_clan(clan_id)
+    return web.json_response({
+        "items": items,
+        "bank_points": int((clan or {}).get("bank_points", 0)),
+        "my_role": await _clan_my_role(db, clan_id, user["id"]),
+    })
+
+
+async def handle_clans_shop_buy(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+        body = await request.json()
+        item_id = int(body.get("item_id"))
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({"error": "invalid request"}, status=400)
+    res = await db.buy_clan_shop_item(clan_id, user["id"], item_id)
+    if "error" in res:
+        code = 403 if res["error"] in ("leader_only",) else 400
+        return web.json_response(res, status=code)
+    return web.json_response(res)
+
+
+async def handle_clans_season_members(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    season_id = request.match_info["season_id"]
+    try:
+        clan_id = int(request.query.get("clan_id", 0))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid clan"}, status=400)
+    if not season_id or not clan_id:
+        return web.json_response({"error": "invalid request"}, status=400)
+    if not await _clan_my_role(db, clan_id, user["id"]):
+        return web.json_response({"error": "not_member"}, status=403)
+    return web.json_response(
+        {"members": await db.get_season_members(season_id, clan_id)})
+
+
 def create_app(db: Database, settings: Settings, bot) -> web.Application:
     # Порядок middleware критичен — менять только осознанно:
     # 1. security_middleware     — самый внешний: CSP + security headers на любой ответ (включая ошибки)
@@ -5871,6 +6202,24 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/teams", handle_create_team)
     app.router.add_get("/api/teams/{team_id}/applications", handle_team_applications)
     app.router.add_post("/api/teams/{team_id}/apply", handle_apply_team)
+    app.router.add_post("/api/clans", handle_clans_create)
+    app.router.add_get("/api/clans/search", handle_clans_search)
+    app.router.add_get("/api/clans/my", handle_clans_my)
+    app.router.add_get("/api/clans/leaderboard", handle_clans_leaderboard)
+    app.router.add_get("/api/clans/seasons/current", handle_clans_season_current)
+    app.router.add_get("/api/clans/seasons/history", handle_clans_season_history)
+    app.router.add_get("/api/clans/seasons/{season_id}/members", handle_clans_season_members)
+    app.router.add_get("/api/clans/{clan_id}", handle_clans_detail)
+    app.router.add_post("/api/clans/{clan_id}/join", handle_clans_join)
+    app.router.add_post("/api/clans/{clan_id}/leave", handle_clans_leave)
+    app.router.add_post("/api/clans/{clan_id}/kick", handle_clans_kick)
+    app.router.add_post("/api/clans/{clan_id}/role", handle_clans_role)
+    app.router.add_post("/api/clans/{clan_id}/invites", handle_clans_invite)
+    app.router.add_post("/api/clans/{clan_id}/settings", handle_clans_settings)
+    app.router.add_get("/api/clans/{clan_id}/quests", handle_clans_quests)
+    app.router.add_post("/api/clans/{clan_id}/quests/{quest_id}/claim", handle_clans_quest_claim)
+    app.router.add_get("/api/clans/{clan_id}/shop", handle_clans_shop)
+    app.router.add_post("/api/clans/{clan_id}/shop/buy", handle_clans_shop_buy)
     app.router.add_get("/api/me/applications", handle_user_applications)
 
     # Nexus Mini App API routes
