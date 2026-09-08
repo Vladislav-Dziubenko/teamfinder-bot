@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
-import { Gem, Send, Star, Loader2, Wallet, Crown, RefreshCw, History, EyeOff } from "lucide-react"
+import { Gem, Send, Star, Loader2, Wallet, Crown, RefreshCw, History, EyeOff, Search, Users, X, Check } from "lucide-react"
 import { TonConnectButton, useTonAddress } from "@tonconnect/ui-react"
 import { useNexus } from "@/lib/store"
 import { useI18n } from "@/lib/i18n"
@@ -125,7 +125,10 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
   const [listing, setListing] = useState<number | null>(null)
   const [price, setPrice] = useState("")
   const [transfer, setTransfer] = useState<number | null>(null)
-  const [transferId, setTransferId] = useState("")
+  const [friends, setFriends] = useState<{ friend_id: number; nick: string | null; avatar: string | null; online?: boolean }[]>([])
+  const [friendsLoading, setFriendsLoading] = useState(false)
+  const [friendSearch, setFriendSearch] = useState("")
+  const [selectedFriendId, setSelectedFriendId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [tonBusy, setTonBusy] = useState(false)
 
@@ -146,18 +149,31 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
     setPrice("")
   }
 
+  async function loadFriends() {
+    setFriendsLoading(true)
+    try {
+      const { api } = await import("@/lib/api")
+      const data: any = await api.get("/api/friends/list")
+      setFriends(data.friends ?? data ?? [])
+    } catch {
+      // silent
+    } finally {
+      setFriendsLoading(false)
+    }
+  }
+
   async function submitTransfer(token: number) {
-    const id = parseInt(transferId, 10)
-    if (!id || id <= 0) {
+    if (!selectedFriendId) {
       onToast(t("model_tab.invalid_id"))
       return
     }
     setBusy(true)
-    const res = await transferModel(token, id)
+    const res = await transferModel(token, selectedFriendId)
     setBusy(false)
     onToast(res.ok ? t("model_tab.transferred") : res.error ?? t("model_tab.error"))
     setTransfer(null)
-    setTransferId("")
+    setSelectedFriendId(null)
+    setFriendSearch("")
   }
 
   async function submitSell(token: number) {
@@ -319,7 +335,9 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                       type="button"
                       onClick={() => {
                         setTransfer(m.token_id)
-                        setTransferId("")
+                        setSelectedFriendId(null)
+                        setFriendSearch("")
+                        void loadFriends()
                       }}
                       className="flex items-center gap-1 rounded-xl border border-border bg-secondary px-3 py-2 text-xs font-semibold active:scale-95"
                     >
@@ -334,21 +352,67 @@ export function ModelTab({ onToast }: { onToast: (m: string) => void }) {
                       <Star className="size-3.5" /> {t("model_tab.sell")}
                     </button>
                     {transfer === m.token_id && (
-                      <div className="flex w-full gap-2">
-                        <input
-                          value={transferId}
-                          onChange={(e) => setTransferId(e.target.value.replace(/\D/g, ""))}
-                          inputMode="numeric"
-                          placeholder={t("model_tab.transfer_id_placeholder")}
-                          className="w-full min-w-0 rounded-xl border border-border bg-secondary px-3 py-2 text-sm outline-none focus:border-primary"
-                        />
+                      <div className="w-full rounded-2xl border border-border bg-secondary/40 p-3">
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs font-bold">{t("model_tab.transfer_pick_title") ?? "Выбери друга"}</p>
+                          <button type="button" onClick={() => { setTransfer(null); setSelectedFriendId(null); setFriendSearch("") }} className="grid size-7 place-items-center rounded-lg text-muted-foreground active:scale-90">
+                            <X className="size-4" />
+                          </button>
+                        </div>
+                        <div className="relative mt-2">
+                          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                          <input
+                            value={friendSearch}
+                            onChange={(e) => setFriendSearch(e.target.value)}
+                            placeholder={t("friends.search_placeholder") ?? "Поиск друзей..."}
+                            className="w-full rounded-xl border border-input bg-background py-2 pl-10 pr-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/60"
+                          />
+                        </div>
+                        <div className="mt-3 max-h-52 space-y-2 overflow-y-auto">
+                          {friendsLoading ? (
+                            <div className="flex justify-center py-6">
+                              <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                            </div>
+                          ) : friends.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-border py-6 text-center">
+                              <Users className="mx-auto size-6 text-muted-foreground" />
+                              <p className="mt-2 text-xs text-muted-foreground">{t("friends.empty_title") ?? "Нет друзей"}</p>
+                              <p className="text-[11px] text-muted-foreground">{t("model_tab.no_friends_hint") ?? "Добавь друзей во вкладке Друзья"}</p>
+                            </div>
+                          ) : (
+                            friends
+                              .filter((f) => !friendSearch || (f.nick ?? "").toLowerCase().includes(friendSearch.toLowerCase()))
+                              .map((f) => {
+                                const selected = selectedFriendId === f.friend_id
+                                return (
+                                  <button
+                                    key={f.friend_id}
+                                    type="button"
+                                    onClick={() => setSelectedFriendId(selected ? null : f.friend_id)}
+                                    className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition-colors active:scale-[0.99] ${selected ? "border-primary bg-primary/10" : "border-border bg-card hover:bg-secondary/50"}`}
+                                  >
+                                    <img src={f.avatar || "/placeholder.svg"} alt={f.nick ?? String(f.friend_id)} className="size-9 rounded-xl object-cover" />
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-sm font-bold">{f.nick ?? f.friend_id}</p>
+                                      <p className="text-[11px] text-muted-foreground">ID {f.friend_id} {f.online ? "· online" : ""}</p>
+                                    </div>
+                                    {selected ? <span className="grid size-7 place-items-center rounded-full bg-primary text-primary-foreground"><Check className="size-4" /></span> : <span className="size-7" />}
+                                  </button>
+                                )
+                              })
+                          )}
+                          {friends.length > 0 && friends.filter((f) => !friendSearch || (f.nick ?? "").toLowerCase().includes(friendSearch.toLowerCase())).length === 0 && (
+                            <p className="py-2 text-center text-xs text-muted-foreground">{t("friends.no_results") ?? "Ничего не найдено"}</p>
+                          )}
+                        </div>
                         <button
                           type="button"
-                          disabled={busy}
+                          disabled={!selectedFriendId || busy}
                           onClick={() => submitTransfer(m.token_id)}
-                          className="shrink-0 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground active:scale-95 disabled:opacity-50"
+                          className="mt-3 flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-95 disabled:opacity-50"
                         >
-                          {busy ? <Loader2 className="size-4 animate-spin" /> : t("model_tab.transfer")}
+                          {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
+                          {selectedFriendId ? (t("model_tab.transfer_to") ?? "Передать") : (t("model_tab.transfer_pick_hint") ?? "Выбери друга")}
                         </button>
                       </div>
                     )}

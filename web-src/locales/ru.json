@@ -226,8 +226,8 @@
   "donate.coins_added": "+{count} монет Nexus зачислено!",
   "donate.payment_cancelled": "Оплата отменена",
   "donate.payment_success": "✅ {perk} — оплачено! ⭐",
-  "battlepass.season": "Сезон 1 · 2026",
-  "battlepass.title": "Nexus Battle Pass",
+  "battlepass.season": "Сезон 04",
+  "battlepass.title": "Nexus Autumn Pass",
   "battlepass.collected": "Собрано {claimed} / {total}",
   "battlepass.left": "Осталось {count}",
   "battlepass.season_done": "Сезон пройден",
@@ -252,8 +252,6 @@
   "battlepass.instant_levels": "Уровней: {n}",
   "battlepass.instant_claim": "Забрать за {cost} ⭐",
   "battlepass.instant_done": "Награды забраны в инвентарь!",
-  "battlepass.season": "Сезон 04",
-  "battlepass.title": "Nexus Autumn Pass",
   "battlepass.autumn_phantom": "Autumn Phantom",
   "battlepass.autumn_blaze": "Autumn Blaze",
   "battlepass.autumn_sentinel": "Autumn Sentinel",
@@ -1181,5 +1179,11 @@
   },
   "topbar": {
     "topbar.updates": "Обновления"
-  }
+  },
+  "model_tab.transfer_pick_title": "Выбери друга",
+  "model_tab.transfer_pick_hint": "Выбери друга из списка",
+  "model_tab.transfer_to": "Передать другу",
+  "model_tab.no_friends_hint": "Добавь друзей во вкладке Друзья",
+  "model_tab.no_results": "Ничего не найдено",
+  "friends.no_results": "Ничего не найдено"
 }

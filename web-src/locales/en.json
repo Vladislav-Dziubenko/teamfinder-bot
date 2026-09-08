@@ -232,8 +232,8 @@
   "donate.coins_added": "+{count} Nexus coins added!",
   "donate.payment_cancelled": "Payment cancelled",
   "donate.payment_success": "✅ {perk} — paid! ⭐",
-  "battlepass.season": "Season 1 · 2026",
-  "battlepass.title": "Nexus Battle Pass",
+  "battlepass.season": "Season 04",
+  "battlepass.title": "Nexus Autumn Pass",
   "battlepass.collected": "Collected {claimed} / {total}",
   "battlepass.left": "{count} left",
   "battlepass.season_done": "Season completed",
@@ -258,8 +258,6 @@
   "battlepass.instant_levels": "Tiers: {n}",
   "battlepass.instant_claim": "Claim for {cost} ⭐",
   "battlepass.instant_done": "Rewards claimed to inventory!",
-  "battlepass.season": "Season 04",
-  "battlepass.title": "Nexus Autumn Pass",
   "battlepass.autumn_phantom": "Autumn Phantom",
   "battlepass.autumn_blaze": "Autumn Blaze",
   "battlepass.autumn_sentinel": "Autumn Sentinel",
@@ -1181,5 +1179,11 @@
   },
   "topbar": {
     "topbar.updates": "Updates"
-  }
+  },
+  "model_tab.transfer_pick_title": "Choose a friend",
+  "model_tab.transfer_pick_hint": "Pick a friend from the list",
+  "model_tab.transfer_to": "Transfer to friend",
+  "model_tab.no_friends_hint": "Add friends in the Friends tab",
+  "model_tab.no_results": "No results",
+  "friends.no_results": "No results"
 }
