@@ -14,7 +14,7 @@ from aiohttp import web
 
 from config import load_settings
 from database import Database
-from handlers import start, profile, search, guides, payments, admin, discord, appeal, voice
+from handlers import start, profile, search, guides, payments, admin, discord, appeal, voice, ask
 from middleware import InjectMiddleware, RateLimitMiddleware
 from webapp.server import create_app
 
@@ -79,8 +79,44 @@ async def main():
         dp.include_router(payments.router)
         dp.include_router(admin.router)
         dp.include_router(discord.router)
+        dp.include_router(ask.router)
         # Последний: апелляции забаненных (без фильтров — только «неизвестный» текст)
         dp.include_router(appeal.router)
+
+        # ---- Меню команд "/": юзерам — обрезанное, админам — полное ----
+        # Telegram не умеет скрывать хендлеры, только подсказки меню.
+        # Проверка прав всё равно внутри каждого хендлера (admin_ids).
+        try:
+            from aiogram.types import BotCommand, BotCommandScopeChat, BotCommandScopeDefault
+            user_cmds = [
+                BotCommand(command="start", description="🚀 Открыть меню"),
+                BotCommand(command="ask", description="🤖 Спросить ИИ"),
+                BotCommand(command="discord", description="🔗 Привязать Discord"),
+                BotCommand(command="balance", description="💰 Баланс"),
+                BotCommand(command="deleteanketa", description="🗑 Удалить анкету"),
+            ]
+            admin_cmds = user_cmds + [
+                BotCommand(command="stats", description="📊 Статистика"),
+                BotCommand(command="donatevidacha", description="💸 Выдать донат"),
+                BotCommand(command="donatedelete", description="🗑 Убрать донат"),
+                BotCommand(command="giveitem", description="🎁 Выдать предмет"),
+                BotCommand(command="aiundo", description="↩️ Отменить наказание ИИ"),
+                BotCommand(command="aistatus", description="🤖 Статус Стража"),
+                BotCommand(command="aiscore", description="🧪 Тест скоринга"),
+                BotCommand(command="ailearn", description="🧠 Научить Стража"),
+                BotCommand(command="aimemory", description="🧠 Память Стража"),
+                BotCommand(command="aiforget", description="🗑 Забыть факт"),
+                BotCommand(command="aiwrong", description="🎓 Поправить судью"),
+            ]
+            await bot.set_my_commands(user_cmds, scope=BotCommandScopeDefault())
+            for _aid in settings.admin_ids:
+                try:
+                    await bot.set_my_commands(admin_cmds, scope=BotCommandScopeChat(chat_id=_aid))
+                except Exception as e:
+                    logging.warning("admin menu failed for %s: %s", _aid, e)
+            logging.info("Bot command menus set (user=%d, admins=%d)", len(user_cmds), len(admin_cmds))
+        except Exception as e:
+            logging.warning("set_my_commands failed: %s", e)
 
         # ---- Шаг 3: создаём приложение, регистрируем роуты ----
         web_app = create_app(db, settings, bot)

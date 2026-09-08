@@ -118,7 +118,7 @@ def load_settings() -> Settings:
         fernet_key=fernet_key,
         admin_ids=_parse_admin_ids(os.getenv("ADMIN_IDS", "")),
         price_best_team=int(os.getenv("PRICE_BEST_TEAM", "3")),
-        price_highlight=int(os.getenv("PRICE_HIGHLIGHT", "4")),
+        price_highlight=int(os.getenv("PRICE_HIGHLIGHT", "7")),
         price_contact_pack=int(os.getenv("PRICE_CONTACT_PACK", "2")),
         price_pro_subscription=int(os.getenv("PRICE_PRO_SUBSCRIPTION", "8")),
         price_single_contact=int(os.getenv("PRICE_SINGLE_CONTACT", "1")),
