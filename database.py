@@ -2206,17 +2206,33 @@ class Database:
 
     async def award_clan_active_day(self, user_id: int, points: int = 5,
                                     cap: int = 300, bank_share: float = 0.2) -> dict:
-        """+N за активный день, один раз в сутки (идемпотентно по логу)."""
+        """+N за активный день, строго один раз в сутки.
+
+        Быстрый путь — SELECT без блокировок (99.9% вызовов отваливаются тут).
+        Медленный путь — в одной транзакции: FOR UPDATE по строке участника
+        сериализует конкурентные вызовы, а повторная проверка внутри
+        транзакции закрывает окно гонки между проверкой и вставкой.
+        Порядок блокировок везде members -> clans, циклов нет.
+        """
         today = datetime.utcnow().strftime("%Y-%m-%d")
+        check_sql = (
+            "SELECT 1 FROM clan_points_log WHERE user_id = $1 AND action = 'active_day'"
+            " AND created_at >= $2 LIMIT 1"
+        )
         async with self.pool.acquire() as conn:
-            exists = await conn.fetchval(
-                "SELECT 1 FROM clan_points_log WHERE user_id = $1 AND action = 'active_day'"
-                " AND created_at >= $2 LIMIT 1",
-                user_id, today,
-            )
+            exists = await conn.fetchval(check_sql, user_id, today)
             if exists:
                 return {"clan_id": None, "granted": 0, "dedup": True}
             async with conn.transaction():
+                mem = await conn.fetchrow(
+                    "SELECT clan_id FROM clan_members WHERE user_id = $1 FOR UPDATE",
+                    user_id,
+                )
+                if not mem:
+                    return {"clan_id": None, "granted": 0}
+                exists = await conn.fetchval(check_sql, user_id, today)
+                if exists:
+                    return {"clan_id": mem["clan_id"], "granted": 0, "dedup": True}
                 return await self._award_clan_points_conn(
                     conn, user_id, "active_day", points, cap, bank_share)
 
