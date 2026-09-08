@@ -486,8 +486,7 @@ CREATE TABLE IF NOT EXISTS user_cosmetics (
     frame_color TEXT NOT NULL DEFAULT '',
     card_bg TEXT NOT NULL DEFAULT '',
     avatar_art TEXT NOT NULL DEFAULT '',
-    updated_at TEXT NOT NULL DEFAULT '',
-    FOREIGN KEY (user_id) REFERENCES users(user_id)
+    updated_at TEXT NOT NULL DEFAULT ''
 );
 
 -- Память и обучение Стража: kind='fact' — факты о чате для промпта
@@ -607,6 +606,12 @@ class Database:
                 await conn.execute(table_sql)
             except asyncpg.DuplicateTableError:
                 pass
+            except asyncpg.PostgresError as e:
+                # Один битый стейтмент не должен убивать остальные таблицы
+                # (так уже терялись ai_memory/user_cosmetics в хвосте списка).
+                first = table_sql.strip().splitlines()
+                name = next((ln for ln in first if "CREATE TABLE" in ln), table_sql[:60])
+                logger.warning("schema statement skipped %.80s: %s", name, e)
 
     async def _column_exists(self, conn: asyncpg.Connection, table: str, column: str) -> bool:
         row = await conn.fetchrow(
@@ -619,6 +624,15 @@ class Database:
         return row is not None
 
     async def _migrate(self, conn: asyncpg.Connection) -> None:
+        # Убираем FK user_cosmetics/super_subs -> users: строка юзера может
+        # отсутствовать (mini-app-only), а 500 на сохранении/подписке хуже
+        # пользы от ссылочной целостности (как у audit_log — там FK нет).
+        for _tbl in ("user_cosmetics", "super_subs"):
+            try:
+                await conn.execute(
+                    f"ALTER TABLE {_tbl} DROP CONSTRAINT IF EXISTS {_tbl}_user_id_fkey")
+            except asyncpg.PostgresError:
+                pass
         # Legacy columns added during previous deploys
         try:
             await conn.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS pro_until TEXT")
@@ -2407,9 +2421,10 @@ class Database:
         cols = ", ".join(clean.keys())
         placeholders = ", ".join(f"${i + 2}" for i in range(len(clean)))
         updates = ", ".join(f"{k} = EXCLUDED.{k}" for k in clean.keys())
+        ts_param = f"${len(clean) + 2}"
         async with self.pool.acquire() as conn:
             await conn.execute(
-                f"INSERT INTO user_cosmetics (user_id, {cols}, updated_at) VALUES ($1, {placeholders}, $2)"
+                f"INSERT INTO user_cosmetics (user_id, {cols}, updated_at) VALUES ($1, {placeholders}, {ts_param})"
                 f" ON CONFLICT (user_id) DO UPDATE SET {updates}, updated_at = EXCLUDED.updated_at",
                 user_id, *clean.values(), datetime.utcnow().isoformat(),
             )
