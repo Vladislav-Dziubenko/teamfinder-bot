@@ -2196,6 +2196,10 @@ class Database:
     async def create_clan(self, user_id: int, name: str, tag: str, emblem: str = "",
                           description: str = "", is_public: bool = True,
                           max_members: int = 15) -> dict:
+        # NB: UniqueViolation ловим только через SAVEPOINT (вложенный
+        # transaction): пойманная ошибка абортит всю транзакцию, и возврат
+        # без исключения всё равно уронил бы COMMIT. Сейвпоинт откатывает
+        # только свой кусок — внешняя транзакция остаётся валидной.
         now = datetime.utcnow().isoformat()
         async with self.pool.acquire() as conn:
             async with conn.transaction():
@@ -2204,22 +2208,30 @@ class Database:
                 if exists:
                     return {"error": "already_in_clan"}
                 try:
-                    row = await conn.fetchrow(
-                        "INSERT INTO clans (name, tag, emblem, description, is_public,"
-                        " max_members, level, lifetime_points, bank_points, season_id,"
-                        " created_by, created_at)"
-                        " VALUES ($1, $2, $3, $4, $5, $6, 1, 0, 0, '', $7, $8) RETURNING *",
-                        name, tag, emblem, description, int(bool(is_public)),
-                        max(5, min(int(max_members or 15), 30)), user_id, now,
-                    )
+                    async with conn.transaction():
+                        row = await conn.fetchrow(
+                            "INSERT INTO clans (name, tag, emblem, description, is_public,"
+                            " max_members, level, lifetime_points, bank_points, season_id,"
+                            " created_by, created_at)"
+                            " VALUES ($1, $2, $3, $4, $5, $6, 1, 0, 0, '', $7, $8) RETURNING *",
+                            name, tag, emblem, description, int(bool(is_public)),
+                            max(5, min(int(max_members or 15), 30)), user_id, now,
+                        )
                 except asyncpg.UniqueViolationError:
                     return {"error": "name_or_tag_taken"}
-                await conn.execute(
-                    "INSERT INTO clan_members (clan_id, user_id, role,"
-                    " contribution_season, contribution_total, joined_at)"
-                    " VALUES ($1, $2, 'leader', 0, 0, $3)",
-                    row["id"], user_id, now,
-                )
+                try:
+                    async with conn.transaction():
+                        await conn.execute(
+                            "INSERT INTO clan_members (clan_id, user_id, role,"
+                            " contribution_season, contribution_total, joined_at)"
+                            " VALUES ($1, $2, 'leader', 0, 0, $3)",
+                            row["id"], user_id, now,
+                        )
+                except asyncpg.UniqueViolationError:
+                    # Гонка: параллельный join/create успел первым. Удаляем
+                    # только что созданный клан-сироту и отдаём понятную ошибку.
+                    await conn.execute("DELETE FROM clans WHERE id = $1", row["id"])
+                    return {"error": "already_in_clan"}
                 d = dict(row)
                 d["member_count"] = 1
                 d["my_role"] = "leader"
@@ -2235,30 +2247,36 @@ class Database:
                 clan = await conn.fetchrow("SELECT * FROM clans WHERE id = $1 FOR UPDATE", clan_id)
                 if not clan:
                     return {"error": "not_found"}
-                if not clan["is_public"]:
-                    if not invite_code:
-                        return {"error": "invite_required"}
-                    inv = await conn.fetchrow(
-                        "SELECT id, uses, max_uses FROM clan_invites"
-                        " WHERE clan_id = $1 AND code = $2 FOR UPDATE",
-                        clan_id, invite_code.strip(),
-                    )
-                    if not inv:
-                        return {"error": "bad_invite"}
-                    if inv["max_uses"] > 0 and inv["uses"] >= inv["max_uses"]:
-                        return {"error": "invite_spent"}
-                    await conn.execute(
-                        "UPDATE clan_invites SET uses = uses + 1 WHERE id = $1", inv["id"])
-                count = await conn.fetchval(
-                    "SELECT COUNT(*) FROM clan_members WHERE clan_id = $1", clan_id)
-                if count >= clan["max_members"]:
-                    return {"error": "clan_full"}
-                await conn.execute(
-                    "INSERT INTO clan_members (clan_id, user_id, role,"
-                    " contribution_season, contribution_total, joined_at)"
-                    " VALUES ($1, $2, 'member', 0, 0, $3)",
-                    clan_id, user_id, now,
-                )
+                try:
+                    async with conn.transaction():
+                        if not clan["is_public"]:
+                            if not invite_code:
+                                return {"error": "invite_required"}
+                            inv = await conn.fetchrow(
+                                "SELECT id, uses, max_uses FROM clan_invites"
+                                " WHERE clan_id = $1 AND code = $2 FOR UPDATE",
+                                clan_id, invite_code.strip(),
+                            )
+                            if not inv:
+                                return {"error": "bad_invite"}
+                            if inv["max_uses"] > 0 and inv["uses"] >= inv["max_uses"]:
+                                return {"error": "invite_spent"}
+                            await conn.execute(
+                                "UPDATE clan_invites SET uses = uses + 1 WHERE id = $1", inv["id"])
+                        count = await conn.fetchval(
+                            "SELECT COUNT(*) FROM clan_members WHERE clan_id = $1", clan_id)
+                        if count >= clan["max_members"]:
+                            return {"error": "clan_full"}
+                        await conn.execute(
+                            "INSERT INTO clan_members (clan_id, user_id, role,"
+                            " contribution_season, contribution_total, joined_at)"
+                            " VALUES ($1, $2, 'member', 0, 0, $3)",
+                            clan_id, user_id, now,
+                        )
+                except asyncpg.UniqueViolationError:
+                    # Гонка двух параллельных join: сейвпоинт откатывает и
+                    # uses+1, и вставку — понятная ошибка вместо 500.
+                    return {"error": "already_in_clan"}
                 return {"ok": True, "clan_id": clan_id}
 
     async def leave_clan(self, clan_id: int, user_id: int) -> dict:
@@ -2276,7 +2294,14 @@ class Database:
                     clan_id, user_id,
                 )
                 if not rest:
+                    # Роспуск: CASCADE сносит members/quests/log/results/invites.
+                    # Снапшоты сезонов (без FK — переживают специально) чистим
+                    # явно, чтобы в истории не висели ссылки на мёртвый клан.
+                    # Семантика: нет клана на ролловере — нет выплат; банк,
+                    # lifetime и невзятые награды сгорают вместе с кланом.
                     await conn.execute("DELETE FROM clans WHERE id = $1", clan_id)
+                    await conn.execute(
+                        "DELETE FROM clan_season_members WHERE clan_id = $1", clan_id)
                     return {"ok": True, "disbanded": True}
                 if mem["role"] == "leader":
                     nxt = next((r for r in rest if r["role"] == "officer"), rest[0])
