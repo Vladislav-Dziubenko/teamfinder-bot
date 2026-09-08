@@ -240,9 +240,9 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
             : "rounded-bl-md border border-border bg-card text-card-foreground",
         )}
       >
-        <p className="text-pretty leading-relaxed">{translated || m.text}</p>
+        <p className="text-pretty leading-relaxed [overflow-wrap:anywhere]">{translated || m.text}</p>
         {translated && translated !== m.text && (
-          <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground">
+          <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground [overflow-wrap:anywhere]">
             {m.text}
           </p>
         )}
@@ -1678,7 +1678,7 @@ const GlobalMsg = memo(function GlobalMsg({
             <VoiceMessagePlayer src={`/api/global/voice/${msg.id}`} duration={msg.voiceDuration ?? 0} mime={msg.voiceMime ?? "audio/webm"} />
           </div>
         ) : (
-          <p className="text-pretty leading-relaxed">{translated || msg.text}</p>
+          <p className="text-pretty leading-relaxed [overflow-wrap:anywhere]">{translated || msg.text}</p>
         )}
         {!sticker && translated && translated !== msg.text && (
           <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground">
