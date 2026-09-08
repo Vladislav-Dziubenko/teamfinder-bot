@@ -5463,23 +5463,42 @@ WHERE user_quests.completed = 0
 
     # ---------- Chat ----------
 
+    @staticmethod
+    def split_chat_id(chat_id: str) -> tuple[str, list[int]]:
+        """Канонический разбор chat_id — ЕДИНСТВЕННОЕ место, где это делается.
+
+        Возвращает ("dm", [a, b]) | ("clan", [clan_id]) | ("legacy", [числа])
+        | ("unknown", []). Префикс clan- матчится первым по построению, так что
+        числовой id клана нигде нельзя спутать с user_id независимо от порядка
+        проверок у вызывающего кода. Правило: новый код парсит chat_id ТОЛЬКО
+        через этот хелпер, руками префиксы больше не разбираем.
+        """
+        if isinstance(chat_id, str) and chat_id.startswith("clan-"):
+            try:
+                return ("clan", [int(chat_id.split("-", 1)[1])])
+            except (ValueError, IndexError):
+                return ("unknown", [])
+        if isinstance(chat_id, str) and chat_id.startswith("dm-"):
+            nums = [int(p) for p in chat_id[3:].split("-") if p.isdigit()]
+            if nums:
+                return ("dm", nums)
+            return ("unknown", [])
+        if isinstance(chat_id, str):
+            nums = [int(p) for p in chat_id.split("-") if p.isdigit()]
+            if nums:
+                return ("legacy", nums)
+        return ("unknown", [])
+
     async def can_access_chat(self, chat_id: str, user_id: int) -> bool:
         async with self.pool.acquire() as conn:
-            # Чат клана: доступ = членство (проверяется первым, чтобы
-            # числовой id клана ниже не спутать с user_id).
-            if chat_id.startswith("clan-"):
-                try:
-                    cid = int(chat_id.split("-", 1)[1])
-                except (ValueError, IndexError):
-                    return False
+            kind, nums = self.split_chat_id(chat_id)
+            if kind == "clan":
                 mem = await conn.fetchval(
                     "SELECT 1 FROM clan_members WHERE clan_id = $1 AND user_id = $2",
-                    cid, user_id,
+                    nums[0], user_id,
                 )
                 return mem == 1
-            parts = chat_id.replace("dm-", "").split("-")
-            numeric_parts = [int(p) for p in parts if p.isdigit()]
-            if user_id in numeric_parts:
+            if user_id in nums:
                 return True
             row = await conn.fetchval(
                 "SELECT 1 FROM chat_messages WHERE chat_id = $1 AND sender_id = $2 LIMIT 1",
@@ -5648,10 +5667,9 @@ WHERE user_quests.completed = 0
             chat_meta = {}
             for r in rows:
                 cid = r["chat_id"]
-                if not cid or not isinstance(cid, str) or not cid.startswith("dm-"):
+                kind, numeric_parts = self.split_chat_id(cid)
+                if kind != "dm":
                     continue
-                parts = cid.replace("dm-", "").split("-")
-                numeric_parts = [int(p) for p in parts if p.isdigit()]
                 if len(numeric_parts) == 2:
                     a, b = numeric_parts
                     other_id = a if b == user_id else b
@@ -5709,10 +5727,10 @@ WHERE user_quests.completed = 0
     def _chat_participants(self, chat_id: str) -> list[int]:
         # У клан-чата участников-юзеров в id нет (там id клана) —
         # иначе статус лички (other/block) посчитался бы по мусору.
-        if chat_id.startswith("clan-"):
+        kind, nums = self.split_chat_id(chat_id)
+        if kind != "dm":
             return []
-        parts = chat_id.replace("dm-", "").split("-")
-        return [int(p) for p in parts if p.isdigit()]
+        return nums
 
     async def block_user(self, user_id: int, other_id: int) -> None:
         now = datetime.utcnow().isoformat()
