@@ -227,14 +227,16 @@ def _parse_judge(raw: str) -> dict | None:
     return {"score": score, "category": category, "reason": reason}
 
 
-async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str) -> dict | None:
+async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str, extra: str = "") -> dict | None:
     """Судья через актуальный Interactions API (ключ в заголовке x-goog-api-key),
-    фолбэк — старый generateContent (?key=) для standard-ключей, пока живут."""
+    фолбэк — старый generateContent (?key=) для standard-ключей, пока живут.
+    extra — few-shot примеры верных разборов из обучения."""
     if _judge_paused():
         return None
+    system = _JUDGE_SYSTEM + (extra or "")
     snippet = (text or "")[:500]
     prompt = (
-        _JUDGE_SYSTEM
+        system
         + "\nСообщение: "
         + snippet
         + '\nВерни ТОЛЬКО JSON {"score": 0.0-1.0, "category": "ok|spam|scam|insult|adult|threat|doxing|links", '
@@ -272,7 +274,7 @@ async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str)
         logger.warning("[ai-mod] gemini interactions error: %s", exc)
     # Шаг 2: legacy generateContent (старые standard-ключи AIza...).
     payload = {
-        "systemInstruction": {"parts": [{"text": _JUDGE_SYSTEM}]},
+        "systemInstruction": {"parts": [{"text": system}]},
         "contents": [{"parts": [{"text": snippet}]}],
         "generationConfig": {
             "temperature": 0,
@@ -356,10 +358,12 @@ async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -
     return None
 
 
-async def score_message(text: str, user_id: int, settings) -> dict:
+async def score_message(text: str, user_id: int, settings, corrections: list | None = None) -> dict:
     """Полный скоринг. Всегда возвращает dict; при сомнениях — низкий скор.
 
     settings: объект с полями ai_provider, gemini_api_key, groq_api_key.
+    corrections: примеры [{text, extra(JSON вердикта)}] из обучения —
+    подмешиваются в промпт судьи как few-shot.
     """
     clean = (text or "").strip()[:500]
     if not clean:
@@ -396,6 +400,17 @@ async def score_message(text: str, user_id: int, settings) -> dict:
     # Слой 1: судья (нужен ключ провайдера).
     provider = (getattr(settings, "ai_provider", "gemini") or "gemini").lower()
     api_key = (getattr(settings, "gemini_api_key", "") or "") if provider == "gemini" else (getattr(settings, "groq_api_key", "") or "")
+    # Few-shot из обучения: свежие примеры верных разборов от админа.
+    extra = ""
+    if corrections:
+        lines = []
+        for c in corrections[:5]:
+            t = ((c.get("text") or "").strip()[:200])
+            e = ((c.get("extra") or "").strip()[:200])
+            if t and e:
+                lines.append(f"Сообщение: {t} → {e}")
+        if lines:
+            extra = "\nПримеры верных разборов (повторяй такой стиль):\n" + "\n".join(lines)
     verdict: dict | None = None
     judge_ok = False
     if api_key:
@@ -404,9 +419,9 @@ async def score_message(text: str, user_id: int, settings) -> dict:
             timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT * 2 + 4)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 if provider == "groq":
-                    verdict = await _judge_groq(session, api_key, clean)
+                    verdict = await _judge_groq(session, api_key, clean, extra)
                 else:
-                    verdict = await _judge_gemini(session, api_key, clean)
+                    verdict = await _judge_gemini(session, api_key, clean, extra)
         except Exception as exc:
             logger.warning("[ai-mod] judge session error: %s", exc)
             verdict = None
@@ -438,8 +453,9 @@ _AI_CHAT_SYSTEM = (
 _AI_CHAT_TRIGGERS = ("страж", "guardian")
 
 
-async def chat_reply(history: list[dict], settings) -> str | None:
-    """Ответ собеседника по контексту. history: [{nick, text}], последний — триггер."""
+async def chat_reply(history: list[dict], settings, memory: str = "") -> str | None:
+    """Ответ собеседника по контексту. history: [{nick, text}], последний — триггер.
+    memory — блок фактов из обучения (ai_memory kind='fact')."""
     provider = (getattr(settings, "ai_provider", "gemini") or "gemini").lower()
     api_key = (getattr(settings, "gemini_api_key", "") or "") if provider == "gemini" else (getattr(settings, "groq_api_key", "") or "")
     if not api_key:
@@ -447,6 +463,7 @@ async def chat_reply(history: list[dict], settings) -> str | None:
     if _judge_paused():
         return None
     convo = "\n".join(f"{m.get('nick', '?')}: {m.get('text', '')[:200]}" for m in history[-12:])
+    system_chat = _AI_CHAT_SYSTEM + (f"\nТо, что ты помнишь о чате и его людях:\n{memory[:1200]}" if (memory or "").strip() else "")
     try:
         timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4)
         async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -458,7 +475,7 @@ async def chat_reply(history: list[dict], settings) -> str | None:
                         "temperature": 0.7,
                         "max_tokens": 150,
                         "messages": [
-                            {"role": "system", "content": _AI_CHAT_SYSTEM},
+                            {"role": "system", "content": system_chat},
                             {"role": "user", "content": convo},
                         ],
                     }
@@ -483,7 +500,7 @@ async def chat_reply(history: list[dict], settings) -> str | None:
                     if text_out:
                         return text_out[:400]
                 return None
-            prompt = _AI_CHAT_SYSTEM + "\nДиалог:\n" + convo
+            prompt = system_chat + "\nДиалог:\n" + convo
             try:
                 async with session.post(
                     "https://generativelanguage.googleapis.com/v1beta/interactions",

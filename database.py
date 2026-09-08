@@ -477,6 +477,19 @@ CREATE TABLE IF NOT EXISTS user_last_message (
     updated_at TEXT NOT NULL DEFAULT '',
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
+
+-- Память и обучение Стража: kind='fact' — факты о чате для промпта
+-- собеседника; kind='correction' — примеры верных разборов (few-shot
+-- для судьи). text — сообщение/факт, extra — JSON вердикта у коррекций.
+CREATE TABLE IF NOT EXISTS ai_memory (
+    id SERIAL PRIMARY KEY,
+    kind TEXT NOT NULL DEFAULT 'fact',
+    key TEXT NOT NULL DEFAULT '',
+    text TEXT NOT NULL,
+    extra TEXT NOT NULL DEFAULT '',
+    created_by BIGINT,
+    created_at TEXT NOT NULL
+);
 """
 
 SCHEMA_STATEMENTS = [
@@ -2233,6 +2246,49 @@ class Database:
                 user_id, kind,
             )
             return row["last_sent_at"] if row else None
+
+    # ---- Память и обучение Стража ----
+    async def ai_learn(self, kind: str, text: str, key: str = "", extra: str = "",
+                       created_by: int | None = None, cap: int = 60) -> int:
+        """Сохранить факт/пример. Возвращает id. Лишнее сверх cap режется (FIFO)."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "INSERT INTO ai_memory (kind, key, text, extra, created_by, created_at)"
+                " VALUES ($1, $2, $3, $4, $5, $6) RETURNING id",
+                kind, key, text, extra, created_by, datetime.utcnow().isoformat(),
+            )
+            new_id = row["id"]
+            await conn.execute(
+                "DELETE FROM ai_memory WHERE kind = $1 AND id NOT IN"
+                " (SELECT id FROM ai_memory WHERE kind = $1 ORDER BY id DESC LIMIT $2)",
+                kind, cap,
+            )
+            return new_id
+
+    async def ai_forget(self, mem_id: int) -> bool:
+        async with self.pool.acquire() as conn:
+            res = await conn.execute("DELETE FROM ai_memory WHERE id = $1", mem_id)
+            return res.split()[-1] != "0"
+
+    async def ai_memories(self, kind: str, limit: int = 50) -> list[dict]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT id, key, text, extra, created_at FROM ai_memory"
+                " WHERE kind = $1 ORDER BY id DESC LIMIT $2",
+                kind, limit,
+            )
+            return [dict(r) for r in rows]
+
+    async def ai_memory_prompt(self) -> str:
+        """Короткий блок памяти для системного промпта собеседника."""
+        rows = await self.ai_memories("fact", 12)
+        lines = [f"- {(r['text'] or '').strip()[:160]}" for r in rows]
+        lines = [ln for ln in lines if len(ln) > 2]
+        return "\n".join(reversed(lines))[:1500]
+
+    async def ai_corrections(self, limit: int = 5) -> list[dict]:
+        """Последние примеры-коррекции для few-shot в промпте судьи."""
+        return await self.ai_memories("correction", limit)
 
     async def create_oauth_state(self, state: str, telegram_user_id: int) -> None:
         async with self.pool.acquire() as conn:

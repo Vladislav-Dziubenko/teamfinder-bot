@@ -3893,8 +3893,12 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
             for m in recent if (m.get("text") or "").strip()
         ]
         history.append({"nick": "user", "text": text.strip()[:300]})
+        try:
+            memory = await db.ai_memory_prompt()
+        except Exception:
+            memory = ""
         from services.ai_moderation import chat_reply
-        reply = await chat_reply(history, settings)
+        reply = await chat_reply(history, settings, memory)
         if not reply:
             # Чаще всего: нет/невалиден ключ (судья недоступен).
             await _skip("judge_fail")
@@ -3913,7 +3917,11 @@ async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text
     try:
         if not settings.ai_mod_enabled:
             return
-        verdict = await score_message(text, user_id, settings)
+        try:
+            corrections = await db.ai_corrections(5)
+        except Exception:
+            corrections = None
+        verdict = await score_message(text, user_id, settings, corrections)
         score = verdict.get("score", 0.0)
         category = verdict.get("category", "ok") or "ok"
         reason = verdict.get("reason", "") or ""

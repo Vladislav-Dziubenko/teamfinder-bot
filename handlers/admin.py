@@ -352,7 +352,11 @@ async def admin_ai_score(message: Message, db: Database, settings: Settings):
 
     from services.ai_moderation import score_message
     try:
-        verdict = await score_message(parts[1].strip()[:500], message.from_user.id, settings)
+        try:
+            corrections = await db.ai_corrections(5)
+        except Exception:
+            corrections = None
+        verdict = await score_message(parts[1].strip()[:500], message.from_user.id, settings, corrections)
     except Exception as exc:
         await message.answer(f"❌ <b>Скоринг упал:</b> <code>{exc}</code>")
         return
@@ -370,4 +374,100 @@ async def admin_ai_score(message: Message, db: Database, settings: Settings):
         f"Категория: <code>{category}</code>\n"
         f"Причина: {reason}\n"
         f"Решение: <b>{action}</b>"
+    )
+
+
+_AI_CATS = {"ok", "spam", "scam", "insult", "adult", "threat", "doxing", "links"}
+
+
+@router.message(Command("ailearn"))
+async def admin_ai_learn(message: Message, db: Database, settings: Settings):
+    """Научить Стража факту: /ailearn Диму зовут Дима228, он играет в CS2."""
+    if message.from_user.id not in settings.admin_ids:
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    if len(parts) < 2 or not parts[1].strip():
+        await message.answer(
+            "❌ <b>Неверный формат</b>\n\nИспользование:\n<code>/ailearn Диму зовут Дима228, играет в CS2</code>"
+        )
+        return
+    fact = parts[1].strip()[:300]
+    mem_id = await db.ai_learn("fact", fact, created_by=message.from_user.id)
+    await db.audit_log(message.from_user.id, "ai_learn", f"id={mem_id} {fact[:120]}")
+    await message.answer(f"🧠 <b>Запомнил</b> (id={mem_id}):\n{fact}")
+
+
+@router.message(Command("aimemory"))
+async def admin_ai_memory(message: Message, db: Database, settings: Settings):
+    """Показать память Стража: факты и примеры-коррекции."""
+    if message.from_user.id not in settings.admin_ids:
+        return
+    facts = await db.ai_memories("fact", 20)
+    corrs = await db.ai_memories("correction", 10)
+    lines = ["🧠 <b>Память Стража</b>"]
+    lines.append(f"\n<b>Факты ({len(facts)}):</b>")
+    for r in facts:
+        lines.append(f"• <code>{r['id']}</code> {(r['text'] or '')[:120]}")
+    if not facts:
+        lines.append("— пусто —")
+    lines.append(f"\n<b>Примеры ({len(corrs)}):</b>")
+    for r in corrs:
+        lines.append(f"• <code>{r['id']}</code> {(r['text'] or '')[:80]} → <code>{(r['extra'] or '')[:80]}</code>")
+    if not corrs:
+        lines.append("— пусто —")
+    lines.append("\nУдалить: <code>/aiforget id</code>")
+    await message.answer("\n".join(lines))
+
+
+@router.message(Command("aiforget"))
+async def admin_ai_forget(message: Message, db: Database, settings: Settings):
+    """Забыть факт/пример: /aiforget 12."""
+    if message.from_user.id not in settings.admin_ids:
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    try:
+        mem_id = int((parts[1] if len(parts) > 1 else "").strip())
+    except (ValueError, TypeError):
+        mem_id = 0
+    if mem_id <= 0:
+        await message.answer("❌ Использование:\n<code>/aiforget id</code> (id видно в /aimemory)")
+        return
+    ok = await db.ai_forget(mem_id)
+    await message.answer("🗑 <b>Забыто</b>." if ok else "❌ Нет записи с таким id.")
+
+
+@router.message(Command("aiwrong"))
+async def admin_ai_wrong(message: Message, db: Database, settings: Settings):
+    """Поправить судью: реплаем на сообщение юзера — /aiwrong 0.9 insult.
+    Текст берётся из цитируемого сообщения, вердикт уходит в few-shot примеры."""
+    if message.from_user.id not in settings.admin_ids:
+        return
+    replied = message.reply_to_message
+    target = ((replied.text or "") if replied else "").strip()[:500]
+    if not target:
+        await message.answer(
+            "❌ Ответь этой командой <b>реплаем</b> на сообщение юзера:\n"
+            "<code>/aiwrong 0.9 insult</code>\n\n"
+            f"Категории: <code>{' '.join(sorted(_AI_CATS))}</code>"
+        )
+        return
+    parts = (message.text or "").split()
+    try:
+        score = max(0.0, min(1.0, float(parts[1]) if len(parts) > 1 else -1.0))
+    except (ValueError, TypeError, IndexError):
+        score = -1.0
+    category = (parts[2] if len(parts) > 2 else "").strip().lower()
+    if score < 0 or category not in _AI_CATS:
+        await message.answer(
+            "❌ Использование (реплаем):\n<code>/aiwrong 0.9 insult</code>\n\n"
+            f"Категории: <code>{' '.join(sorted(_AI_CATS))}</code>"
+        )
+        return
+    import json as _json
+    extra = _json.dumps({"score": score, "category": category, "reason": "пример от админа"}, ensure_ascii=False)
+    mem_id = await db.ai_learn("correction", target, key=category, extra=extra, created_by=message.from_user.id, cap=20)
+    await db.audit_log(message.from_user.id, "ai_correct", f"id={mem_id} cat={category} score={score}")
+    await message.answer(
+        f"🎓 <b>Принято</b> (id={mem_id}): судья будет учиться на этом примере.\n"
+        f"Сообщение: {(target[:120])}\nВердикт: <code>{extra}</code>"
     )
