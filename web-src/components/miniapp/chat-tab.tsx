@@ -7,9 +7,11 @@ import {
   useChatMessages,
   useChats,
   useGlobalChat,
+  useCosmeticsMap,
   preloadGlobalChat,
   parseIsoTs,
   type ChatPreview,
+  type Cosmetics,
   type GlobalMessage,
 } from "@/lib/chat"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
@@ -172,7 +174,7 @@ type Message = {
   voiceMime?: string
 }
 
-const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chatId }: { message: Message; mine: boolean; chatId: string }) {
+const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chatId, frame }: { message: Message; mine: boolean; chatId: string; frame?: string }) {
   const { t, lang } = useI18n()
   const [translated, setTranslated] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -239,6 +241,13 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
             ? "rounded-br-md bg-primary text-primary-foreground"
             : "rounded-bl-md border border-border bg-card text-card-foreground",
         )}
+        style={
+          !frame
+            ? undefined
+            : mine
+              ? { boxShadow: `0 0 0 2px ${frame}` }
+              : { borderColor: frame, borderWidth: 2 }
+        }
       >
         <p className="text-pretty leading-relaxed [overflow-wrap:anywhere]">{translated || m.text}</p>
         {translated && translated !== m.text && (
@@ -346,6 +355,8 @@ function SelectableRow({
 function ChatConversation({ chatId, player, role, onBack }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void }) {
   const { t, lang } = useI18n()
   const { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
+  const peerCosMap = useCosmeticsMap(player?.id != null ? [player.id] : [])
+  const peerFrame = (player?.id != null && peerCosMap[String(player.id)]?.frame_color) || undefined
   // Выбор сообщений долгим нажатием (как в Telegram): null = режим выключен
   const [selected, setSelected] = useState<string[] | null>(null)
   const toggleSelect = React.useCallback((id: string, mine: boolean) => {
@@ -549,7 +560,7 @@ function ChatConversation({ chatId, player, role, onBack }: { chatId: string; pl
               selected={selected?.includes(m.id) ?? false}
               onToggle={toggleSelect}
             >
-              <MessageBubble message={m} mine={mine} chatId={chatId} />
+              <MessageBubble message={m} mine={mine} chatId={chatId} frame={mine ? undefined : peerFrame} />
             </SelectableRow>
           )
         })}
@@ -632,6 +643,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
   const { t, lang } = useI18n()
   const me = useMe()
   const { messages, loaded, meRole, meBanned, sendGlobal, sendGlobalVoice, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
+  const cosMap = useCosmeticsMap(messages.map((m) => m.userId))
   const [draft, setDraft] = useState("")
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
@@ -858,6 +870,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
                 msg={m}
                 mine={mine}
                 lang={lang}
+                cos={cosMap[m.userId]}
                 canModerate={m.userId !== "me" && canModerate}
                 canBanThis={m.userId !== "me" && canBan && roleRank(m.role) < myRank}
                 menuFor={menuFor === m.id}
@@ -1608,6 +1621,7 @@ const GlobalMsg = memo(function GlobalMsg({
   msg,
   mine,
   lang,
+  cos,
   canModerate,
   canBanThis,
   menuFor,
@@ -1618,6 +1632,7 @@ const GlobalMsg = memo(function GlobalMsg({
   msg: GlobalMessage
   mine: boolean
   lang: string
+  cos?: Cosmetics
   canModerate: boolean
   canBanThis: boolean
   menuFor: boolean
@@ -1674,6 +1689,7 @@ const GlobalMsg = memo(function GlobalMsg({
     )
   }
 
+  const frame = cos?.frame_color || ""
   return (
     <div className={cn("group flex", mine ? "justify-end" : "justify-start")}>
       <div
@@ -1683,6 +1699,13 @@ const GlobalMsg = memo(function GlobalMsg({
             ? "rounded-br-md bg-primary text-primary-foreground"
             : "rounded-bl-md border border-border bg-card text-card-foreground",
         )}
+        style={
+          !frame
+            ? undefined
+            : mine
+              ? { boxShadow: `0 0 0 2px ${frame}` }
+              : { borderColor: frame, borderWidth: 2 }
+        }
       >
         {!mine && (
           <div className="mb-1 flex items-center gap-1.5">
@@ -1691,9 +1714,12 @@ const GlobalMsg = memo(function GlobalMsg({
                 🛡️
               </span>
             ) : (
-              <img src={msg.avatar || "/placeholder.svg"} alt={msg.nick} className="size-4 rounded-full object-cover" />
+              <img src={cos?.avatar_art || msg.avatar || "/placeholder.svg"} alt={msg.nick} className="size-4 rounded-full object-cover" />
             )}
-            <span className="text-[11px] font-bold text-accent">
+            <span
+              className="text-[11px] font-bold text-accent"
+              style={cos?.nick_color ? { color: cos.nick_color } : undefined}
+            >
               {msg.role === "ai" ? t("chat.ai_guard_name") : msg.nick}
             </span>
             <RoleBadge role={msg.role} />
@@ -1789,6 +1815,7 @@ const GlobalMsg = memo(function GlobalMsg({
   prev.msg.kind === next.msg.kind &&
   prev.mine === next.mine &&
   prev.lang === next.lang &&
+  prev.cos === next.cos &&
   prev.canModerate === next.canModerate &&
   prev.canBanThis === next.canBanThis &&
   prev.menuFor === next.menuFor,

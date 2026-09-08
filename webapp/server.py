@@ -10,6 +10,7 @@ webapp/static/ (index.html/style.css) своими, сохранив вызов�
 из app.js (или перенеси эту логику в свой JS). Бэкенд трогать не обязательно.
 """
 
+import base64
 import gzip
 import hashlib
 import html
@@ -875,7 +876,78 @@ async def handle_customize_profile(request: web.Request):
     return web.json_response({"profile": await db.get_mini_app_profile(user["id"])})
 
 
+_COSMETIC_HEX = re.compile(r"^#[0-9a-fA-F]{6}$")
+_COSMETIC_ART_PREFIXES = ("data:image/png;base64,", "data:image/jpeg;base64,", "data:image/webp;base64,")
+_COSMETIC_ART_MAX = 150_000
 
+
+def _valid_cosmetic_color(v: object) -> bool:
+    return isinstance(v, str) and (v == "" or bool(_COSMETIC_HEX.fullmatch(v)))
+
+
+def _valid_cosmetic_art(v: object) -> bool:
+    if not isinstance(v, str) or not v:
+        return False
+    if not v.startswith(_COSMETIC_ART_PREFIXES) or len(v) > _COSMETIC_ART_MAX:
+        return False
+    try:
+        base64.b64decode(v.split(",", 1)[1], validate=True)
+        return True
+    except Exception:
+        return False
+
+
+async def handle_cosmetics_get(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    return web.json_response({
+        "cosmetics": await db.get_cosmetics(user["id"]),
+        "is_beta": await _effective_is_beta(request, db, user["id"]),
+    })
+
+
+async def handle_cosmetics_save(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not await _effective_is_beta(request, db, user["id"]):
+        return web.json_response({"error": "beta_required", "message": "Оформление доступно бета-тестерам"}, status=403)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "invalid json"}, status=400)
+    fields = {}
+    for k in ("nick_color", "frame_color", "card_bg"):
+        if k in body:
+            if not _valid_cosmetic_color(body[k]):
+                return web.json_response({"error": f"invalid {k}"}, status=400)
+            fields[k] = body[k]
+    if "avatar_art" in body:
+        art = body["avatar_art"]
+        if art not in ("", None) and not _valid_cosmetic_art(art):
+            return web.json_response({"error": "invalid avatar_art"}, status=400)
+        fields["avatar_art"] = art or ""
+    if not fields:
+        return web.json_response({"cosmetics": await db.get_cosmetics(user["id"])})
+    return web.json_response({"cosmetics": await db.save_cosmetics(user["id"], fields)})
+
+
+async def handle_cosmetics_batch(request: web.Request):
+    db: Database = request.app["db"]
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "invalid json"}, status=400)
+    ids = body.get("user_ids")
+    if not isinstance(ids, list):
+        return web.json_response({"error": "invalid user_ids"}, status=400)
+    clean = []
+    for u in ids[:60]:
+        try:
+            clean.append(int(u))
+        except (ValueError, TypeError):
+            continue
+    data = await db.get_cosmetics_batch(clean)
+    return web.json_response({"cosmetics": {str(k): v for k, v in data.items()}})
 
 
 async def handle_search_count(request: web.Request):
@@ -5637,6 +5709,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/profile", handle_save_profile)
     app.router.add_post("/api/profile/hide", handle_hide_profile)
     app.router.add_post("/api/profile/customize", handle_customize_profile)
+    app.router.add_get("/api/profile/cosmetics", handle_cosmetics_get)
+    app.router.add_post("/api/profile/cosmetics", handle_cosmetics_save)
+    app.router.add_post("/api/cosmetics/batch", handle_cosmetics_batch)
     app.router.add_post("/api/profile/equip-skin", handle_equip_skin)
     app.router.add_post("/api/prefs/tg-notify", handle_tg_notify_pref)
     app.router.add_get("/api/search/count", handle_search_count)

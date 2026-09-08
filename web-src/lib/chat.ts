@@ -449,6 +449,71 @@ export type GlobalMessage = {
   voiceMime?: string
 }
 
+export type Cosmetics = {
+  nick_color: string
+  frame_color: string
+  card_bg: string
+  avatar_art: string
+}
+
+const EMPTY_COS: Cosmetics = { nick_color: "", frame_color: "", card_bg: "", avatar_art: "" }
+
+/** Кэш косметики по user_id (строкой). Арт уже даунскейлен клиентом до ~128px. */
+const _cosCache = new Map<string, Cosmetics>()
+
+export function getCachedCosmetics(id: string | number): Cosmetics | undefined {
+  return _cosCache.get(String(id))
+}
+
+export function setCachedCosmetics(id: string | number, c: Cosmetics): void {
+  _cosCache.set(String(id), c)
+}
+
+export function clearCosmeticsCache(): void {
+  _cosCache.clear()
+}
+
+/** Батч-подгрузка косметики видимых авторов с кэшем. Возвращает стабильный объект. */
+export function useCosmeticsMap(ids: (string | number)[]): Record<string, Cosmetics> {
+  const [version, setVersion] = useState(0)
+  const key = useMemo(() => [...new Set(ids.map(String))].sort().join(","), [ids.join(",")])
+  useEffect(() => {
+    if (!key) return
+    const missing = key
+      .split(",")
+      .filter((id) => id && id !== "me" && id !== "0" && !_cosCache.has(id))
+    if (!missing.length) return
+    let cancelled = false
+    api
+      .post("/api/cosmetics/batch", { user_ids: missing })
+      .then((data: any) => {
+        if (cancelled) return
+        const map = data?.cosmetics ?? {}
+        let changed = false
+        for (const [k, v] of Object.entries(map)) {
+          _cosCache.set(k, { ...EMPTY_COS, ...((v ?? {}) as Partial<Cosmetics>) })
+          changed = true
+        }
+        if (changed) setVersion((x) => x + 1)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [key])
+  return useMemo(() => {
+    const rec: Record<string, Cosmetics> = {}
+    if (key) {
+      for (const id of key.split(",")) {
+        const c = _cosCache.get(id)
+        if (c) rec[id] = c
+      }
+    }
+    return rec
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, version])
+}
+
 const _globalCache: GlobalMessage[] = []
 let _globalLoaded = false
 

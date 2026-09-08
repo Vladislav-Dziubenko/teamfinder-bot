@@ -42,6 +42,7 @@ import { cn } from "@/lib/utils"
 import { CURRENT_VERSION } from "@/lib/changelog"
 import { LanguageSelector } from "./language-selector"
 import { RoleBadge } from "./role-badge"
+import { CosmeticsEditor, useOwnCosmetics } from "./cosmetics-editor"
 
 type AchievementItem = {
   id: string
@@ -100,6 +101,7 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
     toggleTgNotify,
   } = useNexus()
   const { games: userGames } = useMe()
+  const { data: ownCos } = useOwnCosmetics()
 
   const [editing, setEditing] = useState(false)
   const [showLang, setShowLang] = useState(false)
@@ -161,7 +163,10 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
       {/* Profile card */}
       <section
         className="animate-rise relative overflow-hidden rounded-3xl border bg-card p-5"
-        style={{ borderColor: premiumActive ? active.ring : "var(--border)" }}
+        style={{
+          borderColor: premiumActive ? active.ring : "var(--border)",
+          ...(ownCos.card_bg ? { background: ownCos.card_bg } : null),
+        }}
       >
         {premiumActive && (
           <>
@@ -184,8 +189,8 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
               style={{ background: active.bg, boxShadow: premiumActive ? `0 0 24px -6px ${active.ring}` : "none" }}
               aria-label={t("profile.change_avatar")}
             >
-              {avatar ? (
-                <img src={avatar || "/placeholder.svg"} alt="Аватар" className="size-full object-cover" />
+              {ownCos.avatar_art || avatar ? (
+                <img src={ownCos.avatar_art || avatar || "/placeholder.svg"} alt="Аватар" className="size-full object-cover" />
               ) : (
                 nick.charAt(0).toUpperCase()
               )}
@@ -208,7 +213,12 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
                 className="w-full rounded-lg border border-input bg-background px-2 py-1 font-display text-xl font-bold outline-none"
               />
             ) : (
-              <h1 className="font-display text-2xl font-bold leading-tight">{nick}</h1>
+              <h1
+                className="font-display text-2xl font-bold leading-tight"
+                style={ownCos.nick_color ? { color: ownCos.nick_color } : undefined}
+              >
+                {nick}
+              </h1>
             )}
             <p className="text-sm text-muted-foreground">{t("profile.level", { level })}</p>
             <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -337,6 +347,9 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
           </p>
         </div>
       </section>
+
+      {/* Своё оформление (бета-набор): цвета, рамки, кисточка */}
+      <CosmeticsEditor onToast={onToast} nick={nick} avatar={avatar} />
 
       {/* Discord connection */}
       <DiscordSection />

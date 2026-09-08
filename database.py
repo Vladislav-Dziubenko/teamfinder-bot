@@ -478,6 +478,18 @@ CREATE TABLE IF NOT EXISTS user_last_message (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
+-- Косметика профиля (бета-набор): цвета ника/рамки/карточки (hex) +
+-- рисованная аватарка (dataURL, даунскейлится клиентом до 128px).
+CREATE TABLE IF NOT EXISTS user_cosmetics (
+    user_id BIGINT PRIMARY KEY,
+    nick_color TEXT NOT NULL DEFAULT '',
+    frame_color TEXT NOT NULL DEFAULT '',
+    card_bg TEXT NOT NULL DEFAULT '',
+    avatar_art TEXT NOT NULL DEFAULT '',
+    updated_at TEXT NOT NULL DEFAULT '',
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+);
+
 -- Память и обучение Стража: kind='fact' — факты о чате для промпта
 -- собеседника; kind='correction' — примеры верных разборов (few-shot
 -- для судьи). text — сообщение/факт, extra — JSON вердикта у коррекций.
@@ -492,9 +504,18 @@ CREATE TABLE IF NOT EXISTS ai_memory (
 );
 """
 
+def _strip_sql_line_comments(sql: str) -> str:
+    # SCHEMA содержит только full-line комментарии (-- в начале строки),
+    # внутри строковых литералов их нет — режем построчно без парсера.
+    return "\n".join(
+        line for line in sql.splitlines()
+        if not line.strip().startswith("--")
+    )
+
+
 SCHEMA_STATEMENTS = [
     stmt.strip()
-    for stmt in SCHEMA.split(";")
+    for stmt in _strip_sql_line_comments(SCHEMA).split(";")
     if stmt.strip() and stmt.strip().startswith("CREATE TABLE")
 ]
 
@@ -2289,6 +2310,50 @@ class Database:
     async def ai_corrections(self, limit: int = 5) -> list[dict]:
         """Последние примеры-коррекции для few-shot в промпте судьи."""
         return await self.ai_memories("correction", limit)
+
+    # ---- Косметика профиля (бета-набор) ----
+    _COSMETIC_FIELDS = ("nick_color", "frame_color", "card_bg", "avatar_art")
+
+    async def get_cosmetics(self, user_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT nick_color, frame_color, card_bg, avatar_art FROM user_cosmetics WHERE user_id = $1",
+                user_id,
+            )
+            if not row:
+                return {"nick_color": "", "frame_color": "", "card_bg": "", "avatar_art": ""}
+            return dict(row)
+
+    async def save_cosmetics(self, user_id: int, fields: dict) -> dict:
+        clean = {k: (fields.get(k) or "") for k in self._COSMETIC_FIELDS if k in fields}
+        if not clean:
+            return await self.get_cosmetics(user_id)
+        cols = ", ".join(clean.keys())
+        placeholders = ", ".join(f"${i + 2}" for i in range(len(clean)))
+        updates = ", ".join(f"{k} = EXCLUDED.{k}" for k in clean.keys())
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                f"INSERT INTO user_cosmetics (user_id, {cols}, updated_at) VALUES ($1, {placeholders}, $2)"
+                f" ON CONFLICT (user_id) DO UPDATE SET {updates}, updated_at = EXCLUDED.updated_at",
+                user_id, *clean.values(), datetime.utcnow().isoformat(),
+            )
+        return await self.get_cosmetics(user_id)
+
+    async def get_cosmetics_batch(self, user_ids: list[int], with_art: bool = True) -> dict[int, dict]:
+        if not user_ids:
+            return {}
+        cols = "user_id, nick_color, frame_color, card_bg" + (", avatar_art" if with_art else "")
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                f"SELECT {cols} FROM user_cosmetics WHERE user_id = ANY($1::BIGINT[])",
+                list(set(int(u) for u in user_ids)),
+            )
+            out = {}
+            for r in rows:
+                d = dict(r)
+                d.setdefault("avatar_art", "")
+                out[int(d.pop("user_id"))] = d
+            return out
 
     async def create_oauth_state(self, state: str, telegram_user_id: int) -> None:
         async with self.pool.acquire() as conn:
