@@ -65,6 +65,32 @@ def _find_verdict(data: Any) -> dict | None:
             return verdict
     return None
 
+
+def _pick_chat_text(data: Any) -> str:
+    """Выбирает человеческий текст ответа из JSON Interactions API.
+
+    В ответе рядом с текстом лежат служебные поля (id, токены, base64) —
+    брать «самую длинную строку» нельзя: так в чат утек base64-мусор.
+    Фильтруем base64-подобное (длинное без пробелов) и односимвольное,
+    из оставшегося берём самое длинное; фолбэк — самая длинная строка.
+    """
+    if data is None:
+        return ""
+    texts = [s.strip() for s in _iter_texts(data)]
+    texts = [s for s in texts if len(s) >= 2]
+    if not texts:
+        return ""
+    human = [
+        s for s in texts
+        if " " in s or "\n" in s
+    ]
+    pool = human or texts
+    pool = [
+        s for s in pool
+        if not (len(s) >= 40 and re.fullmatch(r"[A-Za-z0-9+/=_-]+", s))
+    ] or pool
+    return max(pool, key=len)
+
 # --- Эвристики слоя 0 ---
 
 _URL_RE = re.compile(r"(https?://|t\.me/|telegram\.me/|@[\w]{4,})", re.IGNORECASE)
@@ -384,11 +410,7 @@ async def chat_reply(history: list[dict], settings) -> str | None:
                 ) as resp:
                     if resp.status == 200:
                         data = await resp.json()
-                        best = ""
-                        for raw in _iter_texts(data):
-                            s = raw.strip()
-                            if len(s) > len(best):
-                                best = s
+                        best = _pick_chat_text(data)
                         if best:
                             return best[:400]
                         logger.warning("[ai-mod] gemini chat: empty text extracted")
@@ -420,12 +442,7 @@ async def chat_reply(history: list[dict], settings) -> str | None:
                     logger.warning("[ai-mod] gemini chat legacy status=%s body=%s", resp.status, body)
                     return None
                 data = await resp.json()
-            best = ""
-            for raw in _iter_texts(data):
-                s = raw.strip()
-                if len(s) > len(best):
-                    best = s
-            return best[:400] or None
+            return _pick_chat_text(data)[:400] or None
     except Exception as exc:
         logger.warning("[ai-mod] chat reply failed: %s", exc)
         return None
