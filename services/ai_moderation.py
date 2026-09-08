@@ -7,6 +7,7 @@ Fail-open: любая ошибка, таймаут или пустой отве�
 
 import hashlib
 import logging
+import os
 import re
 import time
 from typing import Any
@@ -30,6 +31,39 @@ _FLOOD_WINDOW = 60.0
 _FLOOD_SAME = 3  # столько одинаковых подряд = флуд
 
 _JUDGE_TIMEOUT = 8.0
+
+# Актуальная модель судьи (сент. 2026: линейка 2.x ретайрится Google,
+# дефолт — 2.5-flash). Перекрывается без правок кода: Render env
+# GEMINI_MODEL=gemini-3.7-flash (или другая живая модель из AI Studio).
+_GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+
+
+def _iter_texts(data: Any):
+    """Рекурсивно вынимает все строки из JSON-ответа (схема Interactions API
+    меняется — ищем вердикт по содержимому, а не по фиксированному пути)."""
+    stack = [data]
+    seen = 0
+    while stack and seen < 200:
+        seen += 1
+        node = stack.pop()
+        if isinstance(node, str):
+            if node.strip():
+                yield node
+        elif isinstance(node, dict):
+            stack.extend(node.values())
+        elif isinstance(node, (list, tuple)):
+            stack.extend(node)
+
+
+def _find_verdict(data: Any) -> dict | None:
+    """Первый кусок ответа, который парсится как вердикт судьи."""
+    if data is None:
+        return None
+    for raw in _iter_texts(data):
+        verdict = _parse_judge(raw)
+        if verdict is not None:
+            return verdict
+    return None
 
 # --- Эвристики слоя 0 ---
 
@@ -126,13 +160,41 @@ def _parse_judge(raw: str) -> dict | None:
 
 
 async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str) -> dict | None:
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        "gemini-2.0-flash:generateContent"
+    """Судья через актуальный Interactions API (ключ в заголовке x-goog-api-key),
+    фолбэк — старый generateContent (?key=) для standard-ключей, пока живут."""
+    snippet = (text or "")[:500]
+    prompt = (
+        _JUDGE_SYSTEM
+        + "\nСообщение: "
+        + snippet
+        + '\nВерни ТОЛЬКО JSON {"score": 0.0-1.0, "category": "ok|spam|scam|insult|adult|threat|doxing|links", '
+        + '"reason": "коротко по-русски"}.'
     )
+    # Шаг 1: новый Interactions API (принимает и новые auth-ключи).
+    try:
+        async with session.post(
+            "https://generativelanguage.googleapis.com/v1beta/interactions",
+            headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+            json={"model": _GEMINI_MODEL, "input": prompt},
+            timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT),
+        ) as resp:
+            if resp.status == 200:
+                try:
+                    data = await resp.json()
+                except Exception:
+                    data = None
+                verdict = _find_verdict(data)
+                if verdict is not None:
+                    return verdict
+                logger.warning("[ai-mod] gemini interactions: verdict not parsed")
+            else:
+                logger.warning("[ai-mod] gemini interactions status=%s", resp.status)
+    except Exception as exc:
+        logger.warning("[ai-mod] gemini interactions error: %s", exc)
+    # Шаг 2: legacy generateContent (старые standard-ключи AIza...).
     payload = {
         "systemInstruction": {"parts": [{"text": _JUDGE_SYSTEM}]},
-        "contents": [{"parts": [{"text": text[:500]}]}],
+        "contents": [{"parts": [{"text": snippet}]}],
         "generationConfig": {
             "temperature": 0,
             "maxOutputTokens": 120,
@@ -141,7 +203,8 @@ async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str)
     }
     try:
         async with session.post(
-            url,
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{_GEMINI_MODEL}:generateContent",
             params={"key": api_key},
             json=payload,
             timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT),
@@ -153,12 +216,10 @@ async def _judge_gemini(session: aiohttp.ClientSession, api_key: str, text: str)
     except Exception as exc:
         logger.warning("[ai-mod] gemini error: %s", exc)
         return None
-    try:
-        parts = data["candidates"][0]["content"]["parts"]
-        raw = "".join(p.get("text", "") for p in parts)
-    except (KeyError, IndexError, TypeError):
-        return None
-    return _parse_judge(raw)
+    verdict = _find_verdict(data)
+    if verdict is None:
+        logger.warning("[ai-mod] gemini legacy: verdict not parsed")
+    return verdict
 
 
 async def _judge_groq(session: aiohttp.ClientSession, api_key: str, text: str) -> dict | None:
@@ -234,10 +295,11 @@ async def score_message(text: str, user_id: int, settings) -> dict:
     provider = (getattr(settings, "ai_provider", "gemini") or "gemini").lower()
     api_key = (getattr(settings, "gemini_api_key", "") or "") if provider == "gemini" else (getattr(settings, "groq_api_key", "") or "")
     verdict: dict | None = None
+    judge_ok = False
     if api_key:
         _user_last[user_id] = now
         try:
-            timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 2)
+            timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT * 2 + 4)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 if provider == "groq":
                     verdict = await _judge_groq(session, api_key, clean)
@@ -246,12 +308,13 @@ async def score_message(text: str, user_id: int, settings) -> dict:
         except Exception as exc:
             logger.warning("[ai-mod] judge session error: %s", exc)
             verdict = None
+        judge_ok = verdict is not None
 
     if verdict is None:
         # Нет ключа/судья упал — берём эвристику помягче либо «чисто».
         verdict = heur or {"score": 0.0, "category": "ok", "reason": ""}
     _verdict_cache[digest] = (now, verdict)
-    return {**verdict, "source": "judge" if api_key else "heuristic-fallback"}
+    return {**verdict, "source": "judge" if judge_ok else "heuristic-fallback"}
 
 
 def cache_verdict(text: str, verdict: dict) -> None:
@@ -303,13 +366,35 @@ async def chat_reply(history: list[dict], settings) -> str | None:
                         return None
                     data = await resp.json()
                 return (data["choices"][0]["message"]["content"] or "").strip()[:400] or None
+            prompt = _AI_CHAT_SYSTEM + "\nДиалог:\n" + convo
+            try:
+                async with session.post(
+                    "https://generativelanguage.googleapis.com/v1beta/interactions",
+                    headers={"x-goog-api-key": api_key, "Content-Type": "application/json"},
+                    json={"model": _GEMINI_MODEL, "input": prompt},
+                    timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4),
+                ) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        best = ""
+                        for raw in _iter_texts(data):
+                            s = raw.strip()
+                            if len(s) > len(best):
+                                best = s
+                        if best:
+                            return best[:400]
+                    else:
+                        logger.warning("[ai-mod] gemini chat status=%s", resp.status)
+            except Exception as exc:
+                logger.warning("[ai-mod] gemini chat error: %s", exc)
             payload = {
                 "systemInstruction": {"parts": [{"text": _AI_CHAT_SYSTEM}]},
                 "contents": [{"parts": [{"text": convo}]}],
                 "generationConfig": {"temperature": 0.7, "maxOutputTokens": 150},
             }
             async with session.post(
-                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                "https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{_GEMINI_MODEL}:generateContent",
                 params={"key": api_key},
                 json=payload,
                 timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4),
@@ -317,9 +402,12 @@ async def chat_reply(history: list[dict], settings) -> str | None:
                 if resp.status != 200:
                     return None
                 data = await resp.json()
-            parts = data["candidates"][0]["content"]["parts"]
-            text = "".join(p.get("text", "") for p in parts).strip()
-            return text[:400] or None
+            best = ""
+            for raw in _iter_texts(data):
+                s = raw.strip()
+                if len(s) > len(best):
+                    best = s
+            return best[:400] or None
     except Exception as exc:
         logger.warning("[ai-mod] chat reply failed: %s", exc)
         return None

@@ -298,11 +298,13 @@ async def admin_ai_status(message: Message, db: Database, settings: Settings):
     if not key:
         key_fmt = "✗ нет ключа"
     elif provider == "gemini" and _re.fullmatch(r"AIza[0-9A-Za-z_-]{35}", key):
-        key_fmt = "✓ похож на Gemini"
+        key_fmt = "✓ похож на Gemini (legacy)"
+    elif provider == "gemini" and len(key) >= 20:
+        key_fmt = "✓ задан (новый формат auth-ключа — достоверно проверит только живой /aiscore)"
     elif provider == "groq" and key.startswith("gsk_"):
         key_fmt = "✓ похож на Groq"
     else:
-        key_fmt = "✗ НЕ похож на ключ провайдера (Gemini ждёт AIza..., Groq ждёт gsk_...)"
+        key_fmt = "✗ НЕ похож на ключ провайдера (Groq ждёт gsk_..., длина ключа < 20)"
     try:
         today = await db.count_today_ai_actions()
     except Exception:
