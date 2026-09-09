@@ -154,7 +154,7 @@ export function DonateTab() {
                 SUPER<span className="bg-gradient-to-r from-[#ff9d00] to-[#ffd700] bg-clip-text text-transparent">+</span>
               </p>
               <p className="text-xs text-muted-foreground">
-                {ru ? "999 ⭐/мес · автопродление · отмена в любой момент" : "999 ⭐/mo · auto-renew · cancel anytime"}
+                {ru ? "999 ⭐/мес (~$15) · автопродление · отмена в любой момент" : "999 ⭐/mo (~$15) · auto-renew · cancel anytime"}
               </p>
             </div>
           </div>
@@ -184,7 +184,7 @@ export function DonateTab() {
             >
               {buyingSuper
                 ? (ru ? "Открываю оплату…" : "Opening payment…")
-                : (ru ? "Оформить Super+ · $15/мес" : "Get Super+ · $15/mo")}
+                : (ru ? "Оформить за 999 ⭐/мес" : "Get for 999 ⭐/mo")}
             </button>
           )}
         </div>
