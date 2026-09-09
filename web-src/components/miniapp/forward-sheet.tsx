@@ -3,8 +3,9 @@
 import { useEffect, useState } from "react"
 import { api } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
-import { X, Loader2, MessagesSquare, Send } from "lucide-react"
+import { Loader2, MessagesSquare, Send } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { BottomSheet } from "./bottom-sheet"
 
 export type ForwardSource = {
   /** "global" или chat_id лички-источника. */
@@ -53,14 +54,15 @@ export function ForwardSheet({
       .finally(() => setLoading(false))
   }, [source, ru])
 
-  if (!source) return null
-  const preview =
-    source.items.length === 1
-      ? source.items[0].text
-      : `${source.items[0]?.text ?? ""} (+${source.items.length - 1})`
+  const shown = source
+  const preview = !shown
+    ? ""
+    : shown.items.length === 1
+      ? shown.items[0].text
+      : `${shown.items[0]?.text ?? ""} (+${shown.items.length - 1})`
 
   async function pick(to: string): Promise<void> {
-    const src = source
+    const src = shown
     if (sending || !src) return
     setSending(to)
     setErr(null)
@@ -88,21 +90,18 @@ export function ForwardSheet({
   }
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-end justify-center">
-      <button type="button" aria-label={ru ? "Закрыть" : "Close"} onClick={onClose} className="absolute inset-0 bg-background/70 backdrop-blur-sm" />
-      <div className="relative mx-auto max-h-[75dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border-t border-border bg-card pb-8">
-        <div className="sticky top-0 z-10 border-b border-border bg-card">
-          <div className="flex items-center justify-between px-5 pt-5 pb-3">
-            <h2 className="font-display text-xl font-bold">{ru ? "Переслать" : "Forward"}</h2>
-            <button type="button" onClick={onClose} className="grid size-8 place-items-center rounded-lg text-muted-foreground active:bg-secondary" aria-label={ru ? "Закрыть" : "Close"}>
-              <X className="size-4" />
-            </button>
-          </div>
-          <p className="px-5 pb-3 text-xs text-muted-foreground line-clamp-2">
-            {(preview || "").slice(0, 120)}
-          </p>
-        </div>
-        <div className="px-2 pt-2">
+    <BottomSheet
+      open={source !== null}
+      onClose={onClose}
+      title={ru ? "Переслать" : "Forward"}
+      autoFitKey={targets.length + (loading ? 1 : 0)}
+      headerExtra={
+        <p className="px-5 pb-2 text-xs text-muted-foreground line-clamp-2">
+          {(preview || "").slice(0, 120)}
+        </p>
+      }
+    >
+      <div className="px-2">
           <button
             key="__global__"
             type="button"
@@ -152,7 +151,6 @@ export function ForwardSheet({
           )}
           {err && <p className="px-5 pt-1 text-center text-xs font-semibold text-destructive">{err}</p>}
         </div>
-      </div>
-    </div>
+    </BottomSheet>
   )
 }
