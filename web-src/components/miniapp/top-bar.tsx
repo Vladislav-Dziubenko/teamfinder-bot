@@ -67,20 +67,20 @@ export function TopBar({
           <button
             type="button"
             onClick={onCoins}
-            className="flex shrink-0 items-center gap-1 rounded-xl border border-primary/30 bg-primary/10 px-2 py-1.5 text-xs font-semibold text-primary transition-transform active:scale-95"
+            className="flex min-w-[4.5rem] shrink-0 items-center justify-center gap-1 rounded-xl border border-primary/30 bg-primary/10 px-2 py-1.5 text-xs font-semibold tabular-nums text-primary transition-transform active:scale-95"
             aria-label={t("topbar.coins")}
           >
-            <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full object-cover" />
+            <img src="/nexus-coin.webp" alt="" className="size-4 shrink-0 rounded-full object-cover" />
             {formatCompact(coins)}
           </button>
           {/* Telegram Stars */}
           <button
             type="button"
             onClick={onStars}
-            className="flex shrink-0 items-center gap-1 rounded-xl border border-stars/30 bg-stars/10 px-2 py-1.5 text-xs font-semibold text-stars transition-transform active:scale-95"
+            className="flex min-w-[4.5rem] shrink-0 items-center justify-center gap-1 rounded-xl border border-stars/30 bg-stars/10 px-2 py-1.5 text-xs font-semibold tabular-nums text-stars transition-transform active:scale-95"
             aria-label={t("topbar.stars")}
           >
-            <Star className="size-3.5 fill-stars" />
+            <Star className="size-3.5 shrink-0 fill-stars" />
             {formatCompact(stars)}
           </button>
         </div>

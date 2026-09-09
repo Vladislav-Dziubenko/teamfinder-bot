@@ -21,6 +21,7 @@ const INSTANT_STARS_PER_TIER = 50
 export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
   const { t, tl } = useI18n()
   const {
+    loaded,
     bpPremium,
     bpClaimedCount,
     bpCanClaim,
@@ -107,9 +108,15 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
               <span className="text-xs font-medium uppercase tracking-widest text-stars">{t("battlepass.season")}</span>
               <h1 className="font-display text-2xl font-bold">{t("battlepass.title")}</h1>
             </div>
-            <span className="grid size-12 place-items-center rounded-2xl bg-stars/15 font-display text-xl font-bold text-stars">
-              {claimed}
-            </span>
+            {!loaded ? (
+              <span className="grid size-12 animate-pulse place-items-center rounded-2xl bg-stars/15" aria-hidden="true">
+                <span className="size-6 rounded-lg bg-stars/25" />
+              </span>
+            ) : (
+              <span className="grid size-12 place-items-center rounded-2xl bg-stars/15 font-display text-xl font-bold tabular-nums text-stars">
+                {claimed}
+              </span>
+            )}
           </div>
 
           {/* Season progress */}

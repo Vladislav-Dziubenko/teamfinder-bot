@@ -139,9 +139,16 @@ export function HomeTab({
         <img src="/hero-arena.webp" alt="" className="h-52 w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/10" />
         <div className="absolute inset-x-0 bottom-0 p-5">
-          <span className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium text-accent">
-            <Radio className="size-3" /> {t("home.hero_players", { count: searchCount ?? "—" })}
-          </span>
+          {loading && searchCount == null ? (
+            <span className="mb-2 inline-flex h-[26px] w-36 animate-pulse items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1" aria-hidden="true">
+              <Radio className="size-3 text-accent/40" />
+              <span className="h-2.5 w-24 rounded-full bg-accent/20" />
+            </span>
+          ) : (
+            <span className="mb-2 inline-flex min-h-[26px] min-w-36 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium tabular-nums text-accent">
+              <Radio className="size-3 shrink-0" /> {t("home.hero_players", { count: searchCount ?? "—" })}
+            </span>
+          )}
           <h1 className="font-display text-3xl font-bold leading-none text-balance text-glow-primary">
             {t("home.hero_title")}
           </h1>
