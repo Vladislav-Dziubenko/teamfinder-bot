@@ -5,6 +5,7 @@ Fail-open: любая ошибка, таймаут или пустой отве�
 (сообщение проходит, кейс может уйти в очередь утром).
 """
 
+import asyncio
 import hashlib
 import logging
 import os
@@ -516,6 +517,126 @@ _AI_CHAT_SYSTEM = (
 
 _AI_CHAT_TRIGGERS = ("страж", "guardian")
 
+# --- Старший фолбэк (дополнение вдогонку, не вместо быстрого ответа) ---
+_GROQ_BIG_MODEL = os.getenv("GROQ_MODEL_BIG", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b"
+_FOLLOWUP_MIN_LEN = 40
+_FOLLOWUP_CANNED = frozenset({
+    "привет", "не понял", "не знаю", "ага", "да", "нет", "конечно",
+    "хорошо", "понял", "ок", "окей", "ладно", "ясно", "ну привет",
+})
+_FOLLOWUP_DELAY = 4.0
+_FOLLOWUP_COOLDOWN = 600.0
+_FOLLOWUP_LAST_SLOT = 0.0
+
+
+def reply_is_weak(text: str | None) -> bool:
+    """Слабый ответ 20B: короткий или дежурная отписка — кандидат на дополнение."""
+    t = re.sub(r"[^\wа-яёa-z ]", "", (text or "").lower()).strip()
+    if len(t) < _FOLLOWUP_MIN_LEN:
+        return True
+    return t in _FOLLOWUP_CANNED
+
+
+def followup_claim() -> bool:
+    """Глобальный слот дополнений (1 на 10 минут — квота общая).
+    Возвращает True если слот занят вызывающим."""
+    global _FOLLOWUP_LAST_SLOT
+    now = time.time()
+    if now - _FOLLOWUP_LAST_SLOT < _FOLLOWUP_COOLDOWN:
+        return False
+    _FOLLOWUP_LAST_SLOT = now
+    return True
+
+
+def _build_chat_prompt(history: list[dict], settings, memory: str = "", qna: list | None = None) -> tuple[str, str]:
+    """Чистая сборка (system, convo) из ЗАМОРОЖЕННОГО снапшота истории.
+
+    followup получает те же history/memory/qna, что были у быстрого ответа, —
+    контекст не перезапрашивается, иначе дополнение ответит на уже
+    устаревший поток чата и будет выглядеть рандомной вставкой.
+    """
+    convo = "\n".join(f"{m.get('nick', '?')}: {m.get('text', '')[:200]}" for m in history[-12:])
+    trigger = (history[-1].get("text", "") if history else "")
+    persona = (getattr(settings, "ai_chat_persona", "") or "").strip()
+    system_chat = _AI_CHAT_SYSTEM
+    if persona:
+        system_chat += f"\nДополнительно о характере: {persona[:500]}"
+    if (memory or "").strip():
+        system_chat += f"\nТо, что ты помнишь о чате и его людях:\n{memory[:1200]}"
+    system_chat += _qna_block(pick_qna(trigger, qna))
+    return system_chat, convo
+
+
+async def _groq_chat_call(session: aiohttp.ClientSession, api_key: str, system: str, convo: str,
+                          models: list[str], max_tokens: int = 150, temperature: float = 0.5) -> str | None:
+    """Один проход по цепочке моделей. Возвращает текст или None."""
+    for mi, model in enumerate(models):
+        payload: dict[str, Any] = {
+            "model": model,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": convo},
+            ],
+        }
+        try:
+            async with session.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4),
+            ) as resp:
+                if resp.status == 404 and mi + 1 < len(models):
+                    logger.warning("[ai-mod] groq chat model %s retired, trying next", model)
+                    continue
+                if resp.status != 200:
+                    if resp.status == 429:
+                        _judge_note_429("groq-chat")
+                    else:
+                        try:
+                            body = (await resp.text())[:300]
+                        except Exception:
+                            body = "?"
+                        logger.warning("[ai-mod] groq chat status=%s body=%s", resp.status, body)
+                    return None
+                data = await resp.json()
+        except Exception as exc:
+            logger.warning("[ai-mod] groq chat error: %s", exc)
+            return None
+        try:
+            text_out = (data["choices"][0]["message"]["content"] or "").strip()
+        except (KeyError, IndexError, TypeError):
+            return None
+        if _chat_text_ok(text_out):
+            return text_out[:400]
+        logger.warning("[ai-mod] groq chat degenerate, trying next")
+    return None
+
+
+async def followup_reply(history_snapshot: list[dict], settings, memory_snapshot: str = "",
+                         qna_snapshot: list | None = None) -> str | None:
+    """Дополнение от старшей модели. Всё — снапшоты на момент триггера."""
+    provider = (getattr(settings, "ai_provider", "gemini") or "gemini").lower()
+    if provider != "groq":
+        return None
+    api_key = (getattr(settings, "groq_api_key", "") or "")
+    if not api_key or _judge_paused():
+        return None
+    await asyncio.sleep(_FOLLOWUP_DELAY)
+    if _judge_paused():
+        return None
+    system_chat, convo = _build_chat_prompt(history_snapshot, settings, memory_snapshot, qna_snapshot)
+    try:
+        timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 20)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            text = await _groq_chat_call(session, api_key, system_chat, convo,
+                                         [_GROQ_BIG_MODEL], max_tokens=300, temperature=0.6)
+            return text[:600] if text else None
+    except Exception as exc:
+        logger.warning("[ai-mod] followup failed: %s", exc)
+        return None
+
 
 async def chat_reply(history: list[dict], settings, memory: str = "", qna: list | None = None) -> str | None:
     """Ответ собеседника по контексту. history: [{nick, text}], последний — триггер.
@@ -527,52 +648,12 @@ async def chat_reply(history: list[dict], settings, memory: str = "", qna: list 
         return None
     if _judge_paused():
         return None
-    convo = "\n".join(f"{m.get('nick', '?')}: {m.get('text', '')[:200]}" for m in history[-12:])
-    trigger = (history[-1].get("text", "") if history else "")
-    persona = (getattr(settings, "ai_chat_persona", "") or "").strip()
-    system_chat = _AI_CHAT_SYSTEM
-    if persona:
-        system_chat += f"\nДополнительно о характере: {persona[:500]}"
-    if (memory or "").strip():
-        system_chat += f"\nТо, что ты помнишь о чате и его людях:\n{memory[:1200]}"
-    system_chat += _qna_block(pick_qna(trigger, qna))
+    system_chat, convo = _build_chat_prompt(history, settings, memory, qna)
     try:
         timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             if provider == "groq":
-                gmodels = _groq_models()
-                for mi, model in enumerate(gmodels):
-                    payload: dict[str, Any] = {
-                        "model": model,
-                        "temperature": 0.5,
-                        "max_tokens": 150,
-                        "messages": [
-                            {"role": "system", "content": system_chat},
-                            {"role": "user", "content": convo},
-                        ],
-                    }
-                    async with session.post(
-                        "https://api.groq.com/openai/v1/chat/completions",
-                        headers={"Authorization": f"Bearer {api_key}"},
-                        json=payload,
-                        timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4),
-                    ) as resp:
-                        if resp.status == 404 and mi + 1 < len(gmodels):
-                            logger.warning("[ai-mod] groq chat model %s retired, trying next", model)
-                            continue
-                        if resp.status != 200:
-                            if resp.status == 429:
-                                _judge_note_429("groq-chat")
-                            return None
-                        data = await resp.json()
-                    try:
-                        text_out = (data["choices"][0]["message"]["content"] or "").strip()
-                    except (KeyError, IndexError, TypeError):
-                        return None
-                    if _chat_text_ok(text_out):
-                        return text_out[:400]
-                    logger.warning("[ai-mod] groq chat degenerate, trying next")
-                return None
+                return await _groq_chat_call(session, api_key, system_chat, convo, _groq_models())
             prompt = system_chat + "\nДиалог:\n" + convo
             try:
                 async with session.post(

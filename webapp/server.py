@@ -4060,8 +4060,45 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
         await cache_delete_pattern("global_chat_msgs")
         await db.audit_log(user_id, "ai_chat", f"reply_to={user_id} len={len(reply)}")
         logging.info("[ai-mod] chat reply sent to user=%s", user_id)
+        # Старший фолбэк: быстрый ответ уже ушёл и никого не держал.
+        # Дополнение летит fire-and-forget; контекст ЗАМОРОЖЕН на момент
+        # триггера (копии ниже) — свежие сообщения за ~4с сна не подмешаются,
+        # иначе дополнение отвечало бы на устаревший поток и выглядело
+        # рандомной вставкой.
+        try:
+            from services.ai_moderation import followup_reply, followup_claim, reply_is_weak
+            if reply_is_weak(reply):
+                if followup_claim():
+                    snap_history = [dict(m) for m in history]
+                    snap_qna = [dict(p) for p in (qna_pairs or [])]
+                    asyncio.create_task(_send_followup(
+                        db, settings, snap_history, memory, snap_qna, user_id))
+                else:
+                    # Осознанный компромисс (кап общий — квота общая):
+                    # быстрый ответ уже ушёл, дополнения не будет.
+                    await db.audit_log(user_id, "ai_chat_skip", "why=followup_cap")
+                    logging.info("[ai-mod] followup suppressed by cap user=%s", user_id)
+        except Exception as exc:
+            logging.warning("[ai-mod] followup schedule failed: %s", exc)
     except Exception as exc:
         logging.warning("[ai-mod] chat reply failed: %s", exc)
+
+
+async def _send_followup(db: Database, settings: Settings, history: list[dict],
+                         memory: str, qna: list | None, user_id: int) -> None:
+    """Дополнение от старшей модели. Никогда не кидает исключений наружу."""
+    try:
+        from services.ai_moderation import followup_reply
+        from services.ai_moderation import _chat_text_ok as _ok
+        text = await followup_reply(history, settings, memory, qna)
+        if not text or not _ok(text):
+            return
+        await db.send_global_message(AI_PERSONA_ID, text, kind="user")
+        await cache_delete_pattern("global_chat_msgs")
+        await db.audit_log(user_id, "ai_chat_followup", f"len={len(text)}")
+        logging.info("[ai-mod] followup sent user=%s len=%s", user_id, len(text))
+    except Exception as exc:
+        logging.warning("[ai-mod] followup failed: %s", exc)
 
 
 async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text: str, msg_id: int | None) -> None:
