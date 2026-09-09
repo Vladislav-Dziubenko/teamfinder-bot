@@ -124,6 +124,50 @@ def _chat_text_ok(s: str) -> bool:
     return True
 
 
+_QNA_STOP = frozenset(
+    "это как что или для при про над под она оно они меня тебя себя вас нам это вот уже даже если есть будет было такой такая такое меня".split()
+    + "the and for with you your this that have from they them then than what when".split()
+)
+
+
+def _qna_tokens(s: str) -> set[str]:
+    return {w for w in re.findall(r"[a-zа-яё0-9]{3,}", (s or "").lower()) if w not in _QNA_STOP}
+
+
+def pick_qna(question: str, pairs: list | None, limit: int = 5) -> list[dict]:
+    """Простой retrieval: топ-N пар по пересечению токенов с вопросом.
+
+    Всю базу в промпт не тащим никогда — только отобранное.
+    Пара: {text: вопрос, extra: ответ}."""
+    if not pairs:
+        return []
+    qt = _qna_tokens(question)
+    if not qt:
+        return []
+    scored = []
+    for p in pairs:
+        pt = _qna_tokens(p.get("text", ""))
+        hit = len(qt & pt)
+        if hit:
+            scored.append((hit, p))
+    scored.sort(key=lambda x: -x[0])
+    return [p for _, p in scored[:max(1, limit)]]
+
+
+def _qna_block(pairs: list[dict]) -> str:
+    if not pairs:
+        return ""
+    lines = []
+    for p in pairs[:5]:
+        q = (p.get("text") or "").strip()[:200]
+        a = (p.get("extra") or "").strip()[:300]
+        if q and a:
+            lines.append(f"Вопрос: {q}\nОтвет: {a}")
+    if not lines:
+        return ""
+    return "\nПримеры хороших ответов (держи такой же стиль):\n" + "\n".join(lines)
+
+
 def _pick_chat_text(data: Any) -> str:
     """Выбирает человеческий текст ответа из JSON Interactions API.
 
@@ -473,9 +517,10 @@ _AI_CHAT_SYSTEM = (
 _AI_CHAT_TRIGGERS = ("страж", "guardian")
 
 
-async def chat_reply(history: list[dict], settings, memory: str = "") -> str | None:
+async def chat_reply(history: list[dict], settings, memory: str = "", qna: list | None = None) -> str | None:
     """Ответ собеседника по контексту. history: [{nick, text}], последний — триггер.
-    memory — блок фактов из обучения (ai_memory kind='fact')."""
+    memory — блок фактов из обучения (ai_memory kind='fact').
+    qna — сырые пары [{text, extra}] из обучения; отбор топ-5 внутри."""
     provider = (getattr(settings, "ai_provider", "gemini") or "gemini").lower()
     api_key = (getattr(settings, "gemini_api_key", "") or "") if provider == "gemini" else (getattr(settings, "groq_api_key", "") or "")
     if not api_key:
@@ -483,12 +528,14 @@ async def chat_reply(history: list[dict], settings, memory: str = "") -> str | N
     if _judge_paused():
         return None
     convo = "\n".join(f"{m.get('nick', '?')}: {m.get('text', '')[:200]}" for m in history[-12:])
+    trigger = (history[-1].get("text", "") if history else "")
     persona = (getattr(settings, "ai_chat_persona", "") or "").strip()
     system_chat = _AI_CHAT_SYSTEM
     if persona:
         system_chat += f"\nДополнительно о характере: {persona[:500]}"
     if (memory or "").strip():
         system_chat += f"\nТо, что ты помнишь о чате и его людях:\n{memory[:1200]}"
+    system_chat += _qna_block(pick_qna(trigger, qna))
     try:
         timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4)
         async with aiohttp.ClientSession(timeout=timeout) as session:

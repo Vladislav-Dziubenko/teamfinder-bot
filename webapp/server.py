@@ -4040,8 +4040,12 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
             memory = await db.ai_memory_prompt()
         except Exception:
             memory = ""
+        try:
+            qna_pairs = await db.ai_memories("qna", 100)
+        except Exception:
+            qna_pairs = []
         from services.ai_moderation import chat_reply
-        reply = await chat_reply(history, settings, memory)
+        reply = await chat_reply(history, settings, memory, qna_pairs)
         if not reply:
             # Чаще всего: нет/невалиден ключ (судья недоступен).
             await _skip("judge_fail")

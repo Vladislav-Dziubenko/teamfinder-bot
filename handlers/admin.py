@@ -404,11 +404,17 @@ async def admin_ai_memory(message: Message, db: Database, settings: Settings):
         return
     facts = await db.ai_memories("fact", 20)
     corrs = await db.ai_memories("correction", 10)
+    qnas = await db.ai_memories("qna", 15)
     lines = ["🧠 <b>Память Стража</b>"]
     lines.append(f"\n<b>Факты ({len(facts)}):</b>")
     for r in facts:
         lines.append(f"• <code>{r['id']}</code> {(r['text'] or '')[:120]}")
     if not facts:
+        lines.append("— пусто —")
+    lines.append(f"\n<b>Вопросы-ответы ({len(qnas)}):</b>")
+    for r in qnas:
+        lines.append(f"• <code>{r['id']}</code> {(r['text'] or '')[:80]} → {(r['extra'] or '')[:80]}")
+    if not qnas:
         lines.append("— пусто —")
     lines.append(f"\n<b>Примеры ({len(corrs)}):</b>")
     for r in corrs:
@@ -417,6 +423,30 @@ async def admin_ai_memory(message: Message, db: Database, settings: Settings):
         lines.append("— пусто —")
     lines.append("\nУдалить: <code>/aiforget id</code>")
     await message.answer("\n".join(lines))
+
+
+@router.message(Command("aiqna"))
+async def admin_ai_qna(message: Message, db: Database, settings: Settings):
+    """Научить ответу: /aiqna Как дела? || Отлично, охраняю чат!
+    Пара уходит в обучение; при похожих вопросах подмешивается в промпт (топ-5)."""
+    if message.from_user.id not in settings.admin_ids:
+        return
+    parts = (message.text or "").split(maxsplit=1)
+    body = parts[1] if len(parts) > 1 else ""
+    if "||" not in body:
+        await message.answer(
+            "❌ <b>Неверный формат</b>\n\nИспользование:\n"
+            "<code>/aiqna Как дела? || Отлично, охраняю чат!</code>"
+        )
+        return
+    q, _, a = body.partition("||")
+    q, a = q.strip()[:300], a.strip()[:600]
+    if not q or not a:
+        await message.answer("❌ Пустой вопрос или ответ.")
+        return
+    mem_id = await db.ai_learn("qna", q, extra=a, created_by=message.from_user.id, cap=100)
+    await db.audit_log(message.from_user.id, "ai_qna", f"id={mem_id} {q[:80]}")
+    await message.answer(f"🎓 <b>Научил</b> (id={mem_id}). Покажи на похожий вопрос — отвечу в этом стиле.")
 
 
 @router.message(Command("aiforget"))
