@@ -34,10 +34,12 @@ export function ChatTab({
   openChatId,
   openPlayer,
   onOpenConsumed,
+  onOpenProfile,
 }: {
   openChatId: string | null
   openPlayer?: Player
   onOpenConsumed?: () => void
+  onOpenProfile?: (id: number) => void
 }) {
   const { t, lang } = useI18n()
   const [activeId, setActiveId] = useState<string | null>(openChatId ?? null)
@@ -74,11 +76,11 @@ export function ChatTab({
     // fall back to the openPlayer passed by the parent when the chat isn't in
     // the loaded list yet (e.g. just opened). This avoids showing stale data.
     const player = found?.player ?? playerRef.current ?? undefined
-    return <ChatConversation chatId={activeId} player={player} role={found?.role} onBack={closeChat} />
+    return <ChatConversation chatId={activeId} player={player} role={found?.role} onBack={closeChat} onOpenProfile={onOpenProfile} />
   }
 
   if (showGlobal) {
-    return <GlobalChat onBack={() => setShowGlobal(false)} />
+    return <GlobalChat onBack={() => setShowGlobal(false)} onOpenProfile={onOpenProfile} />
   }
 
   return (
@@ -198,6 +200,24 @@ function ReplyQuote({ nick, text, targetDomId }: { nick: string; text: string; t
         <span className="block truncate text-[11px] font-bold text-primary">{nick}</span>
         <span className="block truncate text-xs opacity-80">{text || "…"}</span>
       </span>
+    </button>
+  )
+}
+
+/** Кликабельная шапка автора (аватар+ник) → профиль. Выключена — обычный div. */
+function ProfileOpener({
+  disabled,
+  onOpen,
+  children,
+}: {
+  disabled: boolean
+  onOpen: () => void
+  children: React.ReactNode
+}) {
+  if (disabled) return <div>{children}</div>
+  return (
+    <button type="button" onClick={onOpen} className="block w-full active:opacity-70">
+      {children}
     </button>
   )
 }
@@ -417,7 +437,7 @@ function SelectableRow({
   )
 }
 
-export function ChatConversation({ chatId, player, role, onBack, clanMode, clanEmblem }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void; clanMode?: boolean; clanEmblem?: string }) {
+export function ChatConversation({ chatId, player, role, onBack, clanMode, clanEmblem, onOpenProfile }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void; clanMode?: boolean; clanEmblem?: string; onOpenProfile?: (id: number) => void }) {
   const { t, lang } = useI18n()
   const { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
   const peerCosMap = useCosmeticsMap(player?.id != null ? [player.id] : [])
@@ -543,28 +563,35 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
         <button type="button" onClick={onBack} aria-label={t("chat.back")} className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90">
           <ChevronLeft className="size-5" />
         </button>
-        {clanMode && !player?.avatar ? (
-          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-xl">{clanEmblem || "🛡️"}</span>
-        ) : (
-          <img src={player?.avatar || "/placeholder.svg"} alt={player?.nick ?? t("common.unknown")} className="size-9 rounded-full object-cover" />
-        )}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <p className="truncate font-display text-sm font-bold">{player?.nick ?? t("common.unknown")}</p>
-            <RoleBadge role={role} className="shrink-0" />
+        <ProfileOpener
+          disabled={clanMode || !onOpenProfile || !Number.isFinite(Number(player?.id)) || Number(player?.id) <= 0}
+          onOpen={() => onOpenProfile?.(Number(player?.id))}
+        >
+          <div className="flex min-w-0 flex-1 items-center gap-3 text-left">
+            {clanMode && !player?.avatar ? (
+              <span className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-xl">{clanEmblem || "🛡️"}</span>
+            ) : (
+              <img src={player?.avatar || "/placeholder.svg"} alt={player?.nick ?? t("common.unknown")} className="size-9 shrink-0 rounded-full object-cover" />
+            )}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <p className="truncate font-display text-sm font-bold">{player?.nick ?? t("common.unknown")}</p>
+                <RoleBadge role={role} className="shrink-0" />
+              </div>
+              <p className="text-[11px] text-accent">
+                {blockedByOther
+                  ? t("chat.blocked_hint")
+                  : typing
+                    ? t("common.typing")
+                    : player?.online
+                      ? t("common.online")
+                      : player?.lastSeen
+                        ? formatLastSeen(player.lastSeen, lang)
+                        : t("common.offline")}
+              </p>
+            </div>
           </div>
-          <p className="text-[11px] text-accent">
-            {blockedByOther
-              ? t("chat.blocked_hint")
-              : typing
-                ? t("common.typing")
-                : player?.online
-                  ? t("common.online")
-                  : player?.lastSeen
-                    ? formatLastSeen(player.lastSeen, lang)
-                    : t("common.offline")}
-          </p>
-        </div>
+        </ProfileOpener>
         {!clanMode && (
           <button
             type="button"
@@ -688,6 +715,21 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
                 <Forward className="size-4 text-muted-foreground" />
                 {lang === "ru" ? "Переслать" : "Forward"}
               </button>
+              {menuForMsg.senderId !== "me" && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const mm = menuForMsg
+                    setMenuForMsg(null)
+                    const pid = Number((mm as unknown as { senderId?: unknown }).senderId)
+                    if (onOpenProfile && Number.isFinite(pid) && pid > 0) onOpenProfile(pid)
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-muted"
+                >
+                  <UserRound className="size-4 text-muted-foreground" />
+                  {lang === "ru" ? "Профиль" : "Profile"}
+                </button>
+              )}
               {menuForMsg.senderId === "me" && (
                 <>
                   <button
@@ -841,7 +883,7 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
   )
 }
 
-function GlobalChat({ onBack }: { onBack: () => void }) {
+function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfile?: (id: number) => void }) {
   const { t, lang } = useI18n()
   const me = useMe()
   const { messages, loaded, meRole, meBanned, sendGlobal, appendExternal, sendGlobalVoice, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
@@ -1082,6 +1124,7 @@ function GlobalChat({ onBack }: { onBack: () => void }) {
                 mine={mine}
                 lang={lang}
                 cos={cosMap[m.userId]}
+                onOpenProfile={onOpenProfile}
                 canModerate={m.userId !== "me" && canModerate}
                 canBanThis={m.userId !== "me" && canBan && roleRank(m.role) < myRank}
                 menuFor={menuFor === m.id}
@@ -1859,6 +1902,7 @@ const GlobalMsg = memo(function GlobalMsg({
   onBan,
   onReply,
   onForward,
+  onOpenProfile,
 }: {
   msg: GlobalMessage
   mine: boolean
@@ -1872,6 +1916,7 @@ const GlobalMsg = memo(function GlobalMsg({
   onBan: () => void
   onReply: () => void
   onForward: () => void
+  onOpenProfile?: (id: number) => void
 }) {
   const { t } = useI18n()
   const [translated, setTranslated] = useState<string | null>(null)
@@ -1941,22 +1986,27 @@ const GlobalMsg = memo(function GlobalMsg({
         }
       >
         {!mine && (
-          <div className="mb-1 flex items-center gap-1.5">
-            {msg.role === "ai" ? (
-              <span className="grid size-4 place-items-center rounded-full bg-[#ffd700]/20 text-[10px] leading-none">
-                🛡️
+          <ProfileOpener
+            disabled={msg.role === "ai" || !onOpenProfile || !Number.isFinite(Number(msg.userId)) || Number(msg.userId) <= 0}
+            onOpen={() => onOpenProfile?.(Number(msg.userId))}
+          >
+            <div className="mb-1 flex items-center gap-1.5 text-left">
+              {msg.role === "ai" ? (
+                <span className="grid size-4 place-items-center rounded-full bg-[#ffd700]/20 text-[10px] leading-none">
+                  🛡️
+                </span>
+              ) : (
+                <img src={cos?.avatar_art || msg.avatar || "/placeholder.svg"} alt={msg.nick} className="size-4 rounded-full object-cover" />
+              )}
+              <span
+                className="text-[11px] font-bold text-accent"
+                style={cos?.nick_color ? { color: cos.nick_color } : undefined}
+              >
+                {msg.role === "ai" ? t("chat.ai_guard_name") : msg.nick}
               </span>
-            ) : (
-              <img src={cos?.avatar_art || msg.avatar || "/placeholder.svg"} alt={msg.nick} className="size-4 rounded-full object-cover" />
-            )}
-            <span
-              className="text-[11px] font-bold text-accent"
-              style={cos?.nick_color ? { color: cos.nick_color } : undefined}
-            >
-              {msg.role === "ai" ? t("chat.ai_guard_name") : msg.nick}
-            </span>
-            <RoleBadge role={msg.role} />
-          </div>
+              <RoleBadge role={msg.role} />
+            </div>
+          </ProfileOpener>
         )}
         {mine && <RoleBadge role={msg.role} className="mb-1 self-end" />}
         {sticker ? (

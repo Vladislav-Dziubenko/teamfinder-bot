@@ -217,7 +217,7 @@ function Shell() {
         {tab === "match" && <MatchTab onConnect={setContact} onJoinTeam={joinTeam} onChat={openChat} />}
         {tab === "predictions" && <Suspense fallback={<TabFallback />}><PredictionsTab onToast={setToast} /></Suspense>}
         {tab === "chat" && (
-          <Suspense fallback={<TabFallback />}><ChatTab openChatId={chatOpen?.chatId ?? null} openPlayer={chatOpen?.player} onOpenConsumed={() => setChatOpen(null)} /></Suspense>
+          <Suspense fallback={<TabFallback />}><ChatTab openChatId={chatOpen?.chatId ?? null} openPlayer={chatOpen?.player} onOpenConsumed={() => setChatOpen(null)} onOpenProfile={setSharedProfileId} /></Suspense>
         )}
         {tab === "stats" && <Suspense fallback={<TabFallback />}><StatsTab onOpenLeaderboard={() => setLeaderboardOpen(true)} /></Suspense>}
         {tab === "cases" && <CasesTab onToast={setToast} />}
@@ -232,7 +232,7 @@ function Shell() {
         {tab === "market" && <Suspense fallback={<TabFallback />}><MarketTab onToast={setToast} /></Suspense>}
         {tab === "sessions" && <Suspense fallback={<TabFallback />}><SessionTab onToast={setToast} /></Suspense>}
         {tab === "event" && <Suspense fallback={<TabFallback />}><AutumnTab onToast={setToast} onGo={goTab} /></Suspense>}
-        {tab === "clan" && <Suspense fallback={<TabFallback />}><ClanTab onToast={setToast} /></Suspense>}
+        {tab === "clan" && <Suspense fallback={<TabFallback />}><ClanTab onToast={setToast} onOpenProfile={setSharedProfileId} /></Suspense>}
       </main>
 
       <BottomNav active={tab} onChange={goTab} onMore={() => setMoreOpen(true)} />

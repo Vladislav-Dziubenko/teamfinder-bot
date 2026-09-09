@@ -60,7 +60,7 @@ function levelProgress(lifetime: number): { level: number; cur: number; next: nu
   return { level, cur, next }
 }
 
-export function ClanTab({ onToast }: { onToast: (m: string) => void }) {
+export function ClanTab({ onToast, onOpenProfile }: { onToast: (m: string) => void; onOpenProfile?: (id: number) => void }) {
   const { lang } = useI18n()
   const ru = lang === "ru"
   const [clan, setClan] = useState<Clan | null | undefined>(undefined)
@@ -135,7 +135,7 @@ export function ClanTab({ onToast }: { onToast: (m: string) => void }) {
             ))}
           </div>
           {view === "overview" && <ClanOverview clan={clan} onToast={onToast} onReload={reload} onChat={() => setView("chat")} ru={ru} />}
-          {view === "members" && <ClanMembers clan={clan} onToast={onToast} onReload={reload} ru={ru} />}
+          {view === "members" && <ClanMembers clan={clan} onToast={onToast} onReload={reload} onOpenProfile={onOpenProfile} ru={ru} />}
           {view === "quests" && <ClanQuests clan={clan} onToast={onToast} ru={ru} />}
           {view === "rating" && <ClanRating ru={ru} />}
           {view === "shop" && <ClanShop clan={clan} onToast={onToast} ru={ru} />}
@@ -367,7 +367,7 @@ function ClanOverview({ clan, onToast, onReload, onChat, ru }: { clan: Clan; onT
   )
 }
 
-function ClanMembers({ clan, onToast, onReload, ru }: { clan: Clan; onToast: (m: string) => void; onReload: () => void; ru: boolean }) {
+function ClanMembers({ clan, onToast, onReload, onOpenProfile, ru }: { clan: Clan; onToast: (m: string) => void; onReload: () => void; onOpenProfile?: (id: number) => void; ru: boolean }) {
   const [members, setMembers] = useState(clan.members ?? [])
   const [busyId, setBusyId] = useState<number | null>(null)
   const isLeader = clan.my_role === "leader"
@@ -401,10 +401,21 @@ function ClanMembers({ clan, onToast, onReload, ru }: { clan: Clan; onToast: (m:
     <section className="space-y-2">
       {members.map((m) => (
         <div key={m.user_id} className="flex items-center gap-2.5 rounded-2xl border border-border bg-card px-3 py-2.5">
-          <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-secondary font-display text-base font-bold">
+          <button
+            type="button"
+            disabled={!onOpenProfile}
+            onClick={() => onOpenProfile?.(m.user_id)}
+            aria-label={m.nick || `User${m.user_id}`}
+            className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-secondary font-display text-base font-bold active:scale-90 disabled:active:scale-100"
+          >
             {(m as any).avatar ? <img src={(m as any).avatar} alt="" className="size-full object-cover" /> : String(m.nick || "?").charAt(0).toUpperCase()}
-          </span>
-          <div className="min-w-0 flex-1">
+          </button>
+          <button
+            type="button"
+            disabled={!onOpenProfile}
+            onClick={() => onOpenProfile?.(m.user_id)}
+            className="min-w-0 flex-1 text-left active:opacity-70 disabled:active:opacity-100"
+          >
             <p className="truncate text-sm font-bold">
               {m.nick || `User${m.user_id}`}{" "}
               <span className="ml-1 rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-muted-foreground">{m.role}</span>
@@ -412,7 +423,7 @@ function ClanMembers({ clan, onToast, onReload, ru }: { clan: Clan; onToast: (m:
             <p className="text-[11px] text-muted-foreground">
               {ru ? "Сезон" : "Season"}: {m.contribution_season} · {ru ? "всего" : "total"}: {m.contribution_total}
             </p>
-          </div>
+          </button>
           {isLeader && m.role !== "leader" && (
             <button
               type="button"
