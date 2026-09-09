@@ -4044,10 +4044,36 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
             qna_pairs = await db.ai_memories("qna", 100)
         except Exception:
             qna_pairs = []
+        interim: dict = {}
+
+        async def _drop_interim() -> None:
+            if not interim.get("id"):
+                return
+            try:
+                await db.delete_global_message(int(interim["id"]))
+                await cache_delete_pattern("global_chat_msgs")
+            except Exception:
+                pass
+            interim.clear()
+
+        async def _on_search_event(kind: str) -> None:
+            # Бот реально идёт в интернет: показываем "ищу...", чтобы задержка
+            # 3-5с была объяснена, а не выглядела зависанием. Заглушка всегда
+            # удаляется — и при успехе, и при провале (см. _drop_interim выше).
+            if kind != "search_start" or interim.get("id"):
+                return
+            try:
+                m = await db.send_global_message(AI_PERSONA_ID, "🔎 Сейчас гляну…", kind="user")
+                interim["id"] = m.get("id")
+                await cache_delete_pattern("global_chat_msgs")
+            except Exception:
+                pass
+
         from services.ai_moderation import chat_reply
-        reply = await chat_reply(history, settings, memory, qna_pairs)
+        reply = await chat_reply(history, settings, memory, qna_pairs, on_event=_on_search_event)
         if not reply:
             # Чаще всего: нет/невалиден ключ (судья недоступен).
+            await _drop_interim()
             await _skip("judge_fail")
             return
         _AI_CHAT_USER_LAST[user_id] = now
@@ -4056,6 +4082,7 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
             cutoff = now - 3600
             for uid in [u for u, ts in _AI_CHAT_USER_LAST.items() if ts < cutoff]:
                 del _AI_CHAT_USER_LAST[uid]
+        await _drop_interim()
         await db.send_global_message(AI_PERSONA_ID, reply, kind="user")
         await cache_delete_pattern("global_chat_msgs")
         await db.audit_log(user_id, "ai_chat", f"reply_to={user_id} len={len(reply)}")

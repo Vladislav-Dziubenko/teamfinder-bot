@@ -656,10 +656,232 @@ async def followup_reply(history_snapshot: list[dict], settings, memory_snapshot
         return None
 
 
-async def chat_reply(history: list[dict], settings, memory: str = "", qna: list | None = None) -> str | None:
+# --- Web-поиск для собеседника (шаг 7): function calling ---
+_SEARCH_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "web_search",
+        "description": (
+            "Поиск свежих данных в интернете. Вызывай ТОЛЬКО на вопросы про текущие "
+            "события, факты, цифры, курсы, результаты (маркеры: сегодня, сейчас, "
+            "последний, курс, счёт, цена, погода, новости). На обычную болтовню — никогда."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {"query": {"type": "string", "description": "Поисковый запрос"}},
+            "required": ["query"],
+        },
+    },
+}
+
+# Сниппеты — только контекст: своими словами, в тоне персонажа, 1-3
+# предложения, без копипасты формулировок; ссылка отдельной строкой, если уместна.
+_SEARCH_STYLE = (
+    "\nРезультаты поиска ниже — только контекст: отвечай своими словами в своём "
+    "обычном тоне (как в примерах), коротко — 1-3 предложения, не пересказывай "
+    "статью и не копируй формулировки источника. Полезную ссылку добавь отдельной "
+    "строкой в конце."
+)
+
+_SEARCH_DAY = ""
+_SEARCH_COUNT = 0
+
+
+def _search_allowed() -> bool:
+    """Дневной лимит поиска (in-memory; инстанс один — WEB_CONCURRENCY=1)."""
+    global _SEARCH_DAY, _SEARCH_COUNT
+    today = time.strftime("%Y-%m-%d", time.gmtime())
+    if today != _SEARCH_DAY:
+        _SEARCH_DAY, _SEARCH_COUNT = today, 0
+    try:
+        limit = max(1, int(os.getenv("SEARCH_DAILY_LIMIT", "50") or 50))
+    except (ValueError, TypeError):
+        limit = 50
+    if _SEARCH_COUNT >= limit:
+        return False
+    _SEARCH_COUNT += 1
+    return True
+
+
+async def _brave_search(session: aiohttp.ClientSession, query: str, api_key: str) -> str:
+    try:
+        async with session.get(
+            "https://api.search.brave.com/res/v1/web/search",
+            headers={"X-Subscription-Token": api_key, "Accept": "application/json"},
+            params={"q": query[:200], "count": 5, "text_decorations": 0},
+            timeout=aiohttp.ClientTimeout(total=6),
+        ) as resp:
+            if resp.status != 200:
+                logger.warning("[ai-mod] brave status=%s", resp.status)
+                return ""
+            data = await resp.json()
+    except Exception as exc:
+        logger.warning("[ai-mod] brave error: %s", exc)
+        return ""
+    out = []
+    try:
+        for r in (data.get("web") or {}).get("results", [])[:5]:
+            t = (r.get("title") or "").strip()
+            d = (r.get("description") or "").strip()
+            u = (r.get("url") or "").strip()
+            if t or d:
+                out.append(f"{t} — {d[:200]} ({u})".strip())
+    except Exception:
+        return ""
+    return "\n".join(out)[:1500]
+
+
+async def _ddg_search(session: aiohttp.ClientSession, query: str) -> str:
+    """Фолбэк без ключа (слабый для новостей, но бесплатный и безлимитный)."""
+    try:
+        async with session.get(
+            "https://api.duckduckgo.com/",
+            params={"q": query[:200], "format": "json", "no_html": 1, "lang": "ru"},
+            timeout=aiohttp.ClientTimeout(total=6),
+        ) as resp:
+            if resp.status != 200:
+                return ""
+            data = await resp.json()
+    except Exception as exc:
+        logger.warning("[ai-mod] ddg error: %s", exc)
+        return ""
+    out = []
+    try:
+        if data.get("AbstractText"):
+            out.append(f"{data.get('Heading', '')} — {data['AbstractText'][:300]}")
+        for t in (data.get("RelatedTopics") or [])[:4]:
+            if isinstance(t, dict) and t.get("Text"):
+                out.append(t["Text"][:200])
+    except Exception:
+        return ""
+    return "\n".join(out)[:1500]
+
+
+async def web_search_snippets(session: aiohttp.ClientSession, query: str) -> str:
+    key = (os.getenv("BRAVE_API_KEY", "") or "").strip()
+    if key:
+        text = await _brave_search(session, query, key)
+        if text:
+            return text
+    return await _ddg_search(session, query)
+
+
+async def _groq_chat_with_tools(session: aiohttp.ClientSession, api_key: str, system: str, convo: str,
+                                models: list[str], on_event=None) -> str | None:
+    """Два прохода максимум: 1) с tools, 2) с результатами поиска. Без поиска —
+    тот же путь, что раньше (прямой текст)."""
+    import json as _json
+
+    for mi, model in enumerate(models):
+        payload: dict[str, Any] = {
+            "model": model,
+            "temperature": 0.6,
+            "max_tokens": 150,
+            "messages": [
+                {"role": "system", "content": system + _SEARCH_STYLE},
+                {"role": "user", "content": convo},
+            ],
+            "tools": [_SEARCH_TOOL],
+            "tool_choice": "auto",
+        }
+        try:
+            async with session.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json=payload,
+                timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4),
+            ) as resp:
+                if resp.status == 404 and mi + 1 < len(models):
+                    logger.warning("[ai-mod] groq chat model %s retired, trying next", model)
+                    continue
+                if resp.status != 200:
+                    if resp.status == 429:
+                        _judge_note_429("groq-chat")
+                    else:
+                        try:
+                            body = (await resp.text())[:300]
+                        except Exception:
+                            body = "?"
+                        logger.warning("[ai-mod] groq chat status=%s body=%s", resp.status, body)
+                    return None
+                data = await resp.json()
+        except Exception as exc:
+            logger.warning("[ai-mod] groq chat error: %s", exc)
+            return None
+        try:
+            msg = data["choices"][0]["message"]
+        except (KeyError, IndexError, TypeError):
+            return None
+        calls = msg.get("tool_calls") or []
+        text_out = (msg.get("content") or "").strip()
+        if not calls:
+            if _chat_text_ok(text_out):
+                return text_out[:400]
+            logger.warning("[ai-mod] groq chat degenerate, trying next")
+            continue
+        queries: list[tuple[str | None, str]] = []
+        for c in calls[:2]:
+            try:
+                q = _json.loads((c.get("function") or {}).get("arguments", "") or "{}").get("query", "")
+            except Exception:
+                q = ""
+            if (q or "").strip():
+                queries.append((c.get("id"), q.strip()[:200]))
+        if not queries:
+            if _chat_text_ok(text_out):
+                return text_out[:400]
+            continue
+        if on_event is not None:
+            try:
+                await on_event("search_start")
+            except Exception:
+                pass
+        if not _search_allowed():
+            logger.warning("[ai-mod] search daily limit hit")
+            if _chat_text_ok(text_out):
+                return text_out[:400]
+            continue
+        history2: list[dict[str, Any]] = [
+            {"role": "system", "content": system + _SEARCH_STYLE},
+            {"role": "user", "content": convo},
+            {"role": "assistant", "content": text_out or None, "tool_calls": calls},
+        ]
+        for cid, q in queries:
+            snippets = await web_search_snippets(session, q)
+            history2.append({"role": "tool", "tool_call_id": cid,
+                             "content": snippets or "Ничего не найдено."})
+        try:
+            async with session.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={"model": model, "temperature": 0.6, "max_tokens": 150,
+                      "messages": history2},
+                timeout=aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4),
+            ) as resp2:
+                if resp2.status != 200:
+                    if resp2.status == 429:
+                        _judge_note_429("groq-chat")
+                    return None
+                data2 = await resp2.json()
+        except Exception as exc:
+            logger.warning("[ai-mod] groq chat round2 error: %s", exc)
+            return None
+        try:
+            text2 = (data2["choices"][0]["message"].get("content") or "").strip()
+        except (KeyError, IndexError, TypeError, AttributeError):
+            return None
+        if _chat_text_ok(text2):
+            return text2[:400]
+        logger.warning("[ai-mod] groq chat round2 degenerate")
+        return None
+    return None
+
+
+async def chat_reply(history: list[dict], settings, memory: str = "", qna: list | None = None, on_event=None) -> str | None:
     """Ответ собеседника по контексту. history: [{nick, text}], последний — триггер.
     memory — блок фактов из обучения (ai_memory kind='fact').
-    qna — сырые пары [{text, extra}] из обучения; отбор топ-5 внутри."""
+    qna — сырые пары [{text, extra}] из обучения; отбор топ-5 внутри.
+    on_event(kind) — колбэк событий ("search_start": бот реально идёт в интернет)."""
     provider = (getattr(settings, "ai_provider", "gemini") or "gemini").lower()
     api_key = (getattr(settings, "gemini_api_key", "") or "") if provider == "gemini" else (getattr(settings, "groq_api_key", "") or "")
     if not api_key:
@@ -671,7 +893,7 @@ async def chat_reply(history: list[dict], settings, memory: str = "", qna: list 
         timeout = aiohttp.ClientTimeout(total=_JUDGE_TIMEOUT + 4)
         async with aiohttp.ClientSession(timeout=timeout) as session:
             if provider == "groq":
-                return await _groq_chat_call(session, api_key, system_chat, convo, _groq_models())
+                return await _groq_chat_with_tools(session, api_key, system_chat, convo, _groq_models(), on_event)
             prompt = system_chat + "\nДиалог:\n" + convo
             try:
                 async with session.post(

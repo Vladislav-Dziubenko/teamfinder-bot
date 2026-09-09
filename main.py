@@ -14,7 +14,7 @@ from aiohttp import web
 
 from config import load_settings
 from database import Database
-from handlers import start, profile, search, guides, payments, admin, discord, appeal, voice, ask
+from handlers import start, profile, search, guides, payments, admin, discord, appeal, voice, ask, help as help_handler
 from middleware import InjectMiddleware, RateLimitMiddleware
 from webapp.server import create_app
 
@@ -80,6 +80,7 @@ async def main():
         dp.include_router(admin.router)
         dp.include_router(discord.router)
         dp.include_router(ask.router)
+        dp.include_router(help_handler.router)
         # Последний: апелляции забаненных (без фильтров — только «неизвестный» текст)
         dp.include_router(appeal.router)
 
@@ -91,6 +92,7 @@ async def main():
             user_cmds = [
                 BotCommand(command="start", description="🚀 Открыть меню"),
                 BotCommand(command="ask", description="🤖 Спросить ИИ"),
+                BotCommand(command="help", description="❓ Что умеет бот"),
                 BotCommand(command="discord", description="🔗 Привязать Discord"),
                 BotCommand(command="balance", description="💰 Баланс"),
                 BotCommand(command="deleteanketa", description="🗑 Удалить анкету"),
