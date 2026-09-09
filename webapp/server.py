@@ -3993,8 +3993,10 @@ async def _ai_announce(db: Database, text: str) -> None:
         logging.warning("[ai-mod] announce failed: %s", exc)
 
 
-# Глобальный кулдаун ответов собеседника (защита free-лимитов).
-_AI_CHAT_LAST = 0.0
+# Per-user кулдаун ответов собеседника. Глобального пола осознанно нет:
+# иначе юзер Б не получал бы ответ из-за юзера А (та же «тупость», вид сбоку).
+# Пачка разных юзеров гасится капом 15/час, брейкером 429 и флуд-детектом.
+_AI_CHAT_USER_LAST: dict[int, float] = {}
 
 
 async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: str) -> None:
@@ -4016,9 +4018,9 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
         if not is_guard_mention(text):
             return
         logging.info("[ai-mod] chat mention user=%s text=%.40s", user_id, text)
-        global _AI_CHAT_LAST
         now = time()
-        if now - _AI_CHAT_LAST < max(10, settings.ai_chat_cooldown_s):
+        cooldown = max(10, settings.ai_chat_cooldown_s)
+        if now - _AI_CHAT_USER_LAST.get(user_id, 0.0) < cooldown:
             await _skip("cooldown")
             return
         if await db.count_audit_action("ai_chat", 1) >= max(1, settings.ai_chat_max_per_hour):
@@ -4044,7 +4046,12 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
             # Чаще всего: нет/невалиден ключ (судья недоступен).
             await _skip("judge_fail")
             return
-        _AI_CHAT_LAST = now
+        _AI_CHAT_USER_LAST[user_id] = now
+        if len(_AI_CHAT_USER_LAST) > 2000:
+            # Чистка словаря: оставляем свежие записи за последний час.
+            cutoff = now - 3600
+            for uid in [u for u, ts in _AI_CHAT_USER_LAST.items() if ts < cutoff]:
+                del _AI_CHAT_USER_LAST[uid]
         await db.send_global_message(AI_PERSONA_ID, reply, kind="user")
         await cache_delete_pattern("global_chat_msgs")
         await db.audit_log(user_id, "ai_chat", f"reply_to={user_id} len={len(reply)}")
