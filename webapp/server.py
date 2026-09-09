@@ -6027,6 +6027,11 @@ async def handle_clans_settings(request: web.Request):
         fields["emblem"] = emblem
     if "is_public" in body:
         fields["is_public"] = int(bool(body.get("is_public")))
+    if "avatar" in body:
+        art = body.get("avatar")
+        if art not in ("", None) and not _valid_cosmetic_art(art):
+            return web.json_response({"error": "invalid avatar"}, status=400)
+        fields["avatar"] = art or ""
     res = await db.update_clan(clan_id, user["id"], fields)
     if "error" in res:
         return web.json_response(res, status=403 if res["error"] == "forbidden" else 400)

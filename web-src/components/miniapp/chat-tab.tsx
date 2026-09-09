@@ -417,7 +417,7 @@ function SelectableRow({
   )
 }
 
-export function ChatConversation({ chatId, player, role, onBack, clanMode }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void; clanMode?: boolean }) {
+export function ChatConversation({ chatId, player, role, onBack, clanMode, clanEmblem }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void; clanMode?: boolean; clanEmblem?: string }) {
   const { t, lang } = useI18n()
   const { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
   const peerCosMap = useCosmeticsMap(player?.id != null ? [player.id] : [])
@@ -543,7 +543,11 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode }: { c
         <button type="button" onClick={onBack} aria-label={t("chat.back")} className="grid size-9 place-items-center rounded-full text-muted-foreground active:scale-90">
           <ChevronLeft className="size-5" />
         </button>
-        <img src={player?.avatar || "/placeholder.svg"} alt={player?.nick ?? t("common.unknown")} className="size-9 rounded-full object-cover" />
+        {clanMode && !player?.avatar ? (
+          <span className="grid size-9 shrink-0 place-items-center rounded-full bg-secondary text-xl">{clanEmblem || "🛡️"}</span>
+        ) : (
+          <img src={player?.avatar || "/placeholder.svg"} alt={player?.nick ?? t("common.unknown")} className="size-9 rounded-full object-cover" />
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="truncate font-display text-sm font-bold">{player?.nick ?? t("common.unknown")}</p>

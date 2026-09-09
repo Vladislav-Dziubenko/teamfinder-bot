@@ -19,6 +19,7 @@ export type Clan = {
   name: string
   tag: string
   emblem: string
+  avatar?: string
   description: string
   is_public: number
   max_members: number

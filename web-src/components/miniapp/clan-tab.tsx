@@ -1,11 +1,40 @@
 "use client"
 
-import { useCallback, useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { Users, Trophy, Swords, Store, Search, Plus, LogOut, Settings as SettingsIcon, Ticket, Crown, MessageCircle, X, Check, Loader2, ChevronLeft } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { clansApi, type Clan, type ClanQuest, type ShopItem } from "@/lib/clans"
 import { cn } from "@/lib/utils"
 import { ChatConversation } from "./chat-tab"
+import { ArtCanvas } from "./cosmetics-editor"
+
+function downscalePhoto(file: File, maxSide = 256): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
+        const w = Math.max(1, Math.round(img.width * scale))
+        const h = Math.max(1, Math.round(img.height * scale))
+        const cv = document.createElement("canvas")
+        cv.width = w
+        cv.height = h
+        cv.getContext("2d")?.drawImage(img, 0, 0, w, h)
+        resolve(cv.toDataURL("image/jpeg", 0.85))
+      } catch (e) {
+        reject(e)
+      } finally {
+        URL.revokeObjectURL(url)
+      }
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error("bad image"))
+    }
+    img.src = url
+  })
+}
 
 const EMBLEMS = ["🛡️", "⚔️", "🔥", "❄️", "🐺", "🦁", "🐉", "⚡", "🌪️", "👑", "💎", "🏆"]
 const LEVEL_STEPS = [0, 1000, 3000, 8000, 20000, 50000]
@@ -80,9 +109,10 @@ export function ClanTab({ onToast }: { onToast: (m: string) => void }) {
         <div className="fixed inset-x-0 top-0 bottom-[60px] z-50 mx-auto max-w-md">
           <ChatConversation
             chatId={`clan-${clan.id}`}
-            player={{ id: `clan-${clan.id}`, nick: clan.name, avatar: "", online: true }}
+            player={{ id: `clan-${clan.id}`, nick: clan.name, avatar: clan.avatar || "", online: true }}
             role=""
             clanMode
+            clanEmblem={clan.emblem}
             onBack={() => setView("overview")}
           />
         </div>
@@ -111,6 +141,102 @@ export function ClanTab({ onToast }: { onToast: (m: string) => void }) {
           {view === "shop" && <ClanShop clan={clan} onToast={onToast} ru={ru} />}
         </>
       )}
+    </div>
+  )
+}
+
+function ClanAvatarEditor({ clan, onToast, onSaved, ru }: { clan: Clan; onToast: (m: string) => void; onSaved: () => void; ru: boolean }) {
+  const [art, setArt] = useState(clan.avatar || "")
+  const [saving, setSaving] = useState(false)
+  const [tab, setTab] = useState<"draw" | "photo">("draw")
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  async function onPhoto(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const f = e.target.files?.[0]
+    if (!f) return
+    try {
+      setArt(await downscalePhoto(f))
+    } catch {
+      onToast(ru ? "Не читается картинка" : "Bad image")
+    } finally {
+      if (fileRef.current) fileRef.current.value = ""
+    }
+  }
+
+  async function save(): Promise<void> {
+    setSaving(true)
+    try {
+      await clansApi.settings(clan.id, { avatar: art })
+      onToast(ru ? "Аватарка клана обновлена" : "Clan avatar updated")
+      onSaved()
+    } catch (e: any) {
+      onToast(e?.message || (ru ? "Не вышло" : "Failed"))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const dirty = art !== (clan.avatar || "")
+  return (
+    <div className="rounded-2xl border border-border bg-card p-4">
+      <p className="mb-2 text-xs font-semibold text-muted-foreground">
+        {ru ? "Аватарка клана (только лидер)" : "Clan avatar (leader only)"}
+      </p>
+      <div className="mb-2 grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setTab("draw")}
+          className={cn("rounded-xl py-2 text-xs font-bold active:scale-[0.98]", tab === "draw" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground")}
+        >
+          ✏️ {ru ? "Нарисовать" : "Draw"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setTab("photo")
+            fileRef.current?.click()
+          }}
+          className={cn("rounded-xl py-2 text-xs font-bold active:scale-[0.98]", tab === "photo" ? "bg-primary text-primary-foreground" : "bg-secondary text-muted-foreground")}
+        >
+          📷 {ru ? "Загрузить фото" : "Upload photo"}
+        </button>
+      </div>
+      <input ref={fileRef} type="file" accept="image/*" onChange={onPhoto} className="hidden" />
+      {tab === "draw" ? (
+        <ArtCanvas initial={art} onArt={setArt} />
+      ) : (
+        <div className="flex items-center gap-3">
+          <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-secondary text-2xl">
+            {art ? <img src={art} alt="" className="size-full object-cover" /> : (clan.emblem || "🛡️")}
+          </span>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="rounded-xl bg-secondary px-3 py-2 text-xs font-bold active:scale-95"
+            >
+              {ru ? "Выбрать файл" : "Choose file"}
+            </button>
+            {art && (
+              <button
+                type="button"
+                onClick={() => setArt("")}
+                className="rounded-xl bg-secondary px-3 py-2 text-xs font-bold text-muted-foreground active:scale-95"
+              >
+                {ru ? "Убрать" : "Remove"}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+      <button
+        type="button"
+        onClick={save}
+        disabled={saving || !dirty}
+        className="mt-3 w-full rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-[0.98] disabled:opacity-40"
+      >
+        {saving ? "…" : ru ? "Сохранить аватарку" : "Save avatar"}
+      </button>
     </div>
   )
 }
@@ -160,7 +286,11 @@ function ClanOverview({ clan, onToast, onReload, onChat, ru }: { clan: Clan; onT
   return (
     <div className="space-y-4">
       <section className="rounded-3xl border border-border bg-card p-5 text-center">
-        <p className="text-5xl leading-none">{clan.emblem || "🛡️"}</p>
+        {clan.avatar ? (
+          <img src={clan.avatar} alt="" className="mx-auto size-20 rounded-3xl object-cover" />
+        ) : (
+          <p className="text-5xl leading-none">{clan.emblem || "🛡️"}</p>
+        )}
         <h1 className="mt-2 font-display text-2xl font-bold">
           {clan.name} <span className="text-sm text-muted-foreground">[{clan.tag}]</span>
         </h1>
@@ -223,6 +353,7 @@ function ClanOverview({ clan, onToast, onReload, onChat, ru }: { clan: Clan; onT
           {inviteCode}
         </button>
       )}
+      {isLeader && <ClanAvatarEditor clan={clan} onToast={onToast} onSaved={onReload} ru={ru} />}
       <button
         type="button"
         onClick={doLeave}
@@ -407,7 +538,9 @@ function BoardRows({ rows, ru }: { rows: any[]; ru: boolean }) {
       {rows.map((r: any) => (
         <div key={r.id} className="flex items-center gap-2.5 rounded-2xl border border-border bg-card px-3 py-2.5">
           <span className="w-7 shrink-0 text-center font-display text-base font-black text-primary">#{r.rank ?? "–"}</span>
-          <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-secondary text-lg">{r.emblem || "🛡️"}</span>
+          <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-xl bg-secondary text-lg">
+            {r.avatar ? <img src={r.avatar} alt="" className="size-full object-cover" /> : (r.emblem || "🛡️")}
+          </span>
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-bold">
               {r.name} <span className="text-[11px] text-muted-foreground">[{r.tag}]</span>
@@ -648,7 +781,9 @@ function ClanBrowse({ onToast, onJoined, initialView }: { onToast: (m: string) =
             <div className="space-y-2">
               {list.map((c) => (
                 <div key={c.id} className="flex items-center gap-3 rounded-2xl border border-border bg-card px-4 py-3">
-                  <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-secondary text-2xl">{c.emblem || "🛡️"}</span>
+                  <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-2xl bg-secondary text-2xl">
+                    {c.avatar ? <img src={c.avatar} alt="" className="size-full object-cover" /> : (c.emblem || "🛡️")}
+                  </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-bold">
                       {c.name} <span className="text-[11px] text-muted-foreground">[{c.tag}]</span>

@@ -520,6 +520,7 @@ CREATE TABLE IF NOT EXISTS clans (
     name TEXT NOT NULL UNIQUE,
     tag TEXT NOT NULL UNIQUE,
     emblem TEXT NOT NULL DEFAULT '',
+    avatar TEXT NOT NULL DEFAULT '',
     description TEXT NOT NULL DEFAULT '',
     is_public INTEGER NOT NULL DEFAULT 1,
     max_members INTEGER NOT NULL DEFAULT 15,
@@ -943,6 +944,8 @@ class Database:
 
             ("chat_messages", "reply_to", "INTEGER"),
             ("global_messages", "reply_to", "INTEGER"),
+
+            ("clans", "avatar", "TEXT NOT NULL DEFAULT ''"),
 
             ("clan_season_results", "clan_name", "TEXT NOT NULL DEFAULT ''"),
             ("clan_season_results", "tag", "TEXT NOT NULL DEFAULT ''"),
@@ -2468,7 +2471,7 @@ class Database:
             return {"error": "retry"}
 
     async def update_clan(self, clan_id: int, actor_id: int, fields: dict) -> dict:
-        allowed = ("name", "description", "emblem", "is_public")
+        allowed = ("name", "description", "emblem", "is_public", "avatar")
         clean = {k: fields[k] for k in allowed if k in fields}
         if not clean:
             return {"error": "empty"}
@@ -2657,7 +2660,7 @@ class Database:
     async def get_clan_leaderboard(self, by: str = "total", limit: int = 50) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT c.id, c.name, c.tag, c.emblem, c.level,"
+                "SELECT c.id, c.name, c.tag, c.emblem, c.avatar, c.level,"
                 " COALESCE(SUM(m.contribution_season), 0) AS total,"
                 " COUNT(m.user_id) AS members FROM clans c"
                 " LEFT JOIN clan_members m ON m.clan_id = c.id"
@@ -2668,7 +2671,8 @@ class Database:
                 total = int(r["total"] or 0)
                 members = int(r["members"] or 0)
                 board.append({"id": r["id"], "name": r["name"], "tag": r["tag"],
-                              "emblem": r["emblem"], "level": r["level"],
+                              "emblem": r["emblem"], "avatar": r["avatar"] or "",
+                              "level": r["level"],
                               "total": total, "members": members,
                               "per_member": (total / members) if members else 0})
             key = (lambda x: x["per_member"]) if by == "per_member" else (lambda x: x["total"])

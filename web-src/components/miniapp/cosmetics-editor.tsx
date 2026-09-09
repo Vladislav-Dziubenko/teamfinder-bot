@@ -102,7 +102,7 @@ function ColorRow({
   )
 }
 
-function ArtCanvas({ initial, onArt }: { initial: string; onArt: (art: string) => void }) {
+export function ArtCanvas({ initial, onArt }: { initial: string; onArt: (art: string) => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [color, setColor] = useState("#ffd700")
   const [size, setSize] = useState(6)
