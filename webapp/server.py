@@ -4160,6 +4160,16 @@ async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text
             user_id, score, category, source, msg_id,
         )
 
+        # Противоречивый вердикт (высокий скор при категории "чисто" — бывает
+        # у маленьких моделей, напр. score=1.00 cat=ok): максимум очередь
+        # человеку, никаких авто-действий (ни удаления, ни бана). Собеседника
+        # при упоминании пробуем как обычно — молчание здесь и есть тот самый
+        # баг "писал стражу, а сообщение снесли/проигнорировали".
+        if category == "ok":
+            await _ai_chat_reply(db, settings, user_id, text)
+            await db.audit_log(user_id, "ai_queue", f"score={score:.2f} cat={category} msg={msg_id} {reason}")
+            return
+
         # Shadow mode: только вердикт в аудит, ноль действий.
         if settings.ai_mod_shadow:
             await db.audit_log(user_id, "ai_shadow", f"score={score:.2f} cat={category} msg={msg_id} {reason}")
