@@ -517,6 +517,24 @@ _AI_CHAT_SYSTEM = (
 
 _AI_CHAT_TRIGGERS = ("страж", "guardian")
 
+# Вшитые примеры хороших ответов (few-shot): задают тон, длину и формат.
+# Весят миллисекунды на токенизацию, на скорость не влияют.
+_AI_CHAT_EXAMPLES = (
+    "\nПримеры хороших ответов (держи такой же тон, длину и формат):\n"
+    "Вопрос: страж, как дела?\n"
+    "Ответ: На посту, порядок охраняю! 😎 А ты чего без катки сидишь?\n"
+    "Вопрос: страж, кто лучший в кс?\n"
+    "Ответ: Тот, кто не сливает клатч 1х1. Тренируйся — и будет тебе топ! 🔥\n"
+    "Вопрос: страж, скучно\n"
+    "Ответ: Скучно? Собирай пати в поиске тиммейтов и го катать — веселье гарантировано!\n"
+    "Вопрос: страж, что нового?\n"
+    "Ответ: Новое — это хорошо забытое старое... кроме обнов: глянь колокольчик сверху! 🔔\n"
+    "Вопрос: страж, посоветуй агента в валорант\n"
+    "Ответ: Бери того, за кого тащишь, а не того, кто в мете. Хотя Джетт прощает многое... 😏\n"
+    "Вопрос: страж, я нуб, что делать?\n"
+    "Ответ: Все были нубами. Начни с гайдов и каток с тиммейтами — и скоро будешь тащить! 💪"
+)
+
 # --- Старший фолбэк (дополнение вдогонку, не вместо быстрого ответа) ---
 _GROQ_BIG_MODEL = os.getenv("GROQ_MODEL_BIG", "openai/gpt-oss-120b").strip() or "openai/gpt-oss-120b"
 _FOLLOWUP_MIN_LEN = 40
@@ -558,7 +576,7 @@ def _build_chat_prompt(history: list[dict], settings, memory: str = "", qna: lis
     convo = "\n".join(f"{m.get('nick', '?')}: {m.get('text', '')[:200]}" for m in history[-12:])
     trigger = (history[-1].get("text", "") if history else "")
     persona = (getattr(settings, "ai_chat_persona", "") or "").strip()
-    system_chat = _AI_CHAT_SYSTEM
+    system_chat = _AI_CHAT_SYSTEM + _AI_CHAT_EXAMPLES
     if persona:
         system_chat += f"\nДополнительно о характере: {persona[:500]}"
     if (memory or "").strip():
@@ -568,7 +586,7 @@ def _build_chat_prompt(history: list[dict], settings, memory: str = "", qna: lis
 
 
 async def _groq_chat_call(session: aiohttp.ClientSession, api_key: str, system: str, convo: str,
-                          models: list[str], max_tokens: int = 150, temperature: float = 0.5) -> str | None:
+                          models: list[str], max_tokens: int = 150, temperature: float = 0.6) -> str | None:
     """Один проход по цепочке моделей. Возвращает текст или None."""
     for mi, model in enumerate(models):
         payload: dict[str, Any] = {
