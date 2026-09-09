@@ -7,11 +7,13 @@ Fail-open: любая ошибка, таймаут или пустой отве�
 
 import asyncio
 import hashlib
+import html as _html
 import logging
 import os
 import re
 import time
 from typing import Any
+from urllib.parse import unquote as _unquote
 
 import aiohttp
 
@@ -757,12 +759,59 @@ async def _ddg_search(session: aiohttp.ClientSession, query: str) -> str:
     return "\n".join(out)[:1500]
 
 
+def _parse_ddg_html(body: str, limit: int = 5) -> str:
+    """Достаём (заголовок, сниппет, url) из HTML-выдачи DuckDuckGo.
+
+    Чистый stdlib, без зависимостей. Ссылки у DDG завёрнуты в редирект
+    //duckduckgo.com/l/?uddg=<настоящий url> — разворачиваем его.
+    """
+    out = []
+    for m in re.finditer(
+        r'<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+        body or "", re.DOTALL,
+    ):
+        href, title = m.group(1), m.group(2)
+        um = re.search(r"uddg=([^&]+)", href)
+        url = _unquote(um.group(1)) if um else href
+        title = _html.unescape(re.sub(r"<[^>]+>", "", title)).strip()
+        rest = body[m.end(): m.end() + 3000]
+        sm = re.search(r'class="result__snippet"[^>]*>(.*?)</a>', rest, re.DOTALL)
+        snippet = _html.unescape(re.sub(r"<[^>]+>", "", sm.group(1))).strip() if sm else ""
+        if title or snippet:
+            out.append(f"{title} — {snippet[:200]} ({url})".strip())
+        if len(out) >= limit:
+            break
+    return "\n".join(out)[:1500]
+
+
+async def _ddg_html_search(session: aiohttp.ClientSession, query: str) -> str:
+    """Полноценная веб-выдача без ключей. Иногда отдаёт 202/капчу — тогда пусто."""
+    try:
+        async with session.post(
+            "https://html.duckduckgo.com/html/",
+            data={"q": query[:200]},
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"},
+            timeout=aiohttp.ClientTimeout(total=8),
+        ) as resp:
+            if resp.status != 200:
+                logger.warning("[ai-mod] ddg html status=%s", resp.status)
+                return ""
+            body = await resp.text()
+    except Exception as exc:
+        logger.warning("[ai-mod] ddg html error: %s", exc)
+        return ""
+    return _parse_ddg_html(body)
+
+
 async def web_search_snippets(session: aiohttp.ClientSession, query: str) -> str:
     key = (os.getenv("BRAVE_API_KEY", "") or "").strip()
     if key:
         text = await _brave_search(session, query, key)
         if text:
             return text
+    text = await _ddg_html_search(session, query)
+    if text:
+        return text
     return await _ddg_search(session, query)
 
 
