@@ -50,19 +50,6 @@ export function TopBar({
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
-          {/* Changelog bell */}
-          <button
-            type="button"
-            onClick={onChangelog}
-            className="relative grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-secondary/50 active:scale-90"
-            aria-label={t("topbar.updates")}
-          >
-            <Bell className="size-4" />
-            {hasUpdate && (
-              <span className="absolute right-0.5 top-0.5 size-2 rounded-full bg-red-500 ring-2 ring-background animate-pulse" />
-            )}
-          </button>
-
           {/* Nexus coins */}
           <button
             type="button"
@@ -82,6 +69,18 @@ export function TopBar({
           >
             <Star className="size-3.5 shrink-0 fill-stars" />
             {formatCompact(stars)}
+          </button>
+          {/* Changelog bell — последним: ширина пилюль слева больше не толкает его */}
+          <button
+            type="button"
+            onClick={onChangelog}
+            className="relative grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-secondary/50 active:scale-90"
+            aria-label={t("topbar.updates")}
+          >
+            <Bell className="size-4" />
+            {hasUpdate && (
+              <span className="absolute right-0.5 top-0.5 size-2 rounded-full bg-red-500 ring-2 ring-background animate-pulse" />
+            )}
           </button>
         </div>
       </div>
