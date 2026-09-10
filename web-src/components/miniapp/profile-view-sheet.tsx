@@ -10,6 +10,8 @@ export interface SharedProfile {
   id: number
   nick: string
   avatar: string | null
+  avatar_art?: string | null
+  nick_color?: string | null
   bio: string | null
   role?: string
 }
@@ -79,13 +81,18 @@ export function ProfileViewSheet({
           <>
             <div className="flex items-center gap-3">
               <img
-                src={profile.avatar || "/placeholder.svg"}
+                src={profile.avatar_art || profile.avatar || "/placeholder.svg"}
                 alt={profile.nick}
                 className="size-14 rounded-2xl object-cover ring-1 ring-border"
               />
               <div>
                 <div className="flex items-center gap-1.5">
-                  <p className="font-display text-xl font-bold leading-tight">{profile.nick}</p>
+                  <p
+                    className="font-display text-xl font-bold leading-tight"
+                    style={profile.nick_color ? { color: profile.nick_color } : undefined}
+                  >
+                    {profile.nick}
+                  </p>
                   <RoleBadge role={profile.role} />
                 </div>
               </div>
@@ -100,7 +107,7 @@ export function ProfileViewSheet({
             <div className="mt-4 flex gap-2">
               <button
                 type="button"
-                onClick={() => onChat(userId, profile.nick, profile.avatar)}
+                onClick={() => onChat(userId, profile.nick, profile.avatar_art || profile.avatar)}
                 className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground active:scale-[0.98]"
               >
                 <MessageCircle className="size-4" /> {t("profile_view.send_message")}

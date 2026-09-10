@@ -4960,10 +4960,16 @@ async def handle_profile_by_id(request: web.Request):
             friend_status = "outgoing"
         elif rev == "pending":
             friend_status = "incoming"
+    try:
+        _cos = await db.get_cosmetics(target_id)
+    except Exception:
+        _cos = {}
     return web.json_response({
         "id": target_id,
         "nick": prof.get("nick"),
         "avatar": prof.get("avatar"),
+        "avatar_art": (_cos or {}).get("avatar_art", ""),
+        "nick_color": (_cos or {}).get("nick_color", ""),
         "bio": prof.get("bio"),
         "tgUsername": tg_username,
         "friend_status": friend_status,
