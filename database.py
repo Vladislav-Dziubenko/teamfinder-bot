@@ -5751,7 +5751,12 @@ WHERE user_quests.completed = 0
             profiles = {}
             if other_ids:
                 profile_rows = await conn.fetch(
-                    """SELECT mp.user_id, COALESCE(mp.nick, '') AS nick, mp.avatar, u.last_active_at
+                    # Тяжёлые dataURL-аватары (>60КБ, наследие до даунскейла) в
+                    # списки не тащим: иначе каждый поллинг — мегабайты и OOM.
+                    # Такие авторы увидят плейсхолдер, пока не перезальют фото.
+                    """SELECT mp.user_id, COALESCE(mp.nick, '') AS nick,
+                              CASE WHEN LENGTH(mp.avatar) > 60000 THEN NULL ELSE mp.avatar END AS avatar,
+                              u.last_active_at
                        FROM mini_app_profiles mp
                        LEFT JOIN users u ON u.user_id = mp.user_id
                        WHERE mp.user_id = ANY($1::BIGINT[])""",
@@ -5875,7 +5880,9 @@ WHERE user_quests.completed = 0
                 rows = await conn.fetch(
                     """SELECT gm.id, gm.user_id, gm.text, gm.created_at, gm.kind,
                               CASE WHEN gm.user_id = 0 THEN '' ELSE COALESCE(mp.nick, '') END AS nick,
-                              CASE WHEN gm.user_id = 0 THEN NULL ELSE mp.avatar END AS avatar,
+                              CASE WHEN gm.user_id = 0 THEN NULL
+                                   WHEN LENGTH(mp.avatar) > 60000 THEN NULL
+                                   ELSE mp.avatar END AS avatar,
                               CASE WHEN gm.user_id = 0 THEN 'ai'
                                    WHEN COALESCE(ur.role, '') <> '' THEN ur.role
                                    WHEN s.until > $1 THEN 'super'
@@ -5900,7 +5907,9 @@ WHERE user_quests.completed = 0
                 rows = await conn.fetch(
                     """SELECT gm.id, gm.user_id, gm.text, gm.created_at, gm.kind,
                               CASE WHEN gm.user_id = 0 THEN '' ELSE COALESCE(mp.nick, '') END AS nick,
-                              CASE WHEN gm.user_id = 0 THEN NULL ELSE mp.avatar END AS avatar,
+                              CASE WHEN gm.user_id = 0 THEN NULL
+                                   WHEN LENGTH(mp.avatar) > 60000 THEN NULL
+                                   ELSE mp.avatar END AS avatar,
                               CASE WHEN gm.user_id = 0 THEN 'ai'
                                    WHEN COALESCE(ur.role, '') <> '' THEN ur.role
                                    WHEN s.until > $1 THEN 'super'
