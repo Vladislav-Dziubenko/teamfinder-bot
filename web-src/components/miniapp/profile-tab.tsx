@@ -35,6 +35,7 @@ import { useTheme } from "@/lib/theme"
 import { useNexus, useMe } from "@/lib/store"
 import { games, dailyStreakRewards, caseItemByKey } from "@/lib/data"
 import { formatNum } from "@/lib/format"
+import { downscalePhoto } from "@/lib/image"
 import type { TabId } from "./bottom-nav"
 import { DiscordSection } from "@/components/miniapp/discord-section"
 import { SteamSection } from "@/components/miniapp/steam-section"
@@ -122,9 +123,16 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
-    const reader = new FileReader()
-    reader.onload = () => setAvatar(reader.result as string)
-    reader.readAsDataURL(f)
+    // Фото жмём до 256px ДО сохранения: сырые мегабайты с камеры раньше
+    // оседали в БД и раздували каждый поллинг чата до 5+ МБ (OOM на Render).
+    downscalePhoto(f)
+      .then((url) => setAvatar(url))
+      .catch(() => {
+        const reader = new FileReader()
+        reader.onload = () => setAvatar(reader.result as string)
+        reader.readAsDataURL(f)
+      })
+    e.target.value = ""
   }
 
   async function claim(id: string, pts: number, cns: number) {

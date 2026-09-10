@@ -869,7 +869,9 @@ _AVATAR_HOSTS = ("t.me", "cdn.discordapp.com", "avatars.steamstatic.com", "api.t
 
 
 def _valid_avatar(v: object) -> bool:
-    if not isinstance(v, str) or not v or len(v) > 300_000:
+    # Кап 100 КБ (было 300): аватарка летит в КАЖДОМ сообщении чата,
+    # десяток авторов по 300 КБ давали 5+ МБ на поллинг и OOM.
+    if not isinstance(v, str) or not v or len(v) > 100_000:
         return False
     if v.startswith("data:image/"):
         return v.startswith(("data:image/png;", "data:image/jpeg;", "data:image/webp;"))
@@ -974,7 +976,8 @@ async def handle_cosmetics_batch(request: web.Request):
     if not isinstance(ids, list):
         return web.json_response({"error": "invalid user_ids"}, status=400)
     clean = []
-    for u in ids[:60]:
+    # Кап 40: арт до 150 КБ × юзеры — иначе один батч может отдать мегабайты.
+    for u in ids[:40]:
         try:
             clean.append(int(u))
         except (ValueError, TypeError):
