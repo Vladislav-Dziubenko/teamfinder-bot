@@ -575,10 +575,21 @@ def _build_chat_prompt(history: list[dict], settings, memory: str = "", qna: lis
     контекст не перезапрашивается, иначе дополнение ответит на уже
     устаревший поток чата и будет выглядеть рандомной вставкой.
     """
-    convo = "\n".join(f"{m.get('nick', '?')}: {m.get('text', '')[:200]}" for m in history[-12:])
+    # Пометка [ты] — сообщения автора текущего вопроса. Без неё модель
+    # смешивает чужие темы (кейсы, золото, советы) с вопросом и галлюцинирует
+    # контекст ("ты говорил про золото", хотя говорил кто-то другой).
+    convo = "\n".join(
+        f"{'[ты] ' if m.get('mine') else ''}{m.get('nick', '?')}: {m.get('text', '')[:200]}"
+        for m in history[-12:]
+    )
     trigger = (history[-1].get("text", "") if history else "")
     persona = (getattr(settings, "ai_chat_persona", "") or "").strip()
     system_chat = _AI_CHAT_SYSTEM + _AI_CHAT_EXAMPLES
+    system_chat += (
+        "\nВ диалоге реплики автора текущего вопроса помечены [ты] — отвечай "
+        "именно ему и опирайся на ЕГО сообщения; остальные реплики — чужой фон, "
+        "не приписывай их автору вопроса."
+    )
     if persona:
         system_chat += f"\nДополнительно о характере: {persona[:500]}"
     if (memory or "").strip():

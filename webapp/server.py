@@ -4077,10 +4077,11 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
             recent = []
         history = [
             {"nick": "Страж" if m.get("user_id") == 0 else (m.get("nick") or "?"),
-             "text": m.get("text", "")}
+             "text": m.get("text", ""),
+             "mine": m.get("user_id") == user_id}
             for m in recent if (m.get("text") or "").strip()
         ]
-        history.append({"nick": "user", "text": text.strip()[:300]})
+        history.append({"nick": "Автор", "text": text.strip()[:300], "mine": True})
         try:
             memory = await db.ai_memory_prompt()
         except Exception:
