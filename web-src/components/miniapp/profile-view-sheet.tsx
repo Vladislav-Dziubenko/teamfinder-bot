@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { X, UserPlus, UserCheck, MessageCircle, Clock, Loader2 } from "lucide-react"
+import { X, UserPlus, UserCheck, MessageCircle, Clock, Loader2, Heart } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
 import { RoleBadge } from "@/components/miniapp/role-badge"
@@ -14,6 +14,7 @@ export interface SharedProfile {
   nick_color?: string | null
   bio: string | null
   role?: string
+  liked_by_me?: boolean
 }
 
 export function ProfileViewSheet({
@@ -30,12 +31,16 @@ export function ProfileViewSheet({
   const [loading, setLoading] = useState(true)
   const [friendLoading, setFriendLoading] = useState(false)
   const [friendStatus, setFriendStatus] = useState<string | null>(null)
+  const [liked, setLiked] = useState(false)
+  const [liking, setLiking] = useState(false)
+  const [matched, setMatched] = useState(false)
 
   useEffect(() => {
     api.get("/api/profile/by-id/" + userId).then((d: any) => {
       if (d.error) { setProfile(null); return }
       setProfile(d)
       setFriendStatus(d.friend_status ?? null)
+      setLiked(Boolean(d.liked_by_me))
     }).catch(() => setProfile(null)).finally(() => setLoading(false))
   }, [userId])
 
@@ -47,6 +52,19 @@ export function ProfileViewSheet({
       if (res.already_sent || res.ok) setFriendStatus("outgoing")
     } catch {}
     setFriendLoading(false)
+  }
+
+  async function sendLike(onMatch: (matched: boolean) => void) {
+    if (liking || liked) return
+    setLiking(true)
+    try {
+      const res: any = await api.post("/api/profile/like", { user_id: userId })
+      if (res?.liked) {
+        setLiked(true)
+        onMatch(Boolean(res?.matched))
+      }
+    } catch {}
+    setLiking(false)
   }
 
   return (
@@ -104,7 +122,25 @@ export function ProfileViewSheet({
               </p>
             )}
 
+            {matched && (
+              <p className="mt-4 rounded-2xl bg-rose-500/15 px-3 py-2.5 text-center text-sm font-bold text-rose-400">
+                💘 Взаимность! Напишите друг другу
+              </p>
+            )}
             <div className="mt-4 flex gap-2">
+              <button
+                type="button"
+                onClick={() => sendLike(setMatched)}
+                disabled={liking || liked}
+                aria-label="Лайк"
+                className="grid w-14 shrink-0 place-items-center rounded-2xl border border-border bg-secondary/60 active:scale-95 disabled:opacity-70"
+              >
+                {liking ? (
+                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
+                ) : (
+                  <Heart className={liked ? "size-5 fill-rose-500 text-rose-500" : "size-5 text-muted-foreground"} />
+                )}
+              </button>
               <button
                 type="button"
                 onClick={() => onChat(userId, profile.nick, profile.avatar_art || profile.avatar)}

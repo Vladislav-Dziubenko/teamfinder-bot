@@ -109,22 +109,50 @@ export function ArtCanvas({ initial, onArt }: { initial: string; onArt: (art: st
   const [eraser, setEraser] = useState(false)
   const [strokes, setStrokes] = useState<string[]>([])
   const drawing = useRef(false)
+  // Последний арт, который холст сам выдал/загрузил. Отличаем свои штрихи
+  // (эхо onArt→setArt→новый initial игнорируем) от внешних смен
+  // ("Вернуть фото", перезагрузка после сейва — холст перерисовываем).
+  const committedRef = useRef<string | null>(null)
   const { lang } = useI18n()
   const ru = lang === "ru"
 
-  useEffect(() => {
+  function paintFrom(src: string): void {
     const cv = canvasRef.current
-    if (!cv || !initial) return
+    if (!cv) return
+    const ctx = cv.getContext("2d")
+    if (!ctx) return
+    if (!src) {
+      ctx.clearRect(0, 0, cv.width, cv.height)
+      return
+    }
     const img = new Image()
     img.onload = () => {
-      const ctx = cv.getContext("2d")
-      if (!ctx) return
-      ctx.clearRect(0, 0, cv.width, cv.height)
-      ctx.drawImage(img, 0, 0, cv.width, cv.height)
+      const c2 = canvasRef.current
+      const ctx2 = c2?.getContext("2d")
+      if (!c2 || !ctx2) return
+      ctx2.clearRect(0, 0, c2.width, c2.height)
+      ctx2.drawImage(img, 0, 0, c2.width, c2.height)
     }
-    img.src = initial
+    img.src = src
+  }
+
+  useEffect(() => {
+    // Монтирование: рисуем стартовый арт один раз.
+    committedRef.current = initial || null
+    paintFrom(initial)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  useEffect(() => {
+    // Внешняя смена (кнопка "Вернуть фото", свежие данные после сейва):
+    // перерисовываем и сбрасываем undo-стек чужого рисунка.
+    if ((initial || null) !== committedRef.current) {
+      committedRef.current = initial || null
+      paintFrom(initial)
+      setStrokes([])
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initial])
 
   function pos(e: React.PointerEvent): { x: number; y: number } | null {
     const cv = canvasRef.current
@@ -165,7 +193,9 @@ export function ArtCanvas({ initial, onArt }: { initial: string; onArt: (art: st
     } catch {
       return
     }
-    if (out.length <= ART_MAX_LEN) onArt(out)
+    if (out.length > ART_MAX_LEN) return
+    committedRef.current = out
+    onArt(out)
   }
 
   function down(e: React.PointerEvent): void {

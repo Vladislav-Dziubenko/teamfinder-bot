@@ -8,6 +8,7 @@ import {
   useChats,
   useGlobalChat,
   useCosmeticsMap,
+  sendTypingHeartbeat,
   preloadGlobalChat,
   parseIsoTs,
   type ChatMessage,
@@ -440,7 +441,7 @@ function SelectableRow({
 
 export function ChatConversation({ chatId, player, role, onBack, clanMode, clanEmblem, onOpenProfile }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void; clanMode?: boolean; clanEmblem?: string; onOpenProfile?: (id: number) => void }) {
   const { t, lang } = useI18n()
-  const { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
+  const { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, typingUsers, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
   const peerCosMap = useCosmeticsMap(player?.id != null ? [player.id] : [])
   const peerFrame = (player?.id != null && peerCosMap[String(player.id)]?.frame_color) || undefined
   // Выбор сообщений долгим нажатием (как в Telegram): null = режим выключен
@@ -614,20 +615,28 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
               <MoreVertical className="size-5" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-11 z-50 w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
-                <button type="button" onClick={actionMute} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
-                  {muted ? <BellRing className="size-4 text-muted-foreground" /> : <BellOff className="size-4 text-muted-foreground" />}
-                  {muted ? t("chat.unmute") : t("chat.mute")}
-                </button>
-                <button type="button" onClick={actionBlock} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
-                  {blocked ? <Unlock className="size-4 text-muted-foreground" /> : <Ban className="size-4 text-muted-foreground" />}
-                  {blocked ? t("chat.unblock") : t("chat.block")}
-                </button>
-                <button type="button" onClick={actionClear} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-destructive hover:bg-muted active:bg-muted">
-                  <Trash2 className="size-4" />
-                  {t("chat.clear")}
-                </button>
-              </div>
+              <>
+                <button
+                  type="button"
+                  aria-label={t("common.close")}
+                  onClick={() => setMenuOpen(false)}
+                  className="fixed inset-0 z-[60] cursor-default bg-transparent"
+                />
+                <div className="fixed right-4 top-[68px] z-[61] w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+                  <button type="button" onClick={actionMute} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
+                    {muted ? <BellRing className="size-4 text-muted-foreground" /> : <BellOff className="size-4 text-muted-foreground" />}
+                    {muted ? t("chat.unmute") : t("chat.mute")}
+                  </button>
+                  <button type="button" onClick={actionBlock} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
+                    {blocked ? <Unlock className="size-4 text-muted-foreground" /> : <Ban className="size-4 text-muted-foreground" />}
+                    {blocked ? t("chat.unblock") : t("chat.block")}
+                  </button>
+                  <button type="button" onClick={actionClear} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-destructive hover:bg-muted active:bg-muted">
+                    <Trash2 className="size-4" />
+                    {t("chat.clear")}
+                  </button>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -762,8 +771,13 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
         )}
         {typing && !blockedByOther && (
           <div className="flex justify-start">
-            <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-border bg-card px-3 py-3">
-              <Dot /> <Dot delay="150ms" /> <Dot delay="300ms" />
+            <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-border bg-card px-3 py-2.5">
+              <span className="max-w-40 truncate text-xs font-semibold text-accent">
+                {typingUsers[0]?.nick || player?.nick || "…"}
+              </span>
+              <span className="flex items-center gap-1">
+                <Dot /> <Dot delay="150ms" /> <Dot delay="300ms" />
+              </span>
             </div>
           </div>
         )}
@@ -864,7 +878,7 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
             <button type="button" onClick={sendViaTelegram} disabled={!canSend || !(player as any)?.id || tgVoiceBusy} aria-label={t("chat.voice_via_tg")} title={t("chat.voice_via_tg")} className="grid size-9 shrink-0 place-items-center rounded-xl text-muted-foreground active:scale-90 disabled:opacity-40">
               {tgVoiceBusy ? <Loader2 className="size-5 animate-spin" /> : <Bot className="size-5" />}
             </button>
-            <input ref={inputRef} value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }} placeholder={t("chat.input_placeholder")} className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50" />
+            <input ref={inputRef} value={draft} onChange={(e) => { setDraft(e.target.value); if (e.target.value.trim()) sendTypingHeartbeat(chatId) }} onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }} placeholder={t("chat.input_placeholder")} className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50" />
             <button type="button" onClick={submit} disabled={!draft.trim()} aria-label={t("common.send")} className="grid size-11 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground transition-transform active:scale-90 disabled:opacity-40">
               <Send className="size-5" />
             </button>
@@ -887,7 +901,14 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
 function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfile?: (id: number) => void }) {
   const { t, lang } = useI18n()
   const me = useMe()
-  const { messages, loaded, meRole, meBanned, sendGlobal, appendExternal, sendGlobalVoice, sending, deleteMessage, banUser, unbanUser } = useGlobalChat()
+  const { messages, loaded, meRole, meBanned, sendGlobal, appendExternal, sendGlobalVoice, sending, typingUsers, deleteMessage, banUser, unbanUser } = useGlobalChat()
+  const typingLabel = (() => {
+    if (!typingUsers.length) return ""
+    const names = typingUsers.slice(0, 2).map((u) => u.nick)
+    const rest = typingUsers.length - names.length
+    const who = rest > 0 ? `${names.join(", ")} +${rest}` : names.join(", ")
+    return lang === "ru" ? `${who} печатает…` : `${who} typing…`
+  })()
   const cosMap = useCosmeticsMap(messages.map((m) => m.userId))
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null)
   const [fwd, setFwd] = useState<ForwardSource | null>(null)
@@ -1175,6 +1196,14 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
       )}
 
       {replyTo && !meBanned && <ReplyBar replyTo={replyTo} onCancel={() => setReplyTo(null)} />}
+      {!!typingLabel && !meBanned && (
+        <div className="flex items-center gap-1.5 border-t border-border bg-card/85 px-4 py-1.5 backdrop-blur-xl">
+          <span className="max-w-56 truncate text-xs font-semibold text-accent">{typingLabel}</span>
+          <span className="flex items-center gap-1">
+            <Dot /> <Dot delay="150ms" /> <Dot delay="300ms" />
+          </span>
+        </div>
+      )}
       {/* Input */}
       <div className="flex items-center gap-2 border-t border-border bg-card/85 px-3 py-2.5 backdrop-blur-xl">
         {meBanned ? (
@@ -1189,7 +1218,7 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
             </button>
             <input
               value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+              onChange={(e) => { setDraft(e.target.value); if (e.target.value.trim()) sendTypingHeartbeat("global") }}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && e.keyCode !== 229) { e.preventDefault(); submit() } }}
               placeholder={t("chat.input_placeholder")}
               className="min-w-0 flex-1 rounded-2xl border border-input bg-background px-4 py-3 text-sm outline-none placeholder:text-muted-foreground/60 focus:border-primary/50"
@@ -2077,7 +2106,13 @@ const GlobalMsg = memo(function GlobalMsg({
             <MoreVertical className="size-4" />
           </button>
           {menuFor && (
-            <div className="absolute left-1 top-8 z-50 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+            <div
+              className={
+                mine
+                  ? "absolute right-1 top-8 z-50 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
+                  : "absolute left-1 top-8 z-50 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
+              }
+            >
               <button type="button" onClick={onReply} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
                 <Reply className="size-4 text-muted-foreground" />
                 {lang === "ru" ? "Ответить" : "Reply"}

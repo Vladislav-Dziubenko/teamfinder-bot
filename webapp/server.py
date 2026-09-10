@@ -3626,7 +3626,24 @@ async def handle_chat_messages(request: web.Request):
         if msg.get("sender_id") == user["id"]:
             msg["sender_id"] = "me"
     status = await db.get_chat_status(chat_id, user["id"])
-    return web.json_response({"messages": messages, "status": status, "has_more": len(messages) == limit})
+    try:
+        typing = await db.get_typing(chat_id, exclude_id=user["id"])
+    except Exception:
+        typing = []
+    return web.json_response({"messages": messages, "status": status, "has_more": len(messages) == limit, "typing": typing})
+
+
+async def handle_chat_typing(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    try:
+        await db.set_typing(chat_id, user["id"])
+    except Exception as exc:
+        logging.warning("typing heartbeat failed: %s", exc)
+    return web.json_response({"ok": True})
 
 
 async def _notify_tg_new_message(
@@ -4296,7 +4313,21 @@ async def handle_global_messages(request: web.Request):
     if banned is None:
         banned = await db.is_globally_banned(user["id"])
         await cache_set(f"gban:{user['id']}", banned, 30)
-    return web.json_response({"messages": messages, "me_role": role, "me_banned": banned})
+    try:
+        typing = await db.get_typing("global", exclude_id=user["id"])
+    except Exception:
+        typing = []
+    return web.json_response({"messages": messages, "me_role": role, "me_banned": banned, "typing": typing})
+
+
+async def handle_global_typing(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        await db.set_typing("global", user["id"])
+    except Exception as exc:
+        logging.warning("typing heartbeat failed: %s", exc)
+    return web.json_response({"ok": True})
 
 
 async def handle_global_send(request: web.Request):
@@ -4964,17 +4995,58 @@ async def handle_profile_by_id(request: web.Request):
         _cos = await db.get_cosmetics(target_id)
     except Exception:
         _cos = {}
+    liked_by_me = False
+    if current_id and current_id != target_id:
+        try:
+            liked_by_me = await db.has_liked(current_id, target_id)
+        except Exception:
+            pass
     return web.json_response({
         "id": target_id,
         "nick": prof.get("nick"),
         "avatar": prof.get("avatar"),
         "avatar_art": (_cos or {}).get("avatar_art", ""),
         "nick_color": (_cos or {}).get("nick_color", ""),
+        "liked_by_me": liked_by_me,
         "bio": prof.get("bio"),
         "tgUsername": tg_username,
         "friend_status": friend_status,
         "role": await _effective_role(request, db, target_id),
     })
+
+async def handle_profile_like(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+        target_id = int(body.get("user_id"))
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({"error": "invalid user_id"}, status=400)
+    if target_id == user["id"]:
+        return web.json_response({"error": "cannot like yourself"}, status=400)
+    await db.ensure_user(target_id, None, None, None)
+    try:
+        res = await db.like_profile(user["id"], target_id)
+    except Exception as exc:
+        logging.warning("like failed: %s", exc)
+        return web.json_response({"error": "failed"}, status=500)
+    # Интерес — пушем в личку бота (best-effort, блоки/удаления глушим).
+    try:
+        bot = request.app.get("bot")
+        me_nick = ""
+        try:
+            me_nick = (await db.get_mini_app_profile(user["id"])).get("nick") or f"User{user['id']}"
+        except Exception:
+            pass
+        if bot is not None:
+            text = (f"💘 <b>Взаимность!</b> {me_nick} тоже лайкнул тебя — напишите друг другу!"
+                    if res.get("matched") else
+                    f"💘 <b>Тобой интересуются!</b> {me_nick} лайкнул твою анкету.")
+            await bot.send_message(target_id, text)
+    except Exception:
+        pass
+    return web.json_response(res)
+
 
 async def handle_friend_add(request: web.Request):
     db: Database = request.app["db"]
@@ -6417,6 +6489,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/chat/list", handle_chat_list)
     app.router.add_get("/api/chat/{chat_id}", handle_chat_messages)
     app.router.add_post("/api/chat/{chat_id}/send", handle_chat_send)
+    app.router.add_post("/api/chat/{chat_id}/typing", handle_chat_typing)
     app.router.add_post("/api/chat/{chat_id}/clear", handle_chat_clear)
     app.router.add_post("/api/chat/{chat_id}/messages/delete", handle_chat_messages_delete)
     app.router.add_post("/api/chat/{chat_id}/block", handle_chat_block)
@@ -6428,6 +6501,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/voice/route", handle_voice_route)
     app.router.add_get("/api/global", handle_global_messages)
     app.router.add_post("/api/global/send", handle_global_send)
+    app.router.add_post("/api/global/typing", handle_global_typing)
     app.router.add_post("/api/messages/forward", handle_message_forward)
     app.router.add_post("/api/global/voice", handle_global_voice_upload)
     app.router.add_get("/api/global/voice/{msg_id}", handle_global_voice_stream)
@@ -6453,6 +6527,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
 
     # Friends
     app.router.add_post("/api/friends/add/{user_id}", handle_friend_add)
+    app.router.add_post("/api/profile/like", handle_profile_like)
     app.router.add_post("/api/friends/accept/{user_id}", handle_friend_accept)
     app.router.add_post("/api/friends/decline/{user_id}", handle_friend_decline)
     app.router.add_post("/api/friends/remove/{user_id}", handle_friend_remove)

@@ -193,10 +193,24 @@ export type ChatStatus = {
   blockedByOther: boolean
 }
 
+export type TypingUser = { userId: string; nick: string }
+
+/** Троттлинг heartbeat «печатает»: не чаще раза в 3с на чат. */
+const _typingLastSent = new Map<string, number>()
+export function sendTypingHeartbeat(chatId: string): void {
+  if (!chatId) return
+  const now = Date.now()
+  if (now - (_typingLastSent.get(chatId) ?? 0) < 3000) return
+  _typingLastSent.set(chatId, now)
+  const path = chatId === "global" ? "/api/global/typing" : `/api/chat/${chatId}/typing`
+  api.post(path, {}).catch(() => {})
+}
+
 export function useChatMessages(chatId: string | null) {
   const [messages, setMessages] = useState<ChatMessage[]>(chatId ? _msgCache.get(chatId) ?? [] : [])
   const [status, setStatus] = useState<ChatStatus>({ muted: false, blocked: false, blockedByOther: false })
   const [typing, setTyping] = useState(false)
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
   const [loadingEarlier, setLoadingEarlier] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const optimisticIds = useRef<Set<string>>(new Set())
@@ -229,6 +243,13 @@ export function useChatMessages(chatId: string | null) {
               blockedByOther: Boolean(data.status.blocked_by_other),
             })
           }
+          const typers: TypingUser[] = Array.isArray(data.typing)
+            ? data.typing
+                .filter((u: any) => u && u.user_id != null)
+                .map((u: any) => ({ userId: String(u.user_id), nick: String(u.nick || "?") }))
+            : []
+          setTypingUsers(typers)
+          setTyping(typers.length > 0)
           const serverMsgs = (data.messages ?? []).map(mapMsg)
           const serverIds = new Set(serverMsgs.map((m: ChatMessage) => m.id))
           setMessages((prev) => {
@@ -442,7 +463,7 @@ export function useChatMessages(chatId: string | null) {
     } catch {}
   }, [chatId])
 
-  return { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore }
+  return { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, typingUsers, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore }
 }
 
 export async function sendMessageRaw(chatId: string, text: string): Promise<void> {
@@ -574,6 +595,7 @@ export function useGlobalChat() {
   const [meRole, setMeRole] = useState<string>("")
   const [meBanned, setMeBanned] = useState(false)
   const [sending, setSending] = useState(false)
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([])
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
@@ -584,6 +606,13 @@ export function useGlobalChat() {
         if (cancelled) return
         setMeRole(data.me_role ?? "")
         setMeBanned(Boolean(data.me_banned))
+        setTypingUsers(
+          Array.isArray(data.typing)
+            ? data.typing
+                .filter((u: any) => u && u.user_id != null)
+                .map((u: any) => ({ userId: String(u.user_id), nick: String(u.nick || "?") }))
+            : [],
+        )
         const list: GlobalMessage[] = dedupeAndSort((data.messages ?? []).map(mapGlobalMsg))
         setMessages((prev) => {
           // Слияние вместо замены: медленный GET, ушедший до POST, иначе
@@ -730,7 +759,7 @@ export function useGlobalChat() {
     }
   }, [])
 
-  return { messages, loaded, meRole, meBanned, sendGlobal, appendExternal, sendGlobalVoice, sending, deleteMessage, banUser, unbanUser }
+  return { messages, loaded, meRole, meBanned, sendGlobal, appendExternal, sendGlobalVoice, sending, typingUsers, deleteMessage, banUser, unbanUser }
 }
 
 export function openChatWithPlayer(myId: number | string, otherId: number | string): string {

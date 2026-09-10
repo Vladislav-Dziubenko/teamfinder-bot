@@ -295,6 +295,20 @@ CREATE TABLE IF NOT EXISTS chat_mutes (
     PRIMARY KEY (user_id, chat_id)
 );
 
+CREATE TABLE IF NOT EXISTS chat_typing (
+    chat_id TEXT NOT NULL,
+    user_id BIGINT NOT NULL,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (chat_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS profile_likes (
+    from_user BIGINT NOT NULL,
+    to_user BIGINT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (from_user, to_user)
+);
+
 CREATE TABLE IF NOT EXISTS global_messages (
     id SERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -5549,6 +5563,54 @@ WHERE user_quests.completed = 0
                     chat_id, sender_id, now, voice_data, duration, mime,
                 )
             return {"id": str(row["id"]), "chat_id": chat_id, "sender_id": sender_id, "text": "", "created_at": now, "read_at": None, "is_voice": True, "voice_duration": duration, "voice_mime": mime}
+
+    async def like_profile(self, from_user: int, to_user: int) -> dict:
+        """Лайк анкеты. Возвращает {liked, matched} — matched при встречном лайке."""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO profile_likes (from_user, to_user, created_at) VALUES ($1, $2, $3)"
+                " ON CONFLICT DO NOTHING",
+                from_user, to_user, datetime.utcnow().isoformat(),
+            )
+            rev = await conn.fetchval(
+                "SELECT 1 FROM profile_likes WHERE from_user = $1 AND to_user = $2 LIMIT 1",
+                to_user, from_user,
+            )
+            return {"liked": True, "matched": rev == 1}
+
+    async def has_liked(self, from_user: int, to_user: int) -> bool:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchval(
+                "SELECT 1 FROM profile_likes WHERE from_user = $1 AND to_user = $2 LIMIT 1",
+                from_user, to_user,
+            )
+            return row == 1
+
+    async def set_typing(self, chat_id: str, user_id: int) -> None:
+        """Heartbeat «печатает»: upsert метки. Протухает на чтении (>8с)."""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO chat_typing (chat_id, user_id, updated_at) VALUES ($1, $2, $3)"
+                " ON CONFLICT (chat_id, user_id) DO UPDATE SET updated_at = $3",
+                chat_id, user_id, datetime.utcnow().isoformat(),
+            )
+
+    async def get_typing(self, chat_id: str, exclude_id: int | None = None) -> list[dict]:
+        """Кто печатает прямо сейчас (метка свежее 8с), кроме себя."""
+        cutoff = (datetime.utcnow() - timedelta(seconds=8)).isoformat()
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT t.user_id, COALESCE(mp.nick, '') AS nick FROM chat_typing t"
+                " LEFT JOIN mini_app_profiles mp ON mp.user_id = t.user_id"
+                " WHERE t.chat_id = $1 AND t.updated_at >= $2",
+                chat_id, cutoff,
+            )
+            out = []
+            for r in rows:
+                if exclude_id is not None and int(r["user_id"]) == int(exclude_id):
+                    continue
+                out.append({"user_id": int(r["user_id"]), "nick": r["nick"] or f"User{r['user_id']}"})
+            return out
 
     async def mark_chat_read(self, chat_id: str, user_id: int) -> None:
         """Mark all incoming messages (from the other party) as read."""
