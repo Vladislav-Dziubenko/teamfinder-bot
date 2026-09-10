@@ -16,7 +16,7 @@ from config import load_settings
 from database import Database
 from handlers import start, profile, search, guides, payments, admin, discord, appeal, voice, ask, help as help_handler
 from middleware import InjectMiddleware, RateLimitMiddleware
-from webapp.server import create_app
+from webapp.server import create_app, set_db_ready
 
 _PROCESS_START = time.monotonic()
 
@@ -122,7 +122,7 @@ async def main():
 
         # ---- Шаг 3: создаём приложение, регистрируем роуты ----
         web_app = create_app(db, settings, bot)
-        web_app["db_ready"] = False
+        set_db_ready(web_app, False)
 
         # Генерируем секретный путь для webhook (зависит только от токена бота)
         webhook_secret = hashlib.sha256(settings.bot_token.encode()).hexdigest()
@@ -212,7 +212,7 @@ async def main():
             for attempt in range(1, 31):
                 try:
                     await db.connect()
-                    web_app["db_ready"] = True
+                    set_db_ready(web_app, True)
                     logging.info("TIMING db.connect() done  +%.2fs (attempt %d)", time.monotonic() - _PROCESS_START, attempt)
                     return
                 except Exception as e:

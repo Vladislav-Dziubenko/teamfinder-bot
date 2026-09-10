@@ -101,14 +101,15 @@ def ensure_db():
     функция навсегда отдавала 503. Теперь каждый запрос к БД-зависимому
     роуту проверяет готовность и, при необходимости, переподключается.
     """
+    from webapp.server import is_db_ready, set_db_ready
     app = _app
     if app is None:
         return
-    if app.get("db_ready"):
+    if is_db_ready(app):
         return
     try:
         _loop.run_until_complete(_db.connect())
-        app["db_ready"] = True
+        set_db_ready(app, True)
         app["db_error"] = ""
         logger.info("Database connected (lazy retry)")
     except Exception as e:
@@ -148,14 +149,16 @@ def get_app():
             _app.freeze()
         except Exception:
             logger.exception("app.freeze() failed")
-        _app["db_ready"] = False
+        from webapp.server import set_db_ready
+        set_db_ready(_app, False)
         _app["db_error"] = ""
 
         # Подключаем БД асинхронно
         async def _init_db():
             try:
                 await _db.connect()
-                _app["db_ready"] = True
+                from webapp.server import set_db_ready
+                set_db_ready(_app, True)
                 _app["db_error"] = ""
                 logger.info("Database connected")
             except Exception as e:
@@ -295,6 +298,7 @@ def _process_request(method, path, headers, body):
             web_app = get_app()
 
             from aiohttp import web
+            from webapp.server import is_db_ready
 
             # Диагностический эндпоинт: показывает реальную ошибку БД вместо слепого 503.
             if path.split("?")[0].rstrip("/") in ("/api/health", "/health"):
@@ -302,7 +306,7 @@ def _process_request(method, path, headers, body):
                     "statusCode": 200,
                     "headers": {"Content-Type": "application/json; charset=utf-8"},
                     "body": json.dumps({
-                        "db_ready": bool(web_app.get("db_ready")),
+                        "db_ready": is_db_ready(web_app),
                         "db_error": web_app.get("db_error", ""),
                         "database_url_host": (settings_database_host() if (sh := settings_database_host()) else ""),
                     }),

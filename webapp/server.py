@@ -262,10 +262,35 @@ async def timing_middleware(request: web.Request, handler):
         logging.log(level, "[TIMING] %s %s → %d (%.3fs)", request.method, request.path, status, elapsed)
 
 
+def is_db_ready(app) -> bool:
+    """Флаг готовности БД. Читает и старый bool, и новый dict — мутации
+    запущенного app нет, поэтому DeprecationWarning не возникает."""
+    try:
+        state = app.get("db_ready", False)
+        if isinstance(state, dict):
+            return bool(state.get("ready", False))
+        return bool(state)
+    except Exception:
+        return False
+
+
+def set_db_ready(app, ready: bool = True) -> None:
+    """Ставит флаг готовности, не трогая состояние запущенного app:
+    меняется только вложенный dict, созданный в create_app до старта."""
+    try:
+        state = app.get("db_ready")
+    except Exception:
+        return
+    if isinstance(state, dict):
+        state["ready"] = bool(ready)
+    else:
+        app["db_ready"] = {"ready": bool(ready)}
+
+
 @web.middleware
 async def db_ready_middleware(request: web.Request, handler):
     if request.path.startswith("/api/"):
-        if not request.app.get("db_ready", False):
+        if not is_db_ready(request.app):
             if not any(request.path.startswith(p) for p in _DB_FREE_PREFIXES):
                 return web.json_response({"error": "service warming up"}, status=503)
     return await handler(request)
@@ -5073,7 +5098,7 @@ def _pred_pick_winner(match: dict) -> str:
 
 async def _prediction_tick(app: web.Application) -> None:
     db = app.get("db")
-    if not db or not app.get("db_ready"):
+    if not db or not is_db_ready(app):
         return
     now_ms = int(time() * 1000)
     for match in list(_pred_matches):
@@ -6244,6 +6269,9 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app["db"] = db
     app["settings"] = settings
     app["bot"] = bot
+    # Флаг готовности — вложенный dict: set_db_ready меняет только его,
+    # само состояние запущенного app не трогается (без DeprecationWarning).
+    app["db_ready"] = {"ready": False}
 
     # Создаём ClientSession с текущим event loop (для serverless совместимости)
     try:
@@ -6517,7 +6545,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
             "webhook_secret_set": bool(request.app.get("webhook_secret")),
             "dp_set": bool(request.app.get("dp")),
             "bot_set": bool(request.app.get("bot")),
-            "db_ready": bool(request.app.get("db_ready")),
+            "db_ready": is_db_ready(request.app),
             "db_error": request.app.get("db_error", ""),
             "db_pool": bool(db_obj and db_obj._pool is not None),
             "db_url": db_url_info,
@@ -6551,7 +6579,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
                 sender = msg.from_user
                 if sender and msg.chat.type == "private":
                     db_obj = request.app.get("db")
-                    if db_obj is not None and request.app.get("db_ready"):
+                    if db_obj is not None and is_db_ready(request.app):
                         try:
                             asyncio.ensure_future(db_obj.set_last_message(sender.id, msg.chat.id, msg.message_id))
                         except Exception:
