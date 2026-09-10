@@ -3047,6 +3047,20 @@ class Database:
                 )
                 return {"ok": True, "stars": bonus_stars}
 
+    async def update_discord_tokens(self, user_id: int, access_token: str,
+                                    refresh_token: str, expires_at: str | None) -> None:
+        import importlib
+        crypto = importlib.import_module("webapp.crypto")
+        now = datetime.utcnow().isoformat()
+        access_enc = crypto.encrypt_token(access_token, self._fernet_key) if self._fernet_key else ""
+        refresh_enc = crypto.encrypt_token(refresh_token, self._fernet_key) if self._fernet_key else ""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE discord_connections SET access_token_enc = $1, refresh_token_enc = $2,"
+                " token_expires_at = $3, updated_at = $4 WHERE user_id = $5",
+                access_enc, refresh_enc, expires_at, now, user_id,
+            )
+
     async def get_discord_connection(self, user_id: int) -> dict | None:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow("SELECT * FROM discord_connections WHERE user_id = $1", user_id)

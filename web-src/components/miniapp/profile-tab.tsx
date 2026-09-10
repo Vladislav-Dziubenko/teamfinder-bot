@@ -333,8 +333,11 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
             type="button"
             onClick={async () => {
               if (editing) {
-                await saveProfile()
-                onToast(t("profile.saved"))
+                const res = await saveProfile()
+                // Раньше тост "сохранено" показывался даже при 400 с сервера —
+                // правки (ник, био, ава) молча терялись.
+                onToast(res.ok ? t("profile.saved") : (res.error || t("common.error")))
+                if (!res.ok) return
               }
               setEditing((e) => !e)
             }}

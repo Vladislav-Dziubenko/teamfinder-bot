@@ -539,7 +539,7 @@ type Nexus = PersistedState & {
   setDeco: (v: string) => Promise<void>
   equipSkin: (itemKey: string) => Promise<void>
   toggleTgNotify: (enabled: boolean) => Promise<void>
-  saveProfile: () => Promise<void>
+  saveProfile: () => Promise<{ ok: boolean; error?: string }>
   buyBattlePass: () => Promise<boolean>
   claimTier: (key: string) => Promise<{ ok: boolean; error?: string }>
   claimNextBpTier: () => Promise<{ ok: boolean; tierLevel?: number; error?: string }>
@@ -1024,10 +1024,23 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     }
     const saveProfile = async () => {
       try {
-        await api.post("/api/profile/customize", { nick: s.nick, bio: s.bio, avatar: s.avatar, deco: s.deco })
+        // Старые тяжёлые аватарки из стора жмём перед отправкой, иначе
+        // сервер ответит 400 и молча ничего не сохранится (ни ник, ни био).
+        let avatarToSend = s.avatar
+        if (typeof avatarToSend === "string" && avatarToSend.startsWith("data:image/") && avatarToSend.length > 90_000) {
+          try {
+            const { downscaleDataUrl } = await import("@/lib/image")
+            avatarToSend = await downscaleDataUrl(avatarToSend)
+          } catch {
+            // Не ужалось — шлём как есть, сервер вернёт понятную ошибку.
+          }
+        }
+        await api.post("/api/profile/customize", { nick: s.nick, bio: s.bio, avatar: avatarToSend, deco: s.deco })
         await refresh()
-      } catch (e) {
+        return { ok: true }
+      } catch (e: any) {
         console.error("saveProfile failed", e)
+        return { ok: false, error: e?.message || "Не сохранилось" }
       }
     }
 

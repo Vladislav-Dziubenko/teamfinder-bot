@@ -43,7 +43,7 @@ from services.ai_moderation import is_guard_mention, score_message
 from services.matching import find_matches, score_match
 from webapp.auth import validate_init_data
 from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
-                            fetch_discord_connections, revoke_token, _make_state, _verify_state)
+                            fetch_discord_connections, refresh_token, revoke_token, _make_state, _verify_state)
 from webapp.steam import (build_auth_url as build_steam_auth_url, extract_steamid64,
                           verify_openid, fetch_player_summary, fetch_cs2_stats, fetch_owned_games)
 from webapp.redis_client import (
@@ -5734,9 +5734,36 @@ async def handle_discord_status(request: web.Request):
     try:
         connections = await fetch_discord_connections(conn["access_token"])
     except Exception as e:
-        logging.warning(f"Discord token invalid or expired for user {user['id']}: {e}")
-        await db.remove_discord_connection(user["id"])
-        return web.json_response({"linked": False})
+        # Транзиентная ошибка сети — привязку НЕ трогаем (раньше тут
+        # удалялась связь и юзер "терял" Discord из ниоткуда).
+        logging.warning(f"Discord connections fetch error for user {user['id']}: {e}")
+        connections = []
+    if not connections and conn.get("refresh_token"):
+        # Пусто может значить и протухший access_token (живут ~7 дней) —
+        # пробуем refresh один раз и повторяем запрос.
+        try:
+            settings = request.app["settings"]
+            new_tokens = await refresh_token(
+                settings.discord_client_id, settings.discord_client_secret,
+                conn["refresh_token"],
+            )
+            if new_tokens and new_tokens.get("access_token"):
+                exp = None
+                if new_tokens.get("expires_in"):
+                    exp = (datetime.utcnow() + timedelta(seconds=int(new_tokens["expires_in"]))).isoformat()
+                await db.update_discord_tokens(
+                    user["id"], new_tokens["access_token"],
+                    new_tokens.get("refresh_token", "") or conn["refresh_token"], exp,
+                )
+                try:
+                    connections = await fetch_discord_connections(new_tokens["access_token"])
+                except Exception as e:
+                    logging.warning(f"Discord retry fetch failed for user {user['id']}: {e}")
+                    connections = []
+            else:
+                logging.warning(f"Discord refresh rejected for user {user['id']}")
+        except Exception as e:
+            logging.warning(f"Discord refresh failed for user {user['id']}: {e}")
 
     welcome_claimed = bool(
         await db.pool.fetchval(
