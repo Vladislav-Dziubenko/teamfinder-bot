@@ -10,6 +10,7 @@ const EMPTY: Cosmetics = { nick_color: "", frame_color: "", card_bg: "", avatar_
 const PALETTE = ["#ffd700", "#ff6b6b", "#4ade80", "#38bdff", "#c084fc", "#ff9d00", "#f472b6", "#e8e8e8"]
 const ART_SIZE = 128
 const ART_MAX_LEN = 150_000
+const OWN_COSMETICS_EVENT = "nexus:own-cosmetics-changed"
 
 let _ownPromise: Promise<{ cosmetics: Cosmetics; is_beta: boolean }> | null = null
 function fetchOwn(): Promise<{ cosmetics: Cosmetics; is_beta: boolean }> {
@@ -23,6 +24,9 @@ function fetchOwn(): Promise<{ cosmetics: Cosmetics; is_beta: boolean }> {
 }
 export function refreshOwnCosmetics(): void {
   _ownPromise = null
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(OWN_COSMETICS_EVENT))
+  }
 }
 
 export function useOwnCosmetics(): { data: Cosmetics; isBeta: boolean; loading: boolean; reload: () => void } {
@@ -47,6 +51,12 @@ export function useOwnCosmetics(): { data: Cosmetics; isBeta: boolean; loading: 
       cancelled = true
     }
   }, [tick])
+  useEffect(() => {
+    if (typeof window === "undefined") return
+    const onRefresh = () => setTick((x) => x + 1)
+    window.addEventListener(OWN_COSMETICS_EVENT, onRefresh)
+    return () => window.removeEventListener(OWN_COSMETICS_EVENT, onRefresh)
+  }, [])
   return { data, isBeta, loading, reload: () => setTick((x) => x + 1) }
 }
 

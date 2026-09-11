@@ -4,6 +4,7 @@ import { Gift, Star } from "lucide-react"
 import { useDiscord } from "@/lib/hooks/useDiscord"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
+import { refreshOwnCosmetics } from "@/components/miniapp/cosmetics-editor"
 
 export function DiscordSection() {
   const { t } = useI18n()
@@ -40,6 +41,7 @@ export function DiscordSection() {
   async function onSyncProfile() {
     const ok = await syncProfile()
     if (ok) {
+      refreshOwnCosmetics()
       await refreshStatus()
       await refreshMe()
     }

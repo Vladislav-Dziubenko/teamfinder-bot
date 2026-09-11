@@ -43,7 +43,7 @@ from services.ai_moderation import is_guard_mention, score_message
 from services.matching import find_matches, score_match
 from webapp.auth import validate_init_data
 from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
-                            fetch_discord_connections, refresh_token, revoke_token, _make_state, _verify_state)
+                            revoke_token, _make_state, _verify_state)
 from webapp.steam import (build_auth_url as build_steam_auth_url, extract_steamid64,
                           verify_openid, fetch_player_summary, fetch_cs2_stats, fetch_owned_games)
 from webapp.redis_client import (
@@ -4078,14 +4078,6 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
         if not is_guard_mention(text):
             return
         logging.info("[ai-mod] chat mention user=%s text=%.40s", user_id, text)
-        now = time()
-        cooldown = max(10, settings.ai_chat_cooldown_s)
-        if now - _AI_CHAT_USER_LAST.get(user_id, 0.0) < cooldown:
-            await _skip("cooldown")
-            return
-        if await db.count_audit_action("ai_chat", 1) >= max(1, settings.ai_chat_max_per_hour):
-            await _skip("cap")
-            return
         try:
             recent = await db.get_global_messages(12)
         except Exception:
@@ -4097,6 +4089,26 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
             for m in recent if (m.get("text") or "").strip()
         ]
         history.append({"nick": "Автор", "text": text.strip()[:300], "mine": True})
+        from services.ai_moderation import guard_needs_live_lookup, guard_quick_reply
+        quick_reply = guard_quick_reply(text, history)
+        if quick_reply:
+            await db.send_global_message(AI_PERSONA_ID, quick_reply, kind="user")
+            await cache_delete_pattern("global_chat_msgs")
+            await db.audit_log(user_id, "ai_chat_quick", f"reply_to={user_id} len={len(quick_reply)}")
+            logging.info("[ai-mod] quick chat reply sent to user=%s", user_id)
+            return
+
+        now = time()
+        live_lookup = guard_needs_live_lookup(text)
+        cooldown = max(3, min(settings.ai_chat_cooldown_s, 10))
+        if live_lookup:
+            cooldown = 1
+        if now - _AI_CHAT_USER_LAST.get(user_id, 0.0) < cooldown:
+            await _skip("cooldown")
+            return
+        if await db.count_audit_action("ai_chat", 1) >= max(1, settings.ai_chat_max_per_hour):
+            await _skip("cap")
+            return
         try:
             memory = await db.ai_memory_prompt()
         except Exception:
@@ -4207,12 +4219,11 @@ async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text
             # Чисто — может, зовут собеседника.
             await _ai_chat_reply(db, settings, user_id, text)
             return
-        # Упоминание Стража при флуд-скоре: повторные «страж, привет»
-        # ловятся флуд-детектом (0.85) и раньше не доходили до собеседника.
-        # Пробуем ответить (там свои кулдаун/кап), в лестницу не идём —
-        # за теребление бота не наказываем. Скам/инсалты с упоминанием
-        # идут обычным путём ниже.
-        if category == "flood" and is_guard_mention(text):
+        # Упоминание Стража при безопасных категориях должно доходить до
+        # собеседника: повторные вопросы, подколы и обычные ссылки не должны
+        # превращаться в наказание только потому, что модель завысила score.
+        # Тяжёлые категории (скам, доксинг, угрозы, adult) остаются в лестнице.
+        if is_guard_mention(text) and category not in AI_HEAVY_CATEGORIES:
             await _ai_chat_reply(db, settings, user_id, text)
             await db.audit_log(user_id, "ai_queue", f"score={score:.2f} cat={category} msg={msg_id} {reason}")
             return
@@ -5744,41 +5755,6 @@ async def handle_discord_status(request: web.Request):
     conn = await db.get_discord_connection(user["id"])
     if not conn:
         return web.json_response({"linked": False})
-
-    connections = []
-    try:
-        connections = await fetch_discord_connections(conn["access_token"])
-    except Exception as e:
-        # Транзиентная ошибка сети — привязку НЕ трогаем (раньше тут
-        # удалялась связь и юзер "терял" Discord из ниоткуда).
-        logging.warning(f"Discord connections fetch error for user {user['id']}: {e}")
-        connections = []
-    if not connections and conn.get("refresh_token"):
-        # Пусто может значить и протухший access_token (живут ~7 дней) —
-        # пробуем refresh один раз и повторяем запрос.
-        try:
-            settings = request.app["settings"]
-            new_tokens = await refresh_token(
-                settings.discord_client_id, settings.discord_client_secret,
-                conn["refresh_token"],
-            )
-            if new_tokens and new_tokens.get("access_token"):
-                exp = None
-                if new_tokens.get("expires_in"):
-                    exp = (datetime.utcnow() + timedelta(seconds=int(new_tokens["expires_in"]))).isoformat()
-                await db.update_discord_tokens(
-                    user["id"], new_tokens["access_token"],
-                    new_tokens.get("refresh_token", "") or conn["refresh_token"], exp,
-                )
-                try:
-                    connections = await fetch_discord_connections(new_tokens["access_token"])
-                except Exception as e:
-                    logging.warning(f"Discord retry fetch failed for user {user['id']}: {e}")
-                    connections = []
-            else:
-                logging.warning(f"Discord refresh rejected for user {user['id']}")
-        except Exception as e:
-            logging.warning(f"Discord refresh failed for user {user['id']}: {e}")
 
     welcome_claimed = bool(
         await db.pool.fetchval(

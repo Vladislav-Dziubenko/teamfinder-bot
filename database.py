@@ -2246,8 +2246,10 @@ class Database:
             clan = d0
             members = await conn.fetch(
                 "SELECT m.user_id, m.role, m.contribution_season, m.contribution_total, m.joined_at,"
-                " COALESCE(mp.nick, '') AS nick, mp.avatar AS avatar"
+                " COALESCE(mp.nick, '') AS nick,"
+                " COALESCE(NULLIF(uc.avatar_art, ''), mp.avatar) AS avatar"
                 " FROM clan_members m LEFT JOIN mini_app_profiles mp ON mp.user_id = m.user_id"
+                " LEFT JOIN user_cosmetics uc ON uc.user_id = m.user_id"
                 " WHERE m.clan_id = $1 ORDER BY"
                 " CASE m.role WHEN 'leader' THEN 0 WHEN 'officer' THEN 1 ELSE 2 END,"
                 " m.contribution_season DESC",
@@ -3021,6 +3023,11 @@ class Database:
                 await conn.execute(
                     "UPDATE mini_app_profiles SET nick = $1, avatar = $2, updated_at = $3 WHERE user_id = $4",
                     nick, avatar, datetime.utcnow().isoformat(), user_id,
+                )
+                await conn.execute(
+                    "UPDATE user_cosmetics SET avatar_art = '', updated_at = $1"
+                    " WHERE user_id = $2 AND avatar_art <> ''",
+                    datetime.utcnow().isoformat(), user_id,
                 )
                 return {"ok": True, "nick": nick, "avatar": avatar}
 
