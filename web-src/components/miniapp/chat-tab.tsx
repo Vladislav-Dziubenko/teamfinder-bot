@@ -615,14 +615,14 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
               <MoreVertical className="size-5" />
             </button>
             {menuOpen && (
-              <>
+              <div className="fixed inset-0 z-[60] flex items-center justify-center px-10">
                 <button
                   type="button"
                   aria-label={t("common.close")}
                   onClick={() => setMenuOpen(false)}
-                  className="fixed inset-0 z-[60] cursor-default bg-transparent"
+                  className="absolute inset-0 bg-background/60"
                 />
-                <div className="fixed right-4 top-[68px] z-[61] w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
+                <div className="relative w-full max-w-xs overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
                   <button type="button" onClick={actionMute} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
                     {muted ? <BellRing className="size-4 shrink-0 text-muted-foreground" /> : <BellOff className="size-4 shrink-0 text-muted-foreground" />}
                     <span className="truncate">{muted ? t("chat.unmute") : t("chat.mute")}</span>
@@ -636,7 +636,7 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
                     <span className="truncate">{t("chat.clear")}</span>
                   </button>
                 </div>
-              </>
+              </div>
             )}
           </div>
         )}
