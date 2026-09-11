@@ -253,6 +253,9 @@ function mergePromos(
 
 const CURRENCY_PERSIST_KEY = "nexus.currency.v1"
 const PINS_PERSIST_KEY = "nexus.pins.v1"
+const PROFILE_SUMMARY_PERSIST_KEY = "nexus.profile-summary.v1"
+
+type ProfileSummary = { level: number; wins: number }
 
 function loadSavedPins(): string[] {
   if (typeof window === "undefined") return []
@@ -297,6 +300,25 @@ function saveCurrency(state: PersistedState): void {
       CURRENCY_PERSIST_KEY,
       JSON.stringify({ stars: state.stars, coins: state.coins, points: state.points }),
     )
+  } catch {
+    // ignore quota / privacy errors
+  }
+}
+
+function loadProfileSummary(): ProfileSummary | null {
+  if (typeof window === "undefined") return null
+  try {
+    const parsed = JSON.parse(localStorage.getItem(PROFILE_SUMMARY_PERSIST_KEY) || "")
+    return typeof parsed?.level === "number" && typeof parsed?.wins === "number" ? parsed : null
+  } catch {
+    return null
+  }
+}
+
+function saveProfileSummary(summary: ProfileSummary): void {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem(PROFILE_SUMMARY_PERSIST_KEY, JSON.stringify(summary))
   } catch {
     // ignore quota / privacy errors
   }
@@ -573,11 +595,14 @@ export function NexusProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const saved = loadSavedCurrency()
     const pins = loadSavedPins()
+    const profileSummary = loadProfileSummary()
     setS((prev) => ({
       ...prev,
       stars: saved?.stars ?? prev.stars,
       coins: saved?.coins ?? prev.coins,
       points: saved?.points ?? prev.points,
+      level: profileSummary?.level ?? prev.level,
+      wins: profileSummary?.wins ?? prev.wins,
       pinnedKeys: pins.length ? pins : prev.pinnedKeys,
     }))
   }, [])
@@ -587,6 +612,22 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     telegramReady()
     // Профиль Telegram (имя, username) — на бэкенд при каждом запуске.
     syncTelegramProfile()
+  }, [])
+
+  // Уровень на главной зависит только от battle pass и статистики. Получаем
+  // эти два поля отдельно, чтобы не ждать тяжёлый /api/me (инвентарь, промо,
+  // достижения и другие стартовые данные на Render могут занимать секунды).
+  useEffect(() => {
+    let cancelled = false
+    api.get<ProfileSummary>("/api/me/summary")
+      .then((summary) => {
+        if (cancelled) return
+        const next = { level: summary.level ?? 0, wins: summary.wins ?? 0 }
+        setS((prev) => ({ ...prev, ...next }))
+        saveProfileSummary(next)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
   }, [])
 
   useEffect(() => {
@@ -601,6 +642,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
           const next = mapMeToState(me as MeResponse, modelState as ModelState, loadSavedPins())
           setS(next)
           saveCurrency(next)
+          saveProfileSummary({ level: next.level, wins: next.wins })
         }
       } catch (e: any) {
         const retriable = e?.status === 429 || (e?.status && e.status >= 500) || e?.timeout
@@ -660,6 +702,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
       const next = mapMeToState(me as MeResponse, modelState as ModelState, loadSavedPins())
       setS(next)
       saveCurrency(next)
+      saveProfileSummary({ level: next.level, wins: next.wins })
       // История серий — отдельно: сбой здесь не должен ломать стартовую загрузку.
       void api
         .get<{ models?: ModelHistoryEntry[] }>("/api/nexus/model/history")

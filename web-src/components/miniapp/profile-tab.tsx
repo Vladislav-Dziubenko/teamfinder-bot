@@ -35,7 +35,7 @@ import { useTheme } from "@/lib/theme"
 import { useNexus, useMe } from "@/lib/store"
 import { games, dailyStreakRewards, caseItemByKey } from "@/lib/data"
 import { formatNum } from "@/lib/format"
-import { downscalePhoto } from "@/lib/image"
+import { downscaleDataUrl, downscalePhoto } from "@/lib/image"
 import type { TabId } from "./bottom-nav"
 import { DiscordSection } from "@/components/miniapp/discord-section"
 import { SteamSection } from "@/components/miniapp/steam-section"
@@ -150,7 +150,12 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
       .then(replaceAvatar)
       .catch(() => {
         const reader = new FileReader()
-        reader.onload = () => { void replaceAvatar(reader.result as string) }
+        reader.onload = () => {
+          downscaleDataUrl(reader.result as string)
+            .then(replaceAvatar)
+            .catch(() => onToast("Не удалось обработать фотографию"))
+        }
+        reader.onerror = () => onToast("Не удалось прочитать фотографию")
         reader.readAsDataURL(f)
       })
     e.target.value = ""

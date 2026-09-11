@@ -574,6 +574,21 @@ async def handle_me(request: web.Request):
         return web.json_response({"error": "server busy"}, status=503)
 
 
+async def handle_me_summary(request: web.Request):
+    """Быстрые цифры для главной, не требующие сборки полного /api/me."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    battlepass, user_stats = await asyncio.gather(
+        db.get_battlepass(user["id"]),
+        db.get_user_stats(user["id"]),
+    )
+    bp_xp = (battlepass or {}).get("bp_xp", 0) or 0
+    return web.json_response({
+        "level": sum(1 for tier in BATTLE_PASS_TIERS if bp_xp >= (tier.get("xp") or 0)),
+        "wins": (user_stats or {}).get("wins", 0),
+    })
+
+
 async def _me_payload(request: web.Request, db: Database, user: dict):
     # Бан аккаунта: статус отдаём клиенту в теле ответа (он покажет бан-экран),
     # бонусы забаненному не начисляются.
@@ -6404,6 +6419,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/health", handle_health)
     app.router.add_get("/api/games", handle_games)
     app.router.add_get("/api/me", handle_me)
+    app.router.add_get("/api/me/summary", handle_me_summary)
     app.router.add_route("GET", "/api/user/language", handle_user_language)
     app.router.add_route("POST", "/api/user/language", handle_user_language)
     app.router.add_route("GET", "/api/user/consent", handle_user_consent)
