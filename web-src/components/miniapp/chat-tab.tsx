@@ -470,6 +470,22 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
   const [starSheetOpen, setStarSheetOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const chatMenuRef = useRef<HTMLDivElement>(null)
+  const chatMenuPanelRef = useRef<HTMLDivElement>(null)
+
+  // Меню действий находится в потоке страницы (под шапкой), поэтому оно не
+  // накрывает сообщения. Закрываем его при тапе вне меню, как обычный popover.
+  useEffect(() => {
+    if (!menuOpen) return
+    const closeOnOutsideTap = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!chatMenuRef.current?.contains(target) && !chatMenuPanelRef.current?.contains(target)) {
+        setMenuOpen(false)
+      }
+    }
+    document.addEventListener("pointerdown", closeOnOutsideTap)
+    return () => document.removeEventListener("pointerdown", closeOnOutsideTap)
+  }, [menuOpen])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" })
@@ -605,7 +621,7 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
           </button>
         )}
         {!clanMode && (
-          <div className="relative">
+          <div ref={chatMenuRef} className="relative">
             <button
               type="button"
               onClick={() => setMenuOpen((v) => !v)}
@@ -614,33 +630,28 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
             >
               <MoreVertical className="size-5" />
             </button>
-            {menuOpen && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center px-10">
-                <button
-                  type="button"
-                  aria-label={t("common.close")}
-                  onClick={() => setMenuOpen(false)}
-                  className="absolute inset-0 bg-background/60"
-                />
-                <div className="relative w-full max-w-xs overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
-                  <button type="button" onClick={actionMute} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
-                    {muted ? <BellRing className="size-4 shrink-0 text-muted-foreground" /> : <BellOff className="size-4 shrink-0 text-muted-foreground" />}
-                    <span className="truncate">{muted ? t("chat.unmute") : t("chat.mute")}</span>
-                  </button>
-                  <button type="button" onClick={actionBlock} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
-                    {blocked ? <Unlock className="size-4 shrink-0 text-muted-foreground" /> : <Ban className="size-4 shrink-0 text-muted-foreground" />}
-                    <span className="truncate">{blocked ? t("chat.unblock") : t("chat.block")}</span>
-                  </button>
-                  <button type="button" onClick={actionClear} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-destructive hover:bg-muted active:bg-muted">
-                    <Trash2 className="size-4 shrink-0" />
-                    <span className="truncate">{t("chat.clear")}</span>
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </header>
+
+      {menuOpen && !clanMode && (
+        <div className="flex justify-end border-b border-border bg-card/95 px-3 py-2 backdrop-blur-xl">
+          <div ref={chatMenuPanelRef} className="w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-lg">
+            <button type="button" onClick={actionMute} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm transition-colors hover:bg-muted active:bg-muted">
+              {muted ? <BellRing className="size-4 shrink-0 text-muted-foreground" /> : <BellOff className="size-4 shrink-0 text-muted-foreground" />}
+              <span className="truncate">{muted ? t("chat.unmute") : t("chat.mute")}</span>
+            </button>
+            <button type="button" onClick={actionBlock} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm transition-colors hover:bg-muted active:bg-muted">
+              {blocked ? <Unlock className="size-4 shrink-0 text-muted-foreground" /> : <Ban className="size-4 shrink-0 text-muted-foreground" />}
+              <span className="truncate">{blocked ? t("chat.unblock") : t("chat.block")}</span>
+            </button>
+            <button type="button" onClick={actionClear} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-destructive transition-colors hover:bg-muted active:bg-muted">
+              <Trash2 className="size-4 shrink-0" />
+              <span className="truncate">{t("chat.clear")}</span>
+            </button>
+          </div>
+        </div>
+      )}
 
       {blockedByOther && (
         <div className="border-b border-border bg-muted/50 px-4 py-2 text-center text-xs text-muted-foreground">

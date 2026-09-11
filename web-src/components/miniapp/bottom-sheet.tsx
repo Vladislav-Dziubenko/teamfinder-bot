@@ -33,10 +33,18 @@ export function BottomSheet({
 
   useEffect(() => {
     if (open) {
+      if (closeTimer.current) clearTimeout(closeTimer.current)
       setRender(true)
       setClosing(false)
+      return
     }
-  }, [open])
+    if (!render) return
+    setClosing(true)
+    closeTimer.current = setTimeout(() => {
+      setRender(false)
+      setClosing(false)
+    }, 220)
+  }, [open, render])
 
   useEffect(
     () => () => {
@@ -61,8 +69,9 @@ export function BottomSheet({
 
   function requestClose() {
     if (closing) return
-    setClosing(true)
-    closeTimer.current = setTimeout(onClose, 220)
+    // Компонент управляется prop `open`. Родитель сразу меняет экран, а эта
+    // шторка корректно доигрывает анимацию в эффекте выше.
+    onClose()
   }
 
   function onDown(e: React.PointerEvent) {

@@ -102,7 +102,7 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
     toggleTgNotify,
   } = useNexus()
   const { games: userGames } = useMe()
-  const { data: ownCos } = useOwnCosmetics()
+  const { data: ownCos, reload: reloadOwnCosmetics } = useOwnCosmetics()
 
   const [editing, setEditing] = useState(false)
   const [showLang, setShowLang] = useState(false)
@@ -120,34 +120,37 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
   const decoAvailable = (id: string) => id === "orange" || premiumActive || unlockedDecos.includes(id)
   const streakReady = !lastStreakAt || Date.now() - lastStreakAt >= 24 * 60 * 60 * 1000
 
+  async function replaceAvatar(url: string): Promise<void> {
+    setAvatar(url)
+    try {
+      // Рисованная аватарка имеет приоритет в UI. Стираем её на сервере и
+      // сразу сохраняем выбранное фото, не заставляя пользователя отдельно
+      // открывать редактор и нажимать «Сохранить».
+      if (ownCos.avatar_art) {
+        await api.post("/api/profile/cosmetics", { avatar_art: "" })
+      }
+      await api.post("/api/profile/customize", { avatar: url })
+      refreshOwnCosmetics()
+      reloadOwnCosmetics()
+      await refresh()
+      onToast(t("profile.saved"))
+    } catch (error: any) {
+      // Не оставляем в памяти фотографию, которую сервер не принял.
+      await refresh()
+      onToast(error?.message || t("common.error"))
+    }
+  }
+
   function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
     // Фото жмём до 256px ДО сохранения: сырые мегабайты с камеры раньше
     // оседали в БД и раздували каждый поллинг чата до 5+ МБ (OOM на Render).
     downscalePhoto(f)
-      .then(async (url) => {
-        setAvatar(url)
-        if (ownCos.avatar_art) {
-          try {
-            await api.post("/api/profile/cosmetics", { ...ownCos, avatar_art: "" })
-            const { refreshOwnCosmetics } = await import("./cosmetics-editor")
-            refreshOwnCosmetics()
-          } catch (e) {}
-        }
-      })
+      .then(replaceAvatar)
       .catch(() => {
         const reader = new FileReader()
-        reader.onload = async () => {
-          setAvatar(reader.result as string)
-          if (ownCos.avatar_art) {
-            try {
-              await api.post("/api/profile/cosmetics", { ...ownCos, avatar_art: "" })
-              const { refreshOwnCosmetics } = await import("./cosmetics-editor")
-              refreshOwnCosmetics()
-            } catch (e) {}
-          }
-        }
+        reader.onload = () => { void replaceAvatar(reader.result as string) }
         reader.readAsDataURL(f)
       })
     e.target.value = ""
@@ -378,7 +381,14 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
       </section>
 
       {/* Своё оформление (бета-набор): цвета, рамки, кисточка */}
-      <CosmeticsEditor onToast={onToast} nick={nick} avatar={avatar} />
+      <CosmeticsEditor
+        // После замены рисунка фотографией пересоздаём редактор с актуальными
+        // данными, чтобы его старая несохранённая копия не вернула рисунок.
+        key={ownCos.avatar_art || "photo"}
+        onToast={onToast}
+        nick={nick}
+        avatar={avatar}
+      />
 
       {/* Discord connection */}
       <DiscordSection />
