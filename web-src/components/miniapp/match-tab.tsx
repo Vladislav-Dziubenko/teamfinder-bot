@@ -28,7 +28,7 @@ export function MatchTab({
   const { t } = useI18n()
   const { freeSearchesLeft, useFreeSearch, spendStars, unlockPlayer, unlockedPlayers } = useNexus()
 
-  const [mode, setMode] = useState<"players" | "teams">("players")
+  const [mode, setMode] = useState<"players" | "teams" | "likes">("players")
   const [game, setGame] = useState<string>("all")
   const [query, setQuery] = useState("")
   const [applied, setApplied] = useState("")
@@ -178,17 +178,21 @@ export function MatchTab({
 
       {/* Mode switch */}
       <div className="flex rounded-2xl border border-border bg-card p-1">
-        {(["players", "teams"] as const).map((m) => (
+        {(["players", "teams", "likes"] as const).map((m) => (
           <button
             key={m}
             type="button"
             onClick={() => setMode(m)}
             className={cn(
               "flex-1 rounded-xl py-2.5 text-sm font-semibold transition-colors",
-              mode === m ? "bg-primary text-primary-foreground" : "text-muted-foreground",
+              mode === m
+                ? m === "likes"
+                  ? "bg-rose-500 text-white"
+                  : "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-muted/50",
             )}
           >
-            {m === "players" ? t("match.players_tab") : t("match.teams_tab")}
+            {m === "players" ? t("match.players_tab") : m === "teams" ? t("match.teams_tab") : "❤️ Симпатии"}
           </button>
         ))}
       </div>
@@ -269,6 +273,8 @@ export function MatchTab({
             )
           })}
         </div>
+      ) : mode === "likes" ? (
+        <LikesSection />
       ) : (
         <div className="space-y-4">
           {filteredTeams.length === 0 && <Empty />}
@@ -318,6 +324,70 @@ function Empty() {
     <div className="rounded-3xl border border-dashed border-border py-12 text-center">
       <p className="font-display text-lg font-bold">{t("match.no_results_title")}</p>
       <p className="text-sm text-muted-foreground">{t("match.no_results_hint")}</p>
+    </div>
+  )
+}
+
+function LikesSection() {
+  const { t } = useI18n()
+  
+  return (
+    <div className="space-y-6">
+      {/* Вас лайкнули (размыто) */}
+      <section>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="font-display text-lg font-bold text-foreground">Вас оценили</h2>
+          <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-bold text-rose-500">+3 новых</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-muted">
+              <img src="/placeholder.svg" className="size-full object-cover blur-md" alt="" />
+              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
+                <Lock className="mb-2 size-6 text-white" />
+                <p className="text-xs font-bold text-white">Скрыто</p>
+              </div>
+              <div className="absolute bottom-2 left-2 right-2 rounded-xl bg-background/80 p-2 backdrop-blur-sm">
+                <div className="flex items-center gap-1.5">
+                  <div className="h-3 w-16 rounded-full bg-muted-foreground/30" />
+                </div>
+                <div className="mt-1 flex gap-1">
+                  <div className="h-2 w-8 rounded-full bg-primary/40" />
+                  <div className="h-2 w-10 rounded-full bg-primary/40" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <button type="button" className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-500 py-3 text-sm font-bold text-white shadow-lg shadow-rose-500/20 active:scale-[0.98]">
+          <Star className="size-4 fill-white" /> Открыть за 50⭐
+        </button>
+      </section>
+
+      {/* Взаимные симпатии */}
+      <section>
+        <h2 className="mb-3 font-display text-lg font-bold text-foreground">Взаимно 💖</h2>
+        <div className="space-y-3">
+          {[1, 2].map((i) => (
+            <div key={i} className="flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/5 p-3">
+              <div className="relative shrink-0">
+                <img src="/placeholder.svg" className="size-14 rounded-xl object-cover" alt="" />
+                <div className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white ring-2 ring-background">
+                  ❤️
+                </div>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-display text-sm font-bold">AwesomePlayer{i}</p>
+                <p className="truncate text-xs text-muted-foreground">CS2 · Global Elite</p>
+                <p className="mt-0.5 text-[11px] font-medium text-rose-500">Взаимная симпатия!</p>
+              </div>
+              <button type="button" className="shrink-0 rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white active:scale-95">
+                В чат
+              </button>
+            </div>
+          ))}
+        </div>
+      </section>
     </div>
   )
 }

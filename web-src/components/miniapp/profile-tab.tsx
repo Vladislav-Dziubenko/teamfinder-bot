@@ -43,7 +43,7 @@ import { cn } from "@/lib/utils"
 import { CURRENT_VERSION } from "@/lib/changelog"
 import { LanguageSelector } from "./language-selector"
 import { RoleBadge } from "./role-badge"
-import { CosmeticsEditor, useOwnCosmetics } from "./cosmetics-editor"
+import { CosmeticsEditor, useOwnCosmetics, refreshOwnCosmetics } from "./cosmetics-editor"
 
 type AchievementItem = {
   id: string
@@ -126,10 +126,28 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
     // Фото жмём до 256px ДО сохранения: сырые мегабайты с камеры раньше
     // оседали в БД и раздували каждый поллинг чата до 5+ МБ (OOM на Render).
     downscalePhoto(f)
-      .then((url) => setAvatar(url))
+      .then(async (url) => {
+        setAvatar(url)
+        if (ownCos.avatar_art) {
+          try {
+            await api.post("/api/profile/cosmetics", { ...ownCos, avatar_art: "" })
+            const { refreshOwnCosmetics } = await import("./cosmetics-editor")
+            refreshOwnCosmetics()
+          } catch (e) {}
+        }
+      })
       .catch(() => {
         const reader = new FileReader()
-        reader.onload = () => setAvatar(reader.result as string)
+        reader.onload = async () => {
+          setAvatar(reader.result as string)
+          if (ownCos.avatar_art) {
+            try {
+              await api.post("/api/profile/cosmetics", { ...ownCos, avatar_art: "" })
+              const { refreshOwnCosmetics } = await import("./cosmetics-editor")
+              refreshOwnCosmetics()
+            } catch (e) {}
+          }
+        }
         reader.readAsDataURL(f)
       })
     e.target.value = ""

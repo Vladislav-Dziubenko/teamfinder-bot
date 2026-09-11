@@ -624,16 +624,16 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
                 />
                 <div className="fixed right-4 top-[68px] z-[61] w-56 overflow-hidden rounded-2xl border border-border bg-card shadow-xl">
                   <button type="button" onClick={actionMute} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
-                    {muted ? <BellRing className="size-4 text-muted-foreground" /> : <BellOff className="size-4 text-muted-foreground" />}
-                    {muted ? t("chat.unmute") : t("chat.mute")}
+                    {muted ? <BellRing className="size-4 shrink-0 text-muted-foreground" /> : <BellOff className="size-4 shrink-0 text-muted-foreground" />}
+                    <span className="truncate">{muted ? t("chat.unmute") : t("chat.mute")}</span>
                   </button>
                   <button type="button" onClick={actionBlock} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm hover:bg-muted active:bg-muted">
-                    {blocked ? <Unlock className="size-4 text-muted-foreground" /> : <Ban className="size-4 text-muted-foreground" />}
-                    {blocked ? t("chat.unblock") : t("chat.block")}
+                    {blocked ? <Unlock className="size-4 shrink-0 text-muted-foreground" /> : <Ban className="size-4 shrink-0 text-muted-foreground" />}
+                    <span className="truncate">{blocked ? t("chat.unblock") : t("chat.block")}</span>
                   </button>
                   <button type="button" onClick={actionClear} className="flex w-full items-center gap-2.5 px-4 py-3 text-left text-sm text-destructive hover:bg-muted active:bg-muted">
-                    <Trash2 className="size-4" />
-                    {t("chat.clear")}
+                    <Trash2 className="size-4 shrink-0" />
+                    <span className="truncate">{t("chat.clear")}</span>
                   </button>
                 </div>
               </>
@@ -710,8 +710,8 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
                 }}
                 className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-muted"
               >
-                <Reply className="size-4 text-muted-foreground" />
-                {lang === "ru" ? "Ответить" : "Reply"}
+                <Reply className="size-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">{lang === "ru" ? "Ответить" : "Reply"}</span>
               </button>
               <button
                 type="button"
@@ -722,8 +722,8 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
                 }}
                 className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-muted"
               >
-                <Forward className="size-4 text-muted-foreground" />
-                {lang === "ru" ? "Переслать" : "Forward"}
+                <Forward className="size-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">{lang === "ru" ? "Переслать" : "Forward"}</span>
               </button>
               {menuForMsg.senderId !== "me" && (
                 <button
@@ -736,8 +736,8 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
                   }}
                   className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-muted"
                 >
-                  <UserRound className="size-4 text-muted-foreground" />
-                  {lang === "ru" ? "Профиль" : "Profile"}
+                  <UserRound className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{lang === "ru" ? "Профиль" : "Profile"}</span>
                 </button>
               )}
               {menuForMsg.senderId === "me" && (
@@ -750,8 +750,8 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
                     }}
                     className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm hover:bg-muted"
                   >
-                    <Check className="size-4 text-muted-foreground" />
-                    {lang === "ru" ? "Выбрать" : "Select"}
+                    <Check className="size-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate">{lang === "ru" ? "Выбрать" : "Select"}</span>
                   </button>
                   <button
                     type="button"
@@ -761,8 +761,8 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
                     }}
                     className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm text-destructive hover:bg-muted"
                   >
-                    <Trash2 className="size-4" />
-                    {t("chat.delete_selected")}
+                    <Trash2 className="size-4 shrink-0" />
+                    <span className="truncate">{t("chat.delete_selected")}</span>
                   </button>
                 </>
               )}
@@ -2110,27 +2110,27 @@ const GlobalMsg = memo(function GlobalMsg({
               className={
                 mine
                   ? "absolute right-1 top-8 z-50 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
-                  : "absolute left-1 top-8 z-50 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
+                  : "absolute right-0 sm:left-1 top-8 z-50 w-44 overflow-hidden rounded-2xl border border-border bg-card shadow-xl"
               }
             >
               <button type="button" onClick={onReply} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
-                <Reply className="size-4 text-muted-foreground" />
-                {lang === "ru" ? "Ответить" : "Reply"}
+                <Reply className="size-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">{lang === "ru" ? "Ответить" : "Reply"}</span>
               </button>
               <button type="button" onClick={onForward} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
-                <Forward className="size-4 text-muted-foreground" />
-                {lang === "ru" ? "Переслать" : "Forward"}
+                <Forward className="size-4 shrink-0 text-muted-foreground" />
+                <span className="truncate">{lang === "ru" ? "Переслать" : "Forward"}</span>
               </button>
               {canModerate && (
                 <button type="button" onClick={onDelete} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm hover:bg-muted">
-                  <Trash2 className="size-4 text-muted-foreground" />
-                  {t("chat.mod_delete")}
+                  <Trash2 className="size-4 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{t("chat.mod_delete")}</span>
                 </button>
               )}
               {canBanThis && (
                 <button type="button" onClick={onBan} className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm text-destructive hover:bg-muted">
-                  <Ban className="size-4" />
-                  {t("chat.mod_ban")}
+                  <Ban className="size-4 shrink-0" />
+                  <span className="truncate">{t("chat.mod_ban")}</span>
                 </button>
               )}
             </div>
