@@ -2247,7 +2247,7 @@ class Database:
             members = await conn.fetch(
                 "SELECT m.user_id, m.role, m.contribution_season, m.contribution_total, m.joined_at,"
                 " COALESCE(mp.nick, '') AS nick,"
-                " COALESCE(NULLIF(uc.avatar_art, ''), mp.avatar) AS avatar"
+                " COALESCE(NULLIF(uc.avatar_art, ''), NULLIF(mp.equipped_skin, ''), mp.avatar) AS avatar"
                 " FROM clan_members m LEFT JOIN mini_app_profiles mp ON mp.user_id = m.user_id"
                 " LEFT JOIN user_cosmetics uc ON uc.user_id = m.user_id"
                 " WHERE m.clan_id = $1 ORDER BY"
@@ -3021,7 +3021,7 @@ class Database:
                     if not avatar:
                         return {"error": "no_avatar"}
                 await conn.execute(
-                    "UPDATE mini_app_profiles SET nick = $1, avatar = $2, updated_at = $3 WHERE user_id = $4",
+                    "UPDATE mini_app_profiles SET nick = $1, avatar = $2, equipped_skin = '', updated_at = $3 WHERE user_id = $4",
                     nick, avatar, datetime.utcnow().isoformat(), user_id,
                 )
                 await conn.execute(

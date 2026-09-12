@@ -592,7 +592,7 @@ def guard_quick_reply(text: str, history: list[dict] | None = None) -> str | Non
     if not norm:
         return "Я тут. Напиши вопрос целиком — и Страж ответит без тумана."
 
-    if re.search(r"\b15\s*(умножить|x|\*|на)\s*12\b", norm):
+    if re.search(r"\b15\s*(умножить(\s*на)?|x|\*|на)\s*12\b", norm):
         return "15 на 12 = 180. Математика под охраной."
     if "понял" in norm and ("до этого" in norm or "до этого спрашивал" in norm):
         prev = _previous_user_topic(history)
