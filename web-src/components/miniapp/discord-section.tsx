@@ -2,6 +2,7 @@
 
 import { Gift, Star } from "lucide-react"
 import { useDiscord } from "@/lib/hooks/useDiscord"
+import { AvatarImage } from "./avatar-image"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { refreshOwnCosmetics } from "@/components/miniapp/cosmetics-editor"
@@ -82,11 +83,7 @@ export function DiscordSection() {
           <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2 min-w-0">
               {status.avatar_url ? (
-                <img
-                  src={status.avatar_url}
-                  alt=""
-                  className="w-8 h-8 rounded-full"
-                />
+                <AvatarImage src={status.avatar_url} alt="Discord" className="h-8 w-8 rounded-full object-cover" />
               ) : (
                 <div className="w-8 h-8 rounded-full bg-neutral-700" />
               )}

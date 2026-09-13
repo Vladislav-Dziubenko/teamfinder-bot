@@ -5,6 +5,7 @@ import { X, UserPlus, UserCheck, MessageCircle, Clock, Loader2, Heart } from "lu
 import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
 import { RoleBadge } from "@/components/miniapp/role-badge"
+import { AvatarImage } from "./avatar-image"
 
 export interface SharedProfile {
   id: number
@@ -98,8 +99,8 @@ export function ProfileViewSheet({
         ) : (
           <>
             <div className="flex items-center gap-3">
-              <img
-                src={profile.avatar_art || profile.avatar || "/placeholder.svg"}
+              <AvatarImage
+                src={profile.avatar_art || profile.avatar}
                 alt={profile.nick}
                 className="size-14 rounded-2xl object-cover ring-1 ring-border"
               />

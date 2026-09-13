@@ -7,6 +7,7 @@ import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { ShareStorySheet } from "./share-story-sheet"
 import type { Player } from "@/lib/data"
+import { AvatarImage } from "./avatar-image"
 
 type Friend = {
   friend_id: number
@@ -156,11 +157,7 @@ export function FriendsTab({
               key={u.id}
               className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
             >
-              <img
-                src={u.avatar || "/placeholder.svg"}
-                alt={u.nick}
-                className="size-11 rounded-2xl object-cover"
-              />
+              <AvatarImage src={u.avatar} alt={u.nick} className="size-11 rounded-2xl object-cover" />
               <div className="min-w-0 flex-1">
                 <p className="truncate font-display text-sm font-bold">{u.nick}</p>
               </div>
@@ -198,11 +195,7 @@ export function FriendsTab({
                 className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
               >
                 <div className="relative shrink-0">
-                  <img
-                    src={f.avatar || "/placeholder.svg"}
-                    alt={f.nick ?? String(f.friend_id)}
-                    className="size-11 rounded-2xl object-cover"
-                  />
+                  <AvatarImage src={f.avatar} alt={f.nick ?? String(f.friend_id)} className="size-11 rounded-2xl object-cover" />
                   {f.online && (
                     <span className="absolute -bottom-0.5 -right-0.5 size-3 rounded-full border-2 border-card bg-accent" />
                   )}
@@ -250,11 +243,7 @@ export function FriendsTab({
                 key={r.requester_id}
                 className="flex items-center gap-3 rounded-2xl border border-border bg-card p-3"
               >
-                <img
-                  src={r.avatar || "/placeholder.svg"}
-                  alt={r.nick ?? String(r.requester_id)}
-                  className="size-11 rounded-2xl object-cover"
-                />
+                <AvatarImage src={r.avatar} alt={r.nick ?? String(r.requester_id)} className="size-11 rounded-2xl object-cover" />
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-display text-sm font-bold">{r.nick ?? r.requester_id}</p>
                   <p className="text-[11px] text-muted-foreground">{t("friends.request_from")}</p>

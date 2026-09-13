@@ -6,6 +6,7 @@ import { games, roleL10nKey, rankL10nKey, caseItemByKey } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { cn } from "@/lib/utils"
+import { AvatarImage } from "./avatar-image"
 
 export function PlayerCard({
   player,
@@ -35,8 +36,8 @@ export function PlayerCard({
       style={{ animationDelay: `${index * 60}ms` }}
     >
       <div className="relative">
-        <img
-          src={player.avatar || "/placeholder.svg"}
+        <AvatarImage
+          src={player.avatar}
           alt={player.nick}
           className={`h-44 w-full object-cover ${locked ? "blur-md" : ""}`}
         />

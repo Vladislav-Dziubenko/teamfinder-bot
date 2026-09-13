@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState, type ReactNode } from "react"
-import { Search, Sparkles, Star, Lock, Zap, Loader2 } from "lucide-react"
+import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { Search, Sparkles, Star, Lock, Zap, Loader2, Heart, MessageCircle } from "lucide-react"
 import { games } from "@/lib/data"
 import type { Player, Team } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
@@ -11,6 +11,7 @@ import { PlayerCard } from "./player-card"
 import { TeamCard } from "./team-card"
 import { ReviewSheet } from "./review-sheet"
 import { cn } from "@/lib/utils"
+import { AvatarImage } from "./avatar-image"
 
 type SortKey = "match" | "level" | "rank" | "time"
 
@@ -274,7 +275,7 @@ export function MatchTab({
           })}
         </div>
       ) : mode === "likes" ? (
-        <LikesSection />
+        <LikesSection onChat={onChat} />
       ) : (
         <div className="space-y-4">
           {filteredTeams.length === 0 && <Empty />}
@@ -328,66 +329,113 @@ function Empty() {
   )
 }
 
-function LikesSection() {
-  const { t } = useI18n()
-  
+type LikeProfile = {
+  user_id: number
+  nick: string
+  avatar: string | null
+  game: string
+  rank: string
+  role: string
+}
+
+function LikesSection({ onChat }: { onChat?: (p: Player) => void }) {
+  const [incoming, setIncoming] = useState<LikeProfile[]>([])
+  const [mutual, setMutual] = useState<LikeProfile[]>([])
+  const [loading, setLoading] = useState(true)
+  const [actingOn, setActingOn] = useState<number | null>(null)
+
+  async function loadLikes() {
+    setLoading(true)
+    try {
+      const data: any = await api.get("/api/profile/likes")
+      setIncoming(Array.isArray(data.incoming) ? data.incoming : [])
+      setMutual(Array.isArray(data.mutual) ? data.mutual : [])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => { loadLikes().catch(() => setLoading(false)) }, [])
+
+  async function likeBack(profile: LikeProfile) {
+    setActingOn(profile.user_id)
+    try {
+      const result: any = await api.post("/api/profile/like", { user_id: profile.user_id })
+      if (result?.matched) await loadLikes()
+    } finally {
+      setActingOn(null)
+    }
+  }
+
+  function playerFrom(profile: LikeProfile): Player {
+    return {
+      id: String(profile.user_id), nick: profile.nick, realName: profile.nick,
+      avatar: profile.avatar ?? "", game: profile.game, rank: profile.rank,
+      role: profile.role, kd: 0, winrate: 0, hours: 0, online: false,
+      tags: [], bio: "", tgUsername: "", vibe: 0,
+    }
+  }
+
+  if (loading) {
+    return <div className="flex justify-center py-12"><Loader2 className="size-7 animate-spin text-primary" /></div>
+  }
+
   return (
     <div className="space-y-6">
-      {/* Вас лайкнули (размыто) */}
       <section>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-display text-lg font-bold text-foreground">Вас оценили</h2>
-          <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-bold text-rose-500">+3 новых</span>
+          {incoming.length > 0 && <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-xs font-bold text-rose-500">{incoming.length} новых</span>}
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="relative aspect-[3/4] overflow-hidden rounded-2xl bg-muted">
-              <img src="/placeholder.svg" className="size-full object-cover blur-md" alt="" />
-              <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/40">
-                <Lock className="mb-2 size-6 text-white" />
-                <p className="text-xs font-bold text-white">Скрыто</p>
-              </div>
-              <div className="absolute bottom-2 left-2 right-2 rounded-xl bg-background/80 p-2 backdrop-blur-sm">
-                <div className="flex items-center gap-1.5">
-                  <div className="h-3 w-16 rounded-full bg-muted-foreground/30" />
-                </div>
-                <div className="mt-1 flex gap-1">
-                  <div className="h-2 w-8 rounded-full bg-primary/40" />
-                  <div className="h-2 w-10 rounded-full bg-primary/40" />
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-        <button type="button" className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-500 py-3 text-sm font-bold text-white shadow-lg shadow-rose-500/20 active:scale-[0.98]">
-          <Star className="size-4 fill-white" /> Открыть за 50⭐
-        </button>
+        {incoming.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border px-4 py-7 text-center text-sm text-muted-foreground">Пока никто не оценил вашу анкету.</p>
+        ) : (
+          <div className="space-y-3">
+            {incoming.map((profile) => (
+              <LikeRow key={profile.user_id} profile={profile} action={
+                <button type="button" onClick={() => likeBack(profile)} disabled={actingOn === profile.user_id} className="grid size-10 place-items-center rounded-xl bg-rose-500 text-white active:scale-95 disabled:opacity-60" aria-label="Ответить симпатией">
+                  {actingOn === profile.user_id ? <Loader2 className="size-4 animate-spin" /> : <Heart className="size-4" />}
+                </button>
+              } />
+            ))}
+          </div>
+        )}
       </section>
 
-      {/* Взаимные симпатии */}
       <section>
         <h2 className="mb-3 font-display text-lg font-bold text-foreground">Взаимно 💖</h2>
-        <div className="space-y-3">
-          {[1, 2].map((i) => (
-            <div key={i} className="flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/5 p-3">
-              <div className="relative shrink-0">
-                <img src="/placeholder.svg" className="size-14 rounded-xl object-cover" alt="" />
-                <div className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full bg-rose-500 text-[10px] text-white ring-2 ring-background">
-                  ❤️
-                </div>
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-display text-sm font-bold">AwesomePlayer{i}</p>
-                <p className="truncate text-xs text-muted-foreground">CS2 · Global Elite</p>
-                <p className="mt-0.5 text-[11px] font-medium text-rose-500">Взаимная симпатия!</p>
-              </div>
-              <button type="button" className="shrink-0 rounded-xl bg-rose-500 px-4 py-2 text-xs font-bold text-white active:scale-95">
-                В чат
-              </button>
-            </div>
-          ))}
-        </div>
+        {mutual.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-border px-4 py-7 text-center text-sm text-muted-foreground">Взаимных симпатий пока нет.</p>
+        ) : (
+          <div className="space-y-3">
+            {mutual.map((profile) => (
+              <LikeRow key={profile.user_id} profile={profile} mutual action={
+                <button type="button" onClick={() => onChat?.(playerFrom(profile))} className="flex shrink-0 items-center gap-1.5 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white active:scale-95">
+                  <MessageCircle className="size-3.5" /> В чат
+                </button>
+              } />
+            ))}
+          </div>
+        )}
       </section>
+    </div>
+  )
+}
+
+function LikeRow({ profile, mutual = false, action }: { profile: LikeProfile; mutual?: boolean; action: ReactNode }) {
+  const subtitle = [profile.game, profile.rank].filter(Boolean).join(" · ") || profile.role || "Игрок Nexus"
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/5 p-3">
+      <div className="relative shrink-0">
+        <AvatarImage src={profile.avatar} alt={profile.nick} className="size-12 rounded-xl object-cover" />
+        {mutual && <span className="absolute -bottom-1 -right-1 grid size-5 place-items-center rounded-full bg-rose-500 text-[10px] ring-2 ring-background">❤️</span>}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="truncate font-display text-sm font-bold">{profile.nick}</p>
+        <p className="truncate text-xs text-muted-foreground">{subtitle}</p>
+        <p className="mt-0.5 text-[11px] font-medium text-rose-500">{mutual ? "Взаимная симпатия!" : "Оценил(а) вашу анкету"}</p>
+      </div>
+      {action}
     </div>
   )
 }

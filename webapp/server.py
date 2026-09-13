@@ -5001,7 +5001,11 @@ async def handle_profile_by_id(request: web.Request):
         target_id = int(request.match_info.get("user_id"))
     except (ValueError, TypeError):
         return web.json_response({"error": "invalid user_id"}, status=400)
-    await db.ensure_user(target_id, None, None, None)
+    # Do not call ensure_user for a profile being viewed: it updates
+    # last_active_at and made an offline person appear online after a view.
+    exists = await db.pool.fetchval("SELECT 1 FROM users WHERE user_id = $1", target_id)
+    if not exists:
+        return web.json_response({"error": "not found"}, status=404)
     prof = await db.get_mini_app_profile(target_id)
     tg_username = ""
     try:
@@ -5054,7 +5058,11 @@ async def handle_profile_like(request: web.Request):
         return web.json_response({"error": "invalid user_id"}, status=400)
     if target_id == user["id"]:
         return web.json_response({"error": "cannot like yourself"}, status=400)
-    await db.ensure_user(target_id, None, None, None)
+    # Only real registered users can receive a like.  Never update the
+    # recipient's activity timestamp as a side effect of this action.
+    exists = await db.pool.fetchval("SELECT 1 FROM users WHERE user_id = $1", target_id)
+    if not exists:
+        return web.json_response({"error": "not found"}, status=404)
     try:
         res = await db.like_profile(user["id"], target_id)
     except Exception as exc:
@@ -5076,6 +5084,12 @@ async def handle_profile_like(request: web.Request):
     except Exception:
         pass
     return web.json_response(res)
+
+
+async def handle_profile_likes(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    return web.json_response(await db.get_profile_likes(user["id"]))
 
 
 async def handle_friend_add(request: web.Request):
@@ -6545,6 +6559,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
 
     # Profile
     app.router.add_get("/api/profile/by-id/{user_id}", handle_profile_by_id)
+    app.router.add_get("/api/profile/likes", handle_profile_likes)
     app.router.add_get("/api/user/search", handle_user_search)
     app.router.add_post("/api/translate", handle_translate)
 

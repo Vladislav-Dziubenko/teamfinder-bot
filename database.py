@@ -2993,7 +2993,10 @@ class Database:
                 if not row:
                     return
                 new_nick = row["nick"] or nick
-                new_avatar = row["avatar"] or avatar
+                # A generated /player-N.webp value is only a fallback, not a
+                # custom photo, so a newly linked Discord avatar may replace it.
+                old_avatar = row["avatar"] or ""
+                new_avatar = avatar if avatar and (not old_avatar or old_avatar.startswith("/player-")) else row["avatar"]
                 if new_nick != row["nick"] or new_avatar != row["avatar"]:
                     await conn.execute(
                         "UPDATE mini_app_profiles SET nick = $1, avatar = $2, updated_at = $3 WHERE user_id = $4",
@@ -3161,7 +3164,9 @@ class Database:
                 if not row:
                     return
                 new_nick = row["nick"] or nickname
-                new_avatar = row["avatar"] or avatar
+                # Keep a custom/Telegram photo, but replace generated fallbacks.
+                old_avatar = row["avatar"] or ""
+                new_avatar = avatar if avatar and (not old_avatar or old_avatar.startswith("/player-")) else row["avatar"]
                 if new_nick != row["nick"] or new_avatar != row["avatar"]:
                     await conn.execute(
                         "UPDATE mini_app_profiles SET nick = $1, avatar = $2, updated_at = $3 WHERE user_id = $4",
@@ -5606,6 +5611,37 @@ WHERE user_quests.completed = 0
                 from_user, to_user,
             )
             return row == 1
+
+    async def get_profile_likes(self, user_id: int) -> dict:
+        """Return actual incoming and mutual likes for the Mini App."""
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(
+                """SELECT l.from_user AS user_id,
+                          COALESCE(mp.nick, p.nickname, 'User' || l.from_user::text) AS nick,
+                          CASE WHEN LENGTH(COALESCE(mp.avatar, '')) > 60000 THEN NULL ELSE mp.avatar END AS avatar,
+                          COALESCE(p.game, '') AS game,
+                          COALESCE(p.rank, '') AS rank,
+                          COALESCE(p.role, '') AS role,
+                          l.created_at,
+                          EXISTS(
+                            SELECT 1 FROM profile_likes mine
+                            WHERE mine.from_user = $1 AND mine.to_user = l.from_user
+                          ) AS liked_by_me
+                   FROM profile_likes l
+                   JOIN users u ON u.user_id = l.from_user
+                   LEFT JOIN mini_app_profiles mp ON mp.user_id = l.from_user
+                   LEFT JOIN profiles p ON p.user_id = l.from_user AND p.is_active = 1
+                   WHERE l.to_user = $1 AND l.from_user <> $1
+                   ORDER BY l.created_at DESC
+                   LIMIT 100""",
+                user_id,
+            )
+        incoming: list[dict] = []
+        mutual: list[dict] = []
+        for row in rows:
+            value = dict(row)
+            (mutual if value.pop("liked_by_me") else incoming).append(value)
+        return {"incoming": incoming, "mutual": mutual}
 
     async def set_typing(self, chat_id: str, user_id: int) -> None:
         """Heartbeat «печатает»: upsert метки. Протухает на чтении (>8с)."""
