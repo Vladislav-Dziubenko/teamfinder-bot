@@ -520,7 +520,8 @@ async def ban_middleware(request: web.Request, handler):
     """
     if request.path.startswith("/api/"):
         init_data = request.get("init_data")
-        if init_data is not None and request.path != "/api/me":
+        # A blocked player may submit an appeal, but no other app actions work.
+        if init_data is not None and request.path not in {"/api/me", "/api/support/appeal"}:
             user = init_data.get("user")
             if user and "id" in user:
                 ban = await request.app["db"].get_global_ban(user["id"])
@@ -4006,7 +4007,8 @@ def _is_developer(request: web.Request, user_id: int) -> bool:
 
 
 async def _effective_role(request: web.Request, db: Database, user_id: int) -> str:
-    """developer (from bot ADMIN_IDS) > admin > moderator > super (paid, rank 0)."""
+    """developer (ADMIN_IDS) > staff role; active Super+ receives junior_admin.
+    junior_admin has rank 0 and cannot use moderation endpoints."""
     if _is_developer(request, user_id):
         return "developer"
     role = await db.get_role(user_id)
@@ -4024,6 +4026,80 @@ async def _effective_is_beta(request: web.Request, db: Database, user_id: int) -
     """Разработчик (bot ADMIN_IDS) автоматически получает бонусы бета-тестера:
     ежедневные 200 кейсов + 10 000 ⭐, безлимитный поиск, бесплатный gold-кейс."""
     return await db.get_beta(user_id) or _is_developer(request, user_id)
+
+
+async def _notify_moderation_ticket(request: web.Request, ticket: dict, title: str, details: str) -> None:
+    """Notify senior staff; a ticket itself never grants punitive powers."""
+    db: Database = request.app["db"]
+    settings: Settings = request.app["settings"]
+    bot = request.app.get("bot")
+    if bot is None:
+        return
+    recipients = set(settings.admin_ids)
+    try:
+        recipients.update(await db.list_ban_capable_staff())
+    except Exception:
+        pass
+    text = (
+        f"⚠️ <b>{html.escape(title)}</b> · тикет #{ticket['id']}\n\n"
+        f"{html.escape(details)[:2500]}\n\n"
+        "Для проверки откройте админ-панель Mini App и найдите игрока по ID."
+    )
+    for recipient in recipients:
+        try:
+            await bot.send_message(recipient, text)
+        except Exception as exc:
+            logging.warning("[TICKET] notify to %s failed: %s", recipient, exc)
+
+
+async def handle_support_appeal(request: web.Request):
+    """Works for a banned player; this endpoint is the only ban exception."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    ban = await db.get_global_ban(user["id"])
+    if ban is None:
+        return web.json_response({"error": "not banned"}, status=403)
+    body = await request.json()
+    message = sanitize(body.get("message", ""), 1000)
+    if len(message) < 3:
+        return web.json_response({"error": "message is too short"}, status=400)
+    if await rate_limit_check(f"appeal:web:{user['id']}", 1, 300):
+        return web.json_response({"error": "try again later"}, status=429)
+    ticket = await db.create_moderation_ticket("appeal", user["id"], message, ban_reason=ban.get("reason", ""))
+    await db.audit_log(user["id"], "ban_appeal", f"ticket={ticket['id']}")
+    await _notify_moderation_ticket(
+        request, ticket, "Апелляция о блокировке",
+        f"Игрок: {user.get('username') or user.get('first_name') or user['id']} (ID {user['id']})\n"
+        f"Причина бана: {ban.get('reason') or 'не указана'}\n\n{message}",
+    )
+    return web.json_response({"ok": True, "ticket_id": ticket["id"]})
+
+
+async def handle_junior_report(request: web.Request):
+    """Junior admins can alert senior staff about a player, not ban them."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    role = await _effective_role(request, db, user["id"])
+    if role not in {"junior_admin", "moderator", "admin", "developer"}:
+        return web.json_response({"error": "forbidden"}, status=403)
+    body = await request.json()
+    try:
+        target_id = int(body.get("target_user_id"))
+    except (ValueError, TypeError):
+        return web.json_response({"error": "invalid target_user_id"}, status=400)
+    message = sanitize(body.get("message", ""), 1000)
+    if target_id <= 0 or target_id == user["id"] or len(message) < 3:
+        return web.json_response({"error": "invalid report"}, status=400)
+    if await rate_limit_check(f"junior-report:{user['id']}", 3, 600):
+        return web.json_response({"error": "try again later"}, status=429)
+    ticket = await db.create_moderation_ticket("report", user["id"], message, target_user_id=target_id)
+    await db.audit_log(user["id"], "junior_report", f"ticket={ticket['id']} target={target_id}")
+    await _notify_moderation_ticket(
+        request, ticket, "Жалоба младшего администратора",
+        f"Отправитель: {user.get('username') or user.get('first_name') or user['id']} (ID {user['id']})\n"
+        f"На игрока ID {target_id}\n\n{message}",
+    )
+    return web.json_response({"ok": True, "ticket_id": ticket["id"]})
 
 
 # ---------------------------------------------------------------------------
@@ -4803,9 +4879,10 @@ async def handle_admin_role(request: web.Request):
         target_id = int(body.get("user_id"))
     except (ValueError, TypeError):
         return web.json_response({"error": "invalid user_id"}, status=400)
-    # Staff role (moderator/admin/developer or empty to clear)
+    # Junior admins have ticket-only permissions; developer still comes from ADMIN_IDS.
+    role_provided = "role" in body
     role = (body.get("role") or "").strip()
-    allowed_roles = {"admin", "moderator", "developer"}
+    allowed_roles = {"junior_admin", "admin", "moderator", "developer"}
     if role and role not in allowed_roles:
         return web.json_response({"error": "invalid role"}, status=400)
     # Beta flag (independent from staff role)
@@ -4814,12 +4891,12 @@ async def handle_admin_role(request: web.Request):
         if not isinstance(beta, bool):
             return web.json_response({"error": "beta must be boolean"}, status=400)
         await db.set_beta(target_id, beta, user["id"])
-    if role:
+    if role_provided:
+        # Explicit clear only when the request actually includes role. This
+        # keeps a beta toggle from silently removing somebody's staff role.
         await db.set_role(target_id, role, user["id"])
-    elif role == "":
-        # Explicit clear of staff role (keep beta flag)
-        await db.set_role(target_id, "", user["id"])
-    if role or beta is not None:
+        await db.audit_log(user["id"], "admin_role", f"target={target_id} role={role or 'none'}")
+    if role_provided or beta is not None:
         await cache_delete(f"grole:{target_id}")
     return web.json_response({"ok": True})
 
@@ -4827,10 +4904,11 @@ async def handle_admin_role(request: web.Request):
 async def handle_admin_users(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
-    # Поиск юзеров — чтение, доступен всему стаффу (модератор+).
+    # Junior admin needs search only to create a report. It still gets no
+    # moderation endpoint or personal Telegram profile access.
     # Выдача ролей (handle_admin_role) остаётся только разработчику.
     role = await _effective_role(request, db, user["id"])
-    if db.ROLE_RANK.get(role, 0) < 1:
+    if role != "junior_admin" and db.ROLE_RANK.get(role, 0) < 1:
         return web.json_response({"error": "forbidden"}, status=403)
     query = request.query.get("q", "").strip().lower()
     users = await db.search_users_with_roles(query or "%", 30)
@@ -6545,6 +6623,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/global/delete", handle_global_delete)
     app.router.add_post("/api/global/ban", handle_global_ban)
     app.router.add_post("/api/global/unban", handle_global_unban)
+    app.router.add_post("/api/support/appeal", handle_support_appeal)
+    app.router.add_post("/api/mod/tickets/report", handle_junior_report)
     app.router.add_post("/api/mod/unmute", handle_mod_unmute)
     app.router.add_get("/api/mod/status", handle_mod_status)
     app.router.add_get("/api/stickers", handle_sticker_sets)

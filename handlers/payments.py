@@ -310,6 +310,7 @@ async def successful_payment(message: Message, db: Database, bot: Bot, settings:
             "🎖 Статус Super+ в чатах и профиле\n"
             "🧪 Бета-тест и ранний доступ ко всему\n"
             "🔥 PRO включён\n"
+            "🛡 Младший администратор: можно отправлять жалобы старшим\n"
             f"🎁 Каждую неделю: {settings.super_weekly_coins} монет, "
             f"{settings.super_weekly_stars} ⭐ и {settings.super_weekly_keys} ключей\n\n"
             "Отмена — в настройках Telegram Stars."

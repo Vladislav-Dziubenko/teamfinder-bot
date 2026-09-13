@@ -995,6 +995,7 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
   const canModerate = myRank >= 1
   const canBan = myRank >= 2
   const isDev = myRank >= 3
+  const isJuniorAdmin = meRole === "junior_admin"
 
   useEffect(() => {
     // Автоскролл только если юзер и так внизу — читающего историю не дёргаем.
@@ -1078,7 +1079,7 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
           <p className="truncate font-display text-sm font-bold">{t("chat.global_title")}</p>
           <p className="text-[11px] text-muted-foreground">{t("chat.global_subtitle")}</p>
         </div>
-        {canModerate && (
+        {(canModerate || isJuniorAdmin) && (
           <button
             type="button"
             onClick={() => setAdminOpen((v) => !v)}
@@ -1115,7 +1116,7 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
         </div>
       )}
 
-      {adminOpen && canModerate && <AdminPanel userId={me.userId} canBan={canBan} isDev={isDev} />}
+      {adminOpen && (canModerate || isJuniorAdmin) && <AdminPanel userId={me.userId} canBan={canBan} isDev={isDev} canReport={isJuniorAdmin || canModerate} isJunior={isJuniorAdmin} />}
 
       {gErr && (
         <div className="border-b border-destructive/40 bg-destructive/15 px-4 py-2 text-center text-xs font-semibold text-destructive">
@@ -1396,7 +1397,7 @@ function AiStatusCard({ canBan }: { canBan: boolean }) {
   )
 }
 
-function AdminPanel({ userId, canBan, isDev }: { userId: number; canBan: boolean; isDev: boolean }) {
+function AdminPanel({ userId, canBan, isDev, canReport, isJunior }: { userId: number; canBan: boolean; isDev: boolean; canReport: boolean; isJunior: boolean }) {
   const { t } = useI18n()
   const [query, setQuery] = useState("")
   const [users, setUsers] = useState<AdminUser[]>([])
@@ -1410,6 +1411,7 @@ function AdminPanel({ userId, canBan, isDev }: { userId: number; canBan: boolean
   const [banDuration, setBanDuration] = useState(0)
   const [banBusy, setBanBusy] = useState(false)
   const [panelMsg, setPanelMsg] = useState<{ text: string; err: boolean } | null>(null)
+  const [reportBusy, setReportBusy] = useState<number | null>(null)
 
   useEffect(() => {
     if (!panelMsg) return
@@ -1529,6 +1531,21 @@ function AdminPanel({ userId, canBan, isDev }: { userId: number; canBan: boolean
     setBanBusy(false)
   }
 
+  async function reportUser(u: AdminUser) {
+    if (reportBusy !== null) return
+    const message = window.prompt("Опишите нарушение — сообщение уйдёт старшим администраторам:")?.trim()
+    if (!message) return
+    setReportBusy(u.id)
+    try {
+      const result: any = await api.post("/api/mod/tickets/report", { target_user_id: u.id, message })
+      setPanelMsg({ text: `Жалоба отправлена, тикет #${result.ticket_id}`, err: false })
+    } catch (e: any) {
+      showError(e, "Не удалось отправить жалобу")
+    } finally {
+      setReportBusy(null)
+    }
+  }
+
   function confirmAction() {
     if (!confirm) return
     const { u, action, role } = confirm
@@ -1539,7 +1556,9 @@ function AdminPanel({ userId, canBan, isDev }: { userId: number; canBan: boolean
 
   return (
     <div className="max-h-[45vh] overflow-y-auto border-b border-border bg-card/85 px-3 py-3 backdrop-blur-xl">
-      <AiStatusCard canBan={canBan} />
+      {isJunior ? (
+        <p className="rounded-xl border border-violet-500/30 bg-violet-500/10 px-3 py-2 text-xs text-violet-200">Младший администратор: отправляй жалобы старшему составу. Банить и удалять сообщения нельзя.</p>
+      ) : <AiStatusCard canBan={canBan} />}
       <div className="mb-2 mt-3 flex items-center gap-2">
         <Search className="size-4 shrink-0 text-muted-foreground" />
         <input
@@ -1604,6 +1623,18 @@ function AdminPanel({ userId, canBan, isDev }: { userId: number; canBan: boolean
               <>
               <button
                 type="button"
+                onClick={() => setConfirm({ u, action: "role", role: u.role === "junior_admin" ? "" : "junior_admin" })}
+                className={cn(
+                  "rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-colors",
+                  u.role === "junior_admin"
+                    ? "border-violet-500/50 bg-violet-500/15 text-violet-300"
+                    : "border-border text-muted-foreground hover:bg-muted",
+                )}
+              >
+                {u.role === "junior_admin" ? t("role.remove") : t("role.junior_admin")}
+              </button>
+              <button
+                type="button"
                 onClick={() => setConfirm({ u, action: "role", role: u.role === "moderator" ? "" : "moderator" })}
                 className={cn(
                   "rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-colors",
@@ -1655,6 +1686,17 @@ function AdminPanel({ userId, canBan, isDev }: { userId: number; canBan: boolean
               </button>
               )}
             </div>
+            )}
+            {canReport && (
+              <button
+                type="button"
+                disabled={reportBusy !== null}
+                onClick={() => reportUser(u)}
+                className="mt-2 inline-flex items-center gap-1 rounded-lg border border-violet-500/40 bg-violet-500/10 px-2 py-1.5 text-[11px] font-bold text-violet-200 active:scale-95 disabled:opacity-50"
+              >
+                {reportBusy === u.id ? <Loader2 className="size-3 animate-spin" /> : <Shield className="size-3" />}
+                Отправить жалобу старшим
+              </button>
             )}
           </div>
         ))}

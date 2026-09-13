@@ -383,6 +383,7 @@
   "role.developer": "Developer",
   "role.admin": "Administrator",
   "role.moderator": "Moderator",
+  "role.junior_admin": "Junior admin",
   "role.ai": "AI Guardian",
   "role.title": "Administration",
   "role.admin_panel": "Admin panel",

@@ -526,6 +526,21 @@ CREATE TABLE IF NOT EXISTS super_subs (
     FOREIGN KEY (user_id) REFERENCES users(user_id)
 );
 
+-- Обращения: апелляции забаненных и жалобы младших администраторов.
+-- Тикет не даёт права на наказание: решение принимает только старший стафф.
+CREATE TABLE IF NOT EXISTS moderation_tickets (
+    id SERIAL PRIMARY KEY,
+    kind TEXT NOT NULL DEFAULT 'appeal',
+    author_id BIGINT NOT NULL,
+    target_user_id BIGINT,
+    ban_reason TEXT NOT NULL DEFAULT '',
+    message TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open',
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (author_id) REFERENCES users(user_id)
+);
+
 -- Система кланов (v1): структура, участники, квесты, очки, сезоны, шоп.
 -- Один активный клан на юзера (UNIQUE user_id в members). clan_id NULL
 -- в quests = глобальный шаблон (одинаковые квесты всем кланам).
@@ -1758,6 +1773,7 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id ON chat_messages (chat_id, id DESC)",
             "CREATE INDEX IF NOT EXISTS idx_mini_app_profiles_user ON mini_app_profiles (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles (user_id)",
+            "CREATE INDEX IF NOT EXISTS idx_moderation_tickets_status ON moderation_tickets (status, created_at DESC)",
             "CREATE INDEX IF NOT EXISTS idx_limited_models_owner ON limited_models (owner_id)",
             "CREATE INDEX IF NOT EXISTS idx_match_predictions_user ON match_predictions (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_pvp_challenges_creator ON pvp_challenges (creator_id)",
@@ -6101,15 +6117,36 @@ WHERE user_quests.completed = 0
 
     # ---------- Roles & moderation ----------
 
-    ROLE_RANK = {"moderator": 1, "admin": 2, "developer": 3}
+    # Junior admins can only open/escalate tickets. They deliberately have no
+    # numeric moderation rank, so rank checks never grant delete/mute/ban powers.
+    ROLE_RANK = {"junior_admin": 0, "moderator": 1, "admin": 2, "developer": 3}
 
     async def get_role(self, user_id: int) -> str:
         async with self.pool.acquire() as conn:
-            role = await conn.fetchval(
-                "SELECT role FROM user_roles WHERE user_id = $1",
+            row = await conn.fetchrow(
+                """SELECT COALESCE(ur.role, '') AS role,
+                          COALESCE(s.until, '') AS super_until
+                   FROM user_roles ur
+                   LEFT JOIN super_subs s ON s.user_id = ur.user_id
+                   WHERE ur.user_id = $1""",
                 user_id,
             )
-            return role or ""
+            if not row:
+                super_until = await conn.fetchval("SELECT until FROM super_subs WHERE user_id = $1", user_id)
+                try:
+                    return "junior_admin" if datetime.fromisoformat(super_until or "") > datetime.utcnow() else ""
+                except (ValueError, TypeError):
+                    return ""
+            if row["role"]:
+                return row["role"]
+            try:
+                # Existing active subscribers receive the new benefit too;
+                # no second payment or manual migration is required.
+                if datetime.fromisoformat(row["super_until"]) > datetime.utcnow():
+                    return "junior_admin"
+            except (ValueError, TypeError):
+                pass
+            return ""
 
     async def get_beta(self, user_id: int) -> bool:
         async with self.pool.acquire() as conn:
@@ -6148,6 +6185,25 @@ WHERE user_quests.completed = 0
             # If enabling beta, grant daily bonus immediately
             if enabled:
                 await self._grant_beta_daily_conn(conn, user_id)
+
+    async def create_moderation_ticket(
+        self, kind: str, author_id: int, message: str, target_user_id: int | None = None, ban_reason: str = "",
+    ) -> dict:
+        now = datetime.utcnow().isoformat()
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """INSERT INTO moderation_tickets
+                   (kind, author_id, target_user_id, ban_reason, message, status, created_at, updated_at)
+                   VALUES ($1, $2, $3, $4, $5, 'open', $6, $6)
+                   RETURNING id, created_at""",
+                kind, author_id, target_user_id, ban_reason, message, now,
+            )
+            return {"id": int(row["id"]), "created_at": row["created_at"]}
+
+    async def list_ban_capable_staff(self) -> list[int]:
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("SELECT user_id FROM user_roles WHERE role = 'admin'")
+            return [int(r["user_id"]) for r in rows]
 
     async def get_roles_batch(self, user_ids: list[int]) -> dict[int, str]:
         if not user_ids:
@@ -6299,17 +6355,22 @@ WHERE user_quests.completed = 0
                           COALESCE(u.username, '') AS username,
                           COALESCE(u.first_name, '') AS first_name,
                           COALESCE(u.last_name, '') AS last_name,
-                          COALESCE(ur.role, '') AS role,
+                          CASE
+                            WHEN COALESCE(ur.role, '') <> '' THEN ur.role
+                            WHEN COALESCE(ss.until, '') > $3 THEN 'junior_admin'
+                            ELSE ''
+                          END AS role,
                           COALESCE(ur.is_beta, 0) AS is_beta,
                           (gb.user_id IS NOT NULL) AS banned
                    FROM users u
                    LEFT JOIN mini_app_profiles mp ON mp.user_id = u.user_id
                    LEFT JOIN user_roles ur ON ur.user_id = u.user_id
+                   LEFT JOIN super_subs ss ON ss.user_id = u.user_id
                    LEFT JOIN global_bans gb ON gb.user_id = u.user_id
                    WHERE (LOWER(u.username) LIKE $1 OR LOWER(mp.nick) LIKE $1)
                    ORDER BY (ur.role IS NOT NULL) DESC, u.user_id
                    LIMIT $2""",
-                f"%{query}%", limit,
+                f"%{query}%", limit, datetime.utcnow().isoformat(),
             )
             return [dict(r) for r in rows]
 

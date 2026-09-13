@@ -163,7 +163,8 @@ export function DonateTab() {
               ru ? "🎖 Оранжево-золотой статус в чатах и профиле" : "🎖 Orange-gold status in chats and profile",
               ru ? "🧪 Бета-тест и ранний доступ ко всему" : "🧪 Beta test and early access to everything",
               ru ? "🔥 PRO включён" : "🔥 PRO included",
-              ru ? "🎁 Еженедельно: 75 000 монет, 100 ⭐, 10 ключей" : "🎁 Weekly: 75,000 coins, 100 ⭐, 10 keys",
+              ru ? "🛡 Младший администратор: жалобы старшим без прав на бан" : "🛡 Junior admin: report to senior staff, no ban power",
+              ru ? "🎁 Еженедельно: 30 000 монет, 15 000 ⭐, 10 ключей" : "🎁 Weekly: 30,000 coins, 15,000 ⭐, 10 keys",
             ].map((perk) => (
               <li key={perk} className="flex items-start gap-2">
                 <Check className="mt-0.5 size-4 shrink-0 text-[#ffcf4d]" />

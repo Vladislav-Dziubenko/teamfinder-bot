@@ -23,6 +23,11 @@ const ROLE_META: Record<
     icon: ShieldCheck,
     className: "border-sky-500/50 bg-sky-500/15 text-sky-400",
   },
+  junior_admin: {
+    labelKey: "role.junior_admin",
+    icon: ShieldCheck,
+    className: "border-violet-500/50 bg-violet-500/15 text-violet-300",
+  },
   beta_tester: {
     labelKey: "role.beta_tester",
     icon: FlaskConical,

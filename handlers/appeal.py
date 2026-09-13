@@ -2,7 +2,7 @@
 
 Забаненный видит на экране блокировки кнопку «Написать модерации» —
 ссылку на ЛС бота. Любое его текстовое сообщение боту пересылается
-всем админам (settings.admin_ids) с пометкой-карточкой, чтобы модератор
+всем разработчикам и банящим администраторам с пометкой-карточкой, чтобы модератор
 мог ответить игроку напрямую.
 
 Хендлер регистрируется ПОСЛЕДНИМ (main.py) — фильтров у него нет,
@@ -39,15 +39,25 @@ async def ban_appeal_message(message: Message, db: Database, settings: Settings)
         return
 
     sender = message.from_user
+    ban = await db.get_global_ban(sender.id)
+    ticket = await db.create_moderation_ticket(
+        "appeal", sender.id, message.text.strip(), ban_reason=(ban or {}).get("reason", ""),
+    )
+    await db.audit_log(sender.id, "ban_appeal", f"ticket={ticket['id']} source=bot")
     sender_ref = f"@{sender.username}" if sender.username else f"ID {sender.id}"
     sender_ref = _esc(sender_ref)
     forwarded = False
-    for admin_id in settings.admin_ids:
+    recipients = set(settings.admin_ids)
+    try:
+        recipients.update(await db.list_ban_capable_staff())
+    except Exception as e:
+        logging.warning("[APPEAL] could not load staff recipients: %s", e)
+    for admin_id in recipients:
         try:
             await message.forward(admin_id)
             await message.bot.send_message(
                 admin_id,
-                f"⚠️ <b>Апелляция о блокировке</b>\n\n"
+                f"⚠️ <b>Апелляция о блокировке</b> · тикет #{ticket['id']}\n\n"
                 f"Игрок: {sender_ref} (<code>{sender.id}</code>)\n"
                 f"Ответить напрямую: {sender_ref or 'нет username — ответ в пересланном сообщении'}",
             )

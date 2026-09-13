@@ -10,6 +10,26 @@ from database import Database
 router = Router()
 
 
+@router.message(Command("aihelp"))
+async def admin_ai_help(message: Message, settings: Settings):
+    """Short, discoverable reference for the Guardian's supervised memory."""
+    if message.from_user.id not in settings.admin_ids:
+        return
+    await message.answer(
+        "🤖 <b>Страж: обучение и контроль</b>\n\n"
+        "<code>/ailearn факт</code> — сохранить факт для ответов\n"
+        "<code>/aiqna вопрос || ответ</code> — добавить пару вопрос–ответ\n"
+        "<code>/aiwrong 0.9 insult</code> — реплаем на сообщение: исправить вердикт\n"
+        "<code>/aimemory</code> — показать память и ID записей\n"
+        "<code>/aiforget ID</code> — удалить запись\n"
+        "<code>/aiscore текст</code> — проверить, как Страж оценит текст\n"
+        "<code>/aistatus</code> — статус, режим и провайдер\n"
+        "<code>/aiundo user_id</code> — снять ошибочное авто-наказание\n\n"
+        "Это не дообучение модели целиком: команды добавляют контролируемую память "
+        "и примеры в промпт. Не добавляйте персональные данные и секреты."
+    )
+
+
 @router.message(Command("stats"))
 async def admin_stats(message: Message, db: Database, settings: Settings):
     if message.from_user.id not in settings.admin_ids:

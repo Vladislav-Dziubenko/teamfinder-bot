@@ -38,6 +38,16 @@ services:
         value: "2"
       - key: PRICE_PREMIUM_APPLICATION
         value: "3"
+      - key: SUPER_PRICE_STARS
+        value: "999"
+      - key: SUPER_DURATION_DAYS
+        value: "30"
+      - key: SUPER_WEEKLY_COINS
+        value: "30000"
+      - key: SUPER_WEEKLY_STARS
+        value: "15000"
+      - key: SUPER_WEEKLY_KEYS
+        value: "10"
       - key: DISCORD_CLIENT_ID
         sync: false
       - key: DISCORD_CLIENT_SECRET

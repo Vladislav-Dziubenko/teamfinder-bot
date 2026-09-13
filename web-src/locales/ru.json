@@ -377,6 +377,7 @@
   "role.developer": "Разработчик",
   "role.admin": "Администратор",
   "role.moderator": "Модератор",
+  "role.junior_admin": "Младший администратор",
   "role.ai": "ИИ-страж",
   "role.title": "Администрирование",
   "role.admin_panel": "Панель администратора",
