@@ -19,7 +19,9 @@ type Quest = {
   completed: boolean
 }
 
-let lastSearchCount: number | null = null
+// A stable first value prevents the hero badge from flashing a blurred
+// skeleton while unrelated home data (quests) is still loading.
+let lastSearchCount = 0
 
 export function HomeTab({
   onGo,
@@ -34,38 +36,37 @@ export function HomeTab({
   const { wins, level } = useMe()
   const refresh = useNexus().refresh
   const [quests, setQuests] = useState<Quest[]>([])
-  const [searchCount, setSearchCount] = useState<number | null>(lastSearchCount)
+  const [searchCount, setSearchCount] = useState(lastSearchCount)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [claiming, setClaiming] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    async function load() {
+    async function refreshOnline() {
       try {
-        const [questData, countData] = await Promise.all([
-          api.get("/api/nexus/quests"),
-          api.get("/api/online"),
-        ])
+        const countData = await api.get("/api/online")
+        if (!cancelled) {
+          const count = Number(countData.online) || 0
+          setSearchCount(count)
+          lastSearchCount = count
+        }
+      } catch {}
+    }
+    async function load() {
+      // Do not make the visible search count wait for quests.  On a cold
+      // database the quest endpoint can be noticeably slower.
+      void refreshOnline()
+      try {
+        const questData = await api.get("/api/nexus/quests")
         if (!cancelled) {
           setQuests(questData.quests ?? [])
-          setSearchCount(countData.online ?? 0)
-          lastSearchCount = countData.online ?? 0
         }
       } catch (e: any) {
         if (!cancelled) setError(e?.status ? t("common.error") : (e.message || t("common.error")))
       } finally {
         if (!cancelled) setLoading(false)
       }
-    }
-    async function refreshOnline() {
-      try {
-        const countData = await api.get("/api/online")
-        if (!cancelled) {
-          setSearchCount(countData.online ?? 0)
-          lastSearchCount = countData.online ?? 0
-        }
-      } catch {}
     }
     load()
     // Число в поиске обновляется почти мгновенно: лёгкий полл раз в 1.5с + рефреш
@@ -139,16 +140,9 @@ export function HomeTab({
         <img src="/hero-arena.webp" alt="" className="h-52 w-full object-cover" />
         <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/10" />
         <div className="absolute inset-x-0 bottom-0 p-5">
-          {loading && searchCount == null ? (
-            <span className="mb-2 inline-flex h-[26px] w-36 animate-pulse items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1" aria-hidden="true">
-              <Radio className="size-3 text-accent/40" />
-              <span className="h-2.5 w-24 rounded-full bg-accent/20" />
-            </span>
-          ) : (
-            <span className="mb-2 inline-flex min-h-[26px] min-w-36 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium tabular-nums text-accent">
-              <Radio className="size-3 shrink-0" /> {t("home.hero_players", { count: searchCount ?? "—" })}
-            </span>
-          )}
+          <span className="mb-2 inline-flex min-h-[26px] min-w-36 items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium tabular-nums text-accent">
+            <Radio className="size-3 shrink-0" /> {t("home.hero_players", { count: searchCount })}
+          </span>
           <h1 className="font-display text-3xl font-bold leading-none text-balance text-glow-primary">
             {t("home.hero_title")}
           </h1>

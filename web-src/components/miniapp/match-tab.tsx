@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState, type ReactNode } from "react"
-import { Search, Sparkles, Star, Lock, Zap, Loader2, Heart, MessageCircle } from "lucide-react"
+import { Search, Sparkles, Star, Lock, Zap, Loader2, Heart, MessageCircle, Radio } from "lucide-react"
 import { games } from "@/lib/data"
 import type { Player, Team } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
@@ -16,6 +16,7 @@ import { AvatarImage } from "./avatar-image"
 type SortKey = "match" | "level" | "rank" | "time"
 
 const EXTENDED_COST = 15
+let lastOnlineCount = 0
 
 export function MatchTab({
   onConnect,
@@ -42,8 +43,32 @@ export function MatchTab({
   const [loading, setLoading] = useState(false)
   const [hasSearched, setHasSearched] = useState(false)
   const [reviewPlayer, setReviewPlayer] = useState<Player | null>(null)
+  const [onlineCount, setOnlineCount] = useState(lastOnlineCount)
 
   const rankOrder = ["Global Elite", "Legendary Eagle Master", "Legendary Eagle", "Immortal 2", "Ascendant 1", "Divine 3"]
+
+  useEffect(() => {
+    let cancelled = false
+    async function refreshOnline() {
+      try {
+        const data: any = await api.get("/api/online")
+        if (!cancelled) {
+          const count = Number(data.online) || 0
+          setOnlineCount(count)
+          lastOnlineCount = count
+        }
+      } catch {}
+    }
+    void refreshOnline()
+    const poll = window.setInterval(refreshOnline, 15_000)
+    const onVisible = () => { if (document.visibilityState === "visible") void refreshOnline() }
+    document.addEventListener("visibilitychange", onVisible)
+    return () => {
+      cancelled = true
+      window.clearInterval(poll)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
+  }, [])
 
   async function runSearch() {
     const q = query.trim()
@@ -112,6 +137,9 @@ export function MatchTab({
         <p className="text-sm text-muted-foreground text-pretty">
           {t("match.subtitle")}
         </p>
+        <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium tabular-nums text-accent">
+          <Radio className="size-3 shrink-0" /> {t("home.hero_players", { count: onlineCount })}
+        </span>
       </div>
 
       {/* Search */}
