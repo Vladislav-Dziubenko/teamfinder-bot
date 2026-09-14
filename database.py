@@ -1754,6 +1754,68 @@ class Database:
         except asyncpg.PostgresError as e:
             print(f"Chat migration warning: {e}")
 
+        # Реакции на сообщения в личных чатах
+        migration_name = "chat_message_reactions_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS chat_message_reactions (
+                            message_id BIGINT NOT NULL,
+                            user_id BIGINT NOT NULL,
+                            emoji TEXT NOT NULL,
+                            created_at TEXT NOT NULL,
+                            PRIMARY KEY (message_id, user_id)
+                        )
+                        """
+                    )
+                    await conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_chat_reactions_message ON chat_message_reactions (message_id)"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning chat_message_reactions_v1: {e}")
+
+        # Реакции на сообщения в глобальном чате
+        migration_name = "global_message_reactions_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS global_message_reactions (
+                            message_id BIGINT NOT NULL,
+                            user_id BIGINT NOT NULL,
+                            emoji TEXT NOT NULL,
+                            created_at TEXT NOT NULL,
+                            PRIMARY KEY (message_id, user_id)
+                        )
+                        """
+                    )
+                    await conn.execute(
+                        "CREATE INDEX IF NOT EXISTS idx_global_reactions_message ON global_message_reactions (message_id)"
+                    )
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning global_message_reactions_v1: {e}")
+
         # Performance indexes for frequent queries
         perf_indexes = [
             "CREATE INDEX IF NOT EXISTS idx_profiles_game_active ON profiles (game, is_active)",
@@ -5745,6 +5807,18 @@ WHERE user_quests.completed = 0
                 d["reply"] = ({"id": str(reply_id), "text": reply_text, "sender_id": reply_sender}
                               if reply_id is not None else None)
                 result.append(d)
+            
+            # Загружаем реакции для всех сообщений
+            try:
+                message_ids = [int(msg["id"]) for msg in result]
+                reactions = await self._reaction_map(conn, "chat_message_reactions", message_ids)
+                for msg in result:
+                    msg["reactions"] = reactions.get(str(msg["id"]), [])
+            except asyncpg.UndefinedTableError:
+                # Таблица реакций ещё не создана (старая БД)
+                for msg in result:
+                    msg["reactions"] = []
+            
             return result
 
     async def get_chat_status(self, chat_id: str, user_id: int) -> dict:
@@ -6007,6 +6081,18 @@ WHERE user_quests.completed = 0
                 d["reply"] = ({"id": str(reply_id), "text": reply_text, "nick": reply_nick}
                               if reply_id is not None else None)
                 out.append(d)
+            
+            # Загружаем реакции для всех сообщений
+            try:
+                message_ids = [int(msg["id"]) for msg in out]
+                reactions = await self._reaction_map(conn, "global_message_reactions", message_ids)
+                for msg in out:
+                    msg["reactions"] = reactions.get(str(msg["id"]), [])
+            except asyncpg.UndefinedTableError:
+                # Таблица реакций ещё не создана (старая БД)
+                for msg in out:
+                    msg["reactions"] = []
+            
             return out
 
     async def send_global_message(self, user_id: int, text: str, kind: str = "user", conn: asyncpg.Connection | None = None, reply_to: int | None = None) -> dict:
@@ -6082,6 +6168,116 @@ WHERE user_quests.completed = 0
                 "SELECT user_id FROM global_messages WHERE id = $1",
                 message_id,
             )
+
+    # ---------- Message Reactions ----------
+
+    async def _reaction_map(
+        self, conn: asyncpg.Connection, table: str, message_ids: list[int]
+    ) -> dict[str, list[dict]]:
+        """Helper: собирает реакции для списка сообщений.
+        Возвращает dict {message_id: [{"emoji": "❤️", "count": 3, "users": [123, 456]}]}
+        """
+        if not message_ids:
+            return {}
+        rows = await conn.fetch(
+            f"SELECT message_id, emoji, user_id FROM {table} WHERE message_id = ANY($1)",
+            message_ids,
+        )
+        # Group by message_id and emoji
+        from collections import defaultdict
+        msg_emoji_users: dict[int, dict[str, list[int]]] = defaultdict(lambda: defaultdict(list))
+        for r in rows:
+            msg_emoji_users[r["message_id"]][r["emoji"]].append(r["user_id"])
+        
+        result: dict[str, list[dict]] = {}
+        for msg_id, emoji_map in msg_emoji_users.items():
+            result[str(msg_id)] = [
+                {"emoji": emoji, "count": len(users), "users": users}
+                for emoji, users in emoji_map.items()
+            ]
+        return result
+
+    async def react_chat_message(
+        self, chat_id: str, message_id: int, user_id: int, emoji: str
+    ) -> list[dict] | None:
+        """Добавить/изменить/удалить реакцию на сообщение в личном чате.
+        Если юзер уже поставил этот emoji — удаляет реакцию (toggle).
+        Возвращает обновлённый список реакций сообщения или None если сообщения нет."""
+        async with self.pool.acquire() as conn:
+            # Проверяем что сообщение существует
+            exists = await conn.fetchval(
+                "SELECT 1 FROM chat_messages WHERE id = $1 AND chat_id = $2",
+                message_id, chat_id,
+            )
+            if not exists:
+                return None
+            
+            # Проверяем текущую реакцию пользователя
+            current = await conn.fetchval(
+                "SELECT emoji FROM chat_message_reactions WHERE message_id = $1 AND user_id = $2",
+                message_id, user_id,
+            )
+            
+            if current == emoji:
+                # Toggle: удаляем реакцию
+                await conn.execute(
+                    "DELETE FROM chat_message_reactions WHERE message_id = $1 AND user_id = $2",
+                    message_id, user_id,
+                )
+            else:
+                # Добавляем или обновляем реакцию
+                await conn.execute(
+                    """INSERT INTO chat_message_reactions (message_id, user_id, emoji, created_at)
+                       VALUES ($1, $2, $3, $4)
+                       ON CONFLICT (message_id, user_id) DO UPDATE 
+                       SET emoji = EXCLUDED.emoji, created_at = EXCLUDED.created_at""",
+                    message_id, user_id, emoji, datetime.utcnow().isoformat(),
+                )
+            
+            # Возвращаем обновлённый список реакций
+            reaction_map = await self._reaction_map(conn, "chat_message_reactions", [message_id])
+            return reaction_map.get(str(message_id), [])
+
+    async def react_global_message(
+        self, message_id: int, user_id: int, emoji: str
+    ) -> list[dict] | None:
+        """Добавить/изменить/удалить реакцию на сообщение в глобальном чате.
+        Если юзер уже поставил этот emoji — удаляет реакцию (toggle).
+        Возвращает обновлённый список реакций сообщения или None если сообщения нет."""
+        async with self.pool.acquire() as conn:
+            # Проверяем что сообщение существует
+            exists = await conn.fetchval(
+                "SELECT 1 FROM global_messages WHERE id = $1",
+                message_id,
+            )
+            if not exists:
+                return None
+            
+            # Проверяем текущую реакцию пользователя
+            current = await conn.fetchval(
+                "SELECT emoji FROM global_message_reactions WHERE message_id = $1 AND user_id = $2",
+                message_id, user_id,
+            )
+            
+            if current == emoji:
+                # Toggle: удаляем реакцию
+                await conn.execute(
+                    "DELETE FROM global_message_reactions WHERE message_id = $1 AND user_id = $2",
+                    message_id, user_id,
+                )
+            else:
+                # Добавляем или обновляем реакцию
+                await conn.execute(
+                    """INSERT INTO global_message_reactions (message_id, user_id, emoji, created_at)
+                       VALUES ($1, $2, $3, $4)
+                       ON CONFLICT (message_id, user_id) DO UPDATE 
+                       SET emoji = EXCLUDED.emoji, created_at = EXCLUDED.created_at""",
+                    message_id, user_id, emoji, datetime.utcnow().isoformat(),
+                )
+            
+            # Возвращаем обновлённый список реакций
+            reaction_map = await self._reaction_map(conn, "global_message_reactions", [message_id])
+            return reaction_map.get(str(message_id), [])
 
     # ---------- Sticker sets ----------
 

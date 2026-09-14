@@ -4151,7 +4151,7 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
     try:
         if not settings.ai_chat_enabled:
             return
-        if not is_guard_mention(text):
+        if not is_guard_mention(text, settings.ai_guard_name):
             return
         logging.info("[ai-mod] chat mention user=%s text=%.40s", user_id, text)
         try:
@@ -4159,7 +4159,7 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
         except Exception:
             recent = []
         history = [
-            {"nick": "Страж" if m.get("user_id") == 0 else (m.get("nick") or "?"),
+            {"nick": settings.ai_guard_name if m.get("user_id") == 0 else (m.get("nick") or "?"),
              "text": m.get("text", ""),
              "mine": m.get("user_id") == user_id}
             for m in recent if (m.get("text") or "").strip()
@@ -4299,7 +4299,7 @@ async def _ai_moderate(db: Database, settings: Settings, bot, user_id: int, text
         # собеседника: повторные вопросы, подколы и обычные ссылки не должны
         # превращаться в наказание только потому, что модель завысила score.
         # Тяжёлые категории (скам, доксинг, угрозы, adult) остаются в лестнице.
-        if is_guard_mention(text) and category not in AI_HEAVY_CATEGORIES:
+        if is_guard_mention(text, settings.ai_guard_name) and category not in AI_HEAVY_CATEGORIES:
             await _ai_chat_reply(db, settings, user_id, text)
             await db.audit_log(user_id, "ai_queue", f"score={score:.2f} cat={category} msg={msg_id} {reason}")
             return
@@ -4434,6 +4434,78 @@ async def handle_global_typing(request: web.Request):
     except Exception as exc:
         logging.warning("typing heartbeat failed: %s", exc)
     return web.json_response({"ok": True})
+
+
+async def handle_chat_react(request: web.Request):
+    """Добавить/удалить реакцию на сообщение в личном чате."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    
+    # Проверка доступа к чату
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    
+    try:
+        body = await request.json()
+        message_id = int(body.get("message_id", 0))
+        emoji = str(body.get("emoji", "")).strip()
+        
+        if message_id <= 0:
+            return web.json_response({"error": "invalid message_id"}, status=400)
+        if not emoji or len(emoji) > 10:
+            return web.json_response({"error": "invalid emoji"}, status=400)
+        
+        reactions = await db.react_chat_message(chat_id, message_id, user["id"], emoji)
+        if reactions is None:
+            return web.json_response({"error": "message not found"}, status=404)
+        
+        return web.json_response({"reactions": reactions})
+    except (ValueError, KeyError, TypeError) as e:
+        logging.warning(f"handle_chat_react error: {e}")
+        return web.json_response({"error": "invalid request"}, status=400)
+
+
+async def handle_global_react(request: web.Request):
+    """Добавить/удалить реакцию на сообщение в глобальном чате."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    
+    # Проверка бана и мута
+    if await db.is_globally_banned(user["id"]):
+        return web.json_response({"error": "banned"}, status=403)
+    
+    mute = await db.get_mute(user["id"])
+    if mute:
+        try:
+            until_dt = datetime.fromisoformat(mute["until"])
+            if until_dt > datetime.utcnow():
+                return web.json_response({
+                    "error": "muted",
+                    "until": mute["until"],
+                    "reason": mute.get("reason", "")
+                }, status=403)
+        except (ValueError, TypeError):
+            pass
+    
+    try:
+        body = await request.json()
+        message_id = int(body.get("message_id", 0))
+        emoji = str(body.get("emoji", "")).strip()
+        
+        if message_id <= 0:
+            return web.json_response({"error": "invalid message_id"}, status=400)
+        if not emoji or len(emoji) > 10:
+            return web.json_response({"error": "invalid emoji"}, status=400)
+        
+        reactions = await db.react_global_message(message_id, user["id"], emoji)
+        if reactions is None:
+            return web.json_response({"error": "message not found"}, status=404)
+        
+        return web.json_response({"reactions": reactions})
+    except (ValueError, KeyError, TypeError) as e:
+        logging.warning(f"handle_global_react error: {e}")
+        return web.json_response({"error": "invalid request"}, status=400)
 
 
 async def handle_global_send(request: web.Request):
@@ -4635,17 +4707,12 @@ DEFAULT_STICKER_SETS = [
 ]
 
 
-async def handle_sticker_sets(request: web.Request):
-    db: Database = request.app["db"]
-    sets = await db.get_sticker_sets()
-    return web.json_response({"sets": sets})
-
-
-async def handle_sticker_sync(request: web.Request):
-    db: Database = request.app["db"]
+async def _sync_default_sticker_sets(db: Database) -> list[str]:
+    """Helper для синхронизации стандартных стикерпаков из Telegram Bot API.
+    Возвращает список успешно синхронизированных паков."""
     token = (os.getenv("BOT_TOKEN") or "").strip()
     if not token:
-        return web.json_response({"error": "no bot token"}, status=500)
+        return []
     synced = []
     async with ClientSession() as session:
         for name in DEFAULT_STICKER_SETS:
@@ -4675,6 +4742,32 @@ async def handle_sticker_sync(request: web.Request):
                     synced.append(name)
             except Exception:
                 continue
+    return synced
+
+
+async def handle_sticker_sets(request: web.Request):
+    db: Database = request.app["db"]
+    sets = await db.get_sticker_sets()
+    
+    # Автоматическая синхронизация если база пустая
+    if not sets:
+        # Проверяем кеш чтобы не спамить Telegram API
+        skip_cache = await cache_get("sticker_autosync_skip")
+        if not skip_cache:
+            # Устанавливаем флаг на 5 минут чтобы не запускать синхронизацию повторно
+            await cache_set("sticker_autosync_skip", "1", ttl=300)
+            synced = await _sync_default_sticker_sets(db)
+            if synced:
+                sets = await db.get_sticker_sets()
+    
+    return web.json_response({"sets": sets})
+
+
+async def handle_sticker_sync(request: web.Request):
+    db: Database = request.app["db"]
+    if not (os.getenv("BOT_TOKEN") or "").strip():
+        return web.json_response({"error": "no bot token"}, status=500)
+    synced = await _sync_default_sticker_sets(db)
     return web.json_response({"synced": synced})
 
 
@@ -6605,6 +6698,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/chat/{chat_id}", handle_chat_messages)
     app.router.add_post("/api/chat/{chat_id}/send", handle_chat_send)
     app.router.add_post("/api/chat/{chat_id}/typing", handle_chat_typing)
+    app.router.add_post("/api/chat/{chat_id}/react", handle_chat_react)
     app.router.add_post("/api/chat/{chat_id}/clear", handle_chat_clear)
     app.router.add_post("/api/chat/{chat_id}/messages/delete", handle_chat_messages_delete)
     app.router.add_post("/api/chat/{chat_id}/block", handle_chat_block)
@@ -6617,6 +6711,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/global", handle_global_messages)
     app.router.add_post("/api/global/send", handle_global_send)
     app.router.add_post("/api/global/typing", handle_global_typing)
+    app.router.add_post("/api/global/react", handle_global_react)
     app.router.add_post("/api/messages/forward", handle_message_forward)
     app.router.add_post("/api/global/voice", handle_global_voice_upload)
     app.router.add_get("/api/global/voice/{msg_id}", handle_global_voice_stream)

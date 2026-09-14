@@ -180,6 +180,7 @@ type Message = {
   voiceDuration?: number
   voiceMime?: string
   reply?: MsgReply | null
+  reactions?: Array<{ emoji: string; count: number; users: number[] }>
 }
 
 export type ReplyTarget = { id: string; text: string; nick: string }
@@ -245,7 +246,71 @@ function ReplyBar({ replyTo, onCancel }: { replyTo: ReplyTarget; onCancel: () =>
   )
 }
 
-const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chatId, frame, peerNick }: { message: Message; mine: boolean; chatId: string; frame?: string; peerNick?: string }) {
+/** Компонент для отображения и добавления реакций к сообщению */
+function MessageReactions({
+  reactions,
+  messageId,
+  chatId,
+  mine,
+  onReact,
+}: {
+  reactions?: Array<{ emoji: string; count: number; users: number[] }>
+  messageId: string
+  chatId: string
+  mine: boolean
+  onReact?: (emoji: string) => void
+}) {
+  const [showPicker, setShowPicker] = useState(false)
+  const quickEmojis = ["❤️", "👍", "🔥", "😂", "😢", "👎"]
+
+  if (!reactions || reactions.length === 0) {
+    return null
+  }
+
+  return (
+    <div className="mt-1 flex flex-wrap items-center gap-1">
+      {reactions.map((r) => (
+        <button
+          key={r.emoji}
+          type="button"
+          onClick={() => onReact?.(r.emoji)}
+          className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs active:scale-95"
+        >
+          <span>{r.emoji}</span>
+          <span className="text-[10px] text-muted-foreground">{r.count}</span>
+        </button>
+      ))}
+      {onReact && (
+        <button
+          type="button"
+          onClick={() => setShowPicker(!showPicker)}
+          className="grid size-6 place-items-center rounded-full bg-muted text-xs active:scale-95"
+        >
+          +
+        </button>
+      )}
+      {showPicker && (
+        <div className="absolute z-10 mt-8 flex gap-1 rounded-lg bg-card p-2 shadow-lg border border-border">
+          {quickEmojis.map((e) => (
+            <button
+              key={e}
+              type="button"
+              onClick={() => {
+                onReact?.(e)
+                setShowPicker(false)
+              }}
+              className="grid size-8 place-items-center rounded text-lg active:scale-90"
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chatId, frame, peerNick, onReact }: { message: Message; mine: boolean; chatId: string; frame?: string; peerNick?: string; onReact?: (messageId: string, emoji: string) => void }) {
   const { t, lang } = useI18n()
   const [translated, setTranslated] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -352,6 +417,13 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
             </button>
           )}
         </div>
+        <MessageReactions
+          reactions={m.reactions}
+          messageId={m.id}
+          chatId={chatId}
+          mine={mine}
+          onReact={onReact ? (emoji) => onReact(m.id, emoji) : undefined}
+        />
       </div>
     </div>
   )
@@ -442,6 +514,28 @@ function SelectableRow({
 export function ChatConversation({ chatId, player, role, onBack, clanMode, clanEmblem, onOpenProfile }: { chatId: string; player?: ChatPreview["player"]; role?: string; onBack: () => void; clanMode?: boolean; clanEmblem?: string; onOpenProfile?: (id: number) => void }) {
   const { t, lang } = useI18n()
   const { messages, status, sendMessage, appendServerMessage, deleteMessages, typing, typingUsers, clearChat, blockUser, unblockUser, muteChat, unmuteChat, loadEarlier, loadingEarlier, hasMore } = useChatMessages(chatId)
+  const [localMessages, setLocalMessages] = useState(messages)
+  
+  // Синхронизируем локальные сообщения с messages из хука
+  useEffect(() => {
+    setLocalMessages(messages)
+  }, [messages])
+  
+  // Функция для отправки реакции
+  const handleReact = useCallback(async (messageId: string, emoji: string) => {
+    try {
+      const res: any = await api.post(`/api/chat/${chatId}/react`, { message_id: messageId, emoji })
+      if (res?.reactions) {
+        // Обновляем локальные сообщения с новыми реакциями
+        setLocalMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, reactions: res.reactions } : m))
+        )
+      }
+    } catch (e) {
+      console.error("Failed to react:", e)
+    }
+  }, [chatId])
+  
   const peerCosMap = useCosmeticsMap(player?.id != null ? [player.id] : [])
   const peerFrame = (player?.id != null && peerCosMap[String(player.id)]?.frame_color) || undefined
   // Выбор сообщений долгим нажатием (как в Telegram): null = режим выключен
@@ -678,7 +772,7 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
             )}
           </button>
         )}
-        {messages.map((m) => {
+        {localMessages.map((m) => {
           const mine = m.senderId === "me"
           return (
             <SelectableRow
@@ -689,7 +783,7 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
               selected={selected?.includes(m.id) ?? false}
               onToggle={toggleSelect}
               onOtherLongPress={(mid) => {
-                const found = messages.find((x) => x.id === mid)
+                const found = localMessages.find((x) => x.id === mid)
                 if (found) setMenuForMsg(found)
               }}
             >
@@ -699,6 +793,7 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
                 chatId={chatId}
                 frame={mine ? undefined : peerFrame}
                 peerNick={player?.nick ?? ""}
+                onReact={handleReact}
               />
             </SelectableRow>
           )
@@ -913,6 +1008,28 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
   const { t, lang } = useI18n()
   const me = useMe()
   const { messages, loaded, meRole, meBanned, sendGlobal, appendExternal, sendGlobalVoice, sending, typingUsers, deleteMessage, banUser, unbanUser } = useGlobalChat()
+  const [localMessages, setLocalMessages] = useState(messages)
+  
+  // Синхронизируем локальные сообщения с messages из хука
+  useEffect(() => {
+    setLocalMessages(messages)
+  }, [messages])
+  
+  // Функция для отправки реакции в глобальном чате
+  const handleReact = useCallback(async (messageId: string, emoji: string) => {
+    try {
+      const res: any = await api.post("/api/global/react", { message_id: messageId, emoji })
+      if (res?.reactions) {
+        // Обновляем локальные сообщения с новыми реакциями
+        setLocalMessages((prev) =>
+          prev.map((m) => (m.id === messageId ? { ...m, reactions: res.reactions } : m))
+        )
+      }
+    } catch (e) {
+      console.error("Failed to react:", e)
+    }
+  }, [])
+  
   const typingLabel = (() => {
     if (!typingUsers.length) return ""
     const names = typingUsers.slice(0, 2).map((u) => u.nick)
@@ -920,7 +1037,7 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
     const who = rest > 0 ? `${names.join(", ")} +${rest}` : names.join(", ")
     return lang === "ru" ? `${who} печатает…` : `${who} typing…`
   })()
-  const cosMap = useCosmeticsMap(messages.map((m) => m.userId))
+  const cosMap = useCosmeticsMap(localMessages.map((m) => m.userId))
   const [replyTo, setReplyTo] = useState<ReplyTarget | null>(null)
   const [fwd, setFwd] = useState<ForwardSource | null>(null)
   const [draft, setDraft] = useState("")
@@ -1126,20 +1243,20 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
 
       {/* Messages */}
       <div ref={scrollRef} onScroll={handleScroll} className="flex-1 space-y-2 overflow-y-auto px-4 py-4">
-        {!loaded && messages.length === 0 && (
+        {!loaded && localMessages.length === 0 && (
           <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
             <Loader2 className="size-6 animate-spin text-muted-foreground" />
             <p className="text-sm text-muted-foreground">{t("chat.global_loading")}</p>
           </div>
         )}
-        {loaded && messages.length === 0 && (
+        {loaded && localMessages.length === 0 && (
           <div className="rounded-3xl border border-dashed border-border py-12 text-center">
             <MessagesSquare className="mx-auto size-8 text-muted-foreground" />
             <p className="mt-2 font-display text-lg font-bold">{t("chat.empty_title")}</p>
             <p className="text-sm text-muted-foreground">{t("chat.empty_hint")}</p>
           </div>
         )}
-        {messages.map((m) => {
+        {localMessages.map((m) => {
           const mine = m.userId === "me"
           return (
             <SelectableRow
@@ -1150,7 +1267,7 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
               selected={selected?.includes(m.id) ?? false}
               onToggle={toggleSelect}
               onOtherLongPress={(mid) => {
-                if (messages.some((x) => x.id === mid)) setMenuFor(mid)
+                if (localMessages.some((x) => x.id === mid)) setMenuFor(mid)
               }}
             >
               <GlobalMsg
@@ -1173,6 +1290,7 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
                   setMenuFor(null)
                   setFwd({ fromChat: "global", items: [{ id: m.id, text: m.text }] })
                 }}
+                onReact={handleReact}
               />
             </SelectableRow>
           )
@@ -1986,6 +2104,7 @@ const GlobalMsg = memo(function GlobalMsg({
   onReply,
   onForward,
   onOpenProfile,
+  onReact,
 }: {
   msg: GlobalMessage
   mine: boolean
@@ -2000,6 +2119,7 @@ const GlobalMsg = memo(function GlobalMsg({
   onReply: () => void
   onForward: () => void
   onOpenProfile?: (id: number) => void
+  onReact?: (messageId: string, emoji: string) => void
 }) {
   const { t } = useI18n()
   const [translated, setTranslated] = useState<string | null>(null)
@@ -2147,6 +2267,13 @@ const GlobalMsg = memo(function GlobalMsg({
             )}
           </div>
         )}
+        <MessageReactions
+          reactions={msg.reactions}
+          messageId={msg.id}
+          chatId="global"
+          mine={mine}
+          onReact={onReact ? (emoji) => onReact(msg.id, emoji) : undefined}
+        />
       </div>
       {(canModerate || canBanThis) && (
         <div className="relative ml-1 flex items-start">
@@ -2207,7 +2334,8 @@ const GlobalMsg = memo(function GlobalMsg({
   prev.cos === next.cos &&
   prev.canModerate === next.canModerate &&
   prev.canBanThis === next.canBanThis &&
-  prev.menuFor === next.menuFor,
+  prev.menuFor === next.menuFor &&
+  JSON.stringify(prev.msg.reactions) === JSON.stringify(next.msg.reactions),
 )
 
 function TranslateLangPicker({ open, onPick, onClose }: { open: boolean; onPick: (code: string) => void; onClose: () => void }) {

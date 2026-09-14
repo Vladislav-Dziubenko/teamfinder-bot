@@ -15,6 +15,7 @@ export type ChatMessage = {
   voiceDuration?: number
   voiceMime?: string
   reply?: MsgReply | null
+  reactions?: Array<{ emoji: string; count: number; users: number[] }>
 }
 
 export type MsgReply = {
@@ -141,6 +142,7 @@ function mapMsg(m: any): ChatMessage {
     voiceDuration: Number(m.voice_duration ?? m.voiceDuration ?? 0) || 0,
     voiceMime: String(m.voice_mime ?? m.voiceMime ?? "audio/webm"),
     reply: r ? { id: String(r.id), text: r.text ?? "", nick: r.nick ?? "", sender: r.sender_id != null ? String(r.sender_id) : undefined } : null,
+    reactions: Array.isArray(m.reactions) ? m.reactions : [],
   }
 }
 
@@ -484,6 +486,7 @@ export type GlobalMessage = {
   voiceDuration?: number
   voiceMime?: string
   reply?: MsgReply | null
+  reactions?: Array<{ emoji: string; count: number; users: number[] }>
 }
 
 export type Cosmetics = {
@@ -586,6 +589,7 @@ function mapGlobalMsg(m: any): GlobalMessage {
     isVoice: Boolean(m.is_voice),
     voiceDuration: Number(m.voice_duration ?? 0) || 0,
     voiceMime: String(m.voice_mime ?? "audio/webm"),
+    reactions: Array.isArray(m.reactions) ? m.reactions : [],
   }
 }
 
