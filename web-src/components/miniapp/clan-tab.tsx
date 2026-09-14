@@ -155,7 +155,8 @@ function ClanAvatarEditor({ clan, onToast, onSaved, ru }: { clan: Clan; onToast:
     const f = e.target.files?.[0]
     if (!f) return
     try {
-      setArt(await downscalePhoto(f))
+      // Клановые аватарки отображаются крупнее, увеличиваем размер до 256px
+      setArt(await downscalePhoto(f, 256, 0.85))
     } catch {
       onToast(ru ? "Не читается картинка" : "Bad image")
     } finally {

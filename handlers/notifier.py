@@ -34,7 +34,13 @@ async def _send(bot: Bot, user_id: int, text: str) -> bool:
         await asyncio.sleep(0.05)
         return True
     except Exception as e:
-        logger.warning("notify send failed user=%s: %s", user_id, e)
+        err_msg = str(e).lower()
+        # Пользователь заблокировал бота или удалил аккаунт — это нормально, не спамим логи
+        if "forbidden" in err_msg or "bot was blocked" in err_msg or "chat not found" in err_msg:
+            logger.debug("notify skipped user=%s (blocked/deleted): %s", user_id, e)
+        else:
+            # Реальная ошибка (сеть, лимиты и т.д.) — логируем как WARNING
+            logger.warning("notify send failed user=%s: %s", user_id, e)
         # Ошибка сети-лимита тоже гасится паузой, чтобы не долбить Telegram.
         await asyncio.sleep(0.2)
         return False

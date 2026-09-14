@@ -1775,6 +1775,11 @@ async def handle_nexus_open_case(request: web.Request):
     if count > 20:
         return web.json_response({"error": "max 20 per request, open in batches"}, status=400)
 
+    # Rate limiting: защита от спама открытий кейсов (макс 10 запросов за 15 секунд).
+    # Предотвращает перегрузку сервера когда пользователь спамит кнопку открытия.
+    if await rate_limit_check(f"case_open:{user['id']}", 10, 15):
+        return web.json_response({"error": "too many requests, slow down"}, status=429)
+
     def _fair_pick(server_seed: str, client_seed: str, nonce: int, items: list[dict]) -> tuple[dict, int, int]:
         # Детерминированный ролл: результат выводится из sha256(seed:client:nonce),
         # клиент повторяет те же вычисления в web-src/lib/crypto.ts и проверяет дроп.
