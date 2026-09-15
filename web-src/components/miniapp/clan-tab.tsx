@@ -7,8 +7,9 @@ import { clansApi, type Clan, type ClanQuest, type ShopItem } from "@/lib/clans"
 import { cn } from "@/lib/utils"
 import { ChatConversation } from "./chat-tab"
 import { ArtCanvas } from "./cosmetics-editor"
+import { AvatarImage } from "./avatar-image"
 
-function downscalePhoto(file: File, maxSide = 256): Promise<string> {
+function downscalePhoto(file: File, maxSide = 256, quality = 0.85): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     const url = URL.createObjectURL(file)
@@ -21,7 +22,7 @@ function downscalePhoto(file: File, maxSide = 256): Promise<string> {
         cv.width = w
         cv.height = h
         cv.getContext("2d")?.drawImage(img, 0, 0, w, h)
-        resolve(cv.toDataURL("image/jpeg", 0.85))
+        resolve(cv.toDataURL("image/jpeg", quality))
       } catch (e) {
         reject(e)
       } finally {
@@ -409,7 +410,11 @@ function ClanMembers({ clan, onToast, onReload, onOpenProfile, ru }: { clan: Cla
             aria-label={m.nick || `User${m.user_id}`}
             className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-full bg-secondary font-display text-base font-bold active:scale-90 disabled:active:scale-100"
           >
-            {(m as any).avatar ? <img src={(m as any).avatar} alt="" className="size-full object-cover" /> : String(m.nick || "?").charAt(0).toUpperCase()}
+            {m.avatar ? (
+              <AvatarImage src={m.avatar} alt={m.nick || `User${m.user_id}`} className="size-full object-cover" />
+            ) : (
+              String(m.nick || "?").charAt(0).toUpperCase()
+            )}
           </button>
           <button
             type="button"

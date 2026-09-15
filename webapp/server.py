@@ -1771,9 +1771,10 @@ async def handle_nexus_open_case(request: web.Request):
     # Мульти-открытие доступно только для платных кейсов (у бесплатного дневной кулдаун)
     if count > 1 and case_config["free"]:
         return web.json_response({"error": "multi open not allowed for free case"}, status=400)
-    # Лимит батча — 100 кейсов в одной транзакции валят pool/timeout (Jet 1200*100 + 100 инсертов)
-    if count > 20:
-        return web.json_response({"error": "max 20 per request, open in batches"}, status=400)
+    # Один атомарный batch до 100: клиент не создаёт пять параллельных/последовательных
+    # транзакций, а INSERT-ы ниже уже выполняются пакетно.
+    if count > 100:
+        return web.json_response({"error": "max 100 per request"}, status=400)
 
     # Rate limiting: защита от спама открытий кейсов (макс 10 запросов за 15 секунд).
     # Предотвращает перегрузку сервера когда пользователь спамит кнопку открытия.
@@ -1888,7 +1889,7 @@ async def handle_nexus_open_case(request: web.Request):
                                     if is_beta and wants_beta:
                                         beta_state = await db.get_beta_state(user["id"])
                                         if beta_state and beta_state["case_balance"] >= remaining:
-                                            if not await db.consume_beta_case(user["id"], remaining):
+                                            if not await db.consume_beta_case(user["id"], remaining, conn):
                                                 return web.json_response({"error": "not enough beta cases"}, status=400)
                                         else:
                                             total_cost = case_config["costStars"] * remaining
@@ -1903,7 +1904,7 @@ async def handle_nexus_open_case(request: web.Request):
                                     if is_beta and wants_beta:
                                         beta_state = await db.get_beta_state(user["id"])
                                         if beta_state and beta_state["case_balance"] >= count:
-                                            if not await db.consume_beta_case(user["id"], count):
+                                            if not await db.consume_beta_case(user["id"], count, conn):
                                                 return web.json_response({"error": "not enough beta cases"}, status=400)
                                         else:
                                             return web.json_response({"error": "not enough beta cases"}, status=400)
@@ -4464,7 +4465,8 @@ async def handle_chat_react(request: web.Request):
         reactions = await db.react_chat_message(chat_id, message_id, user["id"], emoji)
         if reactions is None:
             return web.json_response({"error": "message not found"}, status=404)
-        
+
+        await cache_delete_pattern(f"chat_msgs:{chat_id}")
         return web.json_response({"reactions": reactions})
     except (ValueError, KeyError, TypeError) as e:
         logging.warning(f"handle_chat_react error: {e}")
@@ -4506,7 +4508,8 @@ async def handle_global_react(request: web.Request):
         reactions = await db.react_global_message(message_id, user["id"], emoji)
         if reactions is None:
             return web.json_response({"error": "message not found"}, status=404)
-        
+
+        await cache_delete_pattern("global_chat_msgs")
         return web.json_response({"reactions": reactions})
     except (ValueError, KeyError, TypeError) as e:
         logging.warning(f"handle_global_react error: {e}")

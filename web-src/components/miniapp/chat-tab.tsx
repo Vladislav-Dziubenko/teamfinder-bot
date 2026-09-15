@@ -263,13 +263,11 @@ function MessageReactions({
   const [showPicker, setShowPicker] = useState(false)
   const quickEmojis = ["❤️", "👍", "🔥", "😂", "😢", "👎"]
 
-  if (!reactions || reactions.length === 0) {
-    return null
-  }
+  const visibleReactions = reactions ?? []
 
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-1">
-      {reactions.map((r) => (
+    <div className="relative mt-1 flex flex-wrap items-center gap-1">
+      {visibleReactions.map((r) => (
         <button
           key={r.emoji}
           type="button"
@@ -283,7 +281,9 @@ function MessageReactions({
       {onReact && (
         <button
           type="button"
-          onClick={() => setShowPicker(!showPicker)}
+          onClick={() => setShowPicker((open) => !open)}
+          aria-label="Добавить реакцию"
+          aria-expanded={showPicker}
           className="grid size-6 place-items-center rounded-full bg-muted text-xs active:scale-95"
         >
           +
@@ -331,15 +331,24 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
   if (isVoice) {
     return (
       <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
-        <VoiceMessagePlayer
-          src={`/api/chat/${chatId}/voice/${m.id}`}
-          duration={m.voiceDuration || 0}
-          mime={m.voiceMime}
-        />
-        <div className={cn("flex items-center gap-1 mt-0.5", mine ? "justify-end" : "justify-start")}>
-          <span className={cn("text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
-            {formatMsgTime(m.ts, lang)}
-          </span>
+        <div className="flex max-w-[78%] flex-col gap-1">
+          <VoiceMessagePlayer
+            src={`/api/chat/${chatId}/voice/${m.id}`}
+            duration={m.voiceDuration || 0}
+            mime={m.voiceMime}
+          />
+          <div className={cn("flex items-center gap-1 mt-0.5", mine ? "justify-end" : "justify-start")}>
+            <span className={cn("text-[10px]", mine ? "text-primary-foreground/70" : "text-muted-foreground")}>
+              {formatMsgTime(m.ts, lang)}
+            </span>
+          </div>
+          <MessageReactions
+            reactions={m.reactions}
+            messageId={m.id}
+            chatId={chatId}
+            mine={mine}
+            onReact={onReact ? (emoji) => onReact(m.id, emoji) : undefined}
+          />
         </div>
       </div>
     )
@@ -363,6 +372,13 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
             {formatMsgTime(m.ts, lang)}
             {mine && (m.status === "read" ? <CheckCheck className="size-3" /> : <Check className="size-3" />)}
           </span>
+          <MessageReactions
+            reactions={m.reactions}
+            messageId={m.id}
+            chatId={chatId}
+            mine={mine}
+            onReact={onReact ? (emoji) => onReact(m.id, emoji) : undefined}
+          />
         </div>
       </div>
     )
@@ -521,18 +537,23 @@ export function ChatConversation({ chatId, player, role, onBack, clanMode, clanE
     setLocalMessages(messages)
   }, [messages])
   
-  // Функция для отправки реакции
+  const pendingReactions = useRef(new Set<string>())
+  // Функция для отправки реакции. Один тап = один запрос, даже при быстрых повторных нажатиях.
   const handleReact = useCallback(async (messageId: string, emoji: string) => {
+    const key = `${messageId}:${emoji}`
+    if (pendingReactions.current.has(key)) return
+    pendingReactions.current.add(key)
     try {
       const res: any = await api.post(`/api/chat/${chatId}/react`, { message_id: messageId, emoji })
-      if (res?.reactions) {
-        // Обновляем локальные сообщения с новыми реакциями
+      if (Array.isArray(res?.reactions)) {
         setLocalMessages((prev) =>
           prev.map((m) => (m.id === messageId ? { ...m, reactions: res.reactions } : m))
         )
       }
     } catch (e) {
       console.error("Failed to react:", e)
+    } finally {
+      pendingReactions.current.delete(key)
     }
   }, [chatId])
   
@@ -1015,18 +1036,23 @@ function GlobalChat({ onBack, onOpenProfile }: { onBack: () => void; onOpenProfi
     setLocalMessages(messages)
   }, [messages])
   
-  // Функция для отправки реакции в глобальном чате
+  const pendingReactions = useRef(new Set<string>())
+  // Функция для отправки реакции в глобальном чате.
   const handleReact = useCallback(async (messageId: string, emoji: string) => {
+    const key = `${messageId}:${emoji}`
+    if (pendingReactions.current.has(key)) return
+    pendingReactions.current.add(key)
     try {
       const res: any = await api.post("/api/global/react", { message_id: messageId, emoji })
-      if (res?.reactions) {
-        // Обновляем локальные сообщения с новыми реакциями
+      if (Array.isArray(res?.reactions)) {
         setLocalMessages((prev) =>
           prev.map((m) => (m.id === messageId ? { ...m, reactions: res.reactions } : m))
         )
       }
     } catch (e) {
       console.error("Failed to react:", e)
+    } finally {
+      pendingReactions.current.delete(key)
     }
   }, [])
   
