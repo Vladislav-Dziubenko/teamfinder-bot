@@ -41,6 +41,7 @@ from data.guides import GUIDES
 from database import Database
 from services.ai_moderation import is_guard_mention, score_message
 from services.matching import find_matches, score_match
+from services.telegram_stickers import fetch_sticker_set, sticker_set_name, is_sticker_message
 from webapp.auth import validate_init_data
 from webapp.discord import (build_auth_url, exchange_code, fetch_discord_user,
                             revoke_token, _make_state, _verify_state)
@@ -492,6 +493,9 @@ async def auth_middleware(request: web.Request, handler):
         is_public = (
             request.path in PUBLIC_API_PATHS
             or (request.method == "GET" and request.path in PUBLIC_API_GET_PATHS)
+            # Images cannot attach initData headers. The handler permits only
+            # files in our public sticker catalog, never arbitrary bot files.
+            or (request.method == "GET" and request.path.startswith("/api/stickers/img/"))
         )
         settings: Settings = request.app["settings"]
         init_data_raw = request.headers.get("X-Telegram-Init-Data", "")
@@ -724,6 +728,7 @@ async def _me_payload(request: web.Request, db: Database, user: dict):
         "case_cooldowns": case_cooldowns,
         "free_gold_opens": free_gold_opens,
         "premium_active": premium_active,
+        **(await db.get_search_rewards(user["id"])),
         "tg_notify": user_prefs.get("tg_notify", True) if user_prefs else True,
         "star_packs": [{"id": k, "stars": v["stars"], "perk": v["desc"], "title": v["title"]} for k, v in STAR_PACKS.items()],
         "battlepass_tiers": BATTLE_PASS_TIERS,
@@ -2193,6 +2198,8 @@ async def handle_nexus_open_case(request: web.Request):
                 "fair": fair_proof,
                 "beta_balance": resp_beta["case_balance"] if resp_beta else 0,
                 "free_gold_opens": resp_free_gold,
+                "premium_active": await db.is_pro(user["id"]),
+                **(await db.get_search_rewards(user["id"])),
             })
 
         except (asyncpg.exceptions.PostgresError, asyncio.TimeoutError, ConnectionError) as e:
@@ -3740,7 +3747,9 @@ async def handle_chat_send(request: web.Request):
     if status["blocked"]:
         return web.json_response({"error": "blocked"}, status=403)
     body = await request.json()
-    text = sanitize(body.get("text", ""), 500)
+    text = sanitize(body.get("text", ""), 1200)
+    if not is_sticker_message(text):
+        text = text[:500]
     if not text:
         return web.json_response({"error": "empty message"}, status=400)
     reply_to = body.get("reply_to_id")
@@ -4530,7 +4539,9 @@ async def handle_global_send(request: web.Request):
     if await rate_limit_check(f"gsend:{user['id']}", GLOBAL_SEND_LIMIT, GLOBAL_SEND_WINDOW):
         return web.json_response({"error": "slow down"}, status=429)
     body = await request.json()
-    text = sanitize(body.get("text", ""), 500)
+    text = sanitize(body.get("text", ""), 1200)
+    if not is_sticker_message(text):
+        text = text[:500]
     if not text:
         return web.json_response({"error": "empty message"}, status=400)
     reply_to = body.get("reply_to_id")
@@ -4709,9 +4720,7 @@ async def handle_global_voice_stream(request: web.Request):
 # ---------- Sticker sets ----------
 
 DEFAULT_STICKER_SETS = [
-    "AnimatedPepe", "FrenPepe", "PepeBounce", "PepeStickers",
-    "NickandtheFam", "Kongz", "Puss2", "SmurfCat",
-    "DogToTheMoon", "H摸鱼猫H", "TamagotchiCat",
+    "HotCherry", "Animals", "FrenPepe",
 ]
 
 
@@ -4721,44 +4730,30 @@ async def _sync_default_sticker_sets(db: Database) -> list[str]:
     token = (os.getenv("BOT_TOKEN") or "").strip()
     if not token:
         return []
-    synced = []
-    async with ClientSession() as session:
-        for name in DEFAULT_STICKER_SETS:
-            try:
-                async with session.get(
-                    f"https://api.telegram.org/bot{token}/getStickerSet",
-                    params={"name": name},
-                    timeout=ClientTimeout(total=10),
-                ) as resp:
-                    if resp.status != 200:
-                        continue
-                    data = await resp.json()
-                    if not data.get("ok"):
-                        continue
-                    result = data["result"]
-                    stickers = []
-                    for s in result.get("stickers", [])[:50]:
-                        fid = s.get("file_id", "")
-                        thumb_fid = (s.get("thumb") or {}).get("file_id", "")
-                        stickers.append({
-                            "file_id": fid,
-                            "thumb_file_id": thumb_fid,
-                            "emoji": s.get("emoji", ""),
-                            "type": s.get("type", "regular"),
-                        })
-                    await db.upsert_sticker_set(name, result.get("title", name), stickers)
-                    synced.append(name)
-            except Exception:
-                continue
-    return synced
+    async def sync_one(name):
+        try:
+            pack = await fetch_sticker_set(token, name)
+            await db.upsert_sticker_set(pack["name"], pack["title"], pack["stickers"])
+            return pack["name"]
+        except Exception:
+            return None  # Never log aiohttp errors containing the bot token.
+    return [name for name in await asyncio.gather(
+        *(sync_one(name) for name in DEFAULT_STICKER_SETS)
+    ) if name]
 
 
 async def handle_sticker_sets(request: web.Request):
     db: Database = request.app["db"]
-    sets = await db.get_sticker_sets()
+    user_id = _get_user(request)["id"]
+    sets = await db.get_sticker_sets(user_id, DEFAULT_STICKER_SETS)
     
-    # Автоматическая синхронизация если база пустая
-    if not sets:
+    # Also refresh old catalog rows: they used the obsolete "thumb" field and
+    # did not store animation/video flags.
+    needs_sync = not sets or any(
+        "is_animated" not in sticker
+        for pack in sets for sticker in pack["stickers"]
+    )
+    if needs_sync:
         # Проверяем кеш чтобы не спамить Telegram API
         skip_cache = await cache_get("sticker_autosync_skip")
         if not skip_cache:
@@ -4766,32 +4761,60 @@ async def handle_sticker_sets(request: web.Request):
             await cache_set("sticker_autosync_skip", "1", ttl=300)
             synced = await _sync_default_sticker_sets(db)
             if synced:
-                sets = await db.get_sticker_sets()
+                sets = await db.get_sticker_sets(user_id, DEFAULT_STICKER_SETS)
     
     return web.json_response({"sets": sets})
 
 
 async def handle_sticker_sync(request: web.Request):
     db: Database = request.app["db"]
+    if await rate_limit_check(f"sticker_sync:{_get_user(request)['id']}", 1, 300):
+        return web.json_response({"error": "Повторите обновление через несколько минут"}, status=429)
     if not (os.getenv("BOT_TOKEN") or "").strip():
         return web.json_response({"error": "no bot token"}, status=500)
     synced = await _sync_default_sticker_sets(db)
     return web.json_response({"synced": synced})
 
 
+async def handle_sticker_import(request: web.Request):
+    db: Database = request.app["db"]
+    user_id = _get_user(request)["id"]
+    if await rate_limit_check(f"sticker_import:{user_id}", 5, 60):
+        return web.json_response({"error": "Слишком много запросов. Повторите через минуту."}, status=429)
+    try:
+        body = await request.json()
+        name = sticker_set_name(str(body.get("name", "")))
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({"error": "Укажите ссылку t.me/addstickers/… или название набора"}, status=400)
+    token = (os.getenv("BOT_TOKEN") or "").strip()
+    if not token:
+        return web.json_response({"error": "Стикеры временно недоступны"}, status=503)
+    try:
+        pack = await fetch_sticker_set(token, name)
+        await db.upsert_sticker_set(pack["name"], pack["title"], pack["stickers"])
+        await db.add_user_sticker_set(user_id, pack["name"])
+        return web.json_response({"set": pack})
+    except ValueError as exc:
+        return web.json_response({"error": str(exc)}, status=400)
+    except Exception:
+        return web.json_response({"error": "Не удалось загрузить набор из Telegram. Попробуйте ещё раз."}, status=502)
+
+
 async def handle_sticker_image(request: web.Request):
     file_id = request.match_info["file_id"]
     # file_id — только формат Telegram file_id: иначе SSRF-подобные выходки
     # и мусор в кэше; ошибки — generic, чтобы str(e) не утащил URL с BOT_TOKEN.
-    if not isinstance(file_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{10,128}", file_id):
+    if not isinstance(file_id, str) or not re.fullmatch(r"[A-Za-z0-9_-]{10,512}", file_id):
         return web.json_response({"error": "invalid file_id"}, status=400)
     token = (os.getenv("BOT_TOKEN") or "").strip()
     if not token:
         return web.json_response({"error": "no bot token"}, status=500)
-    cache_key = f"sticker_img:{file_id}"
+    cache_key = f"sticker_img_v2:{file_id}"
     cached = await cache_get(cache_key)
     if cached:
-        return web.Response(body=cached[0], content_type=cached[1])
+        return web.Response(body=base64.b64decode(cached[0]), content_type=cached[1], headers={"Cache-Control": "public, max-age=2592000"})
+    if not await request.app["db"].is_catalog_sticker_file(file_id):
+        return web.json_response({"error": "sticker not found"}, status=404)
     try:
         async with ClientSession() as session:
             async with session.get(
@@ -4814,8 +4837,11 @@ async def handle_sticker_image(request: web.Request):
                 img_bytes = await resp.read()
                 if len(img_bytes) > 2 * 1024 * 1024:
                     return web.json_response({"error": "file too large"}, status=502)
-                ct = resp.content_type or "image/webp"
-                await cache_set(cache_key, (img_bytes, ct), ttl=86400 * 30)
+                ct = {".webp": "image/webp", ".png": "image/png", ".jpg": "image/jpeg",
+                      ".webm": "video/webm", ".tgs": "application/gzip"}.get(
+                          Path(file_path).suffix.lower(), resp.content_type or "image/webp")
+                # Redis cache_set uses JSON; bytes cannot be serialized directly.
+                await cache_set(cache_key, (base64.b64encode(img_bytes).decode("ascii"), ct), ttl=86400 * 30)
                 return web.Response(body=img_bytes, content_type=ct, headers={"Cache-Control": "public, max-age=2592000"})
     except Exception:
         # Generic: str(e) от aiohttp содержит URL запроса с BOT_TOKEN.
@@ -6732,6 +6758,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_get("/api/mod/status", handle_mod_status)
     app.router.add_get("/api/stickers", handle_sticker_sets)
     app.router.add_post("/api/stickers/sync", handle_sticker_sync)
+    app.router.add_post("/api/stickers/import", handle_sticker_import)
     app.router.add_get("/api/stickers/img/{file_id}", handle_sticker_image)
     app.router.add_post("/api/admin/role", handle_admin_role)
     app.router.add_get("/api/admin/users", handle_admin_users)

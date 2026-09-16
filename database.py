@@ -1269,6 +1269,13 @@ class Database:
                     updated_at TEXT NOT NULL DEFAULT ''
                 )
             """)
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_sticker_sets (
+                    user_id BIGINT NOT NULL,
+                    name TEXT NOT NULL REFERENCES sticker_sets(name) ON DELETE CASCADE,
+                    PRIMARY KEY (user_id, name)
+                )
+            """)
         except asyncpg.PostgresError as e:
             print(f"Migration warning creating sticker_sets: {e}")
 
@@ -2215,6 +2222,16 @@ class Database:
             if not row or not row["pro_until"]:
                 return False
             return datetime.fromisoformat(row["pro_until"]) > datetime.utcnow()
+
+    async def get_search_rewards(self, user_id: int) -> dict:
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow(
+                "SELECT pro_until, daily_searches_bonus FROM users WHERE user_id = $1", user_id,
+            )
+        return {
+            "premium_until": row["pro_until"] if row else None,
+            "daily_searches_bonus": max(0, int(row["daily_searches_bonus"] or 0)) if row else 0,
+        }
 
     # ---- Super+ подписка ($15/мес, рекуррентные Stars) ----
     async def get_super(self, user_id: int) -> dict | None:
@@ -6294,12 +6311,31 @@ WHERE user_quests.completed = 0
                 name, title, json.dumps(stickers), now,
             )
 
-    async def get_sticker_sets(self) -> list[dict]:
+    async def get_sticker_sets(self, user_id: int, defaults: list[str]) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT name, title, stickers FROM sticker_sets ORDER BY name"
+                """SELECT name, title, stickers FROM sticker_sets
+                   WHERE LOWER(name) = ANY($2::text[]) OR name IN
+                     (SELECT name FROM user_sticker_sets WHERE user_id = $1)
+                   ORDER BY name""", user_id, [name.lower() for name in defaults],
             )
             return [{"name": r["name"], "title": r["title"], "stickers": json.loads(r["stickers"]) if isinstance(r["stickers"], str) else r["stickers"]} for r in rows]
+
+    async def add_user_sticker_set(self, user_id: int, name: str) -> None:
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "INSERT INTO user_sticker_sets (user_id, name) VALUES ($1, $2) ON CONFLICT DO NOTHING",
+                user_id, name,
+            )
+
+    async def is_catalog_sticker_file(self, file_id: str) -> bool:
+        async with self.pool.acquire() as conn:
+            return bool(await conn.fetchval(
+                """SELECT EXISTS (
+                    SELECT 1 FROM sticker_sets, jsonb_array_elements(stickers) AS sticker
+                    WHERE sticker->>'file_id' = $1 OR sticker->>'thumb_file_id' = $1
+                )""", file_id,
+            ))
 
     async def get_sticker_set(self, name: str) -> dict | None:
         async with self.pool.acquire() as conn:

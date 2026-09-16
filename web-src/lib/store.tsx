@@ -15,6 +15,7 @@ import { api, telegramReady, openInvoice, syncTelegramProfile } from "@/lib/api"
 import { initWebApp } from "@/lib/webapp"
 import { parseIsoTs } from "@/lib/chat"
 import type { FairProof } from "@/lib/crypto"
+import { FREE_SEARCHES, searchLimit, remainingSearches, hasUnlimitedSearch } from "./search-access"
 
 export type InventoryItem = CaseItem & { uid: string; id?: number }
 
@@ -62,7 +63,6 @@ export type ModelHistoryEntry = {
 
 const DAY_MS = 24 * 60 * 60 * 1000
 export const BP_CLAIM_INTERVAL = 2 * DAY_MS
-const FREE_SEARCHES = 5
 export const CONSENT_VERSION = 1
 
 type MeResponse = {
@@ -110,6 +110,8 @@ type MeResponse = {
   ban_reason?: string
   ban_expires_at?: string
   premium_active: boolean
+  premium_until?: string | null
+  daily_searches_bonus?: number
   tg_notify?: boolean
   promos?: Array<{
     code: string
@@ -139,6 +141,9 @@ type PersistedState = {
   coins: number
   points: number
   premiumActive: boolean
+  premiumUntil: string | null
+  dailySearchesBonus: number
+  searchDay: string
   inventory: InventoryItem[]
   pinnedKeys: string[]
   freeSearchesLeft: number
@@ -335,6 +340,9 @@ function defaultState(): PersistedState {
     coins: 0,
     points: 0,
     premiumActive: false,
+    premiumUntil: null,
+    dailySearchesBonus: 0,
+    searchDay: new Date().toISOString().slice(0, 10),
     inventory: [],
     pinnedKeys: [],
     freeSearchesLeft: FREE_SEARCHES,
@@ -427,9 +435,12 @@ function mapMeToState(me: MeResponse, modelState?: ModelState, pinnedKeys: strin
     coins: currency.coins ?? 0,
     points: currency.points ?? 0,
     premiumActive: me.premium_active || false,
+    premiumUntil: me.premium_until || null,
+    dailySearchesBonus: me.daily_searches_bonus || 0,
+    searchDay: new Date().toISOString().slice(0, 10),
     inventory: (me.inventory || []).map((i) => enrichInventoryItem(i, registry)),
     pinnedKeys,
-    freeSearchesLeft: FREE_SEARCHES,
+    freeSearchesLeft: searchLimit(me.daily_searches_bonus),
     unlockedPlayers: [],
     caseCooldown,
     avatar: mini.avatar || null,
@@ -521,6 +532,7 @@ function grantReward(state: PersistedState, reward: BattlePassReward | null): Pe
 }
 
 type Nexus = PersistedState & {
+  searchUnlimited: boolean
   bpLevel: number
   freeCaseReadyIn: number
   bpNextClaimIn: number
@@ -587,6 +599,14 @@ export function NexusProvider({ children }: { children: ReactNode }) {
   const [now, setNow] = useState(() => Date.now())
   const [serverBusy, setServerBusy] = useState(false)
   const refreshing = useRef(false)
+  const refreshQueued = useRef(false)
+
+  useEffect(() => {
+    const today = new Date(now).toISOString().slice(0, 10)
+    setS((previous) => previous.searchDay === today ? previous : {
+      ...previous, searchDay: today, freeSearchesLeft: searchLimit(previous.dailySearchesBonus),
+    })
+  }, [now])
 
   useEffect(() => { _setServerBusy = setServerBusy; return () => { _setServerBusy = null } }, [setServerBusy])
 
@@ -687,22 +707,32 @@ export function NexusProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const refresh = useCallback(async () => {
-    // Коалесценция: если refresh уже выполняется (например, серия fire-and-forget
-    // вызовов после мульти-открытия кейсов), пропускаем новые — сервер и так
-    // отдаст свежий баланс по завершении текущего запроса.
-    if (refreshing.current) return
+    // Coalesce refreshes, but fetch again if rewards changed during a request.
+    if (refreshing.current) {
+      refreshQueued.current = true
+      return
+    }
     refreshing.current = true
     try {
-      const [me, modelState] = await Promise.all([
-        api.get("/api/me"),
-        api.get("/api/nexus/model/state"),
-      ])
-      // 429 = rate limit — сервер вернул "slow down", оставляем текущее состояние.
-      if (me?.error === "slow down") return
-      const next = mapMeToState(me as MeResponse, modelState as ModelState, loadSavedPins())
-      setS(next)
-      saveCurrency(next)
-      saveProfileSummary({ level: next.level, wins: next.wins })
+      do {
+        refreshQueued.current = false
+        const [me, modelState] = await Promise.all([
+          api.get("/api/me"),
+          api.get("/api/nexus/model/state"),
+        ])
+        if (me?.error === "slow down") return
+        // A case may have been opened while this request was in flight.
+        if (refreshQueued.current) continue
+        const next = mapMeToState(me as MeResponse, modelState as ModelState, loadSavedPins())
+        setS((previous) => ({
+          ...next,
+          freeSearchesLeft: previous.searchDay === next.searchDay
+            ? remainingSearches(previous.freeSearchesLeft, previous.dailySearchesBonus, next.dailySearchesBonus)
+            : next.freeSearchesLeft,
+        }))
+        saveCurrency(next)
+        saveProfileSummary({ level: next.level, wins: next.wins })
+      } while (refreshQueued.current)
       // История серий — отдельно: сбой здесь не должен ломать стартовую загрузку.
       void api
         .get<{ models?: ModelHistoryEntry[] }>("/api/nexus/model/history")
@@ -929,6 +959,17 @@ export function NexusProvider({ children }: { children: ReactNode }) {
         if (typeof data.free_gold_opens === "number") {
           setS((p: PersistedState) => ({ ...p, freeGoldOpens: data.free_gold_opens }))
         }
+        // Apply server-confirmed case benefits immediately, before the player
+        // can switch to Match. A background /me refresh may still be running.
+        if (typeof data.premium_active === "boolean") {
+          setS((p) => ({
+            ...p,
+            premiumActive: data.premium_active,
+            premiumUntil: data.premium_until || null,
+            dailySearchesBonus: data.daily_searches_bonus || 0,
+            freeSearchesLeft: remainingSearches(p.freeSearchesLeft, p.dailySearchesBonus, data.daily_searches_bonus || 0),
+          }))
+        }
         refresh()
         if (Array.isArray(data.items) && data.items.length > 0) {
           return { ok: true, items: data.items as CaseItem[], item: data.items[0] as CaseItem, fair: data.fair as FairProof | undefined }
@@ -1009,8 +1050,9 @@ export function NexusProvider({ children }: { children: ReactNode }) {
     }
 
     const useFreeSearch = () => {
+      if (hasUnlimitedSearch(s.premiumActive, s.premiumUntil, Date.now()) || s.isBeta || s.isSuper) return true
       if (s.freeSearchesLeft <= 0) return false
-      setS((p: PersistedState) => ({ ...p, freeSearchesLeft: p.freeSearchesLeft - 1 }))
+      setS((p: PersistedState) => ({ ...p, freeSearchesLeft: Math.max(0, p.freeSearchesLeft - 1) }))
       return true
     }
 
@@ -1204,6 +1246,7 @@ export function NexusProvider({ children }: { children: ReactNode }) {
 
     return {
       ...s,
+      searchUnlimited: hasUnlimitedSearch(s.premiumActive, s.premiumUntil, now) || s.isBeta || s.isSuper,
       bpLevel,
       freeCaseReadyIn: caseReadyIn("blue"),
       caseCooldown: s.caseCooldown,

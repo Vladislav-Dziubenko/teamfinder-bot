@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import { Search, Sparkles, Star, Lock, Zap, Loader2, Heart, MessageCircle, Radio } from "lucide-react"
 import { games } from "@/lib/data"
 import type { Player, Team } from "@/lib/data"
@@ -12,6 +12,7 @@ import { TeamCard } from "./team-card"
 import { ReviewSheet } from "./review-sheet"
 import { cn } from "@/lib/utils"
 import { AvatarImage } from "./avatar-image"
+import { searchLimit } from "@/lib/search-access"
 
 type SortKey = "match" | "level" | "rank" | "time"
 
@@ -28,7 +29,7 @@ export function MatchTab({
   onChat?: (p: Player) => void
 }) {
   const { t } = useI18n()
-  const { freeSearchesLeft, useFreeSearch, spendStars, unlockPlayer, unlockedPlayers } = useNexus()
+  const { loaded, searchUnlimited, dailySearchesBonus, freeSearchesLeft, useFreeSearch, spendStars, unlockPlayer, unlockedPlayers } = useNexus()
 
   const [mode, setMode] = useState<"players" | "teams" | "likes">("players")
   const [game, setGame] = useState<string>("all")
@@ -37,7 +38,9 @@ export function MatchTab({
   const [onlyDiscord, setOnlyDiscord] = useState(false)
   const [onlySteam, setOnlySteam] = useState(false)
   const [sort, setSort] = useState<SortKey>("match")
-  const [extended, setExtended] = useState(false)
+  const [paidExtended, setExtended] = useState(false)
+  const extended = paidExtended || searchUnlimited
+  const searchPending = useRef(false)
   const [notice, setNotice] = useState<string | null>(null)
   const [searchResults, setSearchResults] = useState<{ players: Player[]; teams: Team[] } | null>(null)
   const [loading, setLoading] = useState(false)
@@ -71,14 +74,13 @@ export function MatchTab({
   }, [])
 
   async function runSearch() {
+    if (!loaded || searchPending.current) return
     const q = query.trim()
-    if (!extended) {
-      const ok = useFreeSearch()
-      if (!ok) {
-        setNotice(t("match.error_free_exhausted"))
-        return
-      }
+    if (!extended && freeSearchesLeft <= 0) {
+      setNotice(t("match.error_free_exhausted"))
+      return
     }
+    searchPending.current = true
     setApplied(q)
     setNotice(null)
     setHasSearched(true)
@@ -86,10 +88,12 @@ export function MatchTab({
     try {
       const data = await api.get(`/api/search?q=${encodeURIComponent(q)}&game=${encodeURIComponent(game)}${onlyDiscord ? "&discord=1" : ""}${onlySteam ? "&steam=1" : ""}`)
       setSearchResults({ players: data.players || [], teams: data.teams || [] })
+      if (!extended) useFreeSearch()
     } catch (e: any) {
       setNotice(e.message || t("common.error"))
       setSearchResults(null)
     } finally {
+      searchPending.current = false
       setLoading(false)
     }
   }
@@ -128,7 +132,7 @@ export function MatchTab({
     return searchResults.teams.filter((t) => game === "all" || t.game === game)
   }, [searchResults, game])
 
-  const noFreeLeft = freeSearchesLeft === 0 && !extended
+  const noFreeLeft = loaded && freeSearchesLeft === 0 && !extended
 
   return (
     <div className="space-y-4 px-4 py-5">
@@ -159,7 +163,7 @@ export function MatchTab({
         <button
           type="button"
           onClick={runSearch}
-          disabled={loading}
+          disabled={loading || !loaded}
           className="shrink-0 rounded-2xl bg-primary px-4 text-sm font-semibold text-primary-foreground active:scale-95 disabled:opacity-60"
         >
           {loading ? <Loader2 className="size-4 animate-spin" /> : t("common.search")}
@@ -172,7 +176,7 @@ export function MatchTab({
           <span className="flex items-center gap-1.5 text-muted-foreground">
             <Search className="size-3.5" /> {t("home.free_searches", { count: freeSearchesLeft })}
           </span>
-          <span className="font-display text-sm font-bold text-primary">{freeSearchesLeft}/5</span>
+          <span className="font-display text-sm font-bold text-primary">{freeSearchesLeft}/{searchLimit(dailySearchesBonus)}</span>
         </div>
       ) : (
         <div className="flex items-center justify-center gap-1.5 rounded-2xl border border-accent/40 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent">

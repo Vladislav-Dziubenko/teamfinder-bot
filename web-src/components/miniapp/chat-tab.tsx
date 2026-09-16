@@ -18,6 +18,7 @@ import {
   type MsgReply,
 } from "@/lib/chat"
 import { ForwardSheet, type ForwardSource } from "./forward-sheet"
+import { StickerPanel, TelegramSticker } from "./telegram-stickers"
 import { BottomSheet } from "./bottom-sheet"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
 import { api, openTelegramLink } from "@/lib/api"
@@ -360,9 +361,8 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
       <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
         <div className="flex max-w-[78%] flex-col items-end gap-1">
           {tgSticker ? (
-            <img
-              src={`/api/stickers/img/${m.text.split(":")[2]}`}
-              alt="sticker"
+            <TelegramSticker
+              text={m.text}
               className="max-h-[160px] object-contain drop-shadow-md"
             />
           ) : (
@@ -2083,39 +2083,6 @@ function isTgSticker(text: string): boolean {
   return (text ?? "").trim().startsWith("tg_sticker:")
 }
 
-const STICKERS = [
-  "🔥", "⚡", "💯", "😎", "😂", "🥳", "🎉", "😭", "😡", "😱",
-  "❤️", "💔", "👍", "👎", "🙏", "🤝", "💪", "🫡", "🤯", "🥶",
-  "👑", "🏆", "🚀", "💀", "🤝", "👊", "✌️", "🤞", "🎮", "🕹️",
-  "🐱", "🐶", "🦊", "🐼", "🍀", "💎", "⭐", "🌚", "🌝", "💤",
-]
-
-function StickerPanel({ onPick, onClose }: { onPick: (sticker: string) => void; onClose: () => void }) {
-  const { t } = useI18n()
-  return (
-    <div className="border-t border-border bg-card/85 px-3 py-2 backdrop-blur-xl">
-      <div className="mb-2 flex items-center justify-between">
-        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">{t("chat.stickers_title")}</p>
-        <button type="button" onClick={onClose} className="grid size-6 place-items-center rounded-lg text-muted-foreground active:bg-secondary" aria-label={t("common.close")}>
-          <X className="size-4" />
-        </button>
-      </div>
-      <div className="grid grid-cols-8 gap-1">
-        {STICKERS.map((s) => (
-          <button
-            key={s}
-            type="button"
-            onClick={() => onPick(s)}
-            className="grid aspect-square place-items-center rounded-xl text-2xl transition-transform active:scale-90 hover:bg-muted"
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 const GlobalMsg = memo(function GlobalMsg({
   msg,
   mine,
@@ -2240,9 +2207,8 @@ const GlobalMsg = memo(function GlobalMsg({
         {mine && <RoleBadge role={msg.role} className="mb-1 self-end" />}
         {sticker ? (
           isTgSticker(msg.text) ? (
-            <img
-              src={`/api/stickers/img/${msg.text.split(":")[2]}`}
-              alt="sticker"
+            <TelegramSticker
+              text={msg.text}
               className="max-h-[140px] object-contain"
             />
           ) : (
