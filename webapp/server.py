@@ -39,7 +39,7 @@ from data.games import (
 )
 from data.guides import GUIDES
 from database import Database
-from services.ai_moderation import guard_display_name, is_guard_mention, score_message
+from services.ai_moderation import is_guard_mention, score_message
 from services.matching import find_matches, score_match
 from services.telegram_stickers import fetch_sticker_set, sticker_set_name, is_sticker_message
 from webapp.auth import validate_init_data
@@ -4456,7 +4456,7 @@ async def handle_global_messages(request: web.Request):
     for msg in messages:
         uid = msg.get("user_id")
         if uid == AI_PERSONA_ID or msg.get("role") == "ai":
-            msg["nick"] = guard_display_name(settings)
+            msg["nick"] = (getattr(settings, "ai_guard_name", "") or "Страж").strip() or "Страж"
         # Сравнение через str: asyncpg отдаёт int, а id из initData может
         # приехать строкой — строгое сравнение роняло маппинг «своих»,
         # и свои сообщения рисовались чужими (дубли серый+оранжевый).
