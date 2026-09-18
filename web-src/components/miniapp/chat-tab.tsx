@@ -19,6 +19,7 @@ import {
 } from "@/lib/chat"
 import { ForwardSheet, type ForwardSource } from "./forward-sheet"
 import { StickerPanel, TelegramSticker } from "./telegram-stickers"
+import { SafeText } from "./safe-text"
 import { BottomSheet } from "./bottom-sheet"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
 import { api, openTelegramLink } from "@/lib/api"
@@ -404,10 +405,10 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
         }
       >
         {dmReply && <ReplyQuote nick={dmReplyNick} text={dmReply.text} targetDomId={`dmsg-${dmReply.id}`} />}
-        <p className="text-pretty leading-relaxed [overflow-wrap:anywhere]">{translated || m.text}</p>
+        <p className="text-pretty leading-relaxed [overflow-wrap:anywhere]"><SafeText text={translated || m.text} mine={mine} /></p>
         {translated && translated !== m.text && (
           <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground [overflow-wrap:anywhere]">
-            {m.text}
+            <SafeText text={m.text} mine={mine} />
           </p>
         )}
         <div className="mt-1 flex items-center justify-between gap-2">
@@ -2227,12 +2228,12 @@ const GlobalMsg = memo(function GlobalMsg({
                 targetDomId={`gmsg-${msg.reply.id}`}
               />
             )}
-            <p className="text-pretty leading-relaxed [overflow-wrap:anywhere]">{translated || msg.text}</p>
+            <p className="text-pretty leading-relaxed [overflow-wrap:anywhere]"><SafeText text={translated || msg.text} mine={mine} /></p>
           </>
         )}
         {!sticker && translated && translated !== msg.text && (
           <p className="mt-1 border-t border-border/40 pt-1 text-[11px] italic text-muted-foreground">
-            {msg.text}
+            <SafeText text={msg.text} mine={mine} />
           </p>
         )}
         {!sticker && tErr && !translated && (

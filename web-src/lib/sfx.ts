@@ -3,6 +3,18 @@
 let ctx: AudioContext | null = null
 let master: GainNode | null = null
 let muted = false
+let volume = 0.5
+
+function loadVolume(): number {
+  try {
+    const raw = localStorage.getItem("nexus-sfx-volume")
+    if (raw != null) {
+      const v = parseFloat(raw)
+      if (Number.isFinite(v)) return Math.min(1, Math.max(0, v))
+    }
+  } catch {}
+  return 0.5
+}
 
 function ac(): AudioContext | null {
   if (typeof window === "undefined") return null
@@ -11,10 +23,26 @@ function ac(): AudioContext | null {
     if (!Ctor) return null
     ctx = new Ctor()
     master = ctx.createGain()
-    master.gain.value = 0.5
+    volume = loadVolume()
+    master.gain.value = muted ? 0 : volume
     master.connect(ctx.destination)
   }
   return ctx
+}
+
+export function getVolume(): number {
+  if (typeof window !== "undefined" && volume === 0.5) {
+    volume = loadVolume()
+  }
+  return volume
+}
+
+export function setVolume(v: number): void {
+  volume = Math.min(1, Math.max(0, v))
+  try {
+    localStorage.setItem("nexus-sfx-volume", String(volume))
+  } catch {}
+  if (master) master.gain.value = muted ? 0 : volume
 }
 
 /** Ensure AudioContext is running (unlock on mobile after user gesture). Call before any sound. */
@@ -26,7 +54,7 @@ export async function ensureAudio(): Promise<void> {
 
 export function setMuted(v: boolean) {
   muted = v
-  if (master) master.gain.value = v ? 0 : 0.5
+  if (master) master.gain.value = v ? 0 : volume
 }
 
 export function isMuted() {

@@ -318,6 +318,22 @@ CREATE TABLE IF NOT EXISTS global_messages (
     reply_to INTEGER
 );
 
+CREATE TABLE IF NOT EXISTS chat_message_reactions (
+    message_id INTEGER NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,
+    emoji TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS global_message_reactions (
+    message_id INTEGER NOT NULL REFERENCES global_messages(id) ON DELETE CASCADE,
+    user_id BIGINT NOT NULL,
+    emoji TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (message_id, user_id)
+);
+
 CREATE TABLE IF NOT EXISTS user_roles (
     user_id BIGINT PRIMARY KEY,
     role TEXT NOT NULL,
@@ -579,7 +595,12 @@ CREATE TABLE IF NOT EXISTS clan_quests (
     target_value INTEGER NOT NULL,
     starts_at TEXT NOT NULL,
     ends_at TEXT NOT NULL,
-    claimed INTEGER NOT NULL DEFAULT 0
+    claimed INTEGER NOT NULL DEFAULT 0,
+    progress INTEGER NOT NULL DEFAULT 0,
+    title TEXT NOT NULL DEFAULT '',
+    created_by BIGINT NOT NULL DEFAULT 0,
+    is_custom INTEGER NOT NULL DEFAULT 0,
+    bank_bonus INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS clan_points_log (
@@ -975,6 +996,12 @@ class Database:
             ("global_messages", "reply_to", "INTEGER"),
 
             ("clans", "avatar", "TEXT NOT NULL DEFAULT ''"),
+
+            ("clan_quests", "progress", "INTEGER NOT NULL DEFAULT 0"),
+            ("clan_quests", "title", "TEXT NOT NULL DEFAULT ''"),
+            ("clan_quests", "created_by", "BIGINT NOT NULL DEFAULT 0"),
+            ("clan_quests", "is_custom", "INTEGER NOT NULL DEFAULT 0"),
+            ("clan_quests", "bank_bonus", "INTEGER NOT NULL DEFAULT 0"),
 
             ("clan_season_results", "clan_name", "TEXT NOT NULL DEFAULT ''"),
             ("clan_season_results", "tag", "TEXT NOT NULL DEFAULT ''"),
@@ -1653,6 +1680,47 @@ class Database:
             except asyncpg.PostgresError as e:
                 print(f"Migration warning voice_chat_participants_v1: {e}")
 
+        # Message reactions for DM/global chats
+        migration_name = "message_reactions_v1"
+        already_applied = await conn.fetchval(
+            "SELECT 1 FROM applied_migrations WHERE name = $1",
+            migration_name,
+        )
+        if not already_applied:
+            try:
+                async with conn.transaction():
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS chat_message_reactions (
+                            message_id INTEGER NOT NULL REFERENCES chat_messages(id) ON DELETE CASCADE,
+                            user_id BIGINT NOT NULL,
+                            emoji TEXT NOT NULL,
+                            created_at TEXT NOT NULL,
+                            PRIMARY KEY (message_id, user_id)
+                        )
+                        """
+                    )
+                    await conn.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS global_message_reactions (
+                            message_id INTEGER NOT NULL REFERENCES global_messages(id) ON DELETE CASCADE,
+                            user_id BIGINT NOT NULL,
+                            emoji TEXT NOT NULL,
+                            created_at TEXT NOT NULL,
+                            PRIMARY KEY (message_id, user_id)
+                        )
+                        """
+                    )
+                    await conn.execute("CREATE INDEX IF NOT EXISTS idx_chat_reactions_msg ON chat_message_reactions (message_id)")
+                    await conn.execute("CREATE INDEX IF NOT EXISTS idx_global_reactions_msg ON global_message_reactions (message_id)")
+                await conn.execute(
+                    "INSERT INTO applied_migrations (name, applied_at) VALUES ($1, $2)",
+                    migration_name,
+                    datetime.utcnow().isoformat(),
+                )
+            except asyncpg.PostgresError as e:
+                print(f"Migration warning message_reactions_v1: {e}")
+
         # Provably-fair кейсы: серверный сид + SHA-256 коммитмент, каждый ролл
         # детерминированно выводится из sha256(server_seed:client_seed:nonce),
         # клиент может пересчитать и проверить (см. webapp/server.py и fair-sheet.tsx).
@@ -1840,6 +1908,8 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages (chat_id, created_at)",
             "CREATE INDEX IF NOT EXISTS idx_chat_messages_sender ON chat_messages (sender_id, chat_id)",
             "CREATE INDEX IF NOT EXISTS idx_chat_messages_chat_id ON chat_messages (chat_id, id DESC)",
+            "CREATE INDEX IF NOT EXISTS idx_chat_reactions_msg ON chat_message_reactions (message_id)",
+            "CREATE INDEX IF NOT EXISTS idx_global_reactions_msg ON global_message_reactions (message_id)",
             "CREATE INDEX IF NOT EXISTS idx_mini_app_profiles_user ON mini_app_profiles (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_user_roles_user ON user_roles (user_id)",
             "CREATE INDEX IF NOT EXISTS idx_moderation_tickets_status ON moderation_tickets (status, created_at DESC)",
@@ -2357,15 +2427,22 @@ class Database:
     async def search_clans(self, q: str, limit: int = 20) -> list[dict]:
         q = (q or "").strip()[:24]
         async with self.pool.acquire() as conn:
+            # Аватарки в списках не отдаём целиком (150КБ x 50 = OOM):
+            # отдаём NULL если тяжелая, полную — только в detail/my.
+            avatar_expr = "CASE WHEN LENGTH(COALESCE(c.avatar,'')) > 60000 THEN NULL ELSE c.avatar END AS avatar"
+            base_cols = ("c.id, c.name, c.tag, c.emblem, c.description, c.is_public, c.max_members,"
+                         " c.level, c.lifetime_points, c.bank_points, c.season_id, c.created_by, c.created_at")
             if not q:
                 rows = await conn.fetch(
-                    "SELECT c.*, (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count"
+                    f"SELECT {base_cols}, {avatar_expr},"
+                    " (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count"
                     " FROM clans c WHERE c.is_public = 1 ORDER BY c.lifetime_points DESC LIMIT $1",
                     max(1, min(limit, 50)),
                 )
             else:
                 rows = await conn.fetch(
-                    "SELECT c.*, (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count"
+                    f"SELECT {base_cols}, {avatar_expr},"
+                    " (SELECT COUNT(*) FROM clan_members WHERE clan_id = c.id) AS member_count"
                     " FROM clans c WHERE c.is_public = 1 AND (c.name ILIKE $1 OR c.tag ILIKE $1)"
                     " ORDER BY c.lifetime_points DESC LIMIT $2",
                     f"%{q}%", max(1, min(limit, 50)),
@@ -2617,14 +2694,15 @@ class Database:
     async def ensure_clan_quests(self, clan_id: int) -> list[dict]:
         """Создаёт недостающие квесты текущего периода из шаблонов."""
         async with self.pool.acquire() as conn:
-            for kind, target_type, target_value, _bonus in CLAN_QUEST_TEMPLATES:
+            for kind, target_type, target_value, bonus in CLAN_QUEST_TEMPLATES:
                 start, end = self._clan_window(kind)
                 await conn.execute(
                     "INSERT INTO clan_quests (clan_id, kind, target_type, target_value,"
-                    " starts_at, ends_at, claimed) SELECT $1, $2, $3, $4, $5, $6, 0"
+                    " starts_at, ends_at, claimed, progress, title, is_custom, bank_bonus)"
+                    " SELECT $1, $2, $3, $4, $5, $6, 0, 0, '', 0, $7"
                     " WHERE NOT EXISTS (SELECT 1 FROM clan_quests WHERE clan_id = $1"
-                    " AND kind = $2 AND target_type = $3 AND starts_at = $5)",
-                    clan_id, kind, target_type, target_value, start, end,
+                    " AND kind = $2 AND target_type = $3 AND starts_at = $5 AND is_custom = 0)",
+                    clan_id, kind, target_type, target_value, start, end, bonus,
                 )
             rows = await conn.fetch(
                 "SELECT * FROM clan_quests WHERE clan_id = $1 AND ends_at > $2"
@@ -2632,6 +2710,51 @@ class Database:
                 clan_id, datetime.utcnow().strftime("%Y-%m-%d"),
             )
             return [dict(r) for r in rows]
+
+    async def create_custom_clan_quest(self, clan_id: int, actor_id: int, title: str,
+                                       target_type: str, target_value: int,
+                                       kind: str = "weekly", bank_bonus: int = 100) -> dict:
+        """Свой квест от хоста (лидер). Прогресс двигают case/quest как обычно."""
+        title = (title or "").strip()[:60]
+        if len(title) < 3:
+            return {"error": "title too short (min 3)"}
+        if target_type not in ("cases", "quests"):
+            return {"error": "bad target_type (cases/quests)"}
+        if kind not in ("daily", "weekly"):
+            kind = "weekly"
+        try:
+            target_value = int(target_value)
+        except (TypeError, ValueError):
+            return {"error": "bad target_value"}
+        if target_value < 5 or target_value > 5000:
+            return {"error": "target_value out of range (5..5000)"}
+        try:
+            bank_bonus = int(bank_bonus)
+        except (TypeError, ValueError):
+            bank_bonus = 100
+        bank_bonus = max(0, min(bank_bonus, 2000))
+        async with self.pool.acquire() as conn:
+            actor = await conn.fetchval(
+                "SELECT role FROM clan_members WHERE clan_id = $1 AND user_id = $2",
+                clan_id, actor_id,
+            )
+            if actor != "leader":
+                return {"error": "forbidden"}
+            start, end = self._clan_window(kind)
+            # Лимит: не больше 5 активных кастомных, чтобы не спамили.
+            cnt = await conn.fetchval(
+                "SELECT COUNT(*) FROM clan_quests WHERE clan_id = $1 AND is_custom = 1 AND ends_at > $2",
+                clan_id, datetime.utcnow().strftime("%Y-%m-%d"),
+            )
+            if (cnt or 0) >= 5:
+                return {"error": "too many custom quests (max 5)"}
+            row = await conn.fetchrow(
+                "INSERT INTO clan_quests (clan_id, kind, target_type, target_value,"
+                " starts_at, ends_at, claimed, progress, title, created_by, is_custom, bank_bonus)"
+                " VALUES ($1, $2, $3, $4, $5, $6, 0, 0, $7, $8, 1, $9) RETURNING *",
+                clan_id, kind, target_type, target_value, start, end, title, actor_id, bank_bonus,
+            )
+            return {"ok": True, "quest": dict(row)}
 
     async def claim_clan_quest(self, clan_id: int, actor_id: int, quest_id: int) -> dict:
         """Забор выполненного квеста (офицер+): бонус в банк, атомарно один раз."""
@@ -2646,8 +2769,10 @@ class Database:
                                     quest_id, clan_id)
             if not q:
                 return {"error": "not_found"}
-            bonus = next((b for k, t, v, b in CLAN_QUEST_TEMPLATES
-                          if k == q["kind"] and t == q["target_type"] and v == q["target_value"]), 0)
+            bonus = int(q.get("bank_bonus") or 0)
+            if not bonus:
+                bonus = next((b for k, t, v, b in CLAN_QUEST_TEMPLATES
+                              if k == q["kind"] and t == q["target_type"] and v == q["target_value"]), 0)
             res = await conn.execute(
                 "UPDATE clan_quests SET claimed = 1 WHERE id = $1 AND claimed = 0 AND progress >= target_value",
                 quest_id,
@@ -2771,7 +2896,9 @@ class Database:
     async def get_clan_leaderboard(self, by: str = "total", limit: int = 50) -> list[dict]:
         async with self.pool.acquire() as conn:
             rows = await conn.fetch(
-                "SELECT c.id, c.name, c.tag, c.emblem, c.avatar, c.level,"
+                "SELECT c.id, c.name, c.tag, c.emblem,"
+                " CASE WHEN LENGTH(COALESCE(c.avatar,'')) > 60000 THEN NULL ELSE c.avatar END AS avatar,"
+                " c.level,"
                 " COALESCE(SUM(m.contribution_season), 0) AS total,"
                 " COUNT(m.user_id) AS members FROM clans c"
                 " LEFT JOIN clan_members m ON m.clan_id = c.id"
@@ -4354,6 +4481,15 @@ class Database:
                     "DELETE FROM game_session_players WHERE session_id = $1 AND user_id = $2",
                     session_id, user_id,
                 )
+                # Чистим и войс-участие, иначе висячие participants и
+                # deadlock переподключения (participants 403 not in voice chat).
+                try:
+                    await conn.execute(
+                        "DELETE FROM voice_chat_participants WHERE session_id = $1 AND user_id = $2",
+                        session_id, user_id,
+                    )
+                except Exception:
+                    pass
                 creator = await conn.fetchval(
                     "SELECT creator_id FROM game_sessions WHERE id = $1", session_id,
                 )
@@ -5773,6 +5909,51 @@ WHERE user_quests.completed = 0
                 now, chat_id, user_id,
             )
 
+    async def _reaction_map(self, conn: asyncpg.Connection, table: str, ids: list[int]) -> dict[str, list[dict]]:
+        if not ids:
+            return {}
+        if table not in {"chat_message_reactions", "global_message_reactions"}:
+            return {}
+        rows = await conn.fetch(
+            f"""SELECT message_id, emoji, COUNT(*)::int AS count
+                FROM {table}
+                WHERE message_id = ANY($1::int[])
+                GROUP BY message_id, emoji
+                ORDER BY count DESC, emoji ASC""",
+            ids,
+        )
+        out: dict[str, list[dict]] = {}
+        for r in rows:
+            out.setdefault(str(r["message_id"]), []).append({"emoji": r["emoji"], "count": int(r["count"])})
+        return out
+
+    async def react_chat_message(self, chat_id: str, message_id: int, user_id: int, emoji: str) -> list[dict] | None:
+        async with self.pool.acquire() as conn:
+            exists = await conn.fetchval(
+                "SELECT 1 FROM chat_messages WHERE id = $1 AND chat_id = $2",
+                message_id, chat_id,
+            )
+            if not exists:
+                return None
+            current = await conn.fetchval(
+                "SELECT emoji FROM chat_message_reactions WHERE message_id = $1 AND user_id = $2",
+                message_id, user_id,
+            )
+            if current == emoji:
+                await conn.execute(
+                    "DELETE FROM chat_message_reactions WHERE message_id = $1 AND user_id = $2",
+                    message_id, user_id,
+                )
+            else:
+                await conn.execute(
+                    """INSERT INTO chat_message_reactions (message_id, user_id, emoji, created_at)
+                       VALUES ($1, $2, $3, $4)
+                       ON CONFLICT (message_id, user_id) DO UPDATE SET emoji = EXCLUDED.emoji,
+                           created_at = EXCLUDED.created_at""",
+                    message_id, user_id, emoji, datetime.utcnow().isoformat(),
+                )
+            return (await self._reaction_map(conn, "chat_message_reactions", [message_id])).get(str(message_id), [])
+
     async def get_chat_messages(self, chat_id: str, limit: int = 5000, before_id: int | None = None) -> list[dict]:
         """Get messages, optionally paginated before a specific message ID.
         NOTE: voice_data (BYTEA) is intentionally NOT selected here — bytes are
@@ -5824,7 +6005,7 @@ WHERE user_quests.completed = 0
                 d["reply"] = ({"id": str(reply_id), "text": reply_text, "sender_id": reply_sender}
                               if reply_id is not None else None)
                 result.append(d)
-            
+
             # Загружаем реакции для всех сообщений
             try:
                 message_ids = [int(msg["id"]) for msg in result]
@@ -5835,7 +6016,6 @@ WHERE user_quests.completed = 0
                 # Таблица реакций ещё не создана (старая БД)
                 for msg in result:
                     msg["reactions"] = []
-            
             return result
 
     async def get_chat_status(self, chat_id: str, user_id: int) -> dict:
@@ -6098,7 +6278,7 @@ WHERE user_quests.completed = 0
                 d["reply"] = ({"id": str(reply_id), "text": reply_text, "nick": reply_nick}
                               if reply_id is not None else None)
                 out.append(d)
-            
+
             # Загружаем реакции для всех сообщений
             try:
                 message_ids = [int(msg["id"]) for msg in out]
@@ -6109,7 +6289,6 @@ WHERE user_quests.completed = 0
                 # Таблица реакций ещё не создана (старая БД)
                 for msg in out:
                     msg["reactions"] = []
-            
             return out
 
     async def send_global_message(self, user_id: int, text: str, kind: str = "user", conn: asyncpg.Connection | None = None, reply_to: int | None = None) -> dict:
@@ -6275,7 +6454,7 @@ WHERE user_quests.completed = 0
                 "SELECT emoji FROM global_message_reactions WHERE message_id = $1 AND user_id = $2",
                 message_id, user_id,
             )
-            
+
             if current == emoji:
                 # Toggle: удаляем реакцию
                 await conn.execute(
@@ -6287,11 +6466,11 @@ WHERE user_quests.completed = 0
                 await conn.execute(
                     """INSERT INTO global_message_reactions (message_id, user_id, emoji, created_at)
                        VALUES ($1, $2, $3, $4)
-                       ON CONFLICT (message_id, user_id) DO UPDATE 
+                       ON CONFLICT (message_id, user_id) DO UPDATE
                        SET emoji = EXCLUDED.emoji, created_at = EXCLUDED.created_at""",
                     message_id, user_id, emoji, datetime.utcnow().isoformat(),
                 )
-            
+
             # Возвращаем обновлённый список реакций
             reaction_map = await self._reaction_map(conn, "global_message_reactions", [message_id])
             return reaction_map.get(str(message_id), [])

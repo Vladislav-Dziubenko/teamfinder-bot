@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react"
 import { Play, Pause, Volume2, VolumeX, Loader2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { getInitData } from "@/lib/api"
+import { hapticTap, hapticSlider } from "@/lib/webapp"
 
 interface VoiceMessagePlayerProps {
   src: string
@@ -24,7 +25,8 @@ function reportPlayError(extra: string) {
 export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio/webm" }: VoiceMessagePlayerProps) {
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
-  const [volume, setVolume] = useState(1)
+  const [volume, setVolumeState] = useState(1)
+  const [showVol, setShowVol] = useState(false)
   const [muted, setMuted] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -134,6 +136,7 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
   const togglePlay = useCallback(() => {
     const audio = audioRef.current
     if (!audio) return
+    hapticTap()
     if (playing) {
       try {
         audio.pause()
@@ -163,10 +166,26 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
 
   const toggleMute = () => {
     const audio = audioRef.current
+    hapticTap()
+    // Тап по звуку — показать/скрыть ползунок громкости (а не сразу мут).
+    setShowVol((v) => !v)
     if (!audio) return
-    setMuted(!muted)
-    mutedRef.current = !muted
-    audio.muted = !muted
+    void mutedRef
+  }
+
+  const setVolume = (v: number) => {
+    const clamped = Math.min(1, Math.max(0, v))
+    setVolumeState(clamped)
+    volumeRef.current = clamped
+    if (audioRef.current) {
+      audioRef.current.volume = clamped
+      audioRef.current.muted = clamped === 0 ? true : mutedRef.current
+    }
+    if (clamped > 0 && muted) {
+      setMuted(false)
+      mutedRef.current = false
+      if (audioRef.current) audioRef.current.muted = false
+    }
   }
 
   const formatTime = (sec: number) => {
@@ -228,30 +247,39 @@ export function VoiceMessagePlayer({ src, duration, isOwn = false, mime = "audio
         </span>
       )}
 
-      <div className="flex items-center gap-1">
+      <div className="relative flex items-center gap-1">
         <button
           type="button"
           onClick={toggleMute}
-          className={cn("p-1 rounded-lg transition-colors", muted && "opacity-50")}
-          aria-label={muted ? "Unmute" : "Mute"}
-        >
-          {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
-        </button>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.1"
-          value={volume}
-          onChange={(e) => {
-            const v = parseFloat(e.target.value)
-            setVolume(v)
-            volumeRef.current = v
-            if (audioRef.current) audioRef.current.volume = v
+          onDoubleClick={() => {
+            hapticTap()
+            setVolume(volume === 0 ? 1 : 0)
           }}
-          className="w-16 h-1 appearance-none bg-secondary/40 rounded-full accent-primary"
-          aria-label="Volume"
-        />
+          className={cn("p-1 rounded-lg transition-colors active:scale-90", muted && "opacity-50")}
+          aria-label={muted || volume === 0 ? "Unmute" : "Mute"}
+          title="Громкость (тап — ползунок, дабл-тап — мут)"
+        >
+          {muted || volume === 0 ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+        </button>
+        {showVol && (
+          <div className="absolute bottom-8 right-0 z-30 rounded-2xl border border-border bg-card/95 p-2.5 shadow-xl backdrop-blur-xl">
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={volume}
+              onChange={(e) => {
+                const v = parseFloat(e.target.value)
+                setVolume(v)
+                hapticSlider()
+              }}
+              className="h-1.5 w-28 cursor-pointer appearance-none rounded-full bg-secondary/60 accent-primary"
+              aria-label="Volume"
+            />
+            <p className="mt-1 text-center text-[10px] tabular-nums text-muted-foreground">{Math.round(volume * 100)}%</p>
+          </div>
+        )}
       </div>
     </div>
   )

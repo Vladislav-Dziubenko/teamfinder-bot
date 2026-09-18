@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n"
 import { useNexus, type InventoryItem } from "@/lib/store"
 import { rarityMeta } from "@/lib/data"
 import { api } from "@/lib/api"
+import { hapticTap, hapticNotify } from "@/lib/webapp"
 import { cn } from "@/lib/utils"
 import { formatNum } from "@/lib/format"
 import { itemNameKey } from "./cases-tab"
@@ -35,7 +36,8 @@ type MarketListing = {
 const RARITY_FILTERS: Rarity[] = ["common", "rare", "epic", "premium", "legendary"]
 
 export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
-  const { t, tl } = useI18n()
+  const { t, tl, lang } = useI18n()
+  const ru = lang === "ru"
   const { coins, refresh, userId, inventory } = useNexus()
   const [mode, setMode] = useState<"feed" | "mine">("feed")
   const [query, setQuery] = useState("")
@@ -108,13 +110,16 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
 
   async function buy(l: MarketListing) {
     if (buyingId) return
+    hapticTap()
     setBuyingId(l.id)
     try {
       await api.post("/api/market/buy", { listing_id: l.id })
+      hapticNotify("success")
       onToast(t("market.bought", { item: tl(itemNameKey({ key: l.item_key }), l.item_name) }))
       setListings((prev) => prev.filter((x) => x.id !== l.id))
       await refresh()
     } catch (e: any) {
+      hapticNotify("error")
       const msg = String(e?.message || e || "")
       if (msg.includes("not found") || msg.includes("already sold")) {
         onToast(t("market.already_sold"))
@@ -132,20 +137,26 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
   }
 
   async function cancel(l: MarketListing) {
+    hapticTap()
     setCancelId(l.id)
     try {
       await api.post("/api/market/cancel", { listing_id: l.id })
+      hapticNotify("success")
       onToast(t("market.cancelled"))
       await loadMine()
       await refresh()
     } catch {
+      hapticNotify("error")
       onToast(t("market.cancel_failed"))
     } finally {
       setCancelId(null)
     }
   }
 
-  const feed = listings.filter((l) => l.seller_id !== userId)
+  // Свои лоты больше не вырезаем из ленты (было главной жалобой:
+  // "выставил — в лотах есть, а в ленте нет"). Показываем все active,
+  // свои помечаем бейджем и без кнопки покупки.
+  const feed = listings
 
   return (
     <div className="space-y-4 px-4 py-5">
@@ -266,8 +277,15 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            {feed.map((l) => (
-              <div key={l.id} className="overflow-hidden rounded-2xl border border-border bg-card p-3">
+            {feed.map((l) => {
+              const isOwn = l.seller_id === userId
+              return (
+              <div key={l.id} className={cn("overflow-hidden rounded-2xl border bg-card p-3", isOwn ? "border-primary/40" : "border-border")}>
+                {isOwn && (
+                  <p className="mb-1.5 inline-flex rounded-lg bg-primary/15 px-2 py-0.5 text-[10px] font-bold text-primary">
+                    {ru ? "Ваш лот" : "Yours"}
+                  </p>
+                )}
                 <div className="flex items-center gap-2">
                   {l.image ? (
                     <img src={l.image || "/placeholder.svg"} alt="" className="size-10 rounded-lg object-cover" />
@@ -291,18 +309,25 @@ export function MarketTab({ onToast }: { onToast: (m: string) => void }) {
                   <span className="flex items-center gap-1 text-sm font-bold">
                     <img src="/nexus-coin.webp" alt="" className="size-4 rounded-full" /> {formatNum(l.price_coins)}
                   </span>
-                  <button
-                    type="button"
-                    disabled={buyingId !== null}
-                    onClick={() => setConfirm(l)}
-                    className="flex items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground transition-transform active:scale-95 disabled:opacity-50"
-                  >
-                    {buyingId === l.id ? <Loader2 className="size-3.5 animate-spin" /> : <ShoppingCart className="size-3.5" />}
-                    {t("market.buy")}
-                  </button>
+                  {isOwn ? (
+                    <span className="rounded-xl bg-secondary/60 px-3 py-2 text-[11px] font-bold text-muted-foreground">
+                      {t("market.mine_tab")}
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      disabled={buyingId !== null}
+                      onClick={() => setConfirm(l)}
+                      className="flex items-center gap-1 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-primary-foreground transition-transform active:scale-95 disabled:opacity-50"
+                    >
+                      {buyingId === l.id ? <Loader2 className="size-3.5 animate-spin" /> : <ShoppingCart className="size-3.5" />}
+                      {t("market.buy")}
+                    </button>
+                  )}
                 </div>
               </div>
-            ))}
+              )
+            })}
           </div>
         </>
       ) : (

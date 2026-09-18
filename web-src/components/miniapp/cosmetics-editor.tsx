@@ -4,10 +4,25 @@ import { useEffect, useRef, useState } from "react"
 import { api, getInitDataUser } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import { setCachedCosmetics, type Cosmetics } from "@/lib/chat"
+import { hapticTap, hapticNotify } from "@/lib/webapp"
 import { cn } from "@/lib/utils"
 
 const EMPTY: Cosmetics = { nick_color: "", frame_color: "", card_bg: "", avatar_art: "" }
 const PALETTE = ["#ffd700", "#ff6b6b", "#4ade80", "#38bdff", "#c084fc", "#ff9d00", "#f472b6", "#e8e8e8"]
+const GRADIENTS = [
+  "linear-gradient(135deg,#ff6b6b,#ffd700)",
+  "linear-gradient(135deg,#38bdff,#c084fc)",
+  "linear-gradient(135deg,#4ade80,#38bdff)",
+  "linear-gradient(135deg,#1c1e22,#3a3f4a)",
+  "linear-gradient(135deg,#ff9d00,#ff6b6b)",
+  "linear-gradient(135deg,#c084fc,#f472b6)",
+]
+const PRESETS: { name: string; nick: string; frame: string; bg: string }[] = [
+  { name: "👑 Gold", nick: "#ffd700", frame: "#ffd700", bg: "linear-gradient(135deg,#2a2113,#4a3a12)" },
+  { name: "❄️ Ice", nick: "#38bdff", frame: "#38bdff", bg: "linear-gradient(135deg,#0f2233,#1d4e6b)" },
+  { name: "🔥 Fire", nick: "#ff6b6b", frame: "#ff9d00", bg: "linear-gradient(135deg,#331111,#6b1d1d)" },
+  { name: "🌿 Mint", nick: "#4ade80", frame: "#4ade80", bg: "linear-gradient(135deg,#0f2a1a,#1d5b34)" },
+]
 const ART_SIZE = 128
 const ART_MAX_LEN = 150_000
 const OWN_COSMETICS_EVENT = "nexus:own-cosmetics-changed"
@@ -77,7 +92,7 @@ function ColorRow({
           <button
             key={c}
             type="button"
-            onClick={() => onChange(value === c ? "" : c)}
+            onClick={() => { hapticTap(); onChange(value === c ? "" : c) }}
             aria-label={c}
             className={cn(
               "size-8 rounded-full border-2 transition-transform active:scale-90",
@@ -432,8 +447,10 @@ export function CosmeticsEditor({ onToast, nick, avatar }: { onToast: (m: string
       refreshOwnCosmetics()
       reload()
       setSynced(false)
+      hapticNotify("success")
       onToast(ru ? "Оформление сохранено ✨" : "Style saved ✨")
     } catch (e: any) {
+      hapticNotify("error")
       onToast(e?.message || (ru ? "Не сохранилось" : "Save failed"))
     } finally {
       setSaving(false)
@@ -476,9 +493,57 @@ export function CosmeticsEditor({ onToast, nick, avatar }: { onToast: (m: string
         </div>
       </div>
 
+      <div>
+        <p className="mb-2 text-xs font-semibold text-muted-foreground">{ru ? "Пресеты" : "Presets"}</p>
+        <div className="flex flex-wrap gap-2">
+          {PRESETS.map((p) => (
+            <button
+              key={p.name}
+              type="button"
+              onClick={() => {
+                hapticTap()
+                setNickColor(p.nick)
+                setFrameColor(p.frame)
+                setCardBg(p.bg)
+              }}
+              className="rounded-xl border border-border bg-secondary/60 px-3 py-2 text-xs font-bold active:scale-95"
+            >
+              {p.name}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <ColorRow label={ru ? "Цвет ника" : "Nick color"} value={nickColor} onChange={setNickColor} />
       <ColorRow label={ru ? "Цвет рамки сообщений" : "Message frame color"} value={frameColor} onChange={setFrameColor} />
-      <ColorRow label={ru ? "Фон карточки профиля" : "Profile card background"} value={cardBg} onChange={setCardBg} />
+      <ColorRow label={ru ? "Фон карточки профиля (цвет)" : "Profile card background (color)"} value={cardBg.startsWith("linear-gradient") ? "" : cardBg} onChange={setCardBg} />
+      <div>
+        <p className="mb-2 text-xs font-semibold text-muted-foreground">{ru ? "Градиент фона" : "Background gradient"}</p>
+        <div className="flex flex-wrap items-center gap-2">
+          {GRADIENTS.map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => { hapticTap(); setCardBg(cardBg === g ? "" : g) }}
+              aria-label={g}
+              className={cn(
+                "h-8 w-14 rounded-xl border-2 transition-transform active:scale-90",
+                cardBg === g ? "border-primary scale-105" : "border-border",
+              )}
+              style={{ background: g }}
+            />
+          ))}
+          {cardBg.startsWith("linear-gradient") && (
+            <button
+              type="button"
+              onClick={() => { hapticTap(); setCardBg("") }}
+              className="rounded-lg bg-secondary px-2.5 py-1.5 text-xs font-semibold text-muted-foreground active:scale-95"
+            >
+              Сброс
+            </button>
+          )}
+        </div>
+      </div>
 
       <div>
         <div className="mb-2 flex items-center justify-between">

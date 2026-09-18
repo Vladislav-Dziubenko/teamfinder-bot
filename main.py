@@ -70,6 +70,11 @@ async def main():
         dp.update.middleware(InjectMiddleware(db, settings))
 
         dp.include_router(start.router)
+        try:
+            from handlers import sessions as sessions_handler
+            dp.include_router(sessions_handler.router)
+        except Exception as e:
+            logging.warning("sessions router not loaded: %s", e)
         # Войс раньше profile: у FSM-хендлеров анкеты нет фильтра по контенту,
         # и голосовое посреди заполнения анкеты уходило бы в профиль.
         dp.include_router(voice.router)
@@ -95,6 +100,11 @@ async def main():
                 BotCommand(command="help", description="❓ Что умеет бот"),
                 BotCommand(command="discord", description="🔗 Привязать Discord"),
                 BotCommand(command="balance", description="💰 Баланс"),
+                BotCommand(command="sessions", description="🎮 Активные сессии"),
+                BotCommand(command="create", description="➕ Создать сессию"),
+                BotCommand(command="join", description="👥 Вступить в сессию"),
+                BotCommand(command="leave", description="👋 Покинуть сессию"),
+                BotCommand(command="voice", description="🎤 Войс сессии"),
                 BotCommand(command="deleteanketa", description="🗑 Удалить анкету"),
             ]
             admin_cmds = user_cmds + [

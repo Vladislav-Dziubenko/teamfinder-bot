@@ -8,34 +8,7 @@ import { cn } from "@/lib/utils"
 import { ChatConversation } from "./chat-tab"
 import { ArtCanvas } from "./cosmetics-editor"
 import { AvatarImage } from "./avatar-image"
-
-function downscalePhoto(file: File, maxSide = 256, quality = 0.85): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    const url = URL.createObjectURL(file)
-    img.onload = () => {
-      try {
-        const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
-        const w = Math.max(1, Math.round(img.width * scale))
-        const h = Math.max(1, Math.round(img.height * scale))
-        const cv = document.createElement("canvas")
-        cv.width = w
-        cv.height = h
-        cv.getContext("2d")?.drawImage(img, 0, 0, w, h)
-        resolve(cv.toDataURL("image/jpeg", quality))
-      } catch (e) {
-        reject(e)
-      } finally {
-        URL.revokeObjectURL(url)
-      }
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      reject(new Error("bad image"))
-    }
-    img.src = url
-  })
-}
+import { downscalePhoto } from "@/lib/image"
 
 const EMBLEMS = ["🛡️", "⚔️", "🔥", "❄️", "🐺", "🦁", "🐉", "⚡", "🌪️", "👑", "💎", "🏆"]
 const LEVEL_STEPS = [0, 1000, 3000, 8000, 20000, 50000]
@@ -156,10 +129,16 @@ function ClanAvatarEditor({ clan, onToast, onSaved, ru }: { clan: Clan; onToast:
     const f = e.target.files?.[0]
     if (!f) return
     try {
-      // Клановые аватарки отображаются крупнее, увеличиваем размер до 256px
+      // downscalePhoto из lib/image: цикл 7 попыток до 96КБ, иначе avatar_too_large.
+      // Клановые отображаются крупнее — maxSide 256.
       setArt(await downscalePhoto(f, 256, 0.85))
-    } catch {
-      onToast(ru ? "Не читается картинка" : "Bad image")
+    } catch (err: any) {
+      const msg = String((err as any)?.message || "")
+      if (msg.includes("avatar_too_large")) {
+        onToast(ru ? "Фото слишком большое даже после сжатия — выбери поменьше" : "Photo too large even compressed")
+      } else {
+        onToast(ru ? "Не читается картинка" : "Bad image")
+      }
     } finally {
       if (fileRef.current) fileRef.current.value = ""
     }
@@ -473,6 +452,36 @@ function ClanQuests({ clan, onToast, ru }: { clan: Clan; onToast: (m: string) =>
   const [loading, setLoading] = useState(true)
   const [claiming, setClaiming] = useState<number | null>(null)
   const canClaim = clan.my_role === "leader" || clan.my_role === "officer"
+  const isLeader = clan.my_role === "leader"
+  const [showCreate, setShowCreate] = useState(false)
+  const [ctitle, setCtitle] = useState("")
+  const [ctarget, setCtarget] = useState("cases")
+  const [cvalue, setCvalue] = useState("50")
+  const [ckind, setCkind] = useState("weekly")
+  const [cbonus, setCbonus] = useState("100")
+  const [creating, setCreating] = useState(false)
+
+  async function createCustom(): Promise<void> {
+    if (creating) return
+    setCreating(true)
+    try {
+      await clansApi.createQuest(clan.id, {
+        title: ctitle.trim(),
+        target_type: ctarget,
+        target_value: Number(cvalue),
+        kind: ckind,
+        bank_bonus: Number(cbonus),
+      })
+      onToast(ru ? "Свой квест создан" : "Custom quest created")
+      setShowCreate(false)
+      setCtitle("")
+      await load()
+    } catch (e: any) {
+      onToast(e?.message || (ru ? "Не вышло" : "Failed"))
+    } finally {
+      setCreating(false)
+    }
+  }
 
   const load = async () => {
     try {
@@ -507,13 +516,67 @@ function ClanQuests({ clan, onToast, ru }: { clan: Clan; onToast: (m: string) =>
 
   return (
     <section className="space-y-2.5">
+      {isLeader && (
+        <div className="rounded-2xl border border-primary/30 bg-primary/5 p-3">
+          <button
+            type="button"
+            onClick={() => setShowCreate((v) => !v)}
+            className="w-full rounded-xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-[0.98]"
+          >
+            {showCreate ? (ru ? "Скрыть форму" : "Hide form") : (ru ? "＋ Свой квест от хоста" : "+ Custom host quest")}
+          </button>
+          {showCreate && (
+            <div className="mt-3 space-y-2">
+              <input
+                value={ctitle}
+                onChange={(e) => setCtitle(e.target.value)}
+                placeholder={ru ? "Название (мин 3 символа)" : "Title (min 3 chars)"}
+                maxLength={60}
+                className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm outline-none"
+              />
+              <div className="grid grid-cols-2 gap-2">
+                <select value={ctarget} onChange={(e) => setCtarget(e.target.value)} className="rounded-xl border border-input bg-background px-2 py-2 text-sm">
+                  <option value="cases">{ru ? "Открытия кейсов" : "Case opens"}</option>
+                  <option value="quests">{ru ? "Квесты" : "Quests"}</option>
+                </select>
+                <select value={ckind} onChange={(e) => setCkind(e.target.value)} className="rounded-xl border border-input bg-background px-2 py-2 text-sm">
+                  <option value="daily">{ru ? "Дневной" : "Daily"}</option>
+                  <option value="weekly">{ru ? "Недельный" : "Weekly"}</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs text-muted-foreground">
+                  {ru ? "Цель (5..5000)" : "Target (5..5000)"}
+                  <input value={cvalue} onChange={(e) => setCvalue(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" />
+                </label>
+                <label className="text-xs text-muted-foreground">
+                  {ru ? "Бонус в банк (0..2000)" : "Bank bonus (0..2000)"}
+                  <input value={cbonus} onChange={(e) => setCbonus(e.target.value.replace(/[^0-9]/g, ""))} inputMode="numeric" className="mt-1 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm" />
+                </label>
+              </div>
+              <button
+                type="button"
+                disabled={creating || ctitle.trim().length < 3}
+                onClick={createCustom}
+                className="w-full rounded-xl bg-accent py-2.5 text-sm font-bold text-accent-foreground active:scale-[0.98] disabled:opacity-40"
+              >
+                {creating ? "…" : ru ? "Создать квест" : "Create quest"}
+              </button>
+              <p className="text-[11px] text-muted-foreground">{ru ? "Макс 5 активных своих квестов. Прогресс капает всем сокланам за кейсы/квесты." : "Max 5 active custom quests."}</p>
+            </div>
+          )}
+        </div>
+      )}
       {quests.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{ru ? "Нет активных квестов" : "No active quests"}</p>}
       {quests.map((q) => {
-        const done = q.progress >= q.target_value
+        const done = (q.progress ?? 0) >= q.target_value
+        const customTitle = (q as any).title || ""
+        const isCustom = Number((q as any).is_custom || 0) === 1
         return (
           <div key={q.id} className="rounded-2xl border border-border bg-card p-4">
             <div className="flex items-center justify-between gap-2">
               <p className="text-sm font-bold">
+                {isCustom && customTitle ? `⭐ ${customTitle} · ` : ""}
                 {q.kind === "daily" ? (ru ? "📅 Дневной" : "📅 Daily") : (ru ? "📆 Недельный" : "📆 Weekly")}: {questLabel(q.target_type, ru)}
               </p>
               {q.claimed ? (

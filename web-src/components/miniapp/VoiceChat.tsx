@@ -1,12 +1,13 @@
 "use client"
 
 import { useEffect, useState, useCallback, useRef } from "react"
-import { Mic, MicOff, Headphones, VolumeX, Volume2, Users, X, Loader2, Settings, Shield } from "lucide-react"
+import { Mic, MicOff, Headphones, VolumeX, Volume2, Users, X, Loader2, Settings, Shield, Smile } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useVoiceChat } from "@/lib/hooks/useVoiceChat"
 import { api } from "@/lib/api"
 import { cn } from "@/lib/utils"
 import { useNexus } from "@/lib/store"
+import { hapticTap, hapticImpact } from "@/lib/webapp"
 
 interface VoiceChatProps {
   sessionId: number
@@ -51,6 +52,8 @@ export function VoiceChat({ sessionId, isCreator, initialVoiceEnabled, onClose }
   const [enabled, setEnabled] = useState(false)
   const [showParticipants, setShowParticipants] = useState(true)
   const [voiceEnabled, setVoiceEnabled] = useState(initialVoiceEnabled ?? false)
+  const [showReactions, setShowReactions] = useState(false)
+  const [bursts, setBursts] = useState<{ id: number; emoji: string }[]>([])
 
   const {
     connected,
@@ -81,13 +84,24 @@ export function VoiceChat({ sessionId, isCreator, initialVoiceEnabled, onClose }
   }, [error, onClose])
 
   const handleJoin = useCallback(async () => {
+    hapticTap()
     try {
       await api.post("/api/sessions/" + sessionId + "/voice/join")
       setEnabled(true)
+      hapticImpact("light")
     } catch (err: any) {
       alert(err?.message ?? "Failed to join voice chat")
     }
   }, [sessionId])
+
+  const sendReaction = useCallback((emoji: string) => {
+    hapticImpact("light")
+    const id = Date.now() + Math.random()
+    setBursts((prev) => [...prev.slice(-11), { id, emoji }])
+    setTimeout(() => {
+      setBursts((prev) => prev.filter((b) => b.id !== id))
+    }, 1800)
+  }, [])
 
   const handleLeave = useCallback(async () => {
     setEnabled(false)
@@ -109,22 +123,24 @@ export function VoiceChat({ sessionId, isCreator, initialVoiceEnabled, onClose }
   }, [sessionId, voiceEnabled])
 
   const handleMute = useCallback(async () => {
+    hapticTap()
     const newMuted = !muted
     try {
       await api.post("/api/sessions/" + sessionId + "/voice/mute", { muted: newMuted })
     } catch (err) {
       console.error("Mute error:", err)
     }
-  }, [muted])
+  }, [muted, sessionId])
 
   const handleDeafen = useCallback(async () => {
+    hapticTap()
     const newDeafened = !deafened
     try {
       await api.post("/api/sessions/" + sessionId + "/voice/deafen", { deafened: newDeafened })
     } catch (err) {
       console.error("Deafen error:", err)
     }
-  }, [deafened])
+  }, [deafened, sessionId])
 
   const handleKick = useCallback(async (targetId: number) => {
     try {
@@ -214,7 +230,7 @@ export function VoiceChat({ sessionId, isCreator, initialVoiceEnabled, onClose }
 
         <div className="flex items-center gap-2">
           <button
-            onClick={toggleMute}
+            onClick={() => { hapticTap(); toggleMute() }}
             className={cn(
               "grid size-9 place-items-center rounded-xl transition-colors active:scale-95",
               muted ? "bg-destructive/10 text-destructive" : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
@@ -225,7 +241,7 @@ export function VoiceChat({ sessionId, isCreator, initialVoiceEnabled, onClose }
           </button>
 
           <button
-            onClick={toggleDeafen}
+            onClick={() => { hapticTap(); toggleDeafen() }}
             className={cn(
               "grid size-9 place-items-center rounded-xl transition-colors active:scale-95",
               deafened ? "bg-destructive/10 text-destructive" : "bg-secondary/60 text-muted-foreground hover:bg-secondary"
@@ -331,10 +347,46 @@ export function VoiceChat({ sessionId, isCreator, initialVoiceEnabled, onClose }
         )}
       </div>
 
-      <div className="border-t border-border/50 bg-card/95 backdrop-blur-xl px-4 py-3">
+      <div className="relative border-t border-border/50 bg-card/95 backdrop-blur-xl px-4 py-3">
+        {/* Всплывающие реакции — absolute overlay, не толкают вёрстку вниз (фикс "смайлик уходит вниз" в вебе). */}
+        <div className="pointer-events-none absolute inset-x-0 -top-14 flex h-12 items-end justify-center gap-1 overflow-hidden">
+          {bursts.map((b) => (
+            <span key={b.id} className="animate-rise text-2xl leading-none drop-shadow-lg">
+              {b.emoji}
+            </span>
+          ))}
+        </div>
+        <div className="mb-2 flex items-center justify-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => {
+              hapticTap()
+              setShowReactions((v) => !v)
+            }}
+            aria-label="reactions"
+            className={cn(
+              "grid size-9 shrink-0 place-items-center rounded-xl transition-colors active:scale-90",
+              showReactions ? "bg-primary/15 text-primary" : "bg-secondary/60 text-muted-foreground",
+            )}
+          >
+            <Smile className="size-5" />
+          </button>
+          <div className={cn("flex items-center gap-1 overflow-x-auto", !showReactions && "hidden")}>
+            {["👍", "🔥", "👏", "😂", "❤️", "🎉"].map((e) => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => sendReaction(e)}
+                className="grid size-9 shrink-0 place-items-center rounded-xl bg-secondary/60 text-xl transition-transform active:scale-125"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="flex items-center justify-center gap-4">
           <button
-            onClick={toggleMute}
+            onClick={() => { hapticTap(); toggleMute() }}
             className={cn(
               "flex flex-col items-center gap-1 rounded-xl px-4 py-2.5 transition-colors active:scale-95",
               muted ? "bg-destructive/10 text-destructive" : "bg-secondary/60 text-muted-foreground"
@@ -345,7 +397,7 @@ export function VoiceChat({ sessionId, isCreator, initialVoiceEnabled, onClose }
           </button>
 
           <button
-            onClick={toggleDeafen}
+            onClick={() => { hapticTap(); toggleDeafen() }}
             className={cn(
               "flex flex-col items-center gap-1 rounded-xl px-4 py-2.5 transition-colors active:scale-95",
               deafened ? "bg-destructive/10 text-destructive" : "bg-secondary/60 text-muted-foreground"

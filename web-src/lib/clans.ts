@@ -40,6 +40,9 @@ export type ClanQuest = {
   starts_at: string
   ends_at: string
   claimed: number
+  title?: string
+  is_custom?: number
+  bank_bonus?: number
 }
 
 export type ShopItem = {
@@ -86,6 +89,9 @@ export const clansApi = {
   },
   claimQuest(id: number, questId: number): Promise<{ ok: boolean; bank_bonus: number }> {
     return api.post(`/api/clans/${id}/quests/${questId}/claim`, {})
+  },
+  createQuest(id: number, body: { title: string; target_type: string; target_value: number; kind: string; bank_bonus: number }): Promise<{ ok: boolean; quest: ClanQuest }> {
+    return api.post(`/api/clans/${id}/quests`, body)
   },
   leaderboard(by: "total" | "per_member"): Promise<{ by: string; board: any[] }> {
     return api.get(`/api/clans/leaderboard?by=${by}`)

@@ -42,9 +42,11 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
   const [minutes, setMinutes] = useState(30)
   const [maxPlayers, setMaxPlayers] = useState(6)
   const [password, setPassword] = useState("")
+  const [isPrivate, setIsPrivate] = useState(false)
   const [creating, setCreating] = useState(false)
   const [joiningId, setJoiningId] = useState<number | null>(null)
-  const [joiningPassword, setJoiningPassword] = useState("")
+  const [joinTarget, setJoinTarget] = useState<GameSession | null>(null)
+  const [joinPwd, setJoinPwd] = useState("")
   const [voiceChatOpen, setVoiceChatOpen] = useState(false)
   // Сессия для войса фиксируется В МОМЕНТ открытия модалки и больше не следует
   // за живым mySession: иначе рефреш списка/истечение сессии роняет звонок
@@ -79,13 +81,18 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
 
   async function create() {
     if (creating) return
+    if (isPrivate && !password.trim()) {
+      onToast(t("sessions.password_prompt"))
+      return
+    }
     setCreating(true)
     try {
-      await api.post("/api/sessions", { game, minutes, max_players: maxPlayers, password: password || undefined, voice_enabled: voiceEnabled })
+      await api.post("/api/sessions", { game, minutes, max_players: maxPlayers, password: isPrivate ? (password || undefined) : undefined, voice_enabled: voiceEnabled })
       onToast(t("sessions.created"))
       await load()
       await refresh()
       setPassword("")
+      setIsPrivate(false)
     } catch {
       onToast(t("sessions.create_failed"))
     } finally {
@@ -93,34 +100,37 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
     }
   }
 
-  async function join(s: GameSession) {
+  async function doJoin(s: GameSession, pwd?: string) {
     if (joiningId) return
-    // Check if session is private and needs password
-    if (s.is_private) {
-      const pwd = prompt(t("sessions.password_prompt"))
-      if (!pwd) return
-      setJoiningId(s.id)
-      try {
-        await api.post(`/api/sessions/${s.id}/join`, { password: pwd })
-        onToast(t("sessions.joined"))
-        await load()
-      } catch {
-        onToast(t("sessions.join_failed"))
-      } finally {
-        setJoiningId(null)
-      }
-      return
-    }
     setJoiningId(s.id)
     try {
-      await api.post(`/api/sessions/${s.id}/join`)
+      await api.post(`/api/sessions/${s.id}/join`, pwd ? { password: pwd } : {})
       onToast(t("sessions.joined"))
+      setJoinTarget(null)
+      setJoinPwd("")
       await load()
-    } catch {
-      onToast(t("sessions.join_failed"))
+    } catch (e: any) {
+      const msg = String(e?.message || "")
+      if (msg.includes("password")) {
+        // Нужен пароль — открываем встроенную модалку (prompt() заблокирован в WebView).
+        setJoinTarget(s)
+      } else {
+        onToast(t("sessions.join_failed"))
+      }
     } finally {
       setJoiningId(null)
     }
+  }
+
+  async function join(s: GameSession) {
+    if (joiningId) return
+    if (s.is_private) {
+      // Сразу модалка вместо prompt() — prompt заблокирован в Telegram WebView.
+      setJoinTarget(s)
+      setJoinPwd("")
+      return
+    }
+    await doJoin(s)
   }
 
   async function leave(s: GameSession) {
@@ -237,8 +247,11 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
             <label className="flex items-center gap-1.5 rounded-xl border border-border bg-secondary/60 px-3 py-2 text-xs font-semibold text-muted-foreground cursor-pointer">
               <input
                 type="checkbox"
-                checked={!!password}
-                onChange={(e) => { if (!e.target.checked) setPassword("") }}
+                checked={isPrivate}
+                onChange={(e) => {
+                  setIsPrivate(e.target.checked)
+                  if (!e.target.checked) setPassword("")
+                }}
                 className="size-4 accent-primary"
               />
               {t("sessions.private_session")}
@@ -315,12 +328,42 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
         <VoiceChat
           sessionId={voiceSession.id}
           isCreator={voiceSession.creator_id === userId}
-          initialVoiceEnabled={voiceSession.voice_enabled ?? false}
+          initialVoiceEnabled={voiceSession.voice_enabled ?? mySession?.voice_enabled ?? false}
           onClose={() => {
             setVoiceChatOpen(false)
             setVoiceSession(null)
           }}
         />
+      )}
+      {joinTarget && (
+        <div className="fixed inset-0 z-[70] flex items-end justify-center bg-black/60 p-4 sm:items-center" onClick={() => setJoinTarget(null)}>
+          <div className="w-full max-w-sm rounded-3xl border border-border bg-card p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="flex items-center gap-2 font-display text-base font-bold">
+              <Lock className="size-4 text-primary" /> {t("sessions.password_prompt")}
+            </h3>
+            <input
+              type="password"
+              value={joinPwd}
+              onChange={(e) => setJoinPwd(e.target.value)}
+              placeholder="••••"
+              maxLength={20}
+              className="mt-3 w-full rounded-xl border border-input bg-background px-4 py-2.5 text-sm outline-none"
+            />
+            <div className="mt-3 flex gap-2">
+              <button type="button" onClick={() => setJoinTarget(null)} className="flex-1 rounded-2xl border border-border bg-secondary/60 py-2.5 text-sm font-semibold active:scale-[0.98]">
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                disabled={!joinPwd.trim() || joiningId !== null}
+                onClick={() => doJoin(joinTarget, joinPwd.trim())}
+                className="flex-1 rounded-2xl bg-primary py-2.5 text-sm font-bold text-primary-foreground active:scale-[0.98] disabled:opacity-40"
+              >
+                {t("sessions.join_btn")}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </>
   )
@@ -357,7 +400,7 @@ function SessionCard({
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-sm font-bold" style={{ color: gm?.color }}>
             {gm?.name ?? s.game}
-            {s.is_private && <Lock className="ml-1.5 size-3.5 text-primary/80" title={t("sessions.private_session")} />}
+            {s.is_private && <Lock className="ml-1.5 size-3.5 text-primary/80" aria-label={t("sessions.private_session")} />}
           </p>
           <p className="truncate text-[11px] text-muted-foreground">
             {creator ? creator.nick : "User" + s.creator_id}

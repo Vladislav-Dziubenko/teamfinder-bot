@@ -39,7 +39,7 @@ from data.games import (
 )
 from data.guides import GUIDES
 from database import Database
-from services.ai_moderation import is_guard_mention, score_message
+from services.ai_moderation import guard_display_name, is_guard_mention, score_message
 from services.matching import find_matches, score_match
 from services.telegram_stickers import fetch_sticker_set, sticker_set_name, is_sticker_message
 from webapp.auth import validate_init_data
@@ -941,6 +941,17 @@ def _valid_cosmetic_color(v: object) -> bool:
     return isinstance(v, str) and (v == "" or bool(_COSMETIC_HEX.fullmatch(v)))
 
 
+_GRADIENT_RE = re.compile(r"^linear-gradient\(135deg,#[0-9a-fA-F]{6},#[0-9a-fA-F]{6}\)$")
+
+
+def _valid_card_bg(v: object) -> bool:
+    if not isinstance(v, str) or v == "":
+        return True
+    if _COSMETIC_HEX.fullmatch(v):
+        return True
+    return bool(_GRADIENT_RE.fullmatch(v))
+
+
 def _valid_cosmetic_art(v: object) -> bool:
     if not isinstance(v, str) or not v:
         return False
@@ -972,11 +983,15 @@ async def handle_cosmetics_save(request: web.Request):
     except Exception:
         return web.json_response({"error": "invalid json"}, status=400)
     fields = {}
-    for k in ("nick_color", "frame_color", "card_bg"):
+    for k in ("nick_color", "frame_color"):
         if k in body:
             if not _valid_cosmetic_color(body[k]):
                 return web.json_response({"error": f"invalid {k}"}, status=400)
             fields[k] = body[k]
+    if "card_bg" in body:
+        if not _valid_card_bg(body["card_bg"]):
+            return web.json_response({"error": "invalid card_bg"}, status=400)
+        fields["card_bg"] = body["card_bg"]
     if "avatar_art" in body:
         art = body["avatar_art"]
         if art not in ("", None) and not _valid_cosmetic_art(art):
@@ -3610,6 +3625,9 @@ async def handle_achievements_claim(request: web.Request):
 # Chat API
 # ---------------------------------------------------------------------------
 
+CHAT_REACTIONS = {"❤️", "💯", "😍", "🔥", "👍", "👎", "🥰"}
+
+
 async def handle_chat_list(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -3676,6 +3694,27 @@ async def handle_chat_typing(request: web.Request):
     except Exception as exc:
         logging.warning("typing heartbeat failed: %s", exc)
     return web.json_response({"ok": True})
+
+
+async def handle_chat_react(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    chat_id = request.match_info["chat_id"]
+    if not await db.can_access_chat(chat_id, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    try:
+        body = await request.json()
+        message_id = int(body.get("message_id"))
+        emoji = str(body.get("emoji") or "").strip()
+    except (ValueError, TypeError):
+        return web.json_response({"error": "bad request"}, status=400)
+    if emoji not in CHAT_REACTIONS:
+        return web.json_response({"error": "bad reaction"}, status=400)
+    reactions = await db.react_chat_message(chat_id, message_id, user["id"], emoji)
+    if reactions is None:
+        return web.json_response({"error": "not found"}, status=404)
+    await cache_delete_pattern(f"chat_msgs:{chat_id}")
+    return web.json_response({"ok": True, "reactions": reactions})
 
 
 async def _notify_tg_new_message(
@@ -4181,7 +4220,7 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
         ]
         history.append({"nick": "Автор", "text": text.strip()[:300], "mine": True})
         from services.ai_moderation import guard_needs_live_lookup, guard_quick_reply
-        quick_reply = guard_quick_reply(text, history)
+        quick_reply = guard_quick_reply(text, history, settings)
         if quick_reply:
             await db.send_global_message(AI_PERSONA_ID, quick_reply, kind="user")
             await cache_delete_pattern("global_chat_msgs")
@@ -4190,7 +4229,7 @@ async def _ai_chat_reply(db: Database, settings: Settings, user_id: int, text: s
             return
 
         now = time()
-        live_lookup = guard_needs_live_lookup(text)
+        live_lookup = guard_needs_live_lookup(text, settings)
         cooldown = max(3, min(settings.ai_chat_cooldown_s, 10))
         if live_lookup:
             cooldown = 1
@@ -4416,6 +4455,8 @@ async def handle_global_messages(request: web.Request):
     admin_ids = set(settings.admin_ids) if settings else set()
     for msg in messages:
         uid = msg.get("user_id")
+        if uid == AI_PERSONA_ID or msg.get("role") == "ai":
+            msg["nick"] = guard_display_name(settings)
         # Сравнение через str: asyncpg отдаёт int, а id из initData может
         # приехать строкой — строгое сравнение роняло маппинг «своих»,
         # и свои сообщения рисовались чужими (дубли серый+оранжевый).
@@ -4456,21 +4497,21 @@ async def handle_chat_react(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
     chat_id = request.match_info["chat_id"]
-    
+
     # Проверка доступа к чату
     if not await db.can_access_chat(chat_id, user["id"]):
         return web.json_response({"error": "forbidden"}, status=403)
-    
+
     try:
         body = await request.json()
         message_id = int(body.get("message_id", 0))
         emoji = str(body.get("emoji", "")).strip()
-        
+
         if message_id <= 0:
             return web.json_response({"error": "invalid message_id"}, status=400)
         if not emoji or len(emoji) > 10:
             return web.json_response({"error": "invalid emoji"}, status=400)
-        
+
         reactions = await db.react_chat_message(chat_id, message_id, user["id"], emoji)
         if reactions is None:
             return web.json_response({"error": "message not found"}, status=404)
@@ -4486,11 +4527,11 @@ async def handle_global_react(request: web.Request):
     """Добавить/удалить реакцию на сообщение в глобальном чате."""
     db: Database = request.app["db"]
     user = _get_user(request)
-    
+
     # Проверка бана и мута
     if await db.is_globally_banned(user["id"]):
         return web.json_response({"error": "banned"}, status=403)
-    
+
     mute = await db.get_mute(user["id"])
     if mute:
         try:
@@ -4503,17 +4544,17 @@ async def handle_global_react(request: web.Request):
                 }, status=403)
         except (ValueError, TypeError):
             pass
-    
+
     try:
         body = await request.json()
         message_id = int(body.get("message_id", 0))
         emoji = str(body.get("emoji", "")).strip()
-        
+
         if message_id <= 0:
             return web.json_response({"error": "invalid message_id"}, status=400)
         if not emoji or len(emoji) > 10:
             return web.json_response({"error": "invalid emoji"}, status=400)
-        
+
         reactions = await db.react_global_message(message_id, user["id"], emoji)
         if reactions is None:
             return web.json_response({"error": "message not found"}, status=404)
@@ -4746,7 +4787,7 @@ async def handle_sticker_sets(request: web.Request):
     db: Database = request.app["db"]
     user_id = _get_user(request)["id"]
     sets = await db.get_sticker_sets(user_id, DEFAULT_STICKER_SETS)
-    
+
     # Also refresh old catalog rows: they used the obsolete "thumb" field and
     # did not store animation/video flags.
     needs_sync = not sets or any(
@@ -4762,7 +4803,7 @@ async def handle_sticker_sets(request: web.Request):
             synced = await _sync_default_sticker_sets(db)
             if synced:
                 sets = await db.get_sticker_sets(user_id, DEFAULT_STICKER_SETS)
-    
+
     return web.json_response({"sets": sets})
 
 
@@ -4780,7 +4821,7 @@ async def handle_sticker_import(request: web.Request):
     db: Database = request.app["db"]
     user_id = _get_user(request)["id"]
     if await rate_limit_check(f"sticker_import:{user_id}", 5, 60):
-        return web.json_response({"error": "Слишком много запросов. Повторите через минуту."}, status=429)
+        return web.json_response({"error": "Слишком много запросов. Повторите через минуту."}, status=400)
     try:
         body = await request.json()
         name = sticker_set_name(str(body.get("name", "")))
@@ -6501,6 +6542,30 @@ async def handle_clans_quest_claim(request: web.Request):
     return web.json_response(res)
 
 
+async def handle_clans_quest_create(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        clan_id = int(request.match_info["clan_id"])
+        body = await request.json()
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({"error": "invalid request"}, status=400)
+    if not isinstance(body, dict):
+        return web.json_response({"error": "invalid request"}, status=400)
+    res = await db.create_custom_clan_quest(
+        clan_id, user["id"],
+        title=str(body.get("title", "")),
+        target_type=str(body.get("target_type", "cases")),
+        target_value=body.get("target_value", 50),
+        kind=str(body.get("kind", "weekly")),
+        bank_bonus=body.get("bank_bonus", 100),
+    )
+    if "error" in res:
+        code = 403 if res["error"] == "forbidden" else 400
+        return web.json_response(res, status=code)
+    return web.json_response(res)
+
+
 async def handle_clans_leaderboard(request: web.Request):
     db: Database = request.app["db"]
     by = request.query.get("by", "total")
@@ -6655,6 +6720,7 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/clans/{clan_id}/invites", handle_clans_invite)
     app.router.add_post("/api/clans/{clan_id}/settings", handle_clans_settings)
     app.router.add_get("/api/clans/{clan_id}/quests", handle_clans_quests)
+    app.router.add_post("/api/clans/{clan_id}/quests", handle_clans_quest_create)
     app.router.add_post("/api/clans/{clan_id}/quests/{quest_id}/claim", handle_clans_quest_claim)
     app.router.add_get("/api/clans/{clan_id}/shop", handle_clans_shop)
     app.router.add_post("/api/clans/{clan_id}/shop/buy", handle_clans_shop_buy)

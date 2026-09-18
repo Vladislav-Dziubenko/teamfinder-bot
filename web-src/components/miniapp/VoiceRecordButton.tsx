@@ -4,6 +4,7 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import { Mic, Loader2, Trash2, MicOff } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { api } from "@/lib/api"
+import { hapticTap, hapticImpact } from "@/lib/webapp"
 import { cn } from "@/lib/utils"
 
 interface VoiceRecordButtonProps {
@@ -102,6 +103,10 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram, cus
   const cancelledRef = useRef(false)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const customUploadRef = useRef(customUpload)
+  useEffect(() => {
+    customUploadRef.current = customUpload
+  }, [customUpload])
   const [liveStream, setLiveStream] = useState<MediaStream | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
   const chunksRef = useRef<Blob[]>([])
@@ -211,9 +216,14 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram, cus
     formData.append("audio", blob, `voice.${ext}`)
     setUploading(true)
     try {
-      if (customUpload) {
-        const result = await customUpload(blob, Math.min(secs, 60), mime || "audio/webm")
-        if (result) onSend(result)
+      // customUpload в deps: иначе в общем чате уходит stale-closure
+      // на POST /api/chat/global/voice -> 403 forbidden и войс "не отправляется".
+      const uploader = customUploadRef.current ?? customUpload
+      if (uploader) {
+        const result = await uploader(blob, Math.min(secs, 60), mime || "audio/webm")
+        // GlobalChat кладёт сообщение сам внутри sendGlobalVoice (side-effect),
+        // сюда прилетает boolean — onSend вызываем только если вернулся объект сообщения.
+        if (result && typeof result === "object") onSend(result)
       } else {
         const res = await api.postForm<{ message: any }>(`/api/chat/${chatId}/voice`, formData, {
           "X-Duration": String(Math.min(secs, 60)),
@@ -224,12 +234,17 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram, cus
       setError(null)
     } catch (err: any) {
       const msg = String(err?.message ?? "")
-      setError(msg.includes("muted") ? t("chat.muted_voice") : msg || t("chat.voice_send_failed"))
+      const status = (err as any)?.status
+      if (status === 403 && chatId === "global") {
+        setError(t("chat.voice_send_failed") + " (global 403 — обнови приложение)")
+      } else {
+        setError(msg.includes("muted") ? t("chat.muted_voice") : msg || t("chat.voice_send_failed"))
+      }
     } finally {
       setUploading(false)
       cleanup()
     }
-  }, [chatId, onSend, cleanup, t])
+  }, [chatId, onSend, cleanup, t, customUpload])
 
   // Старт — СИНХРОННО в жесте (pointerdown), без setTimeout:
   // иначе WebView теряет user activation и кидает NotAllowedError
@@ -321,6 +336,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram, cus
       } catch {}
       rec.start(100)
       setLiveStream(stream)
+      hapticImpact("light")
       setRecording(true)
       timerRef.current = setInterval(() => {
         setDuration(Math.floor((Date.now() - startTimeRef.current) / 1000))
@@ -360,6 +376,7 @@ export function VoiceRecordButton({ chatId, onSend, disabled, onViaTelegram, cus
 
   const handleRelease = useCallback(() => {
     pressActiveRef.current = false
+    hapticTap()
     const rec = mediaRecorderRef.current
     if (!rec || rec.state === "inactive") return
     if (timerRef.current) {
