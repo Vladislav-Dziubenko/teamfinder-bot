@@ -871,6 +871,9 @@ async def handle_save_profile(request: web.Request):
         "description": sanitize(body.get("description", ""), 300),
     }
     await db.save_profile(data)
+    # Продуктовая аналитика: завершение регистрации + fresh-кандидат для подписок.
+    asyncio.create_task(db.log_analytics_event(user["id"], "registration_completed", {"game": data["game"]}))
+    _schedule_teammate_matching(request, user["id"], data["game"])
     return web.json_response({"profile": await db.get_profile(user["id"])})
 
 
@@ -1125,6 +1128,12 @@ async def handle_search(request: web.Request):
             for r in rows
         ]
         asyncio.create_task(db.update_searching_since(user["id"]))
+        asyncio.create_task(db.log_analytics_event(user["id"], "teammate_search_started", {
+            "game": game_filter or "all", "has_q": bool(query),
+            "discord": discord_filter, "steam": steam_filter, "results": len(players)}))
+        asyncio.create_task(db.log_analytics_event(user["id"],
+            "teammate_found" if players else "teammate_search_empty", {
+            "game": game_filter or "all", "results": len(players)}))
         return web.json_response({"players": players, "teams": []})
 
     # When "all" games with nickname query, search across every game
@@ -1183,6 +1192,12 @@ async def handle_search(request: web.Request):
             for r in rows
         ]
         asyncio.create_task(db.update_searching_since(user["id"]))
+        asyncio.create_task(db.log_analytics_event(user["id"], "teammate_search_started", {
+            "game": "all", "has_q": True, "discord": discord_filter,
+            "steam": steam_filter, "results": len(players)}))
+        asyncio.create_task(db.log_analytics_event(user["id"],
+            "teammate_found" if players else "teammate_search_empty",
+            {"game": "all", "results": len(players)}))
         return web.json_response({"players": players, "teams": []})
     game_to_search = game_filter if game_filter and game_filter != "all" else (profile["game"] if profile else None)
     is_pro = await db.is_pro(user["id"])
@@ -1310,6 +1325,14 @@ async def handle_search(request: web.Request):
     await db.update_quest_progress(user["id"], "do-searches", 1)
     await db.update_quest_progress(user["id"], "do-searches-2", 1)
     asyncio.create_task(db.update_searching_since(user["id"]))
+    asyncio.create_task(db.log_analytics_event(user["id"], "teammate_search_started", {
+        "game": game_to_search or game_filter or "all", "has_q": bool(query),
+        "discord": discord_filter, "steam": steam_filter, "results": len(players)}))
+    asyncio.create_task(db.log_analytics_event(user["id"],
+        "teammate_found" if players else "teammate_search_empty",
+        {"game": game_to_search or game_filter or "all", "results": len(players)}))
+    # Новый активный поиск: ищущий сам становится свежим кандидатом для чужих подписок.
+    _schedule_teammate_matching(request, user["id"], game_to_search or game_filter or "")
 
     return web.json_response({"premium": premium, "is_pro": is_pro, "game": game_to_search, "players": players, "teams": []})
 
@@ -3529,6 +3552,7 @@ async def handle_referral_claim(request: web.Request):
         await db.update_quest_progress(referrer_user_id, "invite-friend", 1)
     except Exception as e:
         logging.warning(f"[referral] quest invite-friend failed: {e}")
+    asyncio.create_task(db.log_analytics_event(user["id"], "friend_invited", {}))
 
     return web.json_response({"ok": True, "reward": REFERRAL_REWARD, "instant_reward": REFERRAL_INSTANT_REWARD, "ladder_granted": granted})
 
@@ -5037,6 +5061,212 @@ async def handle_mod_status(request: web.Request):
     })
 
 
+# ---------- NEXUS retention analytics + teammate notifications ----------
+
+ANALYTICS_EVENT_TYPES = frozenset({
+    "first_open", "app_open", "registration_completed",
+    "teammate_search_started", "teammate_search_empty", "teammate_found",
+    "teammate_profile_opened", "friend_invited", "notification_opened",
+})
+
+# Уведомления о тиммейте: максимум 1 шт в 6 часов на подписчика +
+# никогда дважды об одном кандидате (UNIQUE в notification_log).
+TEAMMATE_NOTIFY_COOLDOWN_HOURS = 6
+
+
+async def handle_analytics_event(request: web.Request):
+    """Приём продуктовых событий. user_id всегда из Telegram-авторизации,
+    из тела запроса НЕ читается."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
+    if not isinstance(body, dict):
+        return web.json_response({"error": "bad request"}, status=400)
+    event_type = str(body.get("event_type", "") or "").strip()[:64]
+    if event_type not in ANALYTICS_EVENT_TYPES:
+        return web.json_response({"error": "unknown event_type"}, status=400)
+    metadata = body.get("metadata")
+    if metadata is not None and not isinstance(metadata, dict):
+        return web.json_response({"error": "metadata must be an object"}, status=400)
+    dedup_key = body.get("dedup_key")
+    if dedup_key is not None and not isinstance(dedup_key, str):
+        return web.json_response({"error": "dedup_key must be a string"}, status=400)
+    recorded = await db.log_analytics_event(
+        user["id"], event_type, metadata or {}, dedup_key)
+    return web.json_response({"ok": True, "recorded": bool(recorded)})
+
+
+async def handle_analytics_overview(request: web.Request):
+    """Сводка удержания/funnel для Developer Analytics.
+    ТОЛЬКО разработчик (ADMIN_IDS). Проверка на бэке, не на фронте."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    if not _is_developer(request, user["id"]):
+        return web.json_response({"error": "forbidden"}, status=403)
+    try:
+        days = int(request.query.get("days", 30))
+    except (ValueError, TypeError):
+        days = 30
+    return web.json_response(await db.get_analytics_overview(days))
+
+
+async def handle_search_subscribe(request: web.Request):
+    """Подписка 'сообщить, когда появится тиммейт' после пустого поиска."""
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "bad request"}, status=400)
+    if not isinstance(body, dict):
+        return web.json_response({"error": "bad request"}, status=400)
+    game = str(body.get("game", "") or "").strip().lower()
+    if game and game != "all" and game not in GAMES:
+        return web.json_response({"error": "unknown game"}, status=400)
+    res = await db.create_search_subscription(
+        user["id"], game or "all",
+        q=str(body.get("q", "") or ""),
+        discord_only=bool(body.get("discord_only", False)),
+        steam_only=bool(body.get("steam_only", False)),
+    )
+    if "error" in res:
+        return web.json_response(res, status=400)
+    return web.json_response(res)
+
+
+async def handle_search_subscriptions(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    return web.json_response({"subscriptions": await db.get_user_subscriptions(user["id"])})
+
+
+async def handle_search_unsubscribe(request: web.Request):
+    db: Database = request.app["db"]
+    user = _get_user(request)
+    try:
+        sub_id = int(request.match_info["sub_id"])
+    except (ValueError, TypeError, KeyError):
+        return web.json_response({"error": "invalid id"}, status=400)
+    if not await db.deactivate_subscription(user["id"], sub_id):
+        return web.json_response({"error": "not found"}, status=404)
+    return web.json_response({"ok": True})
+
+
+def _teammate_deep_link(webapp_url: str, candidate_id: int, sub_id: int) -> str:
+    base = (webapp_url or "").rstrip("/")
+    if not base:
+        return ""
+    return f"{base}?show_profile={int(candidate_id)}&src=tmfound_{int(sub_id)}_{int(candidate_id)}"
+
+
+async def _maybe_notify_subscriber(
+    db: Database, bot, webapp_url: str, sub: dict, candidate_id: int,
+) -> bool:
+    """Проверяет и шлёт одно уведомление. Возвращает True если отправлено."""
+    subscriber_id = sub["user_id"]
+    if subscriber_id == candidate_id:
+        return False
+    # Отписка/выкл уведомлений.
+    try:
+        prefs = await db.get_user_prefs(subscriber_id)
+    except Exception:
+        prefs = None
+    if prefs is not None and not prefs.get("tg_notify", True):
+        return False
+    # Никогда дважды об одном кандидате.
+    if await db.has_notification(subscriber_id, "teammate_found", str(candidate_id)):
+        return False
+    # Кулдаун между отправками.
+    if await db.recent_notification_count(
+            subscriber_id, "teammate_found", TEAMMATE_NOTIFY_COOLDOWN_HOURS) > 0:
+        return False
+    # Кандидат всё ещё доступен?
+    profile = await db.check_subscription_match(sub, candidate_id)
+    if not profile:
+        return False
+    cand_nick = profile.get("nickname") or f"User{candidate_id}"
+    game = (sub.get("game") or "").strip() or profile.get("game") or ""
+    text = (
+        f"🔥 <b>В NEXUS появился подходящий тиммейт{f' для {game}' if game and game != 'all' else ''}!</b>\n\n"
+        f"Нашли игрока по твоим параметрам: <b>{cand_nick}</b>.\n"
+        f"Загляни, пока он в поиске."
+    )
+    link = _teammate_deep_link(webapp_url, candidate_id, sub["id"])
+    markup = None
+    if link:
+        markup = InlineKeyboardMarkup(inline_keyboard=[[
+            InlineKeyboardButton(text="👀 Посмотреть игрока", web_app=WebAppInfo(url=link)),
+        ]])
+    if bot is None:
+        await db.log_notification(subscriber_id, "teammate_found", str(candidate_id),
+                                  status="skipped", error="no bot")
+        return False
+    try:
+        if markup is not None:
+            await bot.send_message(subscriber_id, text, parse_mode="HTML", reply_markup=markup)
+        else:
+            await bot.send_message(subscriber_id, text, parse_mode="HTML")
+    except Exception as e:
+        err = str(e).lower()
+        if "forbidden" in err or "blocked" in err or "chat not found" in err:
+            await db.log_notification(subscriber_id, "teammate_found", str(candidate_id),
+                                      status="blocked", error=str(e)[:200])
+        else:
+            logging.warning("[teammate-notify] send failed user=%s: %s", subscriber_id, e)
+            await db.log_notification(subscriber_id, "teammate_found", str(candidate_id),
+                                      status="failed", error=str(e)[:200])
+        return False
+    await db.log_notification(subscriber_id, "teammate_found", str(candidate_id), status="sent")
+    try:
+        async with db.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE search_subscriptions SET last_notified_at = $1, notify_count = notify_count + 1"
+                " WHERE id = $2",
+                datetime.utcnow().isoformat(), sub["id"],
+            )
+    except Exception:
+        pass
+    return True
+
+
+async def _match_subscriptions_for_candidate(
+    db: Database, bot, webapp_url: str, candidate_id: int, candidate_game: str = "",
+) -> int:
+    """Event-driven матчинг: свежий кандидат (новая анкета/активный поиск)
+    против ожидающих подписок. Возвращает число отправленных уведомлений."""
+    try:
+        subs = await db.get_active_subscriptions(candidate_game or "", limit=200)
+    except Exception:
+        return 0
+    sent = 0
+    for sub in subs:
+        try:
+            if await _maybe_notify_subscriber(db, bot, webapp_url, sub, candidate_id):
+                sent += 1
+                # Не больше 20 отправок за один проход — защита от всплесков.
+                if sent >= 20:
+                    break
+        except Exception:
+            continue
+    return sent
+
+
+def _schedule_teammate_matching(request: web.Request, candidate_id: int, candidate_game: str = "") -> None:
+    """Фоновая проверка подписок без блокировки ответа."""
+    try:
+        db: Database = request.app["db"]
+        bot = request.app.get("bot")
+        settings = request.app.get("settings")
+        webapp_url = (getattr(settings, "webapp_url", "") or "")
+        asyncio.create_task(
+            _match_subscriptions_for_candidate(db, bot, webapp_url, candidate_id, candidate_game))
+    except Exception:
+        pass
+
+
 async def handle_admin_role(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -5281,6 +5511,9 @@ async def handle_profile_by_id(request: web.Request):
             liked_by_me = await db.has_liked(current_id, target_id)
         except Exception:
             pass
+        # Открытие чужого профиля = teammate_profile_opened для funnel.
+        asyncio.create_task(db.log_analytics_event(
+            current_id, "teammate_profile_opened", {"profile_id": target_id}))
     return web.json_response({
         "id": target_id,
         "nick": prof.get("nick"),
@@ -6829,6 +7062,13 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/admin/role", handle_admin_role)
     app.router.add_get("/api/admin/users", handle_admin_users)
     app.router.add_post("/api/admin/tg-profile/{user_id}", handle_admin_tg_profile)
+    # NEXUS retention analytics (overview — только разработчик, проверка в хендлере)
+    app.router.add_post("/api/analytics/event", handle_analytics_event)
+    app.router.add_get("/api/analytics/overview", handle_analytics_overview)
+    # Подписки "сообщить, когда появится тиммейт"
+    app.router.add_post("/api/search/subscribe", handle_search_subscribe)
+    app.router.add_get("/api/search/subscriptions", handle_search_subscriptions)
+    app.router.add_delete("/api/search/subscriptions/{sub_id}", handle_search_unsubscribe)
     app.router.add_post("/api/nexus/review", handle_review_submit)
     app.router.add_get("/api/nexus/review/my", handle_review_my)
     app.router.add_get("/api/nexus/reviews", handle_reviews_list)

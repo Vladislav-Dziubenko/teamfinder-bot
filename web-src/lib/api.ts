@@ -120,6 +120,7 @@ async function request(method: string, path: string, body?: unknown, attempt = 0
 export const api = {
   get: <T = any>(path: string): Promise<T> => request("GET", path) as Promise<T>,
   post: <T = any>(path: string, body?: unknown): Promise<T> => request("POST", path, body) as Promise<T>,
+  delete: <T = any>(path: string): Promise<T> => request("DELETE", path) as Promise<T>,
   postForm: async <T = any>(path: string, form: FormData, extraHeaders?: Record<string, string>): Promise<T> => {
     const headers: Record<string, string> = {
       "X-Telegram-Init-Data": getInitData(),

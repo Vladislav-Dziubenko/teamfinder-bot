@@ -1,6 +1,6 @@
 "use client"
 
-import { Home, Swords, MessageCircle, Package, User, LayoutGrid, Trophy, BarChart3, TrendingUp, Ticket, Users, Gem, Star, BookOpen, Store, Timer, Leaf, Shield } from "lucide-react"
+import { Home, Swords, MessageCircle, Package, User, LayoutGrid, Trophy, BarChart3, TrendingUp, Ticket, Users, Gem, Star, BookOpen, Store, Timer, Leaf, Shield, Activity } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useTotalUnread } from "@/lib/chat"
 import { hapticTap } from "@/lib/webapp"
@@ -25,6 +25,7 @@ export type TabId =
   | "sessions"
   | "event"
   | "clan"
+  | "analytics"
 
 // Основные вкладки — всегда видны на панели. Остальные — в меню «Ещё».
 export const MAIN_TABS: { id: TabId; labelKey: string; icon: typeof Home }[] = [
@@ -49,6 +50,8 @@ export const MORE_TABS: { id: TabId; labelKey: string; descKey: string; icon: ty
   { id: "review", labelKey: "nav.review", descKey: "more.desc_review", icon: Star },
   { id: "market", labelKey: "nav.market", descKey: "more.desc_market", icon: Store },
   { id: "sessions", labelKey: "nav.sessions", descKey: "more.desc_sessions", icon: Timer },
+  // Developer Analytics: виден только разработчику (фильтр в MoreSheet + гард в app-shell).
+  { id: "analytics", labelKey: "nav.analytics", descKey: "more.desc_analytics", icon: Activity },
 ]
 
 export function BottomNav({

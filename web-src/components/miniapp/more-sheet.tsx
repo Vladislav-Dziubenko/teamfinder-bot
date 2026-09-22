@@ -1,7 +1,8 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useMemo } from "react"
 import { useI18n } from "@/lib/i18n"
+import { useNexus } from "@/lib/store"
 import { MORE_TABS, type TabId } from "./bottom-nav"
 import { hapticTap } from "@/lib/webapp"
 import { BottomSheet } from "./bottom-sheet"
@@ -19,6 +20,13 @@ export function MoreSheet({
   onClose: () => void
 }) {
   const { t } = useI18n()
+  const { role } = useNexus()
+  // Developer Analytics не показываем обычным пользователям.
+  // Сервер всё равно проверяет права на каждый запрос.
+  const tabs = useMemo(
+    () => MORE_TABS.filter((tb) => tb.id !== "analytics" || role === "developer"),
+    [role],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -40,7 +48,7 @@ export function MoreSheet({
       }
     >
       <div className="grid grid-cols-2 content-start gap-2.5 px-2">
-        {MORE_TABS.map(({ id, labelKey, descKey, icon: Icon }) => {
+        {tabs.map(({ id, labelKey, descKey, icon: Icon }) => {
           const isActive = active === id
           return (
             <button

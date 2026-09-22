@@ -47,6 +47,54 @@ export function MatchTab({
   const [hasSearched, setHasSearched] = useState(false)
   const [reviewPlayer, setReviewPlayer] = useState<Player | null>(null)
   const [onlineCount, setOnlineCount] = useState(lastOnlineCount)
+  // Подписка "сообщить, когда появится тиммейт" (пустой поиск).
+  const [subs, setSubs] = useState<any[]>([])
+  const [subBusy, setSubBusy] = useState(false)
+
+  async function loadSubs() {
+    try {
+      const data: any = await api.get("/api/search/subscriptions")
+      setSubs(Array.isArray(data.subscriptions) ? data.subscriptions : [])
+    } catch {}
+  }
+
+  useEffect(() => {
+    loadSubs()
+  }, [])
+
+  const currentSub = useMemo(() => {
+    const g = (game || "all").toLowerCase()
+    const q = (applied || "").trim().toLowerCase()
+    return subs.find(
+      (s) =>
+        (s.game || "all").toLowerCase() === g &&
+        (s.q || "").toLowerCase() === q &&
+        Boolean(s.discord_only) === onlyDiscord &&
+        Boolean(s.steam_only) === onlySteam,
+    ) ?? null
+  }, [subs, game, applied, onlyDiscord, onlySteam])
+
+  async function toggleSubscribe() {
+    if (subBusy) return
+    setSubBusy(true)
+    try {
+      if (currentSub) {
+        await api.delete(`/api/search/subscriptions/${currentSub.id}`)
+      } else {
+        await api.post("/api/search/subscribe", {
+          game: (game || "all").toLowerCase(),
+          q: (applied || "").trim(),
+          discord_only: onlyDiscord,
+          steam_only: onlySteam,
+        })
+      }
+      await loadSubs()
+    } catch (e: any) {
+      setNotice(e?.message || t("common.error"))
+    } finally {
+      setSubBusy(false)
+    }
+  }
 
   const rankOrder = ["Global Elite", "Legendary Eagle Master", "Legendary Eagle", "Immortal 2", "Ascendant 1", "Divine 3"]
 
@@ -286,7 +334,30 @@ export function MatchTab({
         </div>
       ) : mode === "players" ? (
         <div className="space-y-4">
-          {filteredPlayers.length === 0 && <Empty />}
+          {filteredPlayers.length === 0 && (
+            <>
+              <Empty />
+              <div className="rounded-3xl border border-primary/30 bg-primary/5 p-4 text-center">
+                <p className="text-sm font-semibold">
+                  {currentSub ? t("match.notify_on") : t("match.notify_title")}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{t("match.notify_hint")}</p>
+                <button
+                  type="button"
+                  disabled={subBusy}
+                  onClick={toggleSubscribe}
+                  className="mx-auto mt-3 flex items-center gap-1.5 rounded-2xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground transition-transform active:scale-95 disabled:opacity-50"
+                >
+                  {subBusy ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Radio className="size-4" />
+                  )}
+                  {currentSub ? t("match.notify_off") : t("match.notify_btn")}
+                </button>
+              </div>
+            </>
+          )}
           {filteredPlayers.map((p, i) => {
             const isLocked = !!p.locked && !unlockedPlayers.includes(p.id)
             return (

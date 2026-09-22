@@ -26,6 +26,7 @@ import { openChatWithPlayer, chatIdForPair, getChatPlayer } from "@/lib/chat"
 import { api, getInitDataUser } from "@/lib/api"
 import { hapticTap } from "@/lib/webapp"
 import { analytics } from "@/lib/telegram-analytics"
+import { trackAppOpen, trackFirstOpen, trackNotificationOpened } from "@/lib/product-analytics"
 import { useMe, useNexus, CONSENT_VERSION } from "@/lib/store"
 import { hasNewUpdate, hasMajorUpdate, STORAGE_KEY, CURRENT_VERSION } from "@/lib/changelog"
 import type { Player, Team } from "@/lib/data"
@@ -43,6 +44,7 @@ const MarketTab = lazy(() => import("./market-tab").then((m) => ({ default: m.Ma
 const SessionTab = lazy(() => import("./session-tab").then((m) => ({ default: m.SessionTab })))
 const AutumnTab = lazy(() => import("./autumn/autumn-tab").then((m) => ({ default: m.AutumnTab })))
 const ClanTab = lazy(() => import("./clan-tab").then((m) => ({ default: m.ClanTab })))
+const AnalyticsTab = lazy(() => import("./analytics-tab").then((m) => ({ default: m.AnalyticsTab })))
 
 function TabFallback() {
   return (
@@ -59,7 +61,7 @@ function TabFallback() {
 function Shell() {
   const { t } = useI18n()
   const me = useMe()
-  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus, banned, banReason, banExpiresAt, refresh } = useNexus()
+  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus, banned, banReason, banExpiresAt, refresh, role } = useNexus()
   const [tab, setTab] = useState<TabId>("home")
   const [moreOpen, setMoreOpen] = useState(false)
   const [contact, setContact] = useState<Player | null>(null)
@@ -147,6 +149,11 @@ function Shell() {
   }, [toast])
 
   useEffect(() => {
+    // Продуктовая аналитика: первый запуск + каждый запуск (дедуп внутри + на бэке).
+    try {
+      trackFirstOpen()
+      trackAppOpen()
+    } catch {}
     try {
       let id: number | null = null
       let refCode: string | null = null
@@ -164,8 +171,21 @@ function Shell() {
           refCode = sp
         }
       }
+      const params = new URLSearchParams(window.location.search)
+      // Возврат через уведомление о тиммейте: ?show_profile=<id>&src=tmfound_<sub>_<cand>
+      const src = params.get("src")
+      if (src) {
+        const tm = src.match(/^tmfound_(\d+)_(\d+)$/)
+        if (tm) {
+          try {
+            trackNotificationOpened(parseInt(tm[1], 10), parseInt(tm[2], 10))
+          } catch {}
+        }
+        params.delete("src")
+        const newUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "")
+        window.history.replaceState({}, "", newUrl)
+      }
       if (!id) {
-        const params = new URLSearchParams(window.location.search)
         const qp = params.get("show_profile")
         if (qp) {
           id = parseInt(qp, 10)
@@ -233,6 +253,7 @@ function Shell() {
         {tab === "sessions" && <Suspense fallback={<TabFallback />}><SessionTab onToast={setToast} /></Suspense>}
         {tab === "event" && <Suspense fallback={<TabFallback />}><AutumnTab onToast={setToast} onGo={goTab} /></Suspense>}
         {tab === "clan" && <Suspense fallback={<TabFallback />}><ClanTab onToast={setToast} onOpenProfile={setSharedProfileId} /></Suspense>}
+        {tab === "analytics" && role === "developer" && <Suspense fallback={<TabFallback />}><AnalyticsTab /></Suspense>}
       </main>
 
       <BottomNav active={tab} onChange={goTab} onMore={() => setMoreOpen(true)} />

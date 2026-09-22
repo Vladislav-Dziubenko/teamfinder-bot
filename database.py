@@ -484,6 +484,44 @@ CREATE TABLE IF NOT EXISTS user_activity_log (
 
 CREATE INDEX IF NOT EXISTS idx_activity_log_user_ts ON user_activity_log (user_id, ts);
 
+-- Продуктовая аналитика удержания (NEXUS retention pipeline).
+-- day: календарный день UTC 'YYYY-MM-DD' для day-дедупликации;
+-- dedup_key: uuid клиента для точной идемпотентности (NULL не конфликтуют).
+CREATE TABLE IF NOT EXISTS analytics_events (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    event_type TEXT NOT NULL,
+    day TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    metadata TEXT NOT NULL DEFAULT '{}',
+    dedup_key TEXT
+);
+
+-- Подписки на появление тиммейта (пустой поиск -> "сообщить").
+CREATE TABLE IF NOT EXISTS search_subscriptions (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    game TEXT NOT NULL DEFAULT '',
+    q TEXT NOT NULL DEFAULT '',
+    discord_only INTEGER NOT NULL DEFAULT 0,
+    steam_only INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT '',
+    active INTEGER NOT NULL DEFAULT 1,
+    last_notified_at TEXT NOT NULL DEFAULT '',
+    notify_count INTEGER NOT NULL DEFAULT 0
+);
+
+-- История отправленных уведомлений (антиспам, кулдауны, конверсия).
+CREATE TABLE IF NOT EXISTS notification_log (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    kind TEXT NOT NULL,
+    ref_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL DEFAULT 'sent',
+    error TEXT NOT NULL DEFAULT ''
+);
+
 CREATE TABLE IF NOT EXISTS beta_state (
     user_id BIGINT PRIMARY KEY,
     case_balance INTEGER NOT NULL DEFAULT 0,
@@ -1923,6 +1961,15 @@ class Database:
             # Идемпотентность оплат: повторный вебхук Telegram с тем же charge_id
             # не должен начислять награду дважды. NULL не конфликтуют между собой.
             "CREATE UNIQUE INDEX IF NOT EXISTS uq_purchases_charge ON purchases (charge_id)",
+            # Продуктовая аналитика: точная идемпотентность клиентских событий.
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_analytics_events_dedup ON analytics_events (dedup_key)",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_events_user_day ON analytics_events (user_id, event_type, day)",
+            "CREATE INDEX IF NOT EXISTS idx_analytics_events_type_day ON analytics_events (event_type, day)",
+            "CREATE INDEX IF NOT EXISTS idx_search_subs_active_game ON search_subscriptions (active, game)",
+            "CREATE INDEX IF NOT EXISTS idx_search_subs_user ON search_subscriptions (user_id)",
+            # Антиспам уведомлений: один кандидат — одно уведомление.
+            "CREATE UNIQUE INDEX IF NOT EXISTS uq_notification_log_user_kind_ref ON notification_log (user_id, kind, ref_id)",
+            "CREATE INDEX IF NOT EXISTS idx_notification_log_user_created ON notification_log (user_id, created_at)",
         ]
         for idx_sql in perf_indexes:
             try:
@@ -7298,6 +7345,368 @@ WHERE user_quests.completed = 0
                 )
         except Exception:
             pass  # non-critical, silently ignore
+
+    # ---------- Продуктовая аналитика удержания (NEXUS retention) ----------
+
+    ANALYTICS_ONCE_EVENTS = frozenset({"first_open", "registration_completed", "friend_invited"})
+    ANALYTICS_DAILY_EVENTS = frozenset({"app_open"})
+
+    @staticmethod
+    def analytics_meta_str(metadata: dict | None) -> str:
+        """Сериализация метадаты события: только dict, кап 2000 символов."""
+        if not isinstance(metadata, dict):
+            return ""
+        try:
+            return json.dumps(metadata, ensure_ascii=False)[:2000]
+        except Exception:
+            return ""
+
+    async def log_analytics_event(
+        self,
+        user_id: int,
+        event_type: str,
+        metadata: dict | None = None,
+        dedup_key: str | None = None,
+    ) -> bool:
+        """Пишет продуктовое событие. Возвращает True если записано.
+        once-события — один раз за всё время; daily — раз в день (UTC);
+        dedup_key даёт точную идемпотентность повторных отправок."""
+        try:
+            now = datetime.utcnow()
+            day = now.strftime("%Y-%m-%d")
+            meta_str = self.analytics_meta_str(metadata)
+            key = (dedup_key or "").strip()[:64] or None
+            async with self.pool.acquire() as conn:
+                if event_type in self.ANALYTICS_ONCE_EVENTS:
+                    exists = await conn.fetchval(
+                        "SELECT 1 FROM analytics_events WHERE user_id = $1 AND event_type = $2 LIMIT 1",
+                        user_id, event_type,
+                    )
+                    if exists:
+                        return False
+                elif event_type in self.ANALYTICS_DAILY_EVENTS:
+                    exists = await conn.fetchval(
+                        "SELECT 1 FROM analytics_events WHERE user_id = $1 AND event_type = $2 AND day = $3 LIMIT 1",
+                        user_id, event_type, day,
+                    )
+                    if exists:
+                        return False
+                if key:
+                    await conn.execute(
+                        "INSERT INTO analytics_events (user_id, event_type, day, created_at, metadata, dedup_key)"
+                        " VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (dedup_key) DO NOTHING",
+                        user_id, event_type, day, now.isoformat(), meta_str, key,
+                    )
+                else:
+                    await conn.execute(
+                        "INSERT INTO analytics_events (user_id, event_type, day, created_at, metadata)"
+                        " VALUES ($1, $2, $3, $4, $5)",
+                        user_id, event_type, day, now.isoformat(), meta_str,
+                    )
+                return True
+        except Exception:
+            return False
+
+    async def has_analytics_event(self, user_id: int, event_type: str) -> bool:
+        try:
+            async with self.pool.acquire() as conn:
+                return bool(await conn.fetchval(
+                    "SELECT 1 FROM analytics_events WHERE user_id = $1 AND event_type = $2 LIMIT 1",
+                    user_id, event_type,
+                ))
+        except Exception:
+            return False
+
+    # ---------- Подписки на появление тиммейта ----------
+
+    MAX_ACTIVE_SUBSCRIPTIONS = 5
+
+    async def create_search_subscription(
+        self, user_id: int, game: str, q: str = "",
+        discord_only: bool = False, steam_only: bool = False,
+    ) -> dict:
+        """Создаёт (или реактивирует) подписку. Возвращает {ok, subscription} или {error}."""
+        game = (game or "").strip().lower()[:20]
+        q = (q or "").strip().lower()[:40]
+        try:
+            now = datetime.utcnow().isoformat()
+            async with self.pool.acquire() as conn:
+                existing = await conn.fetchrow(
+                    "SELECT * FROM search_subscriptions WHERE user_id = $1 AND game = $2 AND q = $3"
+                    " AND discord_only = $4 AND steam_only = $5 ORDER BY id DESC LIMIT 1",
+                    user_id, game, q, int(bool(discord_only)), int(bool(steam_only)),
+                )
+                if existing and existing["active"]:
+                    return {"ok": True, "subscription": dict(existing), "already": True}
+                if existing:
+                    await conn.execute(
+                        "UPDATE search_subscriptions SET active = 1, created_at = $2 WHERE id = $1",
+                        existing["id"], now,
+                    )
+                    row = await conn.fetchrow(
+                        "SELECT * FROM search_subscriptions WHERE id = $1", existing["id"])
+                    return {"ok": True, "subscription": dict(row), "already": False}
+                cnt = await conn.fetchval(
+                    "SELECT COUNT(*) FROM search_subscriptions WHERE user_id = $1 AND active = 1",
+                    user_id,
+                )
+                if (cnt or 0) >= self.MAX_ACTIVE_SUBSCRIPTIONS:
+                    return {"error": "too many subscriptions (max 5)"}
+                row = await conn.fetchrow(
+                    "INSERT INTO search_subscriptions (user_id, game, q, discord_only, steam_only, created_at)"
+                    " VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
+                    user_id, game, q, int(bool(discord_only)), int(bool(steam_only)), now,
+                )
+                return {"ok": True, "subscription": dict(row), "already": False}
+        except Exception as e:
+            return {"error": str(e)[:120]}
+
+    async def get_user_subscriptions(self, user_id: int) -> list[dict]:
+        try:
+            async with self.pool.acquire() as conn:
+                rows = await conn.fetch(
+                    "SELECT * FROM search_subscriptions WHERE user_id = $1 AND active = 1"
+                    " ORDER BY created_at DESC",
+                    user_id,
+                )
+                return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+    async def deactivate_subscription(self, user_id: int, sub_id: int) -> bool:
+        try:
+            async with self.pool.acquire() as conn:
+                res = await conn.execute(
+                    "UPDATE search_subscriptions SET active = 0 WHERE id = $1 AND user_id = $2",
+                    sub_id, user_id,
+                )
+                return res == "UPDATE 1"
+        except Exception:
+            return False
+
+    async def get_active_subscriptions(self, game: str = "", limit: int = 200) -> list[dict]:
+        """Активные подписки (опционально по игре) для event-driven матчинга."""
+        try:
+            async with self.pool.acquire() as conn:
+                if game:
+                    rows = await conn.fetch(
+                        "SELECT * FROM search_subscriptions WHERE active = 1 AND (game = $1 OR game IN ('', 'all'))"
+                        " ORDER BY created_at DESC LIMIT $2",
+                        game.strip().lower(), max(1, min(limit, 500)),
+                    )
+                else:
+                    rows = await conn.fetch(
+                        "SELECT * FROM search_subscriptions WHERE active = 1"
+                        " ORDER BY created_at DESC LIMIT $1",
+                        max(1, min(limit, 500)),
+                    )
+                return [dict(r) for r in rows]
+        except Exception:
+            return []
+
+    @staticmethod
+    def subscription_matches(
+        sub: dict, profile: dict, has_discord: bool = False, has_steam: bool = False,
+    ) -> bool:
+        """Чистая функция: подходит ли кандидат-профиль под критерии подписки."""
+        if not profile or not profile.get("is_active", True):
+            return False
+        sub_game = (sub.get("game") or "").strip().lower()
+        cand_game = (profile.get("game") or "").strip().lower()
+        if sub_game and sub_game != "all" and cand_game != sub_game:
+            return False
+        q = (sub.get("q") or "").strip().lower()
+        if q:
+            haystack = " ".join([
+                str(profile.get("nickname") or ""),
+                str(profile.get("role") or ""),
+                str(profile.get("rank") or ""),
+            ]).lower()
+            if q not in haystack:
+                return False
+        if sub.get("discord_only") and not has_discord:
+            return False
+        if sub.get("steam_only") and not has_steam:
+            return False
+        return True
+
+    async def check_subscription_match(self, sub: dict, candidate_id: int) -> dict | None:
+        """Проверяет живого кандидата под подписку. Возвращает профиль или None."""
+        try:
+            profile = await self.get_profile(candidate_id)
+            if not profile:
+                return None
+            has_discord = bool(await self.pool.fetchval(
+                "SELECT 1 FROM discord_connections WHERE user_id = $1", candidate_id))
+            has_steam = bool(await self.pool.fetchval(
+                "SELECT 1 FROM steam_connections WHERE user_id = $1", candidate_id))
+            if self.subscription_matches(sub, profile, has_discord, has_steam):
+                return profile
+            return None
+        except Exception:
+            return None
+
+    # ---------- История уведомлений ----------
+
+    async def log_notification(
+        self, user_id: int, kind: str, ref_id: str = "",
+        status: str = "sent", error: str = "",
+    ) -> None:
+        try:
+            async with self.pool.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO notification_log (user_id, kind, ref_id, created_at, status, error)"
+                    " VALUES ($1, $2, $3, $4, $5, $6)"
+                    " ON CONFLICT (user_id, kind, ref_id) DO NOTHING",
+                    user_id, kind, str(ref_id or ""), datetime.utcnow().isoformat(),
+                    status, (error or "")[:300],
+                )
+        except Exception:
+            pass
+
+    async def has_notification(self, user_id: int, kind: str, ref_id: str = "") -> bool:
+        try:
+            async with self.pool.acquire() as conn:
+                return bool(await conn.fetchval(
+                    "SELECT 1 FROM notification_log WHERE user_id = $1 AND kind = $2 AND ref_id = $3 LIMIT 1",
+                    user_id, kind, str(ref_id or ""),
+                ))
+        except Exception:
+            return False
+
+    async def recent_notification_count(self, user_id: int, kind: str, hours: int = 6) -> int:
+        try:
+            since = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+            async with self.pool.acquire() as conn:
+                return int(await conn.fetchval(
+                    "SELECT COUNT(*) FROM notification_log WHERE user_id = $1 AND kind = $2"
+                    " AND status = 'sent' AND created_at >= $3",
+                    user_id, kind, since,
+                ) or 0)
+        except Exception:
+            return 0
+
+    # ---------- Сводка для Developer Analytics ----------
+
+    async def get_analytics_overview(self, days: int = 30) -> dict:
+        """Считает retention когортгно + funnel + активность. Всё на DISTINCT-пользователях."""
+        days = days if days in (7, 30, 90) else 30
+        now = datetime.utcnow()
+        today = now.strftime("%Y-%m-%d")
+        period_start_day = (now - timedelta(days=days - 1)).strftime("%Y-%m-%d")
+        period_start_iso = (now - timedelta(days=days - 1)).replace(
+            hour=0, minute=0, second=0, microsecond=0).isoformat()
+        out: dict = {"days": days}
+        try:
+            async with self.pool.acquire() as conn:
+                out["total_users"] = int(await conn.fetchval("SELECT COUNT(*) FROM users") or 0)
+                out["new_today"] = int(await conn.fetchval(
+                    "SELECT COUNT(*) FROM users WHERE substr(created_at, 1, 10) = $1", today) or 0)
+
+                async def active_since(day_str: str) -> int:
+                    return int(await conn.fetchval(
+                        "SELECT COUNT(DISTINCT user_id) FROM users"
+                        " WHERE COALESCE(NULLIF(last_active_at, ''), '1970-01-01') >= $1",
+                        day_str) or 0)
+
+                out["dau"] = await active_since(today)
+                out["wau"] = await active_since((now - timedelta(days=6)).strftime("%Y-%m-%d"))
+                out["mau"] = await active_since((now - timedelta(days=29)).strftime("%Y-%m-%d"))
+                out["returning"] = int(await conn.fetchval(
+                    "SELECT COUNT(DISTINCT user_id) FROM users"
+                    " WHERE COALESCE(NULLIF(last_active_at, ''), '1970-01-01') >= $1"
+                    " AND substr(created_at, 1, 10) < $1",
+                    period_start_day) or 0)
+
+                # Когортный retention: созданные в день D, активные строго позже дня D.
+                retention = {}
+                for offset, key in ((1, "d1"), (7, "d7"), (30, "d30")):
+                    cday = (now - timedelta(days=offset)).strftime("%Y-%m-%d")
+                    cohort = int(await conn.fetchval(
+                        "SELECT COUNT(*) FROM users WHERE substr(created_at, 1, 10) = $1", cday) or 0)
+                    returned = 0
+                    if cohort:
+                        returned = int(await conn.fetchval(
+                            "SELECT COUNT(*) FROM users WHERE substr(created_at, 1, 10) = $1"
+                            " AND COALESCE(NULLIF(last_active_at, ''), '1970-01-01') > $2",
+                            cday, cday) or 0)
+                    retention[key] = {
+                        "cohort_day": cday, "cohort": cohort, "returned": returned,
+                        "rate": (returned / cohort) if cohort else None,
+                    }
+                out["retention"] = retention
+
+                # Поисковые события за период: ряды + уникальные пользователи.
+                search_stats = {}
+                for ev in ("teammate_search_started", "teammate_search_empty", "teammate_found"):
+                    row = await conn.fetchrow(
+                        "SELECT COUNT(*) AS n, COUNT(DISTINCT user_id) AS u FROM analytics_events"
+                        " WHERE event_type = $1 AND created_at >= $2",
+                        ev, period_start_iso,
+                    )
+                    search_stats[ev] = {"events": int(row["n"] or 0), "users": int(row["u"] or 0)}
+                out["search"] = search_stats
+
+                # Уведомления о тиммейтах.
+                notif = await conn.fetchrow(
+                    "SELECT COUNT(*) AS sent, COUNT(DISTINCT user_id) AS users FROM notification_log"
+                    " WHERE kind = 'teammate_found' AND status = 'sent' AND created_at >= $1",
+                    period_start_iso,
+                )
+                opened = await conn.fetchrow(
+                    "SELECT COUNT(*) AS n, COUNT(DISTINCT user_id) AS u FROM analytics_events"
+                    " WHERE event_type = 'notification_opened' AND created_at >= $1",
+                    period_start_iso,
+                )
+                sent_n, sent_u = int(notif["sent"] or 0), int(notif["users"] or 0)
+                opened_u = int(opened["u"] or 0)
+                out["notifications"] = {
+                    "sent": sent_n, "sent_users": sent_u,
+                    "opened_events": int(opened["n"] or 0), "opened_users": opened_u,
+                    "conversion": (opened_u / sent_u) if sent_u else None,
+                }
+
+                # Funnel: уникальные пользователи по этапам за период.
+                stages = ["first_open", "registration_completed", "teammate_search_started",
+                          "teammate_found", "teammate_profile_opened"]
+                funnel = []
+                prev = None
+                for ev in stages:
+                    n = int(await conn.fetchval(
+                        "SELECT COUNT(DISTINCT user_id) FROM analytics_events"
+                        " WHERE event_type = $1 AND created_at >= $2",
+                        ev, period_start_iso) or 0)
+                    funnel.append({
+                        "event": ev, "users": n,
+                        "conversion": (n / prev) if prev else None,
+                    })
+                    prev = n if n else prev
+                # Returned Later: app_open в день строго позже первого first_open.
+                returned_later = int(await conn.fetchval(
+                    """SELECT COUNT(DISTINCT a.user_id) FROM analytics_events a
+                       WHERE a.event_type = 'app_open' AND a.created_at >= $1
+                       AND a.day > (SELECT MIN(day) FROM analytics_events
+                                    WHERE user_id = a.user_id AND event_type = 'first_open')""",
+                    period_start_iso) or 0)
+                funnel.append({"event": "returned_later", "users": returned_later,
+                               "conversion": (returned_later / prev) if prev else None})
+                out["funnel"] = funnel
+
+                # Активность по дням: новые + DAU.
+                series = []
+                for i in range(days - 1, -1, -1):
+                    d = (now - timedelta(days=i)).strftime("%Y-%m-%d")
+                    new_u = int(await conn.fetchval(
+                        "SELECT COUNT(*) FROM users WHERE substr(created_at, 1, 10) = $1", d) or 0)
+                    dau = int(await conn.fetchval(
+                        "SELECT COUNT(DISTINCT user_id) FROM users"
+                        " WHERE substr(COALESCE(NULLIF(last_active_at, ''), '1970-01-01'), 1, 10) = $1",
+                        d) or 0)
+                    series.append({"day": d, "new_users": new_u, "dau": dau})
+                out["series"] = series
+        except Exception as e:
+            out["error"] = str(e)[:200]
+        return out
 
     async def get_today_ai_actions(self) -> list[dict]:
         """Действия ИИ-модератора за сегодня (для утреннего дайджеста)."""
