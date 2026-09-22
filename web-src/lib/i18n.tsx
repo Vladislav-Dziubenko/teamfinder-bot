@@ -72,16 +72,102 @@ const dictionaries: Record<string, Record<string, string>> = {
   ru, en,
 }
 
-// Динамические словари (45 языков) — грузятся по требованию и кэшируются.
+// Динамические словари — грузятся по требованию и кэшируются.
+// Явная карта вместо переменного import(`@/locales/${code}.json`):
+// Turbopack не всегда собирает чанки по шаблонной строке, и язык
+// молча оставался на русском (кейс kk/uz). Статические импорты
+// гарантируют чанк под каждую локаль.
+const localeLoaders: Record<string, () => Promise<any>> = {
+  es: () => import("@/locales/es.json"),
+  pt: () => import("@/locales/pt.json"),
+  de: () => import("@/locales/de.json"),
+  fr: () => import("@/locales/fr.json"),
+  tr: () => import("@/locales/tr.json"),
+  ar: () => import("@/locales/ar.json"),
+  uk: () => import("@/locales/uk.json"),
+  pl: () => import("@/locales/pl.json"),
+  zh: () => import("@/locales/zh.json"),
+  hi: () => import("@/locales/hi.json"),
+  id: () => import("@/locales/id.json"),
+  it: () => import("@/locales/it.json"),
+  ja: () => import("@/locales/ja.json"),
+  ko: () => import("@/locales/ko.json"),
+  nl: () => import("@/locales/nl.json"),
+  vi: () => import("@/locales/vi.json"),
+  th: () => import("@/locales/th.json"),
+  fa: () => import("@/locales/fa.json"),
+  ms: () => import("@/locales/ms.json"),
+  sv: () => import("@/locales/sv.json"),
+  no: () => import("@/locales/no.json"),
+  da: () => import("@/locales/da.json"),
+  fi: () => import("@/locales/fi.json"),
+  cs: () => import("@/locales/cs.json"),
+  ro: () => import("@/locales/ro.json"),
+  hu: () => import("@/locales/hu.json"),
+  el: () => import("@/locales/el.json"),
+  he: () => import("@/locales/he.json"),
+  ur: () => import("@/locales/ur.json"),
+  bn: () => import("@/locales/bn.json"),
+  ta: () => import("@/locales/ta.json"),
+  tl: () => import("@/locales/tl.json"),
+  az: () => import("@/locales/az.json"),
+  be: () => import("@/locales/be.json"),
+  bg: () => import("@/locales/bg.json"),
+  et: () => import("@/locales/et.json"),
+  hr: () => import("@/locales/hr.json"),
+  lt: () => import("@/locales/lt.json"),
+  lv: () => import("@/locales/lv.json"),
+  mk: () => import("@/locales/mk.json"),
+  sk: () => import("@/locales/sk.json"),
+  sl: () => import("@/locales/sl.json"),
+  sr: () => import("@/locales/sr.json"),
+  kk: () => import("@/locales/kk.json"),
+  uz: () => import("@/locales/uz.json"),
+}
+
+function reportDictError(code: string, err: unknown): void {
+  try {
+    const msg = `i18n dict load failed: ${code} ${String((err as any)?.message || err).slice(0, 120)}`
+    if (typeof navigator !== "undefined" && navigator.sendBeacon) {
+      navigator.sendBeacon(
+        "/api/client-error",
+        new Blob([JSON.stringify({ message: msg, tab: "settings", url: location.href })], {
+          type: "application/json",
+        }),
+      )
+    }
+  } catch {}
+}
+
+// Языки с неполным переводом падают сначала на русский (аудитория СНГ),
+// потом на английский, потом на сам ключ.
+const RU_FALLBACK_LANGS = new Set(["kk", "uz"])
+
 const lazyDicts = new Map<string, Promise<Record<string, string> | undefined>>()
 
 function loadDict(code: string): Promise<Record<string, string> | undefined> {
   if (dictionaries[code]) return Promise.resolve(dictionaries[code])
+  const loader = localeLoaders[code]
+  if (!loader) return Promise.resolve(undefined)
   let p = lazyDicts.get(code)
   if (!p) {
-    p = import(`@/locales/${code}.json`)
-      .then((m) => m.default as Record<string, string>)
-      .catch(() => undefined)
+    p = loader()
+      .then((m) => {
+        const dict = (m?.default ?? m) as Record<string, string>
+        if (!dict || typeof dict !== "object") {
+          // Не кэшируем провал — следующая попытка попробует снова.
+          lazyDicts.delete(code)
+          reportDictError(code, "bad dict shape")
+          return undefined
+        }
+        return dict
+      })
+      .catch((e) => {
+        // Не кэшируем провал — иначе язык залипает на русском до перезапуска.
+        lazyDicts.delete(code)
+        reportDictError(code, e)
+        return undefined
+      })
     lazyDicts.set(code, p)
   }
   return p
@@ -219,7 +305,7 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
   }, [lang, ready])
 
   const setLang = useCallback((code: string) => {
-    if (!dictionaries[code] && !lazyDicts.has(code) && !LANGUAGES.some((l) => l.code === code)) return
+    if (!dictionaries[code] && !localeLoaders[code] && !LANGUAGES.some((l) => l.code === code)) return
     setLangState(code)
     if (!dictionaries[code]) {
       void loadDict(code).then((d) => {
@@ -232,12 +318,32 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
     void api.post("/api/user/language", { lang: code }).catch(() => {})
   }, [])
 
+  // Цепочка фолбэков: язык → (ru для kk/uz) → en → ru → ключ.
+  // typeof-проверка заодно лечит вложенные объекты в словарях.
+  const lookup = useCallback(
+    (key: string): string | undefined => {
+      const chain: Array<Record<string, string> | undefined> = [
+        extraDicts[lang],
+        dictionaries[lang],
+        ...(RU_FALLBACK_LANGS.has(lang) ? [dictionaries["ru"]] : []),
+        dictionaries["en"],
+        dictionaries[DEFAULT_LANG],
+      ]
+      for (const d of chain) {
+        const v = d?.[key]
+        if (typeof v === "string" && v !== key) return v
+      }
+      return undefined
+    },
+    [lang, extraDicts],
+  )
+
   const t = useCallback(
     (key: string, vars?: Record<string, string | number>) => {
-      const dict = extraDicts[lang] || dictionaries[lang] || dictionaries[DEFAULT_LANG]
-      let str = dict[key] ?? dictionaries["en"]?.[key] ?? key
-      if (str === key && dict[key] === undefined && dictionaries["en"]?.[key] === undefined) {
+      let str = lookup(key)
+      if (str === undefined) {
         console.warn("[i18n] missing key:", key, "lang:", lang)
+        str = key
       }
       if (vars) {
         for (const [k, v] of Object.entries(vars)) {
@@ -246,21 +352,16 @@ export function I18nProvider({ children }: { children: React.ReactNode }) {
       }
       return str
     },
-    [lang, extraDicts],
+    [lang, lookup],
   )
 
   // Перевод серверных текстов (кейсы, предметы, роли и т.п.): берём перевод
   // из словаря, если ключ есть, иначе — оригинальный текст с сервера.
   const tl = useCallback(
     (key: string, fallback: string) => {
-      const dict = extraDicts[lang] || dictionaries[lang] || dictionaries[DEFAULT_LANG]
-      let v = dict[key]
-      if (v && v !== key) return v
-      v = dictionaries["en"]?.[key]
-      if (v && v !== key) return v
-      return fallback
+      return lookup(key) ?? fallback
     },
-    [lang, extraDicts],
+    [lookup],
   )
 
   const value = useMemo(() => ({ lang, setLang, t, tl, ready }), [lang, setLang, t, tl, ready, extraDicts])
