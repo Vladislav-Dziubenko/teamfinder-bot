@@ -27,8 +27,10 @@ import {
   Moon,
   Sun,
   Bell,
+  Vibrate,
   Infinity as InfinityIcon,
 } from "lucide-react"
+import { hapticTap, useHaptics, type HapticLevel } from "@/lib/webapp"
 import { api, openLink } from "@/lib/api"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
 import { useTheme } from "@/lib/theme"
@@ -801,6 +803,9 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
         </button>
       </div>
 
+      {/* Вибрация: вкл/выкл + сила отклика */}
+      <HapticsSection />
+
       {/* Обучение: краткий гид по приложению */}
       <button
         type="button"
@@ -953,6 +958,79 @@ function ThemeToggle() {
       >
         <Sun className="size-3.5" /> {t("theme.light")}
       </button>
+    </div>
+  )
+}
+
+const HAPTIC_LEVELS: { id: HapticLevel; labelKey: string }[] = [
+  { id: "light", labelKey: "haptics.light" },
+  { id: "medium", labelKey: "haptics.medium" },
+  { id: "heavy", labelKey: "haptics.heavy" },
+]
+
+function HapticsSection() {
+  const { t } = useI18n()
+  const { settings, setEnabled, setLevel, playTest } = useHaptics()
+  return (
+    <div className="rounded-2xl border border-border bg-card px-4 py-3.5">
+      <div className="flex w-full items-center gap-3">
+        <Vibrate className="size-5 shrink-0 text-primary" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium">{t("haptics.title")}</p>
+          <p className="text-xs text-muted-foreground">{t("haptics.subtitle")}</p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={settings.enabled}
+          onClick={() => {
+            const next = !settings.enabled
+            setEnabled(next)
+            if (next) setTimeout(() => playTest(), 50)
+            else hapticTap()
+          }}
+          className={cn(
+            "relative h-7 w-12 shrink-0 rounded-full transition-colors active:scale-95",
+            settings.enabled ? "bg-primary" : "bg-secondary",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-1 size-5 rounded-full bg-background shadow transition-all",
+              settings.enabled ? "left-6" : "left-1",
+            )}
+          />
+        </button>
+      </div>
+      {settings.enabled && (
+        <div className="mt-3 flex items-center gap-1.5">
+          <div className="grid flex-1 grid-cols-3 gap-1 rounded-xl bg-secondary p-1">
+            {HAPTIC_LEVELS.map((l) => (
+              <button
+                key={l.id}
+                type="button"
+                onClick={() => {
+                  setLevel(l.id)
+                  setTimeout(() => playTest(), 50)
+                }}
+                className={cn(
+                  "rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors active:scale-95",
+                  settings.level === l.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground",
+                )}
+              >
+                {t(l.labelKey)}
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={() => playTest()}
+            className="shrink-0 rounded-xl border border-border px-3 py-2 text-xs font-semibold text-muted-foreground transition-colors active:scale-95 active:bg-secondary"
+          >
+            {t("haptics.test")}
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -7,6 +7,7 @@ import type { Player, Team } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { api } from "@/lib/api"
+import { hapticNotify, hapticTap } from "@/lib/webapp"
 import { PlayerCard } from "./player-card"
 import { TeamCard } from "./team-card"
 import { ReviewSheet } from "./review-sheet"
@@ -76,6 +77,7 @@ export function MatchTab({
 
   async function toggleSubscribe() {
     if (subBusy) return
+    hapticTap()
     setSubBusy(true)
     try {
       if (currentSub) {
@@ -123,6 +125,7 @@ export function MatchTab({
 
   async function runSearch() {
     if (!loaded || searchPending.current) return
+    hapticTap()
     const q = query.trim()
     if (!extended && freeSearchesLeft <= 0) {
       setNotice(t("match.error_free_exhausted"))
@@ -147,11 +150,14 @@ export function MatchTab({
   }
 
   async function unlockExtended() {
+    hapticTap()
     const ok = await spendStars(EXTENDED_COST)
     if (!ok) {
+      hapticNotify("error")
       setNotice(t("match.error_not_enough_stars"))
       return
     }
+    hapticNotify("success")
     setExtended(true)
     setNotice(null)
   }
@@ -411,7 +417,10 @@ function Chip({
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={() => {
+        hapticTap()
+        onClick()
+      }}
       className={cn(
         "shrink-0 whitespace-nowrap rounded-full border px-4 py-2 text-sm font-medium transition-colors",
         active ? "border-primary bg-primary/15 text-primary" : "border-border bg-card text-muted-foreground",

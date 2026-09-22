@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { UserPlus, UserCheck, UserX, MessageCircle, Clock, Users, Search, Loader2, Share2 } from "lucide-react"
 import { api } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
+import { hapticTap } from "@/lib/webapp"
 import { useNexus } from "@/lib/store"
 import { ShareStorySheet } from "./share-story-sheet"
 import type { Player } from "@/lib/data"
@@ -69,6 +70,7 @@ export function FriendsTab({
   const [processing, setProcessing] = useState<number | null>(null)
 
   async function accept(id: number) {
+    hapticTap()
     setProcessing(id)
     try {
       await api.post("/api/friends/accept/" + id)
@@ -78,6 +80,7 @@ export function FriendsTab({
   }
 
   async function decline(id: number) {
+    hapticTap()
     setProcessing(id)
     try {
       await api.post("/api/friends/decline/" + id)
@@ -87,6 +90,7 @@ export function FriendsTab({
   }
 
   async function remove(id: number) {
+    hapticTap()
     setProcessing(id)
     try {
       await api.post("/api/friends/remove/" + id)
@@ -96,6 +100,7 @@ export function FriendsTab({
   }
 
   async function addFriend(id: number) {
+    hapticTap()
     await api.post("/api/friends/add/" + id)
     setSearchQuery("")
     setSearchResults([])

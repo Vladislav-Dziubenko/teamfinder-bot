@@ -5,6 +5,7 @@ import { Crown, Star, Lock, Check, Gift, Clock, Sparkles } from "lucide-react"
 import { rarityMeta, type BattlePassReward } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { BP_CLAIM_INTERVAL, useNexus } from "@/lib/store"
+import { hapticNotify, hapticTap } from "@/lib/webapp"
 import { cn } from "@/lib/utils"
 
 function formatCountdown(ms: number) {
@@ -60,16 +61,21 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
 
   async function claimInstant() {
     if (instantBusy || !bpPremium || allDone) return
+    hapticTap()
     const n = Math.min(Math.max(1, instantLevels), remaining)
     if (stars < INSTANT_STARS_PER_TIER * n) {
+      hapticNotify("error")
       onToast(t("match.error_not_enough_stars"))
       return
     }
     setInstantBusy(true)
     const res = await claimInstantBpTier(n)
     setInstantBusy(false)
-    if (!res.ok) onToast(res.error ?? t("battlepass.claim_failed"))
-    else {
+    if (!res.ok) {
+      hapticNotify("error")
+      onToast(res.error ?? t("battlepass.claim_failed"))
+    } else {
+      hapticNotify("success")
       setInstantLevels(1)
       onToast(t("battlepass.instant_done"))
     }
@@ -77,24 +83,37 @@ export function BattlePassTab({ onToast }: { onToast: (m: string) => void }) {
 
   async function buy() {
     if (buying) return
+    hapticTap()
     if (stars < battlePassPriceStars) {
+      hapticNotify("error")
       onToast(t("match.error_not_enough_stars"))
       return
     }
     setBuying(true)
     const ok = await buyBattlePass()
     setBuying(false)
-    if (ok) onToast(t("battlepass.bought"))
-    else onToast(t("battlepass.buy_failed"))
+    if (ok) {
+      hapticNotify("success")
+      onToast(t("battlepass.bought"))
+    } else {
+      hapticNotify("error")
+      onToast(t("battlepass.buy_failed"))
+    }
   }
 
   async function claim() {
     if (claiming) return
+    hapticTap()
     setClaiming(true)
     const res = await claimNextBpTier()
     setClaiming(false)
-    if (!res.ok) onToast(res.error ?? t("battlepass.claim_failed"))
-    else onToast(t("battlepass.claimed_tier", { level: res.tierLevel ?? 0 }))
+    if (!res.ok) {
+      hapticNotify("error")
+      onToast(res.error ?? t("battlepass.claim_failed"))
+    } else {
+      hapticNotify("success")
+      onToast(t("battlepass.claimed_tier", { level: res.tierLevel ?? 0 }))
+    }
   }
 
   return (

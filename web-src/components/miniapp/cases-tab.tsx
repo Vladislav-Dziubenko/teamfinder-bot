@@ -16,7 +16,7 @@ import { countAutumnKeys } from "./autumn/autumn-event"
 import { FairSheet, type FairEntry } from "./fair-sheet"
 import type { FairProof } from "@/lib/crypto"
 import { useAdsgram } from "@/lib/use-adsgram"
-import { hapticImpact } from "@/lib/webapp"
+import { hapticImpact, hapticNotify, hapticTap } from "@/lib/webapp"
 import { analytics } from "@/lib/telegram-analytics"
 
 const rarityRank: Record<Rarity, number> = { common: 0, rare: 2, epic: 3, premium: 4, legendary: 6 }
@@ -289,13 +289,16 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
   async function buyFromShop(key: string, name: string) {
     if (shopBuying) return
+    hapticTap()
     setShopBuying(key)
     const res = await buyShopItem(key)
     setShopBuying(null)
     if (!res.ok) {
+      hapticNotify("error")
       onToast(res.error ?? t("match.error_not_enough_stars"))
       return
     }
+    hapticNotify("success")
     onToast(`${t("common.buy")}: ${name}`)
   }
 

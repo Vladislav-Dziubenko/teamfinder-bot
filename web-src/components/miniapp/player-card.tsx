@@ -5,6 +5,7 @@ import type { Player } from "@/lib/data"
 import { games, roleL10nKey, rankL10nKey, caseItemByKey } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
+import { hapticTap } from "@/lib/webapp"
 import { cn } from "@/lib/utils"
 import { AvatarImage } from "./avatar-image"
 
@@ -208,7 +209,10 @@ export function PlayerCard({
         {locked ? (
           <button
             type="button"
-            onClick={() => onUnlock?.(player)}
+            onClick={() => {
+              hapticTap()
+              onUnlock?.(player)
+            }}
             className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-stars py-3 text-sm font-bold text-background shadow-[0_0_20px_-6px_var(--stars)] transition-transform active:scale-[0.98]"
           >
             <Star className="size-4 fill-background" /> {t("player_card.unlock_for", { cost: player.unlockStars ?? 0 })}
@@ -217,7 +221,10 @@ export function PlayerCard({
           <div className="mt-4 flex gap-2">
             <button
               type="button"
-              onClick={() => onConnect(player)}
+              onClick={() => {
+                hapticTap()
+                onConnect(player)
+              }}
               className="flex-1 rounded-2xl bg-primary py-3 text-sm font-semibold text-primary-foreground shadow-[0_0_20px_-6px_var(--primary)] transition-transform active:scale-[0.98]"
             >
               {t("player_card.connect")}
@@ -225,7 +232,10 @@ export function PlayerCard({
             {onChat && (
               <button
                 type="button"
-                onClick={() => onChat(player)}
+                onClick={() => {
+                  hapticTap()
+                  onChat(player)
+                }}
                 aria-label={t("player_card.send_message", { name: player.nick })}
                 className="grid size-12 shrink-0 place-items-center rounded-2xl border border-border bg-secondary/60 text-accent transition-transform active:scale-[0.95]"
               >
@@ -235,7 +245,10 @@ export function PlayerCard({
             {onReview && (
               <button
                 type="button"
-                onClick={() => onReview(player)}
+                onClick={() => {
+                  hapticTap()
+                  onReview(player)
+                }}
                 aria-label={t("review.title")}
                 className="grid size-12 shrink-0 place-items-center rounded-2xl border border-stars/40 bg-stars/10 text-stars transition-transform active:scale-[0.95]"
               >

@@ -6,6 +6,7 @@ import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { games } from "@/lib/data"
 import { api } from "@/lib/api"
+import { hapticNotify, hapticTap } from "@/lib/webapp"
 import { cn } from "@/lib/utils"
 import { VoiceChat } from "@/components/miniapp/VoiceChat"
 
@@ -81,6 +82,7 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
 
   async function create() {
     if (creating) return
+    hapticTap()
     if (isPrivate && !password.trim()) {
       onToast(t("sessions.password_prompt"))
       return
@@ -88,12 +90,14 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
     setCreating(true)
     try {
       await api.post("/api/sessions", { game, minutes, max_players: maxPlayers, password: isPrivate ? (password || undefined) : undefined, voice_enabled: voiceEnabled })
+      hapticNotify("success")
       onToast(t("sessions.created"))
       await load()
       await refresh()
       setPassword("")
       setIsPrivate(false)
     } catch {
+      hapticNotify("error")
       onToast(t("sessions.create_failed"))
     } finally {
       setCreating(false)
@@ -102,9 +106,11 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
 
   async function doJoin(s: GameSession, pwd?: string) {
     if (joiningId) return
+    hapticTap()
     setJoiningId(s.id)
     try {
       await api.post(`/api/sessions/${s.id}/join`, pwd ? { password: pwd } : {})
+      hapticNotify("success")
       onToast(t("sessions.joined"))
       setJoinTarget(null)
       setJoinPwd("")
@@ -115,6 +121,7 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
         // Нужен пароль — открываем встроенную модалку (prompt() заблокирован в WebView).
         setJoinTarget(s)
       } else {
+        hapticNotify("error")
         onToast(t("sessions.join_failed"))
       }
     } finally {
@@ -134,6 +141,7 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
   }
 
   async function leave(s: GameSession) {
+    hapticTap()
     setJoiningId(s.id)
     try {
       await api.post(`/api/sessions/${s.id}/leave`)
@@ -147,6 +155,7 @@ export function SessionTab({ onToast }: { onToast: (m: string) => void }) {
   }
 
   async function kickPlayer(sessionId: number, targetId: number) {
+    hapticTap()
     try {
       await api.post(`/api/sessions/${sessionId}/kick`, { target_id: targetId })
       await load()

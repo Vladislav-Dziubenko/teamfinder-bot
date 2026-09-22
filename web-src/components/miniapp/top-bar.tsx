@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { Star, Bell } from "lucide-react"
 import { useNexus } from "@/lib/store"
 import { useI18n } from "@/lib/i18n"
+import { hapticTap } from "@/lib/webapp"
 import { formatCompact } from "@/lib/format"
 
 export function TopBar({
@@ -53,7 +54,10 @@ export function TopBar({
           {/* Nexus coins */}
           <button
             type="button"
-            onClick={onCoins}
+            onClick={() => {
+              hapticTap()
+              onCoins()
+            }}
             className="flex min-w-[4.5rem] shrink-0 items-center justify-center gap-1 rounded-xl border border-primary/30 bg-primary/10 px-2 py-1.5 text-xs font-semibold tabular-nums text-primary transition-transform active:scale-95"
             aria-label={t("topbar.coins")}
           >
@@ -63,7 +67,10 @@ export function TopBar({
           {/* Telegram Stars */}
           <button
             type="button"
-            onClick={onStars}
+            onClick={() => {
+              hapticTap()
+              onStars()
+            }}
             className="flex min-w-[4.5rem] shrink-0 items-center justify-center gap-1 rounded-xl border border-stars/30 bg-stars/10 px-2 py-1.5 text-xs font-semibold tabular-nums text-stars transition-transform active:scale-95"
             aria-label={t("topbar.stars")}
           >
@@ -73,7 +80,10 @@ export function TopBar({
           {/* Changelog bell — последним: ширина пилюль слева больше не толкает его */}
           <button
             type="button"
-            onClick={onChangelog}
+            onClick={() => {
+              hapticTap()
+              onChangelog()
+            }}
             className="relative grid size-8 shrink-0 place-items-center rounded-xl text-muted-foreground hover:bg-secondary/50 active:scale-90"
             aria-label={t("topbar.updates")}
           >

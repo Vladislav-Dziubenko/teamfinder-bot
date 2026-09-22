@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { Users, Trophy, Swords, Store, Search, Plus, LogOut, Settings as SettingsIcon, Ticket, Crown, MessageCircle, X, Check, Loader2, ChevronLeft } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { clansApi, type Clan, type ClanQuest, type ShopItem } from "@/lib/clans"
+import { hapticNotify, hapticTap } from "@/lib/webapp"
 import { cn } from "@/lib/utils"
 import { ChatConversation } from "./chat-tab"
 import { ArtCanvas } from "./cosmetics-editor"
@@ -146,11 +147,14 @@ function ClanAvatarEditor({ clan, onToast, onSaved, ru }: { clan: Clan; onToast:
 
   async function save(): Promise<void> {
     setSaving(true)
+    hapticTap()
     try {
       await clansApi.settings(clan.id, { avatar: art })
+      hapticNotify("success")
       onToast(ru ? "Аватарка клана обновлена" : "Clan avatar updated")
       onSaved()
     } catch (e: any) {
+      hapticNotify("error")
       onToast(e?.message || (ru ? "Не вышло" : "Failed"))
     } finally {
       setSaving(false)
@@ -232,9 +236,11 @@ function ClanOverview({ clan, onToast, onReload, onChat, ru }: { clan: Clan; onT
 
   async function doLeave(): Promise<void> {
     if (!confirmLeave) {
+      hapticTap()
       setConfirmLeave(true)
       return
     }
+    hapticTap()
     setBusy(true)
     try {
       const res = await clansApi.leave(clan.id)
@@ -250,6 +256,7 @@ function ClanOverview({ clan, onToast, onReload, onChat, ru }: { clan: Clan; onT
   }
 
   async function makeInvite(): Promise<void> {
+    hapticTap()
     setBusy(true)
     try {
       const res = await clansApi.invite(clan.id)
@@ -463,6 +470,7 @@ function ClanQuests({ clan, onToast, ru }: { clan: Clan; onToast: (m: string) =>
 
   async function createCustom(): Promise<void> {
     if (creating) return
+    hapticTap()
     setCreating(true)
     try {
       await clansApi.createQuest(clan.id, {
@@ -472,11 +480,13 @@ function ClanQuests({ clan, onToast, ru }: { clan: Clan; onToast: (m: string) =>
         kind: ckind,
         bank_bonus: Number(cbonus),
       })
+      hapticNotify("success")
       onToast(ru ? "Свой квест создан" : "Custom quest created")
       setShowCreate(false)
       setCtitle("")
       await load()
     } catch (e: any) {
+      hapticNotify("error")
       onToast(e?.message || (ru ? "Не вышло" : "Failed"))
     } finally {
       setCreating(false)
@@ -501,11 +511,14 @@ function ClanQuests({ clan, onToast, ru }: { clan: Clan; onToast: (m: string) =>
 
   async function claim(q: ClanQuest): Promise<void> {
     setClaiming(q.id)
+    hapticTap()
     try {
       const res = await clansApi.claimQuest(clan.id, q.id)
+      hapticNotify("success")
       onToast((ru ? "Бонус в банк: +" : "Bank bonus: +") + (res.bank_bonus ?? 0))
       await load()
     } catch (e: any) {
+      hapticNotify("error")
       onToast(e?.message || (ru ? "Не вышло" : "Failed"))
     } finally {
       setClaiming(null)

@@ -6,6 +6,7 @@ import type { StarPack, LeaderEntry } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { api, openInvoice, openTelegramLink } from "@/lib/api"
+import { hapticNotify, hapticTap } from "@/lib/webapp"
 import { cn } from "@/lib/utils"
 import { StarSendSheet, type StarRecipient } from "@/components/miniapp/star-send-sheet"
 
@@ -24,6 +25,7 @@ export function DonateTab() {
 
   async function buySuper() {
     if (buyingSuper) return
+    hapticTap()
     setBuyingSuper(true)
     try {
       const res: any = await api.post("/api/pay/invoice", { type: "super_monthly" })
@@ -89,10 +91,12 @@ export function DonateTab() {
 
   async function buy() {
     if (buying || !selected) return
+    hapticTap()
     setBuying(true)
     try {
       const res = await buyStarPack(selected.id)
       if (res.ok) {
+        hapticNotify("success")
         setDone(true)
         setTimeout(() => {
           setDone(false)
@@ -111,12 +115,15 @@ export function DonateTab() {
 
   async function buyCoins(pack: (typeof coinPacks)[number]) {
     if (buyingCoins) return
+    hapticTap()
     setBuyingCoins(pack.id)
     const res = await buyCoinPack(pack.id)
     setBuyingCoins(null)
     if (!res.ok) {
+      hapticNotify("error")
       setFlash(res.error ?? t("match.error_not_enough_stars"))
     } else {
+      hapticNotify("success")
       setFlash(t("donate.coins_added", { count: pack.coins }))
     }
     setTimeout(() => setFlash(null), 2000)
@@ -271,7 +278,10 @@ export function DonateTab() {
               <button
                 key={p.id}
                 type="button"
-                onClick={() => setSelected(p)}
+                onClick={() => {
+                  hapticTap()
+                  setSelected(p)
+                }}
                 className={cn(
                   "relative overflow-hidden rounded-3xl border p-4 text-left transition-all active:scale-[0.98]",
                   isSel ? "border-stars bg-stars/10" : "border-border bg-card",
