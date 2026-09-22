@@ -6065,10 +6065,11 @@ WHERE user_quests.completed = 0
                          AND (sender_id = $1 OR chat_id LIKE $2 OR chat_id LIKE $3)
                        GROUP BY chat_id
                    )
-                   SELECT mc.chat_id, m.text, m.created_at, mc.unread
-                   FROM my_chats mc
-                   JOIN chat_messages m ON m.id = mc.last_id
-                   ORDER BY m.created_at DESC""",
+                    SELECT mc.chat_id, m.text, m.created_at, mc.unread,
+                           COALESCE(m.is_voice, FALSE) AS last_is_voice
+                    FROM my_chats mc
+                    JOIN chat_messages m ON m.id = mc.last_id
+                    ORDER BY m.created_at DESC""",
                 user_id,
                 f"dm-{user_id}-%",
                 f"dm-%-{user_id}",
@@ -6090,7 +6091,8 @@ WHERE user_quests.completed = 0
                 if other_id == user_id:
                     continue
                 other_ids.add(other_id)
-                chat_meta[cid] = (other_id, r["text"], r["created_at"], r["unread"] or 0)
+                chat_meta[cid] = (other_id, r["text"], r["created_at"], r["unread"] or 0,
+                                    bool(r.get("last_is_voice", False)))
 
             profiles = {}
             if other_ids:
@@ -6119,7 +6121,7 @@ WHERE user_quests.completed = 0
             role_by_user = {rr["user_id"]: rr["role"] for rr in role_rows}
 
             results = []
-            for cid, (other_id, last_text, last_ts, unread) in chat_meta.items():
+            for cid, (other_id, last_text, last_ts, unread, last_is_voice) in chat_meta.items():
                 profile = profiles.get(other_id)
                 other_avatar = profile["avatar"] if profile else f"/player-{((other_id % 4) + 1)}.webp"
                 other_online = profile and profile["last_active_at"] and (datetime.utcnow() - datetime.fromisoformat(profile["last_active_at"])).total_seconds() < 300
@@ -6133,6 +6135,7 @@ WHERE user_quests.completed = 0
                     "other_role": role_by_user.get(other_id, ""),
                     "last_text": last_text,
                     "last_ts": last_ts,
+                    "last_is_voice": bool(last_is_voice),
                     "unread": unread,
                 })
             return sorted(results, key=lambda x: x["last_ts"], reverse=True)

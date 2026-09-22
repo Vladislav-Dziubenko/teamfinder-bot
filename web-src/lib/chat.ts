@@ -34,6 +34,8 @@ export type ChatPreview = {
   lastTs: number
   unread: number
   role?: string
+  /** Последнее сообщение — войс (текст у войсов пустой). */
+  lastIsVoice?: boolean
 }
 
 /** Парсит ISO-строку из БД (без timezone) как UTC, чтобы даты были корректными. */
@@ -83,6 +85,7 @@ export function useChats(): ChatPreview[] {
             lastTs: c.last_ts ? parseIsoTs(c.last_ts) : Date.now(),
             unread: c.unread ?? 0,
             role: c.other_role ?? "",
+            lastIsVoice: c.last_is_voice === true,
           }
         })
         setChats(list)
