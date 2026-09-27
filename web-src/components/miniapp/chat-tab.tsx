@@ -278,8 +278,37 @@ function MessageReactions({
 
   const visibleReactions = reactions ?? []
 
+  // Одновременно открыт только один пикер: открытие нового закрывает остальные.
+  // Закрытие: тап мимо (бэкдроп), Escape, скролл, выбор эмодзи.
+  useEffect(() => {
+    if (!showPicker) return
+    const onOther = (e: Event) => {
+      if ((e as CustomEvent).detail !== messageId) setShowPicker(false)
+    }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowPicker(false)
+    }
+    window.addEventListener("nexus:reaction-picker", onOther as EventListener)
+    document.addEventListener("keydown", onKey)
+    return () => {
+      window.removeEventListener("nexus:reaction-picker", onOther as EventListener)
+      document.removeEventListener("keydown", onKey)
+    }
+  }, [showPicker, messageId])
+
+  function togglePicker() {
+    setShowPicker((open) => {
+      if (!open) {
+        try {
+          window.dispatchEvent(new CustomEvent("nexus:reaction-picker", { detail: messageId }))
+        } catch {}
+      }
+      return !open
+    })
+  }
+
   return (
-    <div className={compact ? "relative mt-0.5 flex flex-wrap items-center gap-1" : "relative mt-1 flex flex-wrap items-center gap-1"}>
+    <div className={compact ? "relative mt-0 flex flex-wrap items-center gap-1" : "relative mt-1 flex flex-wrap items-center gap-1"}>
       {visibleReactions.map((r) => (
         <button
           key={r.emoji}
@@ -294,7 +323,7 @@ function MessageReactions({
       {onReact && (
         <button
           type="button"
-          onClick={() => setShowPicker((open) => !open)}
+          onClick={togglePicker}
           aria-label="Добавить реакцию"
           aria-expanded={showPicker}
           className={compact
@@ -305,21 +334,28 @@ function MessageReactions({
         </button>
       )}
       {showPicker && (
-        <div className="absolute z-10 mt-8 flex gap-1 rounded-lg bg-card p-2 shadow-lg border border-border">
-          {quickEmojis.map((e) => (
-            <button
-              key={e}
-              type="button"
-              onClick={() => {
-                onReact?.(e)
-                setShowPicker(false)
-              }}
-              className="grid size-8 place-items-center rounded text-lg active:scale-90"
-            >
-              {e}
-            </button>
-          ))}
-        </div>
+        <>
+          <div
+            className="fixed inset-0 z-20 cursor-default"
+            onPointerDown={() => setShowPicker(false)}
+            aria-hidden
+          />
+          <div className="absolute bottom-full z-30 mb-1 flex gap-1 rounded-lg bg-card p-2 shadow-lg border border-border">
+            {quickEmojis.map((e) => (
+              <button
+                key={e}
+                type="button"
+                onClick={() => {
+                  onReact?.(e)
+                  setShowPicker(false)
+                }}
+                className="grid size-8 place-items-center rounded text-lg active:scale-90"
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </>
       )}
     </div>
   )
@@ -346,7 +382,7 @@ const MessageBubble = React.memo(function MessageBubble({ message: m, mine, chat
   if (isVoice) {
     return (
       <div className={cn("flex", mine ? "justify-end" : "justify-start")}>
-        <div className="flex max-w-[78%] flex-col gap-0.5">
+        <div className="flex max-w-[78%] flex-col">
           <VoiceMessagePlayer
             src={`/api/chat/${chatId}/voice/${m.id}`}
             duration={m.voiceDuration || 0}

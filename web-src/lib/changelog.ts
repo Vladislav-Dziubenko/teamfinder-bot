@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = "1.7"
+export const CURRENT_VERSION = "1.8"
 export const STORAGE_KEY = "nexus_last_seen_version"
 
 export interface ChangelogItem {
@@ -10,6 +10,28 @@ export interface ChangelogItem {
 }
 
 export const updates: ChangelogItem[] = [
+  {
+    version: "1.8",
+    date: "27 Sep 2026",
+    isMajor: true,
+    title: { en: "New design, haptics & chat fixes", ru: "Новый дизайн, вибрация и фиксы чата" },
+    items: {
+      en: [
+        "✨ New NEXUS look: home, nav, top bar and event cards",
+        "📳 Vibration settings in profile: on/off + light/medium/strong with test",
+        "💬 Reactions fixed: picker closes on outside tap, opens upward",
+        "🎨 Custom stickers show as images, not raw links, in chat list",
+        "🔗 Links in chat are hidden behind safe pills (anti-scam)",
+      ],
+      ru: [
+        "✨ Новый дизайн NEXUS: главная, навигация, шапка и карточки",
+        "📳 Настройка вибрации в профиле: вкл/выкл + лёгкая/средняя/сильная с тестом",
+        "💬 Починен пикер реакций: закрывается по тапу мимо, открывается вверх",
+        "🎨 Кастомные стикеры в списке чатов — картинкой, а не сырой ссылкой",
+        "🔗 Ссылки в чате прячутся за безопасные пилюли (антискам)",
+      ],
+    },
+  },
   {
     version: "1.7",
     date: "9 Sep 2026",
