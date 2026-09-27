@@ -229,10 +229,10 @@ function Shell() {
   }
 
   return (
-    <div className="mx-auto flex min-h-dvh max-w-md flex-col bg-background md:shadow-[0_0_90px_-25px_color-mix(in_oklch,var(--primary)_45%,transparent)]">
+    <div className="nexus-shell">
       <TopBar onStars={() => goTab("donate")} onCoins={() => goTab("cases")} onChangelog={() => setChangelogOpen(true)} hasUpdate={hasUpdate} />
 
-      <main id="miniapp-scroll" className="flex-1 overflow-y-auto pb-24">
+      <main id="miniapp-scroll" className="nexus-main" data-tab={tab}>
         {tab === "home" && <HomeTab onGo={goTab} onConnect={setContact} onToast={setToast} />}
         {tab === "match" && <MatchTab onConnect={setContact} onJoinTeam={joinTeam} onChat={openChat} />}
         {tab === "predictions" && <Suspense fallback={<TabFallback />}><PredictionsTab onToast={setToast} /></Suspense>}

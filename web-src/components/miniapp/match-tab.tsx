@@ -190,12 +190,12 @@ export function MatchTab({
 
   return (
     <div className="space-y-4 px-4 py-5">
-      <div>
+      <div className="nexus-section-header">
         <h1 className="font-display text-2xl font-bold">{t("match.title")}</h1>
         <p className="text-sm text-muted-foreground text-pretty">
           {t("match.subtitle")}
         </p>
-        <span className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-accent/40 bg-accent/10 px-2.5 py-1 text-[11px] font-medium tabular-nums text-accent">
+        <span className="nexus-live mt-3">
           <Radio className="size-3 shrink-0" /> {t("home.hero_players", { count: onlineCount })}
         </span>
       </div>

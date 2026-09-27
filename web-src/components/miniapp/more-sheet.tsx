@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useMemo } from "react"
+import { ChevronRight } from "lucide-react"
 import { useI18n } from "@/lib/i18n"
 import { useNexus } from "@/lib/store"
 import { MORE_TABS, type TabId } from "./bottom-nav"
 import { hapticTap } from "@/lib/webapp"
 import { BottomSheet } from "./bottom-sheet"
-import { cn } from "@/lib/utils"
 
 export function MoreSheet({
   open,
@@ -43,12 +43,9 @@ export function MoreSheet({
       onClose={onClose}
       title={t("more.title")}
       autoFitKey={active}
-      headerExtra={
-        <p className="px-5 pb-2 text-sm text-muted-foreground">{t("more.subtitle")}</p>
-      }
     >
-      <div className="grid grid-cols-2 content-start gap-2.5 px-2">
-        {tabs.map(({ id, labelKey, descKey, icon: Icon }) => {
+      <div className="px-2">
+        {tabs.map(({ id, labelKey, icon: Icon }) => {
           const isActive = active === id
           return (
             <button
@@ -57,24 +54,15 @@ export function MoreSheet({
               onClick={() => {
                 hapticTap()
                 onSelect(id)
+                onClose()
               }}
-              className={cn(
-                "flex flex-col items-start gap-2 rounded-2xl border p-3.5 text-left transition-all active:scale-[0.98]",
-                isActive
-                  ? "border-primary/50 bg-primary/10"
-                  : "border-border bg-secondary/40",
-              )}
+              className="nexus-more-row"
+              data-active={isActive}
+              aria-current={isActive ? "page" : undefined}
             >
-              <span
-                className={cn(
-                  "grid size-9 place-items-center rounded-xl",
-                  isActive ? "bg-primary text-primary-foreground" : "bg-card text-muted-foreground",
-                )}
-              >
-                <Icon className="size-5" />
-              </span>
-              <span className="text-sm font-bold leading-tight">{t(labelKey)}</span>
-              <span className="text-[11px] leading-snug text-muted-foreground">{t(descKey)}</span>
+              <Icon className="size-5 shrink-0 text-primary" />
+              <span className="flex-1 text-sm font-medium leading-tight">{t(labelKey)}</span>
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" />
             </button>
           )
         })}

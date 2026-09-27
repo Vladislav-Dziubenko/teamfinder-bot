@@ -67,9 +67,9 @@ export function BottomNav({
   const unread = useTotalUnread()
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md">
-      <div className="border-t border-border bg-card/85 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl">
-        <ul className="flex items-stretch gap-0.5 px-1">
+    <nav className="nexus-nav" aria-label="NEXUS">
+      <div>
+        <ul className="nexus-nav-list">
           {MAIN_TABS.map(({ id, labelKey, icon: Icon }) => {
             const isActive = active === id
             const showBadge = id === "chat" && unread > 0
@@ -81,31 +81,30 @@ export function BottomNav({
                     if (!isActive) hapticTap()
                     onChange(id)
                   }}
-                  className="group relative flex w-full flex-col items-center gap-1 py-2.5"
+                  className="nexus-nav-button"
+                  data-active={isActive}
+                  title={t(labelKey)}
                   aria-current={isActive ? "page" : undefined}
                 >
-                  {isActive && (
-                    <span className="absolute -top-px h-0.5 w-8 rounded-full bg-primary shadow-[0_0_12px_var(--primary)]" />
-                  )}
                   <span className="relative">
                     <Icon
                       className={cn(
                         "size-5 transition-all duration-200",
                         isActive
-                          ? "scale-110 text-primary drop-shadow-[0_0_6px_var(--primary)]"
+                          ? "text-primary"
                           : "text-muted-foreground group-active:scale-90",
                       )}
                     />
                     {showBadge && (
                       <span className="absolute -right-2 -top-1.5 grid min-w-4 place-items-center rounded-full bg-primary px-1 text-[9px] font-bold leading-4 text-primary-foreground">
-                        {unread}
+                        {unread > 99 ? "99+" : unread}
                       </span>
                     )}
                   </span>
                   <span
                     className={cn(
-                      "max-w-full truncate text-[10px] font-medium tracking-wide transition-colors",
-                      isActive ? "text-foreground" : "text-muted-foreground",
+                      "font-medium transition-colors",
+                      isActive ? "text-primary" : "text-muted-foreground",
                     )}
                   >
                     {t(labelKey)}
@@ -123,18 +122,19 @@ export function BottomNav({
                 hapticTap()
                 onMore()
               }}
-              className="group relative flex w-full flex-col items-center gap-1 py-2.5"
+              className="nexus-nav-button"
+              data-active={!MAIN_TABS.some((item) => item.id === active)}
               aria-label={t("more.title")}
             >
               <span className="relative">
                 <LayoutGrid
                   className={cn(
                     "size-5 transition-all duration-200 group-active:scale-90",
-                    "text-muted-foreground",
+                    !MAIN_TABS.some((item) => item.id === active) ? "text-primary" : "text-muted-foreground",
                   )}
                 />
               </span>
-              <span className="max-w-full truncate text-[10px] font-medium tracking-wide text-muted-foreground">
+              <span className="font-medium">
                 {t("more.title")}
               </span>
             </button>

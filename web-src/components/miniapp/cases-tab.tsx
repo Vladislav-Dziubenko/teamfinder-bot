@@ -304,7 +304,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
 
   return (
     <div className="space-y-6 px-4 py-5">
-      <div className="flex items-start justify-between gap-3">
+      <div className="nexus-section-header flex items-start justify-between gap-3">
         <div>
           <h1 className="font-display text-2xl font-bold">{t("cases.title")}</h1>
           <p className="text-sm text-muted-foreground text-pretty">
@@ -361,7 +361,7 @@ export function CasesTab({ onToast }: { onToast: (m: string) => void }) {
       )}
 
       {/* Cases */}
-      <div className="space-y-4">
+      <div className="nexus-cases-grid">
         {loaded && lootCases.length === 0 && (
           <div className="rounded-3xl border border-dashed border-border py-8 text-center">
             <Package className="mx-auto size-7 text-muted-foreground" />
