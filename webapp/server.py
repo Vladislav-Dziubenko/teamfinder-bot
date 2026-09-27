@@ -801,7 +801,10 @@ async def handle_user_consent(request: web.Request):
 async def handle_user_sync(request: web.Request):
     """Сохраняет профиль Telegram (id, username, first/last name) из initDataUnsafe.user.
     Вызывается фронтендом при каждом запуске Mini App — чтобы в админке имя и
-    username отображались даже для тех, кто ни разу не писал боту в ЛС."""
+    username отображались даже для тех, кто ни разу не писал боту в ЛС.
+    Заодно лечит протухшие userpic-ссылки: свежий photo_url из initData
+    перезаписывает сохранённый, но ТОЛЬКО если сохранённый тоже телеграмный
+    (кастомные аплоады data:... и Discord/Steam не трогаем)."""
     db: Database = request.app["db"]
     user = _get_user(request)
     body = await request.json()
@@ -812,6 +815,22 @@ async def handle_user_sync(request: web.Request):
         None,
         (body.get("last_name") or "").strip()[:128] or None,
     )
+    fresh_photo = (body.get("photo_url") or "").strip()
+    if fresh_photo.startswith("https://"):
+        try:
+            async with db.pool.acquire() as conn:
+                row = await conn.fetchrow(
+                    "SELECT avatar FROM mini_app_profiles WHERE user_id = $1", user["id"])
+                stored = (row["avatar"] if row and row["avatar"] else "") or ""
+                # Лечим только телеграмные ссылки (t.me / userpic): они протухают.
+                # Кастом (data:), Discord CDN и Steam не трогаем никогда.
+                if (not stored or "t.me/" in stored or "userpic" in stored) and stored != fresh_photo:
+                    await conn.execute(
+                        "UPDATE mini_app_profiles SET avatar = $1, updated_at = $2 WHERE user_id = $3",
+                        fresh_photo[:500], datetime.utcnow().isoformat(), user["id"],
+                    )
+        except Exception as e:
+            logging.warning(f"[user.sync] avatar heal skipped user={user['id']}: {e}")
     return web.json_response({"ok": True})
 
 
@@ -6067,6 +6086,114 @@ async def handle_leaderboard(request: web.Request):
 # ---------------------------------------------------------------------------
 # Discord OAuth
 # ---------------------------------------------------------------------------
+def _discord_avatar_url(discord_user: dict) -> str | None:
+    """Строит URL аватарки Discord (animated a_xxx -> gif, иначе png 512px)."""
+    if not discord_user:
+        return None
+    if discord_user.get("avatar"):
+        ext = "gif" if str(discord_user["avatar"]).startswith("a_") else "png"
+        return f"https://cdn.discordapp.com/avatars/{discord_user['id']}/{discord_user['avatar']}.{ext}?size=512"
+    # дефолтный аватар Discord (0-5) по дискриминатору или id
+    try:
+        disc = int(discord_user.get("discriminator", "0") or "0")
+        idx = disc % 5 if disc else int(discord_user["id"]) % 5
+    except Exception:
+        idx = 0
+    return f"https://cdn.discordapp.com/embed/avatars/{idx}.png"
+
+
+def _discord_stale(updated_at: str | None, max_age_hours: int = 24) -> bool:
+    try:
+        if not updated_at:
+            return True
+        dt = datetime.fromisoformat(updated_at)
+        return (datetime.utcnow() - dt).total_seconds() > max_age_hours * 3600
+    except Exception:
+        return True
+
+
+async def _refresh_discord_connection(
+    db: Database, settings: Settings, user_id: int, conn: dict | None = None,
+) -> dict | None:
+    """Подтягивает свежие nick/avatar из Discord API и обновляет строку,
+    если что-то изменилось (смена аватара/ника в Discord).
+    Токен молча рефрешится при истечении. Возвращает свежий conn или None."""
+    from webapp.discord import fetch_discord_user, refresh_token as discord_refresh_token
+    try:
+        conn = conn or await db.get_discord_connection(user_id)
+        if not conn:
+            return None
+        access = conn.get("access_token") or ""
+        # Протухший токен — рефрешим перед запросом.
+        try:
+            exp = conn.get("token_expires_at")
+            expired = (not exp) or (datetime.fromisoformat(exp) <= datetime.utcnow())
+        except Exception:
+            expired = True
+        if expired and conn.get("refresh_token"):
+            try:
+                new_tokens = await discord_refresh_token(
+                    settings.discord_client_id, settings.discord_client_secret,
+                    conn["refresh_token"])
+            except Exception as e:
+                logging.warning(f"[discord.refresh] token refresh failed user={user_id}: {e}")
+                new_tokens = None
+            if new_tokens and new_tokens.get("access_token"):
+                try:
+                    await db.update_discord_tokens(
+                        user_id, new_tokens["access_token"],
+                        new_tokens.get("refresh_token") or conn.get("refresh_token", ""),
+                        datetime.utcfromtimestamp(
+                            time() + new_tokens.get("expires_in", 604800)).isoformat()
+                        if new_tokens.get("expires_in") else conn.get("token_expires_at"),
+                    )
+                except Exception as e:
+                    logging.warning(f"[discord.refresh] token save failed user={user_id}: {e}")
+                access = new_tokens["access_token"]
+        if not access:
+            return None
+        try:
+            fresh = await fetch_discord_user(access)
+        except Exception as e:
+            logging.warning(f"[discord.refresh] user fetch failed user={user_id}: {e}")
+            return None
+        if not fresh:
+            return None
+        fresh_avatar = _discord_avatar_url(fresh)
+        fresh_username = fresh.get("username")
+        fresh_global = fresh.get("global_name")
+        if (fresh_avatar != conn.get("discord_avatar")
+                or fresh_username != conn.get("discord_username")
+                or fresh_global != conn.get("discord_global_name")):
+            try:
+                async with db.pool.acquire() as pool_conn:
+                    await pool_conn.execute(
+                        "UPDATE discord_connections SET discord_username = $1,"
+                        " discord_global_name = $2, discord_avatar = $3, updated_at = $4"
+                        " WHERE user_id = $5",
+                        fresh_username, fresh_global, fresh_avatar,
+                        datetime.utcnow().isoformat(), user_id,
+                    )
+                logging.info(f"[discord.refresh] updated user={user_id}")
+            except Exception as e:
+                logging.warning(f"[discord.refresh] row update failed user={user_id}: {e}")
+            conn = await db.get_discord_connection(user_id) or conn
+        else:
+            # Ничего не изменилось — просто двигаем метку проверки.
+            try:
+                async with db.pool.acquire() as pool_conn:
+                    await pool_conn.execute(
+                        "UPDATE discord_connections SET updated_at = $1 WHERE user_id = $2",
+                        datetime.utcnow().isoformat(), user_id,
+                    )
+            except Exception:
+                pass
+        return conn
+    except Exception as e:
+        logging.warning(f"[discord.refresh] unexpected user={user_id}: {e}")
+        return None
+
+
 async def handle_discord_auth(request: web.Request):
     db: Database = request.app["db"]
     settings: Settings = request.app["settings"]
@@ -6170,19 +6297,7 @@ async def handle_discord_callback(request: web.Request):
     if not discord_user:
         return _discord_html(False, "user_fetch")
 
-    avatar = None
-    if discord_user.get("avatar"):
-        # animated avatar a_xxx -> gif, static -> png, добавляем ?size=512 для качества
-        ext = "gif" if str(discord_user["avatar"]).startswith("a_") else "png"
-        avatar = f"https://cdn.discordapp.com/avatars/{discord_user['id']}/{discord_user['avatar']}.{ext}?size=512"
-    else:
-        # дефолтный аватар Discord (0-5) по дискриминатору или id
-        try:
-            disc = int(discord_user.get("discriminator", "0") or "0")
-            idx = disc % 5 if disc else int(discord_user["id"]) % 5
-        except:
-            idx = 0
-        avatar = f"https://cdn.discordapp.com/embed/avatars/{idx}.png"
+    avatar = _discord_avatar_url(discord_user)
 
     expires_at = None
     if token_data.get("expires_in"):
@@ -6241,6 +6356,7 @@ async def handle_discord_callback(request: web.Request):
 
 async def handle_discord_status(request: web.Request):
     db: Database = request.app["db"]
+    settings: Settings = request.app["settings"]
     user = _get_user(request)
     if not user:
         return web.json_response({"error": "unauthorized"}, status=401)
@@ -6248,6 +6364,15 @@ async def handle_discord_status(request: web.Request):
     conn = await db.get_discord_connection(user["id"])
     if not conn:
         return web.json_response({"linked": False})
+    # Аватар/ник могли смениться в Discord (или строка старая, без аватара):
+    # подтягиваем свежее, но не чаще раза в сутки + всегда при пустом аватаре.
+    try:
+        if not conn.get("discord_avatar") or _discord_stale(conn.get("updated_at"), 24):
+            fresh = await _refresh_discord_connection(db, settings, user["id"], conn)
+            if fresh:
+                conn = fresh
+    except Exception as e:
+        logging.warning(f"[discord.status] refresh skipped user={user['id']}: {e}")
 
     welcome_claimed = bool(
         await db.pool.fetchval(
@@ -6330,9 +6455,16 @@ async def handle_discord_invite_claim(request: web.Request):
 
 async def handle_discord_sync_profile(request: web.Request):
     db: Database = request.app["db"]
+    settings: Settings = request.app["settings"]
     user = _get_user(request)
     if not user:
         return web.json_response({"error": "unauthorized"}, status=401)
+    # Кнопка "Взять ник и аватар" обязана тянуть СВЕЖЕЕ из Discord API,
+    # а не пыльную строку из БД (иначе смена аватара в Discord не видна).
+    try:
+        await _refresh_discord_connection(db, settings, user["id"])
+    except Exception as e:
+        logging.warning(f"[discord.sync] refresh skipped user={user['id']}: {e}")
     result = await db.import_discord_profile(user["id"])
     if "error" in result:
         return web.json_response({"error": result["error"]}, status=400)

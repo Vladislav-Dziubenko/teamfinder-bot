@@ -34,7 +34,7 @@ export function telegramReady(): void {
   }
 }
 
-export function getInitDataUser(): { id: number; first_name?: string; last_name?: string; username?: string; language_code?: string } | null {
+export function getInitDataUser(): { id: number; first_name?: string; last_name?: string; username?: string; language_code?: string; photo_url?: string } | null {
   if (typeof window === "undefined") return null
   const user = window.Telegram?.WebApp?.initDataUnsafe?.user
   if (user?.id) return user
@@ -49,8 +49,9 @@ export function getInitDataUser(): { id: number; first_name?: string; last_name?
   return null
 }
 
-// Отправляет имя/фамилию/username пользователя на бэкенд при каждом запуске,
-// чтобы профиль был известен даже если юзер никогда не писал боту в ЛС.
+// Отправляет имя/фамилию/username/фото пользователя на бэкенд при каждом
+// запуске, чтобы профиль был известен даже если юзер никогда не писал боту
+// в ЛС. Свежий photo_url заодно лечит протухшие userpic-ссылки в БД.
 export function syncTelegramProfile(): void {
   const u = getInitDataUser()
   if (!u?.id) return
@@ -58,6 +59,7 @@ export function syncTelegramProfile(): void {
     username: u.username || "",
     first_name: u.first_name || "",
     last_name: u.last_name || "",
+    photo_url: u.photo_url || "",
   }).catch(() => {})
 }
 

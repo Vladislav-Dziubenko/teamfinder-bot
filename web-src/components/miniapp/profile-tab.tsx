@@ -45,6 +45,7 @@ import { cn } from "@/lib/utils"
 import { CURRENT_VERSION } from "@/lib/changelog"
 import { LanguageSelector } from "./language-selector"
 import { RoleBadge } from "./role-badge"
+import { AvatarImage, getTelegramPhotoUrl } from "./avatar-image"
 import { CosmeticsEditor, useOwnCosmetics, refreshOwnCosmetics } from "./cosmetics-editor"
 
 type AchievementItem = {
@@ -226,7 +227,12 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
               aria-label={t("profile.change_avatar")}
             >
               {ownCos.avatar_art || avatar ? (
-                <img src={ownCos.avatar_art || avatar || "/placeholder.svg"} alt="Аватар" className="size-full object-cover" />
+                <AvatarImage
+                  src={ownCos.avatar_art || avatar}
+                  fallbackSrc={getTelegramPhotoUrl()}
+                  alt={nick || "?"}
+                  className="size-full object-cover"
+                />
               ) : (
                 nick.charAt(0).toUpperCase()
               )}

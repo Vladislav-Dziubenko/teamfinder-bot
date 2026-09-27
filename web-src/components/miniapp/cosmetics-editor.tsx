@@ -5,6 +5,7 @@ import { api, getInitDataUser } from "@/lib/api"
 import { useI18n } from "@/lib/i18n"
 import { setCachedCosmetics, type Cosmetics } from "@/lib/chat"
 import { hapticTap, hapticNotify } from "@/lib/webapp"
+import { AvatarImage, getTelegramPhotoUrl } from "./avatar-image"
 import { cn } from "@/lib/utils"
 
 const EMPTY: Cosmetics = { nick_color: "", frame_color: "", card_bg: "", avatar_art: "" }
@@ -468,10 +469,13 @@ export function CosmeticsEditor({ onToast, nick, avatar }: { onToast: (m: string
       <div className="rounded-2xl border border-border p-3" style={cardBg ? { background: cardBg } : undefined}>
         <div className="flex items-center gap-2.5">
           <span className="grid size-11 shrink-0 place-items-center overflow-hidden rounded-full bg-secondary font-display text-lg font-bold">
-            {art ? (
-              <img src={art} alt="" className="size-full object-cover" />
-            ) : avatar ? (
-              <img src={avatar} alt="" className="size-full object-cover" />
+            {art || avatar ? (
+              <AvatarImage
+                src={art || avatar}
+                fallbackSrc={getTelegramPhotoUrl()}
+                alt={nick || "?"}
+                className="size-full object-cover"
+              />
             ) : (
               (nick || "?").charAt(0).toUpperCase()
             )}

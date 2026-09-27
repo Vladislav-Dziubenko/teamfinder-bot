@@ -261,8 +261,8 @@
 .nexus-quicklink { display: flex; min-width: 0; min-height: 84px; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 12px; border: 1px solid var(--border); border-radius: 6px; text-align: start; font-size: 11px; font-weight: 550; transition: background 150ms, border-color 150ms; }
 .nexus-quicklink:hover { background: var(--card); border-color: var(--muted-foreground); }
 .nexus-quicklink span { overflow-wrap: anywhere; }
-.nexus-event { display: grid; width: 100%; grid-template-columns: 80px minmax(0, 1fr) 20px; align-items: center; gap: 14px; padding-block: 16px; border-block: 1px solid var(--border); text-align: start; }
-.nexus-event > img { width: 80px; height: 80px; object-fit: cover; border-radius: 6px; }
+.nexus-event { display: grid; width: 100%; grid-template-columns: 120px minmax(0, 1fr) 20px; align-items: center; gap: 14px; padding-block: 16px; border-block: 1px solid var(--border); text-align: start; }
+.nexus-event > img { width: 120px; height: 90px; object-fit: cover; object-position: center; border-radius: 6px; }
 .nexus-event h2 { font-size: 17px; font-weight: 650; margin-block: 4px; }
 .nexus-event p { font-size: 11px; line-height: 1.5; color: var(--muted-foreground); }
 .nexus-quest { padding-block: 16px; border-top: 1px solid var(--border); }
@@ -283,8 +283,8 @@
   .nexus-home { padding-inline: 16px; }
   .nexus-match-feature { margin-inline: -16px; padding-inline: 16px; }
   .nexus-match-feature h2 { font-size: 27px; }
-  .nexus-event { grid-template-columns: 64px minmax(0, 1fr) 16px; gap: 10px; }
-  .nexus-event > img { width: 64px; height: 72px; }
+  .nexus-event { grid-template-columns: 96px minmax(0, 1fr) 16px; gap: 10px; }
+  .nexus-event > img { width: 96px; height: 76px; }
 }
 @media (min-width: 1024px) {
   body { background: #0a0c0b; }
