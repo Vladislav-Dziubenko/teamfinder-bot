@@ -63,7 +63,7 @@ export const clansApi = {
   search(q: string): Promise<{ clans: Clan[] }> {
     return api.get(`/api/clans/search?q=${encodeURIComponent(q)}`)
   },
-  create(body: { name: string; tag: string; emblem: string; description: string; is_public: boolean }): Promise<{ clan: Clan }> {
+  create(body: { name: string; tag: string; emblem: string; description: string; is_public: boolean; avatar?: string }): Promise<{ clan: Clan }> {
     return api.post("/api/clans", body)
   },
   join(id: number, invite_code?: string): Promise<{ ok: boolean }> {

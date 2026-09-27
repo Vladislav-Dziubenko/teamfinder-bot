@@ -6722,9 +6722,19 @@ async def handle_clans_create(request: web.Request):
         return web.json_response({"error": "bad tag (2-5 A-Z/0-9)"}, status=400)
     if emblem not in CLAN_EMBLEMS or CLAN_EMBLEMS[emblem] > 1:
         return web.json_response({"error": "emblem locked (level up your clan)"}, status=400)
+    avatar = body.get("avatar") or ""
+    if avatar:
+        reason = _cosmetic_art_error(avatar)
+        if reason:
+            logging.warning(
+                "[clans.create] avatar rejected user=%s reason=%s len=%s",
+                user["id"], reason, len(avatar) if isinstance(avatar, str) else -1,
+            )
+            return web.json_response({"error": f"invalid avatar: {reason}"}, status=400)
+        avatar = str(avatar)
     settings = request.app.get("settings")
     max_members = int(getattr(settings, "clan_max_members", 15) or 15)
-    res = await db.create_clan(user["id"], name, tag, emblem, description, is_public, max_members)
+    res = await db.create_clan(user["id"], name, tag, emblem, description, is_public, max_members, avatar)
     if "error" in res:
         return web.json_response(res, status=400)
     return web.json_response(res)

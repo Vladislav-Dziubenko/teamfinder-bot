@@ -2498,7 +2498,7 @@ class Database:
 
     async def create_clan(self, user_id: int, name: str, tag: str, emblem: str = "",
                           description: str = "", is_public: bool = True,
-                          max_members: int = 15) -> dict:
+                          max_members: int = 15, avatar: str = "") -> dict:
         # NB: UniqueViolation ловим только через SAVEPOINT (вложенный
         # transaction): пойманная ошибка абортит всю транзакцию, и возврат
         # без исключения всё равно уронил бы COMMIT. Сейвпоинт откатывает
@@ -2515,10 +2515,11 @@ class Database:
                         row = await conn.fetchrow(
                             "INSERT INTO clans (name, tag, emblem, description, is_public,"
                             " max_members, level, lifetime_points, bank_points, season_id,"
-                            " created_by, created_at)"
-                            " VALUES ($1, $2, $3, $4, $5, $6, 1, 0, 0, '', $7, $8) RETURNING *",
+                            " created_by, created_at, avatar)"
+                            " VALUES ($1, $2, $3, $4, $5, $6, 1, 0, 0, '', $7, $8, $9) RETURNING *",
                             name, tag, emblem, description, int(bool(is_public)),
                             max(5, min(int(max_members or 15), 30)), user_id, now,
+                            (avatar or "")[:150_000],
                         )
                 except asyncpg.UniqueViolationError:
                     return {"error": "name_or_tag_taken"}

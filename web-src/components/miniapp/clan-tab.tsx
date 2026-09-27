@@ -792,6 +792,25 @@ function ClanBrowse({ onToast, onJoined, initialView }: { onToast: (m: string) =
   const [desc, setDesc] = useState("")
   const [isPublic, setIsPublic] = useState(true)
   const [creating, setCreating] = useState(false)
+  const [avatarArt, setAvatarArt] = useState("")
+  const createFileRef = useRef<HTMLInputElement>(null)
+
+  async function onCreatePhoto(e: React.ChangeEvent<HTMLInputElement>): Promise<void> {
+    const f = e.target.files?.[0]
+    if (!f) return
+    try {
+      setAvatarArt(await downscalePhoto(f, 256, 0.85))
+    } catch (err: any) {
+      const msg = String((err as any)?.message || "")
+      if (msg.includes("avatar_too_large")) {
+        onToast(bru ? "Фото слишком большое даже после сжатия — выбери поменьше" : "Photo too large even compressed")
+      } else {
+        onToast(bru ? "Не читается картинка" : "Bad image")
+      }
+    } finally {
+      if (createFileRef.current) createFileRef.current.value = ""
+    }
+  }
 
   const doSearch = async (query: string) => {
     setLoading(true)
@@ -828,9 +847,18 @@ function ClanBrowse({ onToast, onJoined, initialView }: { onToast: (m: string) =
       onToast(bru ? "Название от 3 символов, тег 2–5" : "Name 3+, tag 2–5")
       return
     }
+    hapticTap()
+    if (avatarArt && avatarArt.length > 140_000) {
+      onToast(
+        bru
+          ? `Картинка тяжёлая (${Math.round(avatarArt.length / 1024)}КБ, лимит 150КБ) — выбери фото поменьше`
+          : `Image too heavy (${Math.round(avatarArt.length / 1024)}KB, max 150KB)`,
+      )
+      return
+    }
     setCreating(true)
     try {
-      await clansApi.create({ name: name.trim(), tag: tag.trim(), emblem, description: desc.trim(), is_public: isPublic })
+      await clansApi.create({ name: name.trim(), tag: tag.trim(), emblem, description: desc.trim(), is_public: isPublic, avatar: avatarArt || undefined })
       onToast(bru ? "Клан создан!" : "Clan created!")
       onJoined()
     } catch (e: any) {
@@ -956,6 +984,33 @@ function ClanBrowse({ onToast, onJoined, initialView }: { onToast: (m: string) =
               placeholder={bru ? "Клан для своих…" : "Clan for friends…"}
               className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm outline-none focus:border-primary/50"
             />
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold text-muted-foreground">{bru ? "Аватарка (необязательно)" : "Avatar (optional)"}</p>
+            <input ref={createFileRef} type="file" accept="image/*" onChange={onCreatePhoto} className="hidden" />
+            <div className="flex items-center gap-3">
+              <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-2xl bg-secondary text-2xl">
+                {avatarArt ? <img src={avatarArt} alt="" className="size-full object-cover" /> : (emblem || "🛡️")}
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => createFileRef.current?.click()}
+                  className="rounded-xl bg-secondary px-3 py-2 text-xs font-bold active:scale-95"
+                >
+                  {bru ? "📷 Загрузить фото" : "📷 Upload photo"}
+                </button>
+                {avatarArt && (
+                  <button
+                    type="button"
+                    onClick={() => setAvatarArt("")}
+                    className="rounded-xl bg-secondary px-3 py-2 text-xs font-bold text-muted-foreground active:scale-95"
+                  >
+                    {bru ? "Убрать" : "Remove"}
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
           <button
             type="button"
