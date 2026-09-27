@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils"
 import { ChatConversation } from "./chat-tab"
 import { ArtCanvas } from "./cosmetics-editor"
 import { AvatarImage } from "./avatar-image"
-import { downscalePhoto } from "@/lib/image"
+import { diagImageError, downscalePhoto } from "@/lib/image"
 
 const EMBLEMS = ["🛡️", "⚔️", "🔥", "❄️", "🐺", "🦁", "🐉", "⚡", "🌪️", "👑", "💎", "🏆"]
 const LEVEL_STEPS = [0, 1000, 3000, 8000, 20000, 50000]
@@ -135,8 +135,11 @@ function ClanAvatarEditor({ clan, onToast, onSaved, ru }: { clan: Clan; onToast:
       setArt(await downscalePhoto(f, 256, 0.85))
     } catch (err: any) {
       const msg = String((err as any)?.message || "")
+      diagImageError("clan", "avatar-photo", f, err)
       if (msg.includes("avatar_too_large")) {
         onToast(ru ? "Фото слишком большое даже после сжатия — выбери поменьше" : "Photo too large even compressed")
+      } else if (msg.includes("empty file")) {
+        onToast(ru ? "Пустой файл — выбери другое фото" : "Empty file — pick another photo")
       } else {
         onToast(ru ? "Не читается картинка" : "Bad image")
       }
@@ -802,8 +805,11 @@ function ClanBrowse({ onToast, onJoined, initialView }: { onToast: (m: string) =
       setAvatarArt(await downscalePhoto(f, 256, 0.85))
     } catch (err: any) {
       const msg = String((err as any)?.message || "")
+      diagImageError("clan", "create-photo", f, err)
       if (msg.includes("avatar_too_large")) {
         onToast(bru ? "Фото слишком большое даже после сжатия — выбери поменьше" : "Photo too large even compressed")
+      } else if (msg.includes("empty file")) {
+        onToast(bru ? "Пустой файл — выбери другое фото" : "Empty file — pick another photo")
       } else {
         onToast(bru ? "Не читается картинка" : "Bad image")
       }

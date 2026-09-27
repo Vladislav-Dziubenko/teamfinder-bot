@@ -153,6 +153,7 @@ export function HomeTab({
           <button type="button" onClick={() => onGo("match")} className="nexus-primary-button">
             <Swords className="size-4 shrink-0" />{t("home.hero_cta")}<ArrowUpRight className="size-4 shrink-0" />
           </button>
+          <span className="nexus-live-on-hero"><Radio className="size-3 shrink-0" />{t("home.hero_players", { count: searchCount })}</span>
           <span className="nexus-feature-code">CS2 / DOTA 2 / +8</span>
         </div>
       </section>
