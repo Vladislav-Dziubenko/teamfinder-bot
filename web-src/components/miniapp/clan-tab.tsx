@@ -149,6 +149,18 @@ function ClanAvatarEditor({ clan, onToast, onSaved, ru }: { clan: Clan; onToast:
     setSaving(true)
     hapticTap()
     try {
+      // Предпроверка до POST: сервер режет всё тяжелее 150КБ.
+      // downscalePhoto даёт ≤96КБ, но рисунок с холста проверяем явно,
+      // чтобы вместо abstract "invalid avatar" человек видел причину.
+      if (art && art.length > 140_000) {
+        hapticNotify("error")
+        onToast(
+          ru
+            ? `Картинка тяжёлая (${Math.round(art.length / 1024)}КБ, лимит 150КБ) — выбери фото поменьше или порисуй проще`
+            : `Image too heavy (${Math.round(art.length / 1024)}KB, max 150KB)`,
+        )
+        return
+      }
       await clansApi.settings(clan.id, { avatar: art })
       hapticNotify("success")
       onToast(ru ? "Аватарка клана обновлена" : "Clan avatar updated")

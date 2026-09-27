@@ -975,15 +975,24 @@ def _valid_card_bg(v: object) -> bool:
 
 
 def _valid_cosmetic_art(v: object) -> bool:
+    return _cosmetic_art_error(v) is None
+
+
+def _cosmetic_art_error(v: object) -> str | None:
+    """Конкретная причина отказа (для точных ошибок клиенту и логов).
+    None = валидно."""
     if not isinstance(v, str) or not v:
-        return False
-    if not v.startswith(_COSMETIC_ART_PREFIXES) or len(v) > _COSMETIC_ART_MAX:
-        return False
+        return "empty image"
+    if not v.startswith(_COSMETIC_ART_PREFIXES):
+        prefix = v.split(",", 1)[0][:48]
+        return f"bad image format ({prefix})"
+    if len(v) > _COSMETIC_ART_MAX:
+        return f"image too large ({len(v)} > {_COSMETIC_ART_MAX})"
     try:
         base64.b64decode(v.split(",", 1)[1], validate=True)
-        return True
+        return None
     except Exception:
-        return False
+        return "broken base64 image"
 
 
 async def handle_cosmetics_get(request: web.Request):
@@ -6864,8 +6873,15 @@ async def handle_clans_settings(request: web.Request):
         fields["is_public"] = int(bool(body.get("is_public")))
     if "avatar" in body:
         art = body.get("avatar")
-        if art not in ("", None) and not _valid_cosmetic_art(art):
-            return web.json_response({"error": "invalid avatar"}, status=400)
+        if art not in ("", None):
+            reason = _cosmetic_art_error(art)
+            if reason:
+                logging.warning(
+                    "[clans.settings] avatar rejected clan=%s user=%s reason=%s len=%s",
+                    clan_id, user["id"], reason,
+                    len(art) if isinstance(art, str) else -1,
+                )
+                return web.json_response({"error": f"invalid avatar: {reason}"}, status=400)
         fields["avatar"] = art or ""
     res = await db.update_clan(clan_id, user["id"], fields)
     if "error" in res:
