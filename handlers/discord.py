@@ -20,7 +20,7 @@ async def cmd_discord(message: Message, db: Database, settings: Settings):
             "🔗 <b>Discord привязан</b>\n\n"
             f"👤 <b>{name}</b>\n"
             f"🆔 <code>{discord_id}</code>\n\n"
-            "Твой Discord аккаунт связан с профилем TeamFinder."
+            "Твой Discord аккаунт связан с профилем NEXUS."
         )
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="❌ Отвязать Discord", callback_data="discord:unlink")],

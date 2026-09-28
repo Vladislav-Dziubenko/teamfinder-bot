@@ -92,15 +92,16 @@ async def cmd_start(message: Message, command: CommandObject, db: Database, sett
             pass  # Telegram сам передаёт start_param в initDataUnsafe
 
     text = (
-        "👋 <b>TeamFinder</b> — бот для поиска команд в играх!\n\n"
-        "🎮 <b>CS2, Roblox, WoT, War Thunder</b> и другие\n\n"
-        "Анкета, поиск команды, гайды и премиум за ⭐ Stars — "
-        "всё в одном окне приложения."
+        "👋 <b>NEXUS TeamHub</b> — тиммейты за 30 секунд!\n\n"
+        "🎮 <b>CS2 · Dota 2 · Valorant · Roblox · WoT</b> и другие\n"
+        "🔍 Подбор по игре, рангу и вайбу\n"
+        "💬 Чаты, кланы, кейсы и маркет — всё в одном Mini App\n\n"
+        "Жми кнопку — создай анкету и находи своих 👇"
     )
 
     if settings.webapp_url:
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="🚀 Открыть TeamFinder", web_app=WebAppInfo(url=webapp_url))]
+            [InlineKeyboardButton(text="🚀 Открыть NEXUS", web_app=WebAppInfo(url=webapp_url))]
         ])
         await message.answer(text, reply_markup=kb)
     else:
@@ -132,7 +133,7 @@ async def help_msg(message: Message):
 async def premium_info(message: Message, settings):
     from keyboards.menus import premium_menu
     await message.answer(
-        "⭐ <b>Премиум TeamFinder</b>\n\n"
+        "⭐ <b>Премиум NEXUS</b>\n\n"
         f"🏆 <b>Лучший подбор</b> — {settings.price_best_team} Stars\n"
         "Топ-10 игроков, % совместимости, контакты, 3 поиска\n\n"
         f"🚀 <b>Поднять анкету</b> — {settings.price_highlight} Stars\n"

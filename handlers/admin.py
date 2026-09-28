@@ -37,7 +37,7 @@ async def admin_stats(message: Message, db: Database, settings: Settings):
 
     s = await db.stats()
     await message.answer(
-        "📊 <b>Статистика TeamFinder</b>\n\n"
+        "📊 <b>Статистика NEXUS</b>\n\n"
         f"👥 Пользователей: {s['users']}\n"
         f"📝 Анкет: {s['profiles']}\n"
         f"💳 Покупок: {s['purchases']}\n"

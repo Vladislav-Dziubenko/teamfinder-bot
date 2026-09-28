@@ -135,7 +135,7 @@ async def _notify_return_bonus(bot: Bot, db: Database, discord_bot=None) -> None
         ok = await _send(
             bot,
             r["user_id"],
-            "🔥 <b>Вернись в TeamFinder!</b>\n\n"
+            "🔥 <b>Вернись в NEXUS!</b>\n\n"
             "Твой Discord-бонус ждёт: +10 ⭐ за активную связь.\n"
             "А ещё — ежедневный бесплатный кейс и награды батл-пасса!",
         )

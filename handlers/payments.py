@@ -141,7 +141,7 @@ async def pay_guide(callback: CallbackQuery, bot: Bot, db: Database):
         bot,
         callback.from_user.id,
         guide["title"],
-        "Премиум-гайд TeamFinder",
+        "Премиум-гайд NEXUS",
         f"guide:{guide_id}",
         guide["stars"],
     )
