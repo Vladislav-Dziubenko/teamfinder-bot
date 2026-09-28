@@ -27,6 +27,8 @@ type Overview = {
   funnel: { event: string; users: number; conversion: number | null }[]
   series: { day: string; new_users: number; dau: number }[]
   error?: string
+  excluded_accounts?: number
+  payments?: { received: number; payers: number; gross_stars: number; funnel: { event: string; users: number; conversion: number | null }[] }
 }
 
 function pct(v: number | null | undefined): string {
@@ -94,6 +96,11 @@ export function AnalyticsTab() {
   }
 
   const funnelLabels: Record<string, string> = {
+    app_open: lang === "ru" ? "Открыли приложение" : "Opened app",
+    message_sent: lang === "ru" ? "Отправили сообщение" : "Sent a message",
+    support_viewed: lang === "ru" ? "Открыли поддержку" : "Viewed support",
+    invoice_created: lang === "ru" ? "Создали счёт" : "Created invoice",
+    payment_received: lang === "ru" ? "Оплата получена" : "Payment received",
     first_open: t("analytics.funnel_first_open"),
     registration_completed: t("analytics.funnel_registered"),
     teammate_search_started: t("analytics.funnel_search"),
@@ -115,6 +122,10 @@ export function AnalyticsTab() {
         </div>
       </div>
 
+      <p className="text-xs leading-relaxed text-muted-foreground">
+        {lang === "ru" ? "Аккаунты разработчиков исключены. Активность считается по записанным событиям; история до начала учёта может быть неполной." : "Developer accounts are excluded. Activity uses recorded events; history before tracking began may be incomplete."}
+      </p>
+
       <div className="grid grid-cols-3 gap-1 rounded-2xl border border-border bg-card p-1">
         {([7, 30, 90] as const).map((d) => (
           <button
@@ -133,7 +144,7 @@ export function AnalyticsTab() {
 
       {loading && <Loader2 className="mx-auto mt-6 size-6 animate-spin text-muted-foreground" />}
 
-      {!loading && (forbidden || !data) && (
+      {!loading && (forbidden || !data || data.error) && (
         <div className="rounded-3xl border border-dashed border-border py-12 text-center">
           <Lock className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-2 text-sm text-muted-foreground">
@@ -142,7 +153,7 @@ export function AnalyticsTab() {
         </div>
       )}
 
-      {!loading && data && !forbidden && (
+      {!loading && data && !data.error && !forbidden && (
         <>
           <div className="grid grid-cols-2 gap-2.5">
             <Card label={t("analytics.total_users")} value={num(data.total_users)} />
@@ -172,7 +183,7 @@ export function AnalyticsTab() {
                         {r.cohort_day ? ` · ${r.cohort_day}` : ""}
                       </span>
                       <span className="font-display text-base font-bold text-primary tabular-nums">
-                        {pct(r.rate)}
+                        {r.cohort ? pct(r.rate) : lang === "ru" ? "Нет когорты" : "No cohort"}
                       </span>
                     </div>
                     <div className="mt-1 h-2 overflow-hidden rounded-full bg-secondary">
@@ -185,7 +196,7 @@ export function AnalyticsTab() {
                 )
               })}
             </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">{t("analytics.retention_hint")}</p>
+            <p className="mt-2 text-[11px] text-muted-foreground">{lang === "ru" ? "Возврат ровно на D1/D7/D30 после регистрации, по активности сегодня (UTC). Сегодняшний день ещё не завершён." : "Return on exactly D1/D7/D30 after registration, based on today's activity (UTC). Today is still in progress."}</p>
           </section>
 
           <section className="rounded-3xl border border-border bg-card p-4">
@@ -236,6 +247,7 @@ export function AnalyticsTab() {
 
           <section className="rounded-3xl border border-border bg-card p-4">
             <h2 className="font-display text-base font-bold">{t("analytics.funnel_title")}</h2>
+            <p className="mt-2 text-xs text-muted-foreground">{lang === "ru" ? "Одни и те же пользователи проходят этапы по порядку в выбранном периоде. Регистрация не обязательный шаг для старых игроков. Сообщение не означает сыгранный матч." : "The same users complete steps in order within this period. Existing players need not register again. A message does not prove a match was played."}</p>
             <div className="mt-3 space-y-2.5">
               {(data.funnel ?? []).map((f) => (
                 <div key={f.event}>
@@ -264,6 +276,17 @@ export function AnalyticsTab() {
             </div>
           </section>
 
+          {data.payments && <section className="border-y border-border py-4">
+            <h2 className="text-base font-bold">{lang === "ru" ? "Поддержка и оплаты" : "Support and payments"}</h2>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <Card label={lang === "ru" ? "Оплат" : "Payments"} value={num(data.payments.received)} />
+              <Card label={lang === "ru" ? "Плательщиков" : "Payers"} value={num(data.payments.payers)} />
+              <Card label="Telegram Stars" value={num(data.payments.gross_stars)} />
+            </div>
+            <p className="mt-3 text-xs text-muted-foreground">{lang === "ru" ? "Полученные платежи Telegram, до возвратов. Внутренние звёзды не считаются выручкой. Ниже — последовательность только через экран поддержки; оплаты из бота и автопродления могут не попасть в неё." : "Received Telegram payments before refunds. Internal stars are not revenue. The sequence below covers the support screen; bot purchases and renewals may fall outside it."}</p>
+            {data.payments.funnel.map((stage) => <div key={stage.event} className="mt-3 flex justify-between gap-3 text-sm"><span>{funnelLabels[stage.event]}</span><span className="shrink-0 tabular-nums">{num(stage.users)}{stage.conversion == null ? "" : ` · ${pct(stage.conversion)}`}</span></div>)}
+          </section>}
+
           <section className="rounded-3xl border border-border bg-card p-4">
             <h2 className="font-display text-base font-bold">{t("analytics.activity_title")}</h2>
             <div className="mt-3 flex h-28 items-end gap-[3px]">
@@ -272,7 +295,7 @@ export function AnalyticsTab() {
                   key={s.day}
                   title={`${s.day}: DAU ${s.dau}, +${s.new_users}`}
                   className="min-w-0 flex-1 rounded-t bg-primary/70"
-                  style={{ height: `${Math.max(4, (s.dau / maxDau) * 100)}%` }}
+                  style={{ height: `${(s.dau / maxDau) * 100}%` }}
                 />
               ))}
             </div>

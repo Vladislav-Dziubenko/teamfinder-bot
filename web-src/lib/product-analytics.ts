@@ -12,6 +12,7 @@ export type ProductEvent =
   | "teammate_profile_opened"
   | "friend_invited"
   | "notification_opened"
+  | "support_viewed"
 
 function uuid(): string {
   try {
@@ -66,14 +67,15 @@ export function trackEvent(
   } catch {}
 }
 
-/** Первый запуск Mini App за всё время (localStorage-флаг + once на бэке). */
+/** Первый запуск Mini App за всё время; дедупликация на сервере. */
 export function trackFirstOpen(): void {
-  trackEvent("first_open", {}, { onceEverKey: "nexus-first-open-sent" })
+  // The server owns once-only deduplication, including retries and account switches.
+  trackEvent("first_open")
 }
 
-/** Каждый запуск Mini App (флаг на загрузку + раз в день на бэке). */
+/** Активность Mini App; сервер учитывает пользователя один раз в день. */
 export function trackAppOpen(): void {
-  trackEvent("app_open", {}, { oncePerLoadKey: "nexus-app-open-sent" })
+  trackEvent("app_open")
 }
 
 /** Возврат через уведомление о тиммейте. */

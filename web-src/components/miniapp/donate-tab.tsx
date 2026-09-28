@@ -8,6 +8,7 @@ import { useNexus } from "@/lib/store"
 import { api, openInvoice, openTelegramLink } from "@/lib/api"
 import { hapticNotify, hapticTap } from "@/lib/webapp"
 import { cn } from "@/lib/utils"
+import { trackEvent } from "@/lib/product-analytics"
 import { StarSendSheet, type StarRecipient } from "@/components/miniapp/star-send-sheet"
 
 const coinPacks = [
@@ -58,6 +59,7 @@ export function DonateTab() {
   const [teammates, setTeammates] = useState<StarRecipient[]>([])
 
   useEffect(() => {
+    trackEvent("support_viewed")
     let cancelled = false
     async function loadLeaderboard() {
       try {

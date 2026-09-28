@@ -1550,6 +1550,7 @@ async def handle_create_invoice(request: web.Request):
     else:
         return web.json_response({"error": "unknown invoice type"}, status=400)
 
+    await db.log_analytics_event(user["id"], "invoice_created", {"product": kind})
     return web.json_response({"invoice_link": link})
 
 
@@ -3855,6 +3856,8 @@ async def handle_chat_send(request: web.Request):
             return web.json_response({"error": "invalid reply"}, status=400)
     await db.mark_chat_read(chat_id, user["id"])
     msg = await db.send_message(chat_id, user["id"], text, reply_to)
+    if status.get("other_id") is not None:
+        await db.log_analytics_event(user["id"], "message_sent", {}, f"message-sent:{msg['id']}")
     # Сбрасываем кэш сообщений — чтобы poller сразу получил новое сообщение.
     await cache_delete_pattern(f"chat_msgs:{chat_id}")
     # Telegram-уведомление собеседнику (фоново, без задержки ответа).
@@ -5095,6 +5098,7 @@ ANALYTICS_EVENT_TYPES = frozenset({
     "first_open", "app_open", "registration_completed",
     "teammate_search_started", "teammate_search_empty", "teammate_found",
     "teammate_profile_opened", "friend_invited", "notification_opened",
+    "support_viewed",
 })
 
 # Уведомления о тиммейте: максимум 1 шт в 6 часов на подписчика +
@@ -5138,7 +5142,9 @@ async def handle_analytics_overview(request: web.Request):
         days = int(request.query.get("days", 30))
     except (ValueError, TypeError):
         days = 30
-    return web.json_response(await db.get_analytics_overview(days))
+    settings = request.app.get("settings")
+    excluded = settings.admin_ids if settings else ()
+    return web.json_response(await db.get_analytics_overview(days, excluded))
 
 
 async def handle_search_subscribe(request: web.Request):

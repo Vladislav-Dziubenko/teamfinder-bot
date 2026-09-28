@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
-import { Search, Sparkles, Star, Lock, Zap, Loader2, Heart, MessageCircle, Radio } from "lucide-react"
+import { Search, Sparkles, Star, Lock, Zap, Loader2, Heart, MessageCircle, Radio, RotateCcw } from "lucide-react"
 import { games } from "@/lib/data"
 import type { Player, Team } from "@/lib/data"
 import { useI18n } from "@/lib/i18n"
@@ -29,7 +29,7 @@ export function MatchTab({
   onJoinTeam: (t: Team) => void
   onChat?: (p: Player) => void
 }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const { loaded, searchUnlimited, dailySearchesBonus, freeSearchesLeft, useFreeSearch, spendStars, unlockPlayer, unlockedPlayers } = useNexus()
 
   const [mode, setMode] = useState<"players" | "teams" | "likes">("players")
@@ -187,6 +187,18 @@ export function MatchTab({
   }, [searchResults, game])
 
   const noFreeLeft = loaded && freeSearchesLeft === 0 && !extended
+  const hasFilters = game !== "all" || query.trim() !== "" || onlyDiscord || onlySteam
+
+  function resetFilters() {
+    setGame("all")
+    setQuery("")
+    setApplied("")
+    setOnlyDiscord(false)
+    setOnlySteam(false)
+    setSearchResults(null)
+    setHasSearched(false)
+    setNotice(null)
+  }
 
   return (
     <div className="space-y-4 px-4 py-5">
@@ -328,7 +340,9 @@ export function MatchTab({
       )}
 
       {/* List */}
-      {!hasSearched ? (
+      {mode === "likes" ? (
+        <LikesSection onChat={onChat} />
+      ) : !hasSearched ? (
         <div className="rounded-3xl border border-dashed border-border py-12 text-center">
           <Search className="mx-auto size-8 text-muted-foreground" />
           <p className="mt-2 font-display text-lg font-bold text-muted-foreground">{t("match.hint_search")}</p>
@@ -338,11 +352,18 @@ export function MatchTab({
         <div className="flex items-center justify-center py-12">
           <Loader2 className="size-8 animate-spin text-primary" />
         </div>
+      ) : searchResults === null ? (
+        <button type="button" onClick={runSearch} className="flex items-center gap-2 rounded-lg border border-border px-4 py-3 text-sm font-semibold">
+          <RotateCcw className="size-4" /> {lang === "ru" ? "Повторить поиск" : "Retry search"}
+        </button>
       ) : mode === "players" ? (
         <div className="space-y-4">
           {filteredPlayers.length === 0 && (
             <>
               <Empty />
+              {hasFilters && <button type="button" onClick={resetFilters} className="flex w-full items-center justify-center gap-2 rounded-lg border border-border px-4 py-3 text-sm font-semibold">
+                <RotateCcw className="size-4 shrink-0" /> {lang === "ru" ? "Сбросить фильтры" : "Reset filters"}
+              </button>}
               <div className="rounded-3xl border border-primary/30 bg-primary/5 p-4 text-center">
                 <p className="text-sm font-semibold">
                   {currentSub ? t("match.notify_on") : t("match.notify_title")}
@@ -383,8 +404,6 @@ export function MatchTab({
             )
           })}
         </div>
-      ) : mode === "likes" ? (
-        <LikesSection onChat={onChat} />
       ) : (
         <div className="space-y-4">
           {filteredTeams.length === 0 && <Empty />}
