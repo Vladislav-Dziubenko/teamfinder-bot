@@ -93,7 +93,7 @@ function Shell() {
     try {
       const lastSeen = localStorage.getItem(STORAGE_KEY)
       setHasUpdate(hasNewUpdate(lastSeen))
-      if (hasMajorUpdate(lastSeen)) {
+      if (lastSeen && isOnboardingDone() && hasMajorUpdate(lastSeen)) {
         // Сохраняем СРАЗУ, чтобы шторка не открывалась повторно при рефреше
         localStorage.setItem(STORAGE_KEY, CURRENT_VERSION)
         setChangelogOpen(true)

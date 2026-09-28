@@ -131,14 +131,12 @@ export function DonateTab() {
 
   return (
     <div className="space-y-6 px-4 py-5">
-      <div className="text-center">
-        <span className="mx-auto grid size-16 place-items-center rounded-3xl bg-stars/15 text-stars animate-float">
-          <Star className="size-8 fill-stars" />
-        </span>
-        <h1 className="mt-3 font-display text-2xl font-bold">{t("donate.title")}</h1>
-        <p className="mx-auto mt-1 max-w-xs text-sm text-muted-foreground text-pretty">
+      <div className="nexus-section-header">
+        <h1 className="font-display text-2xl font-bold">{t("home.support_title")}</h1>
+        <p className="mt-2 text-sm text-muted-foreground text-pretty">
           {t("donate.subtitle")}
         </p>
+        <p className="mt-2 text-xs text-muted-foreground">{t("donate.support_note")}</p>
       </div>
 
       {/* Perks row */}
@@ -149,19 +147,18 @@ export function DonateTab() {
       </div>
 
       {/* Super+ subscription */}
-      <section className="relative overflow-hidden rounded-3xl border border-[#ff9d00]/50 bg-gradient-to-br from-[#ff9d00]/15 via-card to-[#ffd700]/10 p-5">
-        <div className="pointer-events-none absolute -right-12 -top-12 size-44 rounded-full bg-gradient-to-br from-[#ff9d00]/30 to-[#ffd700]/20 blur-2xl" />
+      <section className="border-y border-border py-5">
         <div className="relative">
           <div className="flex items-center gap-2.5">
-            <span className="grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-[#ff9d00] to-[#ffd700] text-background shadow-lg">
+            <span className="grid size-11 shrink-0 place-items-center rounded-md bg-stars/15 text-stars">
               <Gem className="size-6" />
             </span>
             <div>
               <p className="font-display text-xl font-black tracking-wide">
-                SUPER<span className="bg-gradient-to-r from-[#ff9d00] to-[#ffd700] bg-clip-text text-transparent">+</span>
+                SUPER<span className="text-stars">+</span>
               </p>
               <p className="text-xs text-muted-foreground">
-                {ru ? "999 ⭐/мес (~$15) · автопродление · отмена в любой момент" : "999 ⭐/mo (~$15) · auto-renew · cancel anytime"}
+                {ru ? "999 ⭐/мес · автопродление · отмена в любой момент" : "999 ⭐/mo · auto-renew · cancel anytime"}
               </p>
             </div>
           </div>
@@ -188,7 +185,7 @@ export function DonateTab() {
               type="button"
               onClick={buySuper}
               disabled={buyingSuper}
-              className="mt-4 w-full rounded-2xl bg-gradient-to-r from-[#ff9d00] to-[#ffd700] py-3.5 font-display text-sm font-black text-background shadow-lg transition-transform active:scale-[0.98] disabled:opacity-60"
+              className="nexus-primary-button mt-4 w-full disabled:opacity-60"
             >
               {buyingSuper
                 ? (ru ? "Открываю оплату…" : "Opening payment…")

@@ -38,6 +38,7 @@ export const MAIN_TABS: { id: TabId; labelKey: string; icon: typeof Home }[] = [
 
 // Вкладки в меню «Ещё»: порядок = порядок отображения в сетке.
 export const MORE_TABS: { id: TabId; labelKey: string; descKey: string; icon: typeof Home }[] = [
+  { id: "donate", labelKey: "home.support_title", descKey: "home.support_hint", icon: Star },
   { id: "event", labelKey: "nav.event", descKey: "more.desc_event", icon: Leaf },
   { id: "predictions", labelKey: "nav.predictions", descKey: "more.desc_predictions", icon: TrendingUp },
   { id: "stats", labelKey: "nav.stats", descKey: "more.desc_stats", icon: BarChart3 },

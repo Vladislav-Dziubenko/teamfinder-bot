@@ -8,6 +8,7 @@ import { useMe, useNexus } from "@/lib/store"
 import type { TabId } from "./bottom-nav"
 import type { Player } from "@/lib/data"
 import { DiscordSection } from "@/components/miniapp/discord-section"
+import { HomeActions } from "./home-actions"
 
 type Quest = {
   id: string
@@ -19,9 +20,8 @@ type Quest = {
   completed: boolean
 }
 
-// A stable first value prevents the hero badge from flashing a blurred
-// skeleton while unrelated home data (quests) is still loading.
-let lastSearchCount = 0
+// Preserve known counts across tabs; an unanswered request is not zero players.
+let lastSearchCount: number | null = null
 
 export function HomeTab({
   onGo,
@@ -36,7 +36,7 @@ export function HomeTab({
   const { wins, level, nick, streakDay } = useMe()
   const { refresh, bpXp, bpLevel, battlePassTiers } = useNexus()
   const [quests, setQuests] = useState<Quest[]>([])
-  const [searchCount, setSearchCount] = useState(lastSearchCount)
+  const [searchCount, setSearchCount] = useState<number | null>(lastSearchCount)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [claiming, setClaiming] = useState<string | null>(null)
@@ -129,7 +129,7 @@ export function HomeTab({
 
   const nextTier = battlePassTiers.find((tier) => tier.xp > bpXp)
   const previousXp = [...battlePassTiers].reverse().find((tier) => tier.xp <= bpXp)?.xp ?? 0
-  const passProgress = nextTier ? Math.max(0, Math.min(100, ((bpXp - previousXp) / Math.max(1, nextTier.xp - previousXp)) * 100)) : 100
+  const passProgress = nextTier ? Math.max(0, Math.min(100, ((bpXp - previousXp) / Math.max(1, nextTier.xp - previousXp)) * 100)) : battlePassTiers.length ? 100 : 0
 
   return (
     <div className="nexus-home">
@@ -139,7 +139,7 @@ export function HomeTab({
           <h1 className="nexus-page-title">{t("home.ready")}</h1>
           {nick && <p className="mt-2 truncate text-xs text-muted-foreground">{t("home.welcome", { name: nick })}</p>}
         </div>
-        <span className="nexus-live"><Radio className="size-3.5 shrink-0" />{t("home.hero_players", { count: searchCount })}</span>
+        {searchCount !== null && <span className="nexus-live"><Radio className="size-3.5 shrink-0" />{t("home.hero_players", { count: searchCount })}</span>}
       </div>
 
       <section className="nexus-match-feature">
@@ -153,10 +153,11 @@ export function HomeTab({
           <button type="button" onClick={() => onGo("match")} className="nexus-primary-button">
             <Swords className="size-4 shrink-0" />{t("home.hero_cta")}<ArrowUpRight className="size-4 shrink-0" />
           </button>
-          <span className="nexus-live-on-hero"><Radio className="size-3 shrink-0" />{t("home.hero_players", { count: searchCount })}</span>
           <span className="nexus-feature-code">CS2 / DOTA 2 / +8</span>
         </div>
       </section>
+
+      <HomeActions onGo={onGo} onToast={onToast} />
 
       <section className="nexus-overview" aria-label={t("nav.stats")}>
         <MiniStat value={level ?? "—"} label={t("common.level")} />

@@ -72,6 +72,8 @@ export function ChangelogSheet({ open, onClose }: { open: boolean; onClose: () =
             </div>
           </div>
           <button
+            type="button"
+            aria-label={lang === "ru" ? "Закрыть" : "Close"}
             onClick={handleClose}
             className="grid size-8 place-items-center rounded-xl text-muted-foreground hover:bg-secondary/50 active:scale-90"
           >
@@ -90,11 +92,6 @@ export function ChangelogSheet({ open, onClose }: { open: boolean; onClose: () =
                 transition={{ delay: idx * 0.08, type: "spring", damping: 25, stiffness: 300 }}
                 className="relative overflow-hidden rounded-2xl border border-border bg-background/50 p-4"
               >
-                {/* Major badge glow */}
-                {update.isMajor && (
-                  <div className="absolute -right-6 -top-6 size-24 rounded-full bg-primary/10 blur-2xl" />
-                )}
-
                 {/* Header row */}
                 <div className="relative mb-3 flex items-center gap-2">
                   {update.isMajor ? (

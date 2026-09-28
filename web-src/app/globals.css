@@ -240,11 +240,20 @@
 .nexus-page-title { font-size: 28px; font-weight: 750; line-height: 1.15; overflow-wrap: anywhere; }
 .nexus-live { display: inline-flex; align-items: center; gap: 6px; color: var(--primary); font-size: 11px; font-variant-numeric: tabular-nums; }
 .nexus-match-feature { position: relative; isolation: isolate; overflow: hidden; margin-inline: -20px; padding: 26px 20px 20px; min-height: 236px; display: flex; flex-direction: column; justify-content: space-between; gap: 24px; background: #202723; color: #f2f4ef; }
-.nexus-match-feature > img { position: absolute; z-index: -2; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center 42%; filter: brightness(1.45) saturate(1.15); }
+/* Crop the embedded letterbox bars, including on tall mobile banners. */
+.nexus-match-feature > img { position: absolute; z-index: -2; left: 0; top: -40%; width: 100%; height: 180%; max-width: none; object-fit: cover; object-position: center; }
 .nexus-match-feature::before { content: ''; position: absolute; z-index: -1; inset: 0; background: linear-gradient(90deg, rgb(13 19 16 / 58%), rgb(13 19 16 / 26%) 55%, rgb(13 19 16 / 4%)); }
 .nexus-live-on-hero { display: inline-flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; border: 1px solid rgb(211 245 106 / 45%); background: rgb(13 19 16 / 55%); color: #d3f56a; font-size: 11px; font-weight: 650; font-variant-numeric: tabular-nums; backdrop-filter: blur(6px); }
 .nexus-match-feature h2 { max-width: 300px; font-size: 30px; line-height: 1.12; font-weight: 750; }
-.nexus-match-feature p { max-width: 260px; color: #c3cbc5; font-size: 12px; line-height: 1.6; margin-top: 10px; }
+.nexus-match-feature p { max-width: 260px; color: #edf2ee; font-size: 12px; line-height: 1.6; margin-top: 10px; }
+.nexus-home-actions { grid-column: 1 / -1; border-block: 1px solid var(--border); }
+.nexus-home-action { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 76px; padding: 14px 0; text-align: start; }
+.nexus-home-action + .nexus-home-action { border-top: 1px solid var(--border); }
+.nexus-home-action > svg { flex-shrink: 0; }
+.nexus-home-action > span { min-width: 0; flex: 1; }
+.nexus-home-action strong { display: block; font-size: 13px; font-weight: 600; }
+.nexus-home-action small { display: block; margin-top: 4px; font-size: 11px; line-height: 1.5; color: var(--muted-foreground); }
+.nexus-home-action:hover:not(:disabled) strong { color: var(--primary); }
 .nexus-primary-button { display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 46px; padding: 12px 18px; background: var(--primary); color: var(--primary-foreground); border-radius: 4px; font-size: 13px; font-weight: 700; transition: filter 150ms, transform 150ms; }
 .nexus-primary-button:hover { filter: brightness(1.08); }
 .nexus-primary-button:active { transform: translateY(1px); }
@@ -300,7 +309,7 @@
   .nexus-home-heading, .nexus-match-feature, .nexus-overview { grid-column: 1 / -1; }
   .nexus-match-feature { margin-inline: 0; min-height: 270px; padding: 28px; }
   .nexus-match-feature h2 { font-size: 36px; max-width: 360px; }
-  .nexus-home-quests { grid-column: 1; grid-row: 4 / span 3; }
+  .nexus-home-quests { grid-column: 1; grid-row: 5 / span 3; }
   .nexus-home-shortcuts, .nexus-home-event, .nexus-home-discord { grid-column: 2; }
   .nexus-cases-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

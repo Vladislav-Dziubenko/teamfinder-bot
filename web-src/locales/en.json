@@ -1,4 +1,13 @@
 {
+  "topbar.updates": "Updates",
+  "home.today": "Today in NEXUS",
+  "home.daily_hint": "A welcome-back bonus. The next reward is available 24 hours after claiming.",
+  "home.daily_received": "Received {coins} Nexus coins",
+  "home.squad_title": "Bring your squad",
+  "home.squad_hint": "Invite a friend with your profile referral link and play together.",
+  "home.support_title": "Support NEXUS",
+  "home.support_hint": "Super+, profile customization and game purchases in one place.",
+  "donate.support_note": "Optional project support. Purchases do not guarantee teammates or wins.",
   "home.lobby": "Lobby",
   "home.ready": "Ready to play?",
   "home.welcome": "Welcome back, {name}",

@@ -1,4 +1,4 @@
-export const CURRENT_VERSION = "1.8"
+export const CURRENT_VERSION = "1.9"
 export const STORAGE_KEY = "nexus_last_seen_version"
 
 export interface ChangelogItem {
@@ -10,6 +10,28 @@ export interface ChangelogItem {
 }
 
 export const updates: ChangelogItem[] = [
+  {
+    version: "1.9",
+    date: "28 Sep 2026",
+    isMajor: true,
+    title: { ru: "Обновлённый NEXUS: дизайн и главная", en: "NEXUS refreshed: design and home" },
+    items: {
+      ru: [
+        "Обновлён дизайн: игровое лобби, компактная навигация и лаймовые акценты.",
+        "Исправлен баннер поиска команды: убраны чёрные полосы изображения.",
+        "Ежедневную награду теперь можно забрать прямо на главной.",
+        "Добавлен заметный переход к поддержке проекта и платным возможностям.",
+        "При первом входе новости обновления больше не перекрывают обучение.",
+      ],
+      en: [
+        "Refreshed design: a game lobby, compact navigation and lime accents.",
+        "Fixed matchmaking artwork: removed the image's black bars.",
+        "Claim your daily reward directly from home.",
+        "Find project support and paid features directly from home.",
+        "Release notes no longer interrupt first-time onboarding.",
+      ],
+    },
+  },
   {
     version: "1.8",
     date: "27 Sep 2026",
