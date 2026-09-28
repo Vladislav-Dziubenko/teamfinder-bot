@@ -80,7 +80,9 @@ BATTLE_PASS_XP_PER_LEVEL = 100
 # Мгновенный забор тира без ожидания 48ч (только премиум-пасс): цена за 1 уровень.
 BP_INSTANT_CLAIM_STARS_PER_TIER = 50
 
-# Nexus Autumn Battle Pass — 30 tiers, 2 tracks (free + premium)
+# Nexus Autumn Battle Pass — 60 tiers, 2 tracks (free + premium).
+# Ключи Autumn сыпятся щедро: пачки 5-10 через каждые пару уровней
+# (count<=10 — кап выдачи за раз в _apply_reward_conn).
 BATTLE_PASS_TIERS = [
     # Tier 1-5: стартовые награды
     {"level": 1, "xp": 100, "free": {"key": "bp1f", "name": "50 монет", "type": "coins", "amount": 50, "icon": "🪙"}, "premium": {"key": "bp1p", "name": "Autumn Leaf", "type": "item", "icon": "🍂", "rarity": "common"}},
@@ -123,6 +125,48 @@ BATTLE_PASS_TIERS = [
     {"level": 28, "xp": 2800, "free": None, "premium": {"key": "bp28p", "name": "Премиум-анкета", "type": "item", "image": "/premium-reveal.webp", "rarity": "premium"}},
     {"level": 29, "xp": 2900, "free": {"key": "bp29f", "name": "200 монет", "type": "coins", "amount": 200, "icon": "🪙"}, "premium": {"key": "bp29p", "name": "Autumn Key ×2", "type": "item", "item_key": "autumn-key", "count": 2, "icon": "🗝️", "rarity": "epic"}},
     {"level": 30, "xp": 3000, "free": {"key": "bp30f", "name": "Иконка «Страж»", "type": "item", "icon": "🛡️", "rarity": "common"}, "premium": {"key": "bp30p", "name": "AURELIA // 09", "desc": "Легендарная модель. Солнечное ядро, запечатанное в чёрном стекле. Лимит 10 шт. Доход 50-100 ⭐/день", "type": "model", "model_id": "aurelia-09", "image": "/aurelia.webp", "rarity": "legendary"}},
+
+    # Tier 31-35: вторая волна ключей
+    {"level": 31, "xp": 3100, "free": {"key": "bp31f", "name": "250 монет", "type": "coins", "amount": 250, "icon": "🪙"}, "premium": {"key": "bp31p", "name": "Autumn Key ×5", "type": "item", "item_key": "autumn-key", "count": 5, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 32, "xp": 3200, "free": {"key": "bp32f", "name": "60 ⭐", "type": "stars", "amount": 60, "icon": "⭐"}, "premium": {"key": "bp32p", "name": "Frost Fox", "type": "item", "icon": "🦊", "rarity": "epic"}},
+    {"level": 33, "xp": 3300, "free": None, "premium": {"key": "bp33p", "name": "Autumn Key ×6", "type": "item", "item_key": "autumn-key", "count": 6, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 34, "xp": 3400, "free": {"key": "bp34f", "name": "Иконка «Каштан»", "type": "item", "icon": "🌰", "rarity": "common"}, "premium": {"key": "bp34p", "name": "350 ⭐", "type": "stars", "amount": 350, "icon": "⭐"}},
+    {"level": 35, "xp": 3500, "free": {"key": "bp35f", "name": "300 монет", "type": "coins", "amount": 300, "icon": "🪙"}, "premium": {"key": "bp35p", "name": "Autumn Key ×8", "type": "item", "item_key": "autumn-key", "count": 8, "icon": "🗝️", "rarity": "epic"}},
+
+    # Tier 36-40: премиум и мид-ключи
+    {"level": 36, "xp": 3600, "free": None, "premium": {"key": "bp36p", "name": "Премиум", "type": "item", "image": "/premium-card.webp", "rarity": "epic"}},
+    {"level": 37, "xp": 3700, "free": {"key": "bp37f", "name": "Autumn Key ×3", "type": "item", "item_key": "autumn-key", "count": 3, "icon": "🗝️", "rarity": "epic"}, "premium": {"key": "bp37p", "name": "Autumn Key ×5", "type": "item", "item_key": "autumn-key", "count": 5, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 38, "xp": 3800, "free": {"key": "bp38f", "name": "Иконка «Снежинка»", "type": "item", "icon": "❄️", "rarity": "rare"}, "premium": {"key": "bp38p", "name": "400 ⭐", "type": "stars", "amount": 400, "icon": "⭐"}},
+    {"level": 39, "xp": 3900, "free": {"key": "bp39f", "name": "350 монет", "type": "coins", "amount": 350, "icon": "🪙"}, "premium": {"key": "bp39p", "name": "Autumn Key ×10", "type": "item", "item_key": "autumn-key", "count": 10, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 40, "xp": 4000, "free": {"key": "bp40f", "name": "120 ⭐", "type": "stars", "amount": 120, "icon": "⭐"}, "premium": {"key": "bp40p", "name": "Aurora Warden", "type": "item", "icon": "🌌", "rarity": "legendary"}},
+
+    # Tier 41-45: ключи нон-стоп
+    {"level": 41, "xp": 4100, "free": None, "premium": {"key": "bp41p", "name": "Autumn Key ×6", "type": "item", "item_key": "autumn-key", "count": 6, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 42, "xp": 4200, "free": {"key": "bp42f", "name": "90 ⭐", "type": "stars", "amount": 90, "icon": "⭐"}, "premium": {"key": "bp42p", "name": "500 монет", "type": "coins", "amount": 500, "icon": "🪙"}},
+    {"level": 43, "xp": 4300, "free": {"key": "bp43f", "name": "Иконка «Шишка»", "type": "item", "icon": "🌲", "rarity": "common"}, "premium": {"key": "bp43p", "name": "Autumn Key ×8", "type": "item", "item_key": "autumn-key", "count": 8, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 44, "xp": 4400, "free": None, "premium": {"key": "bp44p", "name": "450 ⭐", "type": "stars", "amount": 450, "icon": "⭐"}},
+    {"level": 45, "xp": 4500, "free": {"key": "bp45f", "name": "400 монет", "type": "coins", "amount": 400, "icon": "🪙"}, "premium": {"key": "bp45p", "name": "Autumn Key ×10", "type": "item", "item_key": "autumn-key", "count": 10, "icon": "🗝️", "rarity": "epic"}},
+
+    # Tier 46-50: крупняк
+    {"level": 46, "xp": 4600, "free": {"key": "bp46f", "name": "100 ⭐", "type": "stars", "amount": 100, "icon": "⭐"}, "premium": {"key": "bp46p", "name": "Премиум-анкета", "type": "item", "image": "/premium-reveal.webp", "rarity": "premium"}},
+    {"level": 47, "xp": 4700, "free": {"key": "bp47f", "name": "Иконка «Сова»", "type": "item", "icon": "🦉", "rarity": "epic"}, "premium": {"key": "bp47p", "name": "Autumn Key ×6", "type": "item", "item_key": "autumn-key", "count": 6, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 48, "xp": 4800, "free": None, "premium": {"key": "bp48p", "name": "550 ⭐", "type": "stars", "amount": 550, "icon": "⭐"}},
+    {"level": 49, "xp": 4900, "free": {"key": "bp49f", "name": "450 монет", "type": "coins", "amount": 450, "icon": "🪙"}, "premium": {"key": "bp49p", "name": "Autumn Key ×8", "type": "item", "item_key": "autumn-key", "count": 8, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 50, "xp": 5000, "free": {"key": "bp50f", "name": "Autumn Key ×5", "type": "item", "item_key": "autumn-key", "count": 5, "icon": "🗝️", "rarity": "epic"}, "premium": {"key": "bp50p", "name": "Starfall Diamond", "type": "item", "icon": "💎", "rarity": "legendary"}},
+
+    # Tier 51-55: предфинал
+    {"level": 51, "xp": 5100, "free": None, "premium": {"key": "bp51p", "name": "Autumn Key ×10", "type": "item", "item_key": "autumn-key", "count": 10, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 52, "xp": 5200, "free": {"key": "bp52f", "name": "120 ⭐", "type": "stars", "amount": 120, "icon": "⭐"}, "premium": {"key": "bp52p", "name": "600 монет", "type": "coins", "amount": 600, "icon": "🪙"}},
+    {"level": 53, "xp": 5300, "free": {"key": "bp53f", "name": "Иконка «Фонарь»", "type": "item", "icon": "🏮", "rarity": "rare"}, "premium": {"key": "bp53p", "name": "Autumn Key ×6", "type": "item", "item_key": "autumn-key", "count": 6, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 54, "xp": 5400, "free": None, "premium": {"key": "bp54p", "name": "650 ⭐", "type": "stars", "amount": 650, "icon": "⭐"}},
+    {"level": 55, "xp": 5500, "free": {"key": "bp55f", "name": "500 монет", "type": "coins", "amount": 500, "icon": "🪙"}, "premium": {"key": "bp55p", "name": "Autumn Key ×8", "type": "item", "item_key": "autumn-key", "count": 8, "icon": "🗝️", "rarity": "epic"}},
+
+    # Tier 56-60: гранд-финал
+    {"level": 56, "xp": 5600, "free": {"key": "bp56f", "name": "130 ⭐", "type": "stars", "amount": 130, "icon": "⭐"}, "premium": {"key": "bp56p", "name": "Frost Giant", "type": "item", "icon": "🧊", "rarity": "epic"}},
+    {"level": 57, "xp": 5700, "free": {"key": "bp57f", "name": "Иконка «Свеча»", "type": "item", "icon": "🕯️", "rarity": "common"}, "premium": {"key": "bp57p", "name": "Autumn Key ×10", "type": "item", "item_key": "autumn-key", "count": 10, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 58, "xp": 5800, "free": None, "premium": {"key": "bp58p", "name": "750 ⭐", "type": "stars", "amount": 750, "icon": "⭐"}},
+    {"level": 59, "xp": 5900, "free": {"key": "bp59f", "name": "550 монет", "type": "coins", "amount": 550, "icon": "🪙"}, "premium": {"key": "bp59p", "name": "Autumn Key ×10", "type": "item", "item_key": "autumn-key", "count": 10, "icon": "🗝️", "rarity": "epic"}},
+    {"level": 60, "xp": 6000, "free": {"key": "bp60f", "name": "200 ⭐", "type": "stars", "amount": 200, "icon": "⭐"}, "premium": {"key": "bp60p", "name": "Autumn Key ×10", "type": "item", "item_key": "autumn-key", "count": 10, "icon": "🗝️", "rarity": "epic"}},
 ]
 
 DAILY_STREAK_REWARDS = [
