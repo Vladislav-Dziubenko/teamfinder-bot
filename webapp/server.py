@@ -7396,9 +7396,16 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
                     db_url_info["port_error"] = str(pe)
             except Exception as e:
                 db_url_info["parse_error"] = str(e)
+        _settings = request.app.get("settings")
         return web.json_response({
             "RENDER_EXTERNAL_URL": os.environ.get("RENDER_EXTERNAL_URL", ""),
             "WEBAPP_URL": os.environ.get("WEBAPP_URL", ""),
+            "VERCEL_URL": os.environ.get("VERCEL_URL", ""),
+            "VERCEL_PROJECT_PRODUCTION_URL": os.environ.get("VERCEL_PROJECT_PRODUCTION_URL", ""),
+            "VERCEL_ENV": os.environ.get("VERCEL_ENV", ""),
+            "WEBAPP_URL_RESOLVED": (getattr(_settings, "webapp_url", "") or ""),
+            "PUBLIC_APP_URL_RESOLVED": (getattr(_settings, "public_app_url", "") or ""),
+            "DISCORD_REDIRECT_URI": (getattr(_settings, "discord_redirect_uri", "") or ""),
             "PORT": os.environ.get("PORT", ""),
             "webhook_secret_set": bool(request.app.get("webhook_secret")),
             "dp_set": bool(request.app.get("dp")),
@@ -7585,8 +7592,6 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
         return ws
 
     app.router.add_get("/ws/voice/{session_id}", handle_voice_websocket)
-
-    app.router.add_post("/webhook/{secret}", handle_telegram_webhook)
 
     app.router.add_static("/", STATIC_DIR, show_index=False)
     return app

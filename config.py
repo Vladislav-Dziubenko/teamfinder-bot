@@ -107,13 +107,26 @@ def _normalize_database_url(raw: str) -> str:
 
 
 def _resolve_webapp_url() -> str:
-    """WEBAPP_URL вручную, иначе публичный URL Render (RENDER_EXTERNAL_URL)."""
+    """WEBAPP_URL вручную, иначе публичный URL хостинга.
+
+    Порядок: WEBAPP_URL → RENDER_EXTERNAL_URL (Render) →
+    VERCEL_PROJECT_PRODUCTION_URL / VERCEL_URL (Vercel serverless).
+    На Vercel RENDER_EXTERNAL_URL пуст, поэтому без Vercel-фолбэка
+    webapp_url оставался бы пустым (или указывал на мёртвый Render-домен,
+    если WEBAPP_URL скопировали со старого стенда) — ломались кнопка
+    Mini App, вебхук, Discord/Steam redirect URI."""
     explicit = os.getenv("WEBAPP_URL", "").strip()
     if explicit:
         return explicit.rstrip("/")
     render_url = os.getenv("RENDER_EXTERNAL_URL", "").strip()
     if render_url:
         return render_url.rstrip("/")
+    vercel_prod = os.getenv("VERCEL_PROJECT_PRODUCTION_URL", "").strip()
+    if vercel_prod:
+        return ("https://" + vercel_prod.lstrip("/")).rstrip("/")
+    vercel_url = os.getenv("VERCEL_URL", "").strip()
+    if vercel_url:
+        return ("https://" + vercel_url.lstrip("/")).rstrip("/")
     return ""
 
 

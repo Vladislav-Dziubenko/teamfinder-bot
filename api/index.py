@@ -351,10 +351,13 @@ def _process_request(method, path, headers, body):
 
                 payload = BytesIO(body.encode() if isinstance(body, str) else body)
 
+                # payload обязателен: без него все POST /api/* на Vercel
+                # приходили бы с пустым телом (сохранение профиля, чат, оплаты).
                 req = make_mocked_request(
                     method=method,
                     path=path,
                     headers=headers,
+                    payload=payload,
                     app=web_app,
                 )
 
