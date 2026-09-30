@@ -24,10 +24,12 @@ export function MatchTab({
   onConnect,
   onJoinTeam,
   onChat,
+  onSearched,
 }: {
   onConnect: (p: Player) => void
   onJoinTeam: (t: Team) => void
   onChat?: (p: Player) => void
+  onSearched?: () => void
 }) {
   const { t, lang } = useI18n()
   const { loaded, searchUnlimited, dailySearchesBonus, freeSearchesLeft, useFreeSearch, spendStars, unlockPlayer, unlockedPlayers } = useNexus()
@@ -140,6 +142,9 @@ export function MatchTab({
       const data = await api.get(`/api/search?q=${encodeURIComponent(q)}&game=${encodeURIComponent(game)}${onlyDiscord ? "&discord=1" : ""}${onlySteam ? "&steam=1" : ""}`)
       setSearchResults({ players: data.players || [], teams: data.teams || [] })
       if (!extended) useFreeSearch()
+      try {
+        onSearched?.()
+      } catch {}
     } catch (e: any) {
       setNotice(e.message || t("common.error"))
       setSearchResults(null)

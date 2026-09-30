@@ -27,6 +27,8 @@ type Overview = {
   funnel: { event: string; users: number; conversion: number | null }[]
   series: { day: string; new_users: number; dau: number }[]
   error?: string
+  suspicious_users?: number
+  clean?: boolean
   excluded_accounts?: number
   payments?: { received: number; payers: number; gross_stars: number; funnel: { event: string; users: number; conversion: number | null }[] }
 }
@@ -58,12 +60,13 @@ export function AnalyticsTab() {
   const [data, setData] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
   const [forbidden, setForbidden] = useState(false)
+  const [clean, setClean] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
     setForbidden(false)
     try {
-      const res: any = await api.get(`/api/analytics/overview?days=${days}`)
+      const res: any = await api.get(`/api/analytics/overview?days=${days}${clean ? "&clean=1" : ""}`)
       setData(res)
     } catch (e: any) {
       if (e?.status === 403) {
@@ -75,7 +78,7 @@ export function AnalyticsTab() {
     } finally {
       setLoading(false)
     }
-  }, [days])
+  }, [days, clean])
 
   useEffect(() => {
     if (role === "developer") load()
@@ -141,6 +144,34 @@ export function AnalyticsTab() {
           </button>
         ))}
       </div>
+
+      <button
+        type="button"
+        role="switch"
+        aria-checked={clean}
+        onClick={() => setClean((v) => !v)}
+        className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3 text-left active:scale-[0.99]"
+      >
+        <span>
+          <span className="block text-sm font-bold">{t("analytics.clean_title")}</span>
+          <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
+            {t("analytics.clean_hint", { n: data?.suspicious_users ?? 0 })}
+          </span>
+        </span>
+        <span
+          className={cn(
+            "relative h-7 w-12 shrink-0 rounded-full transition-colors",
+            clean ? "bg-primary" : "bg-secondary",
+          )}
+        >
+          <span
+            className={cn(
+              "absolute top-1 size-5 rounded-full bg-background shadow transition-all",
+              clean ? "left-6" : "left-1",
+            )}
+          />
+        </span>
+      </button>
 
       {loading && <Loader2 className="mx-auto mt-6 size-6 animate-spin text-muted-foreground" />}
 

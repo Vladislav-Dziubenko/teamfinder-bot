@@ -1121,6 +1121,8 @@
   "analytics.activity_legend": "DAU Σ {dau} · новые Σ {nu}",
   "analytics.forbidden": "Нет доступа",
   "analytics.no_data": "Нет данных",
+  "analytics.clean_title": "Без подозрительных",
+  "analytics.clean_hint": "Скрыть аккаунты-однодневки без анкеты (сейчас таких: {n})",
   "event.title": "Nexus Autumn",
   "event.subtitle": "Осенний сезон: кейсы, боевой пропуск и коллекция",
   "event.season_label": "Сезон 04 · 1 сен — 30 ноя 2026",

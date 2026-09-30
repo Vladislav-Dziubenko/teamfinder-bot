@@ -1,7 +1,7 @@
 import unittest
 from datetime import datetime
 
-from services.product_metrics import ordered_funnel, overview
+from services.product_metrics import is_suspicious_account, ordered_funnel, overview
 
 
 def event(uid, kind, timestamp):
@@ -80,6 +80,14 @@ class ProductMetricsTests(unittest.TestCase):
         self.assertEqual(report["payments"]["gross_stars"], 200)
         self.assertEqual(report["payments"]["payers"], 2)
         self.assertEqual([s["users"] for s in report["payments"]["funnel"]], [1, 1, 1])
+
+    def test_suspicious_flags_only_quiet_users_without_profile(self):
+        self.assertTrue(is_suspicious_account(0, False))
+        self.assertTrue(is_suspicious_account(2, False))
+        self.assertFalse(is_suspicious_account(3, False))
+        self.assertFalse(is_suspicious_account(1, True))
+        self.assertFalse(is_suspicious_account(0, True))
+        self.assertFalse(is_suspicious_account("x", False))
 
     def test_notification_open_requires_prior_send(self):
         report = self.report(

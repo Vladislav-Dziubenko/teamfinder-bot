@@ -7589,10 +7589,10 @@ WHERE user_quests.completed = 0
 
     # ---------- Сводка для Developer Analytics ----------
 
-    async def get_analytics_overview(self, days: int = 30, excluded_user_ids=()) -> dict:
+    async def get_analytics_overview(self, days: int = 30, excluded_user_ids=(), clean: bool = False) -> dict:
         from services.product_metrics import load_overview
 
-        return await load_overview(self.pool, days, excluded_user_ids)
+        return await load_overview(self.pool, days, excluded_user_ids, clean=clean)
 
     async def get_today_ai_actions(self) -> list[dict]:
         """Действия ИИ-модератора за сегодня (для утреннего дайджеста)."""

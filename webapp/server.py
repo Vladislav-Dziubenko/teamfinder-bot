@@ -5142,9 +5142,10 @@ async def handle_analytics_overview(request: web.Request):
         days = int(request.query.get("days", 30))
     except (ValueError, TypeError):
         days = 30
+    clean = request.query.get("clean") == "1"
     settings = request.app.get("settings")
     excluded = settings.admin_ids if settings else ()
-    return web.json_response(await db.get_analytics_overview(days, excluded))
+    return web.json_response(await db.get_analytics_overview(days, excluded, clean=clean))
 
 
 async def handle_search_subscribe(request: web.Request):

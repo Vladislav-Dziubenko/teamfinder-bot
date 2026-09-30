@@ -39,16 +39,21 @@ export function markOnboardingDone(): void {
   } catch {}
 }
 
-export function OnboardingSheet({ onDone, onSkip }: { onDone: () => void; onSkip?: () => void }) {
+const COMPACT_KEYS = ["welcome", "match", "chat"]
+
+export function OnboardingSheet({ onDone, onSkip, compact }: { onDone: () => void; onSkip?: () => void; compact?: boolean }) {
   const { t } = useI18n()
   const [index, setIndex] = useState(0)
   const [dir, setDir] = useState<1 | -1>(1)
   const [anim, setAnim] = useState<"in" | "out">("in")
   const touchX = useRef<number | null>(null)
 
-  const total = SLIDES.length
+  // Компактная версия (3 слайда) — показывается ПОСЛЕ первого поиска,
+  // когда человек уже увидел ценность. Полная — только по кнопке из профиля.
+  const slides = compact ? SLIDES.filter((s) => COMPACT_KEYS.includes(s.key)) : SLIDES
+  const total = slides.length
   const last = index === total - 1
-  const slide = SLIDES[index]
+  const slide = slides[index]
 
   const go = useCallback((next: number, d: 1 | -1) => {
     if (next < 0 || next >= total) return
@@ -139,7 +144,7 @@ export function OnboardingSheet({ onDone, onSkip }: { onDone: () => void; onSkip
 
         {/* Точки-индикаторы */}
         <div className="flex items-center justify-center gap-1.5 pb-5">
-          {SLIDES.map((s, i) => (
+          {slides.map((s, i) => (
             <button
               key={s.key}
               type="button"

@@ -149,9 +149,12 @@ async def main():
         )
         web_app["discord_bot"] = discord_bot
 
-        # Фоновые push-уведомления (тир пасса готов, возврат за бонусом)
+        # Фоновые push-уведомления (тир пасса готов, возврат за бонусом,
+        # одноразовый винбэк без анкеты через 24ч)
         from handlers.notifier import notifier_loop
-        asyncio.create_task(notifier_loop(bot, db, interval_seconds=1800, discord_bot=discord_bot))
+        asyncio.create_task(notifier_loop(
+            bot, db, interval_seconds=1800, discord_bot=discord_bot,
+            webapp_url=(settings.webapp_url or "")))
 
         # Недельные гранты Super+ (идемпотентно, проверка каждые 6 часов)
         from handlers.superloop import super_weekly_loop

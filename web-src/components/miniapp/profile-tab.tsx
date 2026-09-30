@@ -34,7 +34,8 @@ import { hapticTap, useHaptics, type HapticLevel } from "@/lib/webapp"
 import { api, openLink } from "@/lib/api"
 import { useI18n, LANGUAGES } from "@/lib/i18n"
 import { useTheme } from "@/lib/theme"
-import { useNexus, useMe } from "@/lib/store"
+import { useNexus, useMe, CONSENT_VERSION } from "@/lib/store"
+import { ConsentSheet } from "./consent-sheet"
 import { games, dailyStreakRewards, caseItemByKey } from "@/lib/data"
 import { formatNum } from "@/lib/format"
 import { downscaleDataUrl, downscalePhoto } from "@/lib/image"
@@ -103,11 +104,15 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
     setGames,
     tgNotify,
     toggleTgNotify,
+    consentVersion,
+    acceptConsent,
   } = useNexus()
   const { games: userGames } = useMe()
   const { data: ownCos, reload: reloadOwnCosmetics } = useOwnCosmetics()
 
   const [editing, setEditing] = useState(false)
+  // Согласие спрашиваем не на входе, а в момент создания анкеты.
+  const [consentOpen, setConsentOpen] = useState(false)
   const [showLang, setShowLang] = useState(false)
   const [showShare, setShowShare] = useState(false)
   const [showGamePicker, setShowGamePicker] = useState(false)
@@ -366,6 +371,11 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
           <button
             type="button"
             onClick={async () => {
+              if (!editing && consentVersion < CONSENT_VERSION) {
+                // Согласие — в момент создания анкеты, а не на входе.
+                setConsentOpen(true)
+                return
+              }
               if (editing) {
                 const res = await saveProfile()
                 // Раньше тост "сохранено" показывался даже при 400 с сервера —
@@ -835,6 +845,19 @@ export function ProfileTab({ onGo, onToast, onGuide }: { onGo: (tab: TabId) => v
             setShowGamePicker(false)
           }}
           onClose={() => setShowGamePicker(false)}
+        />
+      )}
+
+      {/* Согласие — только здесь, при создании анкеты */}
+      {consentOpen && (
+        <ConsentSheet
+          onAccept={async () => {
+            try {
+              await acceptConsent()
+            } catch {}
+            setConsentOpen(false)
+            setEditing(true)
+          }}
         />
       )}
 

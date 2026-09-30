@@ -1121,6 +1121,8 @@
   "analytics.activity_legend": "DAU Σ {dau} · new Σ {nu}",
   "analytics.forbidden": "No access",
   "analytics.no_data": "No data",
+  "analytics.clean_title": "Hide suspicious",
+  "analytics.clean_hint": "Hide one-day accounts with no profile (currently: {n})",
   "event.title": "Nexus Autumn",
   "event.subtitle": "Fall season: cases, battle pass and collection",
   "event.season_label": "Season 04 · Sep 1 – Nov 30, 2026",

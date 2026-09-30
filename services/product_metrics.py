@@ -91,19 +91,48 @@ def overview(users, events, activity, notifications, purchases, *, days, now, ex
     }
 
 
-async def load_overview(pool, days=30, excluded=()):
+def is_suspicious_account(event_count: int, has_profile: bool) -> bool:
+    """Эвристика 'заглянувшего' бота/фермы: ≤2 событий за всё время и нет
+    активной анкеты. Это флаг для фильтра, а не бан — легитимный луркер
+    выглядит так же, что честно написано в UI."""
+    try:
+        return int(event_count or 0) <= 2 and not has_profile
+    except (TypeError, ValueError):
+        return False
+
+
+async def suspicious_user_ids(pool) -> set:
+    try:
+        async with pool.acquire() as conn:
+            counts = await conn.fetch(
+                "SELECT user_id, COUNT(*) AS n FROM analytics_events GROUP BY user_id")
+            with_profile = await conn.fetch(
+                "SELECT DISTINCT user_id FROM profiles WHERE is_active = 1")
+        has_profile = {r["user_id"] for r in with_profile}
+        return {r["user_id"] for r in counts
+                if is_suspicious_account(int(r["n"] or 0), r["user_id"] in has_profile)}
+    except Exception:
+        return set()
+
+
+async def load_overview(pool, days=30, excluded=(), clean=False):
     days = days if days in (7, 30, 90) else 30
     now = datetime.utcnow()
     since = (now - timedelta(days=max(days - 1, 30))).strftime("%Y-%m-%d")
     excluded = sorted(set(excluded))
+    suspicious = await suspicious_user_ids(pool)
+    effective_excluded = sorted(set(excluded) | (suspicious if clean else set()))
     async with pool.acquire() as conn:
-        users = await conn.fetch("SELECT user_id, created_at FROM users WHERE NOT(user_id = ANY($1::bigint[]))", excluded)
+        users = await conn.fetch("SELECT user_id, created_at FROM users WHERE NOT(user_id = ANY($1::bigint[]))", effective_excluded)
         events = await conn.fetch(
-            "SELECT id, user_id, event_type, created_at FROM analytics_events WHERE created_at >= $1 AND NOT(user_id = ANY($2::bigint[]))", since, excluded)
+            "SELECT id, user_id, event_type, created_at FROM analytics_events WHERE created_at >= $1 AND NOT(user_id = ANY($2::bigint[]))", since, effective_excluded)
         activity = await conn.fetch(
-            "SELECT DISTINCT user_id, substr(ts, 1, 10) AS day FROM user_activity_log WHERE ts >= $1 AND NOT(user_id = ANY($2::bigint[]))", since, excluded)
+            "SELECT DISTINCT user_id, substr(ts, 1, 10) AS day FROM user_activity_log WHERE ts >= $1 AND NOT(user_id = ANY($2::bigint[]))", since, effective_excluded)
         notifications = await conn.fetch(
-            "SELECT user_id, created_at FROM notification_log WHERE kind = 'teammate_found' AND status = 'sent' AND created_at >= $1 AND NOT(user_id = ANY($2::bigint[]))", since, excluded)
+            "SELECT user_id, created_at FROM notification_log WHERE kind = 'teammate_found' AND status = 'sent' AND created_at >= $1 AND NOT(user_id = ANY($2::bigint[]))", since, effective_excluded)
         purchases = await conn.fetch(
-            "SELECT user_id, created_at, stars_amount FROM purchases WHERE charge_id IS NOT NULL AND created_at >= $1 AND NOT(user_id = ANY($2::bigint[]))", since, excluded)
-    return overview(users, events, activity, notifications, purchases, days=days, now=now, excluded=excluded)
+            "SELECT user_id, created_at, stars_amount FROM purchases WHERE charge_id IS NOT NULL AND created_at >= $1 AND NOT(user_id = ANY($2::bigint[]))", since, effective_excluded)
+    out = overview(users, events, activity, notifications, purchases, days=days, now=now, excluded=effective_excluded)
+    out["suspicious_users"] = len(suspicious)
+    out["clean"] = bool(clean)
+    return out

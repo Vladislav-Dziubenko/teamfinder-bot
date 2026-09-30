@@ -173,6 +173,70 @@ async def _notify_daily_case(bot: Bot, db: Database, discord_bot=None) -> None:
             await db.mark_notification_sent(r["user_id"], "daily-case")
 
 
+async def _notify_profile_winback(bot: Bot, db: Database, webapp_url: str = "") -> None:
+    """Один умный пуш возврата: пользователь зарегистрировался 20-28ч назад,
+    но так и не создал анкету. Отправляется ОДИН раз (kind winback-profile),
+    только при включённых уведомлениях. Кнопка ведёт сразу в поиск."""
+    now = datetime.utcnow()
+    hi = (now - timedelta(hours=20)).isoformat()
+    lo = (now - timedelta(hours=28)).isoformat()
+    try:
+        rows = await db.pool.fetch(
+            """
+            SELECT u.user_id FROM users u
+            WHERE u.created_at >= $1 AND u.created_at < $2
+              AND NOT EXISTS (
+                SELECT 1 FROM profiles p
+                WHERE p.user_id = u.user_id AND p.is_active = 1
+              )
+            LIMIT 200
+            """,
+            lo, hi,
+        )
+    except Exception as e:
+        logger.warning("notify winback query failed: %s", e)
+        return
+    for r in rows:
+        uid = r["user_id"]
+        try:
+            if await db.get_last_notification(uid, "winback-profile"):
+                continue
+            prefs = await db.get_user_prefs(uid)
+            if prefs is not None and not prefs.get("tg_notify", True):
+                continue
+            text = (
+                "👋 <b>Ты так и не создал анкету!</b>\n\n"
+                "Это займёт минуту — а тиммейты уже ищут игрока прямо сейчас.\n"
+                "Жми кнопку и находи своих 👇"
+            )
+            ok = False
+            if webapp_url:
+                from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+                markup = InlineKeyboardMarkup(inline_keyboard=[[
+                    InlineKeyboardButton(
+                        text="🔍 Найти тиммейта",
+                        web_app=WebAppInfo(url=webapp_url.rstrip("/") + "?tab=match"),
+                    ),
+                ]])
+                try:
+                    await bot.send_message(uid, text, parse_mode="HTML", reply_markup=markup)
+                    await asyncio.sleep(0.05)
+                    ok = True
+                except Exception as e:
+                    err_msg = str(e).lower()
+                    if "forbidden" in err_msg or "bot was blocked" in err_msg or "chat not found" in err_msg:
+                        logger.debug("notify winback skipped user=%s (blocked/deleted)", uid)
+                    else:
+                        logger.warning("notify winback failed user=%s: %s", uid, e)
+                    await asyncio.sleep(0.2)
+            else:
+                ok = await _send(bot, uid, text)
+            if ok:
+                await db.mark_notification_sent(uid, "winback-profile")
+        except Exception as e:
+            logger.warning("notify winback pass failed user=%s: %s", uid, e)
+
+
 async def _wait_for_db_ready(db: Database, timeout: float = 60.0) -> bool:
     """Ждём готовности пула БЕЗ фиксированного sleep(): реальная проверка
     лёгким запросом SELECT 1 через тот же db.pool, которым пользуются нотификаторы.
@@ -200,7 +264,7 @@ async def _wait_for_db_ready(db: Database, timeout: float = 60.0) -> bool:
     return False
 
 
-async def notifier_loop(bot: Bot, db: Database, interval_seconds: int = 1800, discord_bot=None) -> None:
+async def notifier_loop(bot: Bot, db: Database, interval_seconds: int = 1800, discord_bot=None, webapp_url: str = "") -> None:
     """Цикл фоновых уведомлений. Запускать как asyncio.create_task.
     discord_bot — опциональный TeamFinderDiscordBot для пуша в Discord-канал."""
     await _wait_for_db_ready(db)
@@ -217,4 +281,8 @@ async def notifier_loop(bot: Bot, db: Database, interval_seconds: int = 1800, di
             await _notify_daily_case(bot, db, discord_bot)
         except Exception as e:
             logger.warning("notify daily case failed: %s", e)
+        try:
+            await _notify_profile_winback(bot, db, webapp_url)
+        except Exception as e:
+            logger.warning("notify winback failed: %s", e)
         await asyncio.sleep(interval_seconds)

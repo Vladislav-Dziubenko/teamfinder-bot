@@ -18,7 +18,6 @@ import { PromoTab } from "./promo-tab"
 import { FriendsTab } from "./friends-tab"
 import { ContactSheet } from "./contact-sheet"
 import { ProfileViewSheet } from "./profile-view-sheet"
-import { ConsentSheet } from "./consent-sheet"
 import { BannedSheet } from "./banned-sheet"
 import { LeaderboardSheet } from "./leaderboard-sheet"
 import { OnboardingSheet, isOnboardingDone, markOnboardingDone } from "./onboarding"
@@ -61,7 +60,7 @@ function TabFallback() {
 function Shell() {
   const { t } = useI18n()
   const me = useMe()
-  const { serverBusy, setServerBusy, consentVersion, acceptConsent, loaded, welcomeBonus, banned, banReason, banExpiresAt, refresh, role } = useNexus()
+  const { serverBusy, setServerBusy, consentVersion, loaded, welcomeBonus, banned, banReason, banExpiresAt, refresh, role } = useNexus()
   const [tab, setTab] = useState<TabId>("home")
   const [moreOpen, setMoreOpen] = useState(false)
   const [contact, setContact] = useState<Player | null>(null)
@@ -74,6 +73,9 @@ function Shell() {
   const [welcomeShown, setWelcomeShown] = useState(false)
   const [guideOpen, setGuideOpen] = useState(false)
   const [onboardingDone, setOnboardingDone] = useState<boolean | null>(null)
+  // Компактное обучение (3 слайда) показываем ПОСЛЕ первого поиска,
+  // когда ценность уже увидели. Полное — только вручную из профиля.
+  const [postSearchGuide, setPostSearchGuide] = useState(false)
 
   // Показ обучающего онбординга один раз: флаг в localStorage.
   // Читаем в useEffect (не в initial render), чтобы не было SSR-hydration расхождений.
@@ -149,12 +151,19 @@ function Shell() {
   }, [toast])
 
   useEffect(() => {
+    // Первый экран новичка — сразу ценность (поиск), а не главная.
+    // Диплинки ниже переопределят при наличии.
+    let isFreshLaunch = false
+    try {
+      isFreshLaunch = !localStorage.getItem("nexus-first-open-sent")
+    } catch {}
     // Продуктовая аналитика: первый запуск + каждый запуск (дедуп внутри + на бэке).
     try {
       trackFirstOpen()
       trackAppOpen()
     } catch {}
     try {
+      if (isFreshLaunch) setTab("match")
       let id: number | null = null
       let refCode: string | null = null
       let chatDeep: { a: number; b: number } | null = null
@@ -172,6 +181,14 @@ function Shell() {
         }
       }
       const params = new URLSearchParams(window.location.search)
+      // Диплинк на вкладку (?tab=match) — для пушей из бота.
+      const tabParam = params.get("tab")
+      if (tabParam && ["home", "match", "chat", "profile", "friends", "cases", "clan", "sessions"].includes(tabParam)) {
+        setTab(tabParam as TabId)
+        params.delete("tab")
+        const tabUrl = window.location.pathname + (params.toString() ? "?" + params.toString() : "")
+        window.history.replaceState({}, "", tabUrl)
+      }
       // Возврат через уведомление о тиммейте: ?show_profile=<id>&src=tmfound_<sub>_<cand>
       const src = params.get("src")
       if (src) {
@@ -234,7 +251,7 @@ function Shell() {
 
       <main id="miniapp-scroll" className="nexus-main" data-tab={tab}>
         {tab === "home" && <HomeTab onGo={goTab} onConnect={setContact} onToast={setToast} />}
-        {tab === "match" && <MatchTab onConnect={setContact} onJoinTeam={joinTeam} onChat={openChat} />}
+        {tab === "match" && <MatchTab onConnect={setContact} onJoinTeam={joinTeam} onChat={openChat} onSearched={() => { if (!isOnboardingDone()) setPostSearchGuide(true) }} />}
         {tab === "predictions" && <Suspense fallback={<TabFallback />}><PredictionsTab onToast={setToast} /></Suspense>}
         {tab === "chat" && (
           <Suspense fallback={<TabFallback />}><ChatTab openChatId={chatOpen?.chatId ?? null} openPlayer={chatOpen?.player} onOpenConsumed={() => setChatOpen(null)} onOpenProfile={setSharedProfileId} /></Suspense>
@@ -279,24 +296,21 @@ function Shell() {
         <BannedSheet reason={banReason} expiresAt={banExpiresAt} />
       )}
 
-      {/* Онбординг: политика конфиденциальности и дисклеймер.
-          Показывается только если пользователь ещё не принял актуальную
-          версию соглашения; решение хранится на сервере. */}
-      {loaded && !banned && consentVersion < CONSENT_VERSION && (
-        <ConsentSheet onAccept={acceptConsent} />
-      )}
-
-      {/* Обучение: показывается после принятия согласия, один раз за устройство.
-          Кнопка «Пропустить» доступна на первом шаге. */}
-      {loaded && !banned && consentVersion >= CONSENT_VERSION && (guideOpen || onboardingDone === false) && (
+      {/* Обучение: полное — только вручную из профиля; компактное (3 слайда) —
+          один раз после первого поиска. Согласие теперь спрашиваем не на входе,
+          а в момент создания анкеты (см. ProfileTab). */}
+      {loaded && !banned && (guideOpen || (onboardingDone === false && postSearchGuide)) && (
         <OnboardingSheet
+          compact={!guideOpen}
           onDone={() => {
             finishOnboarding()
             setGuideOpen(false)
+            setPostSearchGuide(false)
           }}
           onSkip={() => {
             finishOnboarding()
             setGuideOpen(false)
+            setPostSearchGuide(false)
           }}
         />
       )}
