@@ -14,6 +14,11 @@ services:
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
     envVars:
+      # WORKER_ONLY=1 превращает сервис в companion рядом с Vercel:
+      # не трогает Telegram webhook, держит WS-звонки/лупы/Discord.
+      # Поставь 1 в Dashboard когда Vercel примет вебхук.
+      - key: WORKER_ONLY
+        value: "0"
       - key: BOT_TOKEN
         sync: false
       - key: ADMIN_IDS

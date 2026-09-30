@@ -1,0 +1,43 @@
+name: backend-cron
+
+# Фон для serverless-стенда (Vercel): дёргаем POST /api/cron/* вместо
+# долгоживущих лупов. Секреты репозитория: APP_URL (https://<app>.vercel.app),
+# CRON_SECRET (должен совпадать с CRON_SECRET в env бэкенда).
+# Бонус: ping каждые 10 минут держит тёплым бесплатный Render-воркер (звонки).
+
+on:
+  schedule:
+    # Частые задачи + keepalive: каждые 10 минут
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  frequent:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Notify pass (push-уведомления + винбэк)
+        run: |
+          curl -fsS -m 50 -X POST "$APP_URL/api/cron/notify" \
+            -H "X-Cron-Secret: $CRON_SECRET" -H "Content-Type: application/json" \
+            -d '{}'
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+      - name: Prediction settlement
+        run: |
+          curl -fsS -m 50 -X POST "$APP_URL/api/cron/predictions" \
+            -H "X-Cron-Secret: $CRON_SECRET" -H "Content-Type: application/json" \
+            -d '{}'
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+      - name: Keep Render worker warm
+        run: |
+          if [ -n "$WORKER_URL" ]; then
+            curl -fsS -m 30 "$WORKER_URL/health" > /dev/null
+          fi
+        env:
+          WORKER_URL: ${{ secrets.WORKER_URL }}

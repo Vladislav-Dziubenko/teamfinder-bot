@@ -9,13 +9,13 @@ import time
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
+
 from aiohttp import web
 
 from config import load_settings
 from database import Database
 from handlers import start, profile, search, guides, payments, admin, discord, appeal, voice, ask, help as help_handler
-from middleware import InjectMiddleware, RateLimitMiddleware
+from middleware import InjectMiddleware, RateLimitMiddleware, build_fsm_storage
 from webapp.server import create_app, set_db_ready
 
 _PROCESS_START = time.monotonic()
@@ -64,7 +64,7 @@ async def main():
             await asyncio.wait_for(bot.me(), timeout=8)
         except Exception as e:
             logging.warning("bot.me() failed: %s", e)
-        dp = Dispatcher(storage=MemoryStorage())
+        dp = Dispatcher(storage=build_fsm_storage())
 
         dp.update.middleware(RateLimitMiddleware())
         dp.update.middleware(InjectMiddleware(db, settings))
@@ -165,47 +165,54 @@ async def main():
         asyncio.create_task(clan_season_loop(bot, db, settings))
 
         # ---- Шаг 6: удаляем старый webhook (если был) и регистрируем новый ----
-        # Хардкодим правильный URL чтобы не прыгал между -1 и -9pol из-за старого WEBAPP_URL/кэша
-        _hardcoded = "https://teamfinder-bot-1-9pol.onrender.com"
-        raw_render = (os.environ.get("RENDER_EXTERNAL_URL") or "").strip()
-        # Если это старый сервис teamfinder-bot-1 (без -9pol) — вообще не трогаем webhook, чтобы не драться с -9pol
-        if raw_render == "https://teamfinder-bot-1.onrender.com":
-            logging.warning("Старый сервис teamfinder-bot-1 обнаружен — webhook не трогаю, работает -9pol")
-            public_url = ""
-        else:
-            public_url = raw_render
-            if not public_url:
-                public_url = (settings.webapp_url or "").strip()
-            # Если Render отдал старый -1 без -9pol — форсим -9pol
-            if public_url == "https://teamfinder-bot-1.onrender.com":
-                public_url = _hardcoded
-            if not public_url:
-                public_url = _hardcoded
-        logging.info("WEBHOOK public_url resolved: '%s' (RENDER_EXTERNAL_URL='%s' webapp_url='%s')",
-                     public_url, os.environ.get("RENDER_EXTERNAL_URL", ""), settings.webapp_url)
+        # WORKER_ONLY=1: companion-режим рядом с Vercel — вебхук принадлежит
+        # Vercel, его не трогаем (иначе два сервиса будут драться за апдейты).
+        # Остальное (WS-звонки, лупы, Discord-gateway) работает как обычно.
+        worker_only = (os.environ.get("WORKER_ONLY", "") or "").strip().lower() in ("1", "true", "yes")
         webhook_url = ""
-        if public_url:
-            try:
-                await bot.delete_webhook(drop_pending_updates=True)
-            except Exception:
-                logging.exception("delete_webhook перед set_webhook")
-            webhook_url = f"{public_url.rstrip('/')}/webhook/{webhook_secret}"
-            for attempt in range(3):
-                try:
-                    await bot.set_webhook(
-                        url=webhook_url,
-                        allowed_updates=dp.resolve_used_update_types(),
-                        drop_pending_updates=True,
-                        secret_token=webhook_secret,
-                    )
-                    logging.info("Webhook установлен: %s", webhook_url)
-                    break
-                except Exception as e:
-                    logging.warning("set_webhook attempt %d/3 failed: %s", attempt + 1, e)
-                    if attempt < 2:
-                        await asyncio.sleep(3)
+        if worker_only:
+            logging.info("WORKER_ONLY=1: пропускаю delete/set webhook и watchdog, вебхук за Vercel")
         else:
-            logging.warning("WEBAPP_URL / RENDER_EXTERNAL_URL не задан — webhook не зарегистрирован")
+            # Хардкодим правильный URL чтобы не прыгал между -1 и -9pol из-за старого WEBAPP_URL/кэша
+            _hardcoded = "https://teamfinder-bot-1-9pol.onrender.com"
+            raw_render = (os.environ.get("RENDER_EXTERNAL_URL") or "").strip()
+            # Если это старый сервис teamfinder-bot-1 (без -9pol) — вообще не трогаем webhook, чтобы не драться с -9pol
+            if raw_render == "https://teamfinder-bot-1.onrender.com":
+                logging.warning("Старый сервис teamfinder-bot-1 обнаружен — webhook не трогаю, работает -9pol")
+                public_url = ""
+            else:
+                public_url = raw_render
+                if not public_url:
+                    public_url = (settings.webapp_url or "").strip()
+                # Если Render отдал старый -1 без -9pol — форсим -9pol
+                if public_url == "https://teamfinder-bot-1.onrender.com":
+                    public_url = _hardcoded
+                if not public_url:
+                    public_url = _hardcoded
+            logging.info("WEBHOOK public_url resolved: '%s' (RENDER_EXTERNAL_URL='%s' webapp_url='%s')",
+                         public_url, os.environ.get("RENDER_EXTERNAL_URL", ""), settings.webapp_url)
+            if public_url:
+                try:
+                    await bot.delete_webhook(drop_pending_updates=True)
+                except Exception:
+                    logging.exception("delete_webhook перед set_webhook")
+                webhook_url = f"{public_url.rstrip('/')}/webhook/{webhook_secret}"
+                for attempt in range(3):
+                    try:
+                        await bot.set_webhook(
+                            url=webhook_url,
+                            allowed_updates=dp.resolve_used_update_types(),
+                            drop_pending_updates=True,
+                            secret_token=webhook_secret,
+                        )
+                        logging.info("Webhook установлен: %s", webhook_url)
+                        break
+                    except Exception as e:
+                        logging.warning("set_webhook attempt %d/3 failed: %s", attempt + 1, e)
+                        if attempt < 2:
+                            await asyncio.sleep(3)
+            else:
+                logging.warning("WEBAPP_URL / RENDER_EXTERNAL_URL не задан — webhook не зарегистрирован")
 
         # ---- Шаг 5: открываем порт ПОСЛЕ установки webhook (чтобы обновления не падали в 503) ----
         port = int(os.getenv("PORT", settings.webapp_port))

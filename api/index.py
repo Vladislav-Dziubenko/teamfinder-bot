@@ -68,16 +68,16 @@ def _init_webhook():
         from aiogram import Bot as WBot, Dispatcher
         from aiogram.client.default import DefaultBotProperties as WDP
         from aiogram.enums import ParseMode as WP
-        from aiogram.fsm.storage.memory import MemoryStorage
+        
         from config import load_settings
         from database import Database
         from handlers import start, profile, search, guides, payments, admin, discord, voice
-        from middleware import InjectMiddleware, RateLimitMiddleware
+        from middleware import InjectMiddleware, RateLimitMiddleware, build_fsm_storage
 
         settings = load_settings()
         _webhook_db = Database(settings.database_url, bot_token=settings.bot_token, fernet_key=settings.fernet_key)
         _webhook_bot = WBot(token=settings.bot_token, default=WDP(parse_mode=WP.HTML))
-        _webhook_dp = Dispatcher(storage=MemoryStorage())
+        _webhook_dp = Dispatcher(storage=build_fsm_storage())
         _webhook_dp.update.middleware(RateLimitMiddleware())
         _webhook_dp.update.middleware(InjectMiddleware(_webhook_db, settings))
         _webhook_dp.include_router(start.router)
@@ -284,10 +284,31 @@ def _handle_webhook(path, body, headers=None):
         request_body = json.loads(body_str)
         update = TGUpdate(**request_body)
         _loop.run_until_complete(dp.feed_update(bot, update))
+        # Дренаж фоновых задач хендлеров (уведомления и т.п.) до возврата.
+        _drain_background()
         return {"statusCode": 200, "headers": {}, "body": '{"ok":true}'}
     except Exception as e:
         logger.exception(f"Webhook error: {e}")
         return {"statusCode": 500, "headers": {}, "body": json.dumps({"error": str(e)})}
+
+
+def _drain_background(timeout: float = 5.0):
+    """Даём fire-and-forget задачам хендлеров (уведомления в Telegram,
+    запись аналитики, AI-модерация) шанс завершиться ДО возврата ответа.
+    На serverless процесс замораживается после return — без дренажа они
+    умирали бы молча. Грейс ограничен, чтобы уложиться в таймаут функции."""
+    try:
+        pending = [t for t in asyncio.all_tasks(_loop)
+                   if not t.done() and t is not asyncio.current_task(_loop)]
+        if not pending:
+            return
+
+        async def _wait_all():
+            await asyncio.gather(*pending, return_exceptions=True)
+
+        _loop.run_until_complete(asyncio.wait_for(_wait_all(), timeout=timeout))
+    except Exception as e:
+        logger.warning(f"Background drain truncated: {e}")
 
 
 def _process_request(method, path, headers, body):
@@ -355,6 +376,8 @@ def _process_request(method, path, headers, body):
                 }
 
             result = _loop.run_until_complete(_handle())
+            # Дренаж фоновых задач до возврата (см. _drain_background).
+            _drain_background()
             return result
 
     except BaseException as e:

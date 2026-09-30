@@ -1,3 +1,5 @@
+import logging
+import os
 from typing import Any, Awaitable, Callable, Dict
 
 from aiogram import BaseMiddleware
@@ -6,6 +8,38 @@ from aiogram.types import TelegramObject, Message, CallbackQuery
 from config import Settings
 from database import Database
 from webapp.redis_client import rate_limit_check
+
+logger = logging.getLogger(__name__)
+
+
+def build_fsm_storage():
+    """FSM-хранилище: Redis (Upstash) если задан REDIS_URL, иначе память.
+    На serverless (Vercel) инстансы не делят память — многошаговые сценарии
+    (создание анкеты, оплаты) разваливались бы между запросами. Redis общий
+    для всех инстансов. Fail-open в MemoryStorage при любой ошибке."""
+    try:
+        from aiogram.fsm.storage.memory import MemoryStorage
+        url = (os.environ.get("REDIS_URL", "") or "").strip()
+        if not url:
+            return MemoryStorage()
+        try:
+            from aiogram.fsm.storage.redis import RedisStorage
+            from redis.asyncio import Redis as AsyncRedis
+        except Exception as e:
+            logger.warning("FSM Redis deps missing, using memory: %s", e)
+            return MemoryStorage()
+        try:
+            client = AsyncRedis.from_url(url, decode_responses=False)
+            storage = RedisStorage(client)
+            logger.info("FSM storage: Redis")
+            return storage
+        except Exception as e:
+            logger.warning("FSM Redis init failed, using memory: %s", e)
+            return MemoryStorage()
+    except Exception as e:
+        logger.warning("FSM storage fallback to memory: %s", e)
+        from aiogram.fsm.storage.memory import MemoryStorage
+        return MemoryStorage()
 
 
 class RateLimitMiddleware(BaseMiddleware):

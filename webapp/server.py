@@ -492,6 +492,9 @@ async def auth_middleware(request: web.Request, handler):
     if request.path.startswith("/api/"):
         is_public = (
             request.path in PUBLIC_API_PATHS
+            # Исключение из правила "без префикс-матча": машинный cron
+            # аутентифицируется секретом X-Cron-Secret внутри хендлера.
+            or request.path.startswith("/api/cron/")
             or (request.method == "GET" and request.path in PUBLIC_API_GET_PATHS)
             # Images cannot attach initData headers. The handler permits only
             # files in our public sticker catalog, never arbitrary bot files.
@@ -5302,6 +5305,59 @@ def _schedule_teammate_matching(request: web.Request, candidate_id: int, candida
         pass
 
 
+async def handle_cron(request: web.Request):
+    """Точка входа для внешнего cron (GitHub Actions) на serverless-стенде,
+    где нет долгоживущих лупов. Аутентификация — заголовок X-Cron-Secret
+    (секрет CRON_SECRET в env, fail-closed при отсутствии).
+    POST /api/cron/{job}, job: notify|super|clanroll|predictions|model-income|ai-digest."""
+    db: Database = request.app["db"]
+    expected = (os.environ.get("CRON_SECRET", "") or "").strip()
+    if not expected:
+        return web.json_response({"error": "cron not configured"}, status=403)
+    provided = (request.headers.get("X-Cron-Secret", "") or "").strip()
+    if not provided or provided != expected:
+        return web.json_response({"error": "forbidden"}, status=403)
+    try:
+        job = str(request.match_info.get("job", "") or "").strip()
+    except Exception:
+        return web.json_response({"error": "bad job"}, status=400)
+    bot = request.app.get("bot")
+    settings = request.app.get("settings")
+    webapp_url = (getattr(settings, "webapp_url", "") or "") if settings else ""
+    try:
+        if job == "notify":
+            from handlers.notifier import (
+                _notify_battlepass_ready, _notify_daily_case,
+                _notify_profile_winback, _notify_return_bonus,
+            )
+            await _notify_battlepass_ready(bot, db)
+            await _notify_return_bonus(bot, db)
+            await _notify_daily_case(bot, db)
+            await _notify_profile_winback(bot, db, webapp_url)
+        elif job == "super":
+            from handlers.superloop import super_weekly_tick
+            await super_weekly_tick(bot, db, settings)
+        elif job == "clanroll":
+            from handlers.clanroll import clan_season_tick
+            await clan_season_tick(bot, db, settings)
+        elif job == "predictions":
+            await _prediction_tick(request.app)
+        elif job == "model-income":
+            try:
+                paid = await db.pay_limited_model_income()
+            except Exception as e:
+                return web.json_response({"ok": False, "error": str(e)[:200]}, status=500)
+            return web.json_response({"ok": True, "job": job, "paid": paid})
+        elif job == "ai-digest":
+            await _ai_send_digest(request.app)
+        else:
+            return web.json_response({"error": "unknown job"}, status=400)
+    except Exception as e:
+        logging.exception("[cron] job %s failed", job)
+        return web.json_response({"ok": False, "error": str(e)[:200]}, status=500)
+    return web.json_response({"ok": True, "job": job})
+
+
 async def handle_admin_role(request: web.Request):
     db: Database = request.app["db"]
     user = _get_user(request)
@@ -7227,6 +7283,8 @@ def create_app(db: Database, settings: Settings, bot) -> web.Application:
     app.router.add_post("/api/admin/role", handle_admin_role)
     app.router.add_get("/api/admin/users", handle_admin_users)
     app.router.add_post("/api/admin/tg-profile/{user_id}", handle_admin_tg_profile)
+    # Внешний cron для serverless-стенда (секрет X-Cron-Secret, fail-closed).
+    app.router.add_post("/api/cron/{job}", handle_cron)
     # NEXUS retention analytics (overview — только разработчик, проверка в хендлере)
     app.router.add_post("/api/analytics/event", handle_analytics_event)
     app.router.add_get("/api/analytics/overview", handle_analytics_overview)

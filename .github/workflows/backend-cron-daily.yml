@@ -1,0 +1,70 @@
+name: backend-cron-daily
+
+# Редкие задачи: раз в 6 часов гранты, раз в сутки ролловер/доход/AI-дайджест.
+
+on:
+  schedule:
+    # Super-гранты: каждые 6 часов
+    - cron: "0 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  grants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Super weekly grants
+        run: |
+          curl -fsS -m 50 -X POST "$APP_URL/api/cron/super" \
+            -H "X-Cron-Secret: $CRON_SECRET" -H "Content-Type: application/json" \
+            -d '{}'
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Дневные задачи стреляют только в запуске на 05:xx UTC.
+    steps:
+      - name: Clan season rollover
+        run: |
+          H=$(date -u +%H)
+          if [ "$H" = "05" ]; then
+            curl -fsS -m 50 -X POST "$APP_URL/api/cron/clanroll" \
+              -H "X-Cron-Secret: $CRON_SECRET" -H "Content-Type: application/json" \
+              -d '{}'
+          else
+            echo "skip daily jobs (hour=$H)"
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+      - name: Model income
+        run: |
+          H=$(date -u +%H)
+          if [ "$H" = "05" ]; then
+            curl -fsS -m 50 -X POST "$APP_URL/api/cron/model-income" \
+              -H "X-Cron-Secret: $CRON_SECRET" -H "Content-Type: application/json" \
+              -d '{}'
+          else
+            echo "skip daily jobs (hour=$H)"
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+
+      - name: AI digest
+        run: |
+          H=$(date -u +%H)
+          if [ "$H" = "05" ]; then
+            curl -fsS -m 50 -X POST "$APP_URL/api/cron/ai-digest" \
+              -H "X-Cron-Secret: $CRON_SECRET" -H "Content-Type: application/json" \
+              -d '{}'
+          else
+            echo "skip daily jobs (hour=$H)"
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}

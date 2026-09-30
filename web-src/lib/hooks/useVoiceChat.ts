@@ -359,9 +359,14 @@ export function useVoiceChat(sessionId: number, userId: number, enabled: boolean
       localRef.current = stream
       setLocalStream(stream)
 
+      // Отдельный WS-хост для звонков (на serverless-стенде звонки живёт
+      // воркер): NEXT_PUBLIC_VOICE_WS_URL вида wss://host (без пути).
+      // Пусто — тот же хост, что у Mini App (монолитный стенд).
+      const voiceHost = (process.env.NEXT_PUBLIC_VOICE_WS_URL || "").trim().replace(/\/+$/, "")
       const protocol = window.location.protocol === "https:" ? "wss:" : "ws:"
+      const wsBase = voiceHost || `${protocol}//${window.location.host}`
       const ws = new WebSocket(
-        `${protocol}//${window.location.host}/ws/voice/${sessionId}?init_data=${encodeURIComponent(getInitData())}`,
+        `${wsBase}/ws/voice/${sessionId}?init_data=${encodeURIComponent(getInitData())}`,
       )
       wsRef.current = ws
 

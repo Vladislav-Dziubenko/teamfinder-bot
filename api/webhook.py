@@ -16,13 +16,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from aiogram.fsm.storage.memory import MemoryStorage
+
 from aiogram.types import Update
 
 from config import load_settings
 from database import Database
 from handlers import start, profile, search, guides, payments, admin, discord, voice
-from middleware import InjectMiddleware, RateLimitMiddleware
+from middleware import InjectMiddleware, RateLimitMiddleware, build_fsm_storage
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def get_bot_and_dp():
             default=DefaultBotProperties(parse_mode=ParseMode.HTML),
         )
         
-        _dp = Dispatcher(storage=MemoryStorage())
+        _dp = Dispatcher(storage=build_fsm_storage())
         _dp.update.middleware(RateLimitMiddleware())
         _dp.update.middleware(InjectMiddleware(_db, _settings))
         
